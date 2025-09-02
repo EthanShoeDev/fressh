@@ -8,9 +8,12 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "format": "prettier . --write",
+    "typecheck": "tsc"
   },
   "dependencies": {
+    "@dylankenneally/react-native-ssh-sftp": "^1.5.20",
     "@expo/vector-icons": "^15.0.2",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
@@ -30,17 +33,21 @@
     "react-dom": "19.1.0",
     "react-native": "0.81.1",
     "react-native-gesture-handler": "~2.28.0",
-    "react-native-worklets": "~0.4.2",
     "react-native-reanimated": "~4.0.2",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.15.4",
-    "react-native-web": "~0.21.0"
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "~0.4.2"
   },
   "devDependencies": {
+    "@epic-web/config": "^1.21.3",
     "@types/react": "~19.1.0",
-    "typescript": "~5.9.2",
     "eslint": "^9.25.0",
-    "eslint-config-expo": "~10.0.0"
+    "eslint-config-expo": "~10.0.0",
+    "prettier": "^3.6.2",
+    "prettier-plugin-organize-imports": "^4.2.0",
+    "tsx": "^4.20.5",
+    "typescript": "~5.9.2"
   },
   "private": true
 }
