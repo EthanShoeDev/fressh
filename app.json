@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "dev.fressh.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
