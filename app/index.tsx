@@ -1,5 +1,9 @@
 import SSHClient, { PtyType } from '@dylankenneally/react-native-ssh-sftp'
-import { createFormHook, createFormHookContexts } from '@tanstack/react-form'
+import {
+	AnyFieldApi,
+	createFormHook,
+	createFormHookContexts,
+} from '@tanstack/react-form'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 
 const { fieldContext, formContext } = createFormHookContexts()
@@ -8,12 +12,12 @@ const { fieldContext, formContext } = createFormHookContexts()
 function TextField(
 	props: React.ComponentProps<typeof TextInput> & {
 		label?: string
-		meta?: any
+		field: AnyFieldApi
 	},
 ) {
-	const { label, meta, style, ...rest } = props
-	const errorMessage =
-		meta?.touchedErrors?.[0] ?? meta?.errors?.[0] ?? meta?.error
+	const { label, field, style, ...rest } = props
+	const meta = field.state.meta
+	const errorMessage = meta?.errors?.[0] // TODO: typesafe errors
 
 	return (
 		<View style={styles.inputGroup}>
@@ -33,12 +37,12 @@ function TextField(
 function NumberField(
 	props: React.ComponentProps<typeof TextInput> & {
 		label?: string
-		meta?: any
+		field: AnyFieldApi
 	},
 ) {
-	const { label, meta, style, keyboardType, onChangeText, ...rest } = props
-	const errorMessage =
-		meta?.touchedErrors?.[0] ?? meta?.errors?.[0] ?? meta?.error
+	const { label, field, style, keyboardType, onChangeText, ...rest } = props
+	const meta = field.state.meta
+	const errorMessage = meta?.errors?.[0]
 
 	return (
 		<View style={styles.inputGroup}>
@@ -157,51 +161,43 @@ export default function Index() {
 				<Text style={styles.subtitle}>Enter your server credentials</Text>
 
 				<connectionForm.AppForm>
-					<connectionForm.AppField
-						name="host"
-						children={(field) => (
+					<connectionForm.AppField name="host">
+						{(field) => (
 							<field.TextField
 								label="Host"
 								placeholder="example.com or 192.168.0.10"
-								meta={field.state.meta}
+								field={field}
 								autoCapitalize="none"
 								autoCorrect={false}
 							/>
 						)}
-					/>
-					<connectionForm.AppField
-						name="port"
-						children={(field) => (
-							<field.NumberField
-								label="Port"
-								placeholder="22"
-								meta={field.state.meta}
-							/>
+					</connectionForm.AppField>
+					<connectionForm.AppField name="port">
+						{(field) => (
+							<field.NumberField label="Port" placeholder="22" field={field} />
 						)}
-					/>
-					<connectionForm.AppField
-						name="username"
-						children={(field) => (
+					</connectionForm.AppField>
+					<connectionForm.AppField name="username">
+						{(field) => (
 							<field.TextField
 								label="Username"
 								placeholder="root"
-								meta={field.state.meta}
+								field={field}
 								autoCapitalize="none"
 								autoCorrect={false}
 							/>
 						)}
-					/>
-					<connectionForm.AppField
-						name="password"
-						children={(field) => (
+					</connectionForm.AppField>
+					<connectionForm.AppField name="password">
+						{(field) => (
 							<field.TextField
 								label="Password"
 								placeholder="••••••••"
-								meta={field.state.meta}
+								field={field}
 								secureTextEntry
 							/>
 						)}
-					/>
+					</connectionForm.AppField>
 
 					<View style={styles.actions}>
 						<connectionForm.SubmitButton
