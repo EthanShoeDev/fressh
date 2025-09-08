@@ -1,7 +1,7 @@
 {
-    "recommendations": [
-        "expo.vscode-expo-tools",
-        "gruntfuggly.todo-tree",
-        "eamodio.gitlens"
-    ]
+	"recommendations": [
+		"expo.vscode-expo-tools",
+		"gruntfuggly.todo-tree",
+		"eamodio.gitlens"
+	]
 }

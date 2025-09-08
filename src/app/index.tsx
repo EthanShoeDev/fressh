@@ -37,7 +37,8 @@ export default function Index() {
 				// 	console.log(data)
 				// })
 				await sshClientConnection.startShell(PtyType.XTERM)
-				const sshConn = sshConnectionManager.addSession({
+				// const sshConn =
+				sshConnectionManager.addSession({
 					client: sshClientConnection,
 				})
 				router.push(`/shell`)
