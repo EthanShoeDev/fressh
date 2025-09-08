@@ -1,18 +1,80 @@
 import { createFormHook, createFormHookContexts } from '@tanstack/react-form'
-import { Button, TextInput, View } from 'react-native'
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 
 const { fieldContext, formContext } = createFormHookContexts()
 
-function TextField() {
-	return <TextInput />
+function TextField(
+	props: React.ComponentProps<typeof TextInput> & {
+		label?: string
+		meta?: any
+	},
+) {
+	const { label, meta, style, ...rest } = props
+	const errorMessage =
+		meta?.touchedErrors?.[0] ?? meta?.errors?.[0] ?? meta?.error
+
+	return (
+		<View style={styles.inputGroup}>
+			{label ? <Text style={styles.label}>{label}</Text> : null}
+			<TextInput
+				{...rest}
+				style={[styles.input, style]}
+				placeholderTextColor="#9AA0A6"
+			/>
+			{errorMessage ? (
+				<Text style={styles.errorText}>{String(errorMessage)}</Text>
+			) : null}
+		</View>
+	)
 }
 
-function NumberField() {
-	return <TextInput keyboardType="numeric" />
+function NumberField(
+	props: React.ComponentProps<typeof TextInput> & {
+		label?: string
+		meta?: any
+	},
+) {
+	const { label, meta, style, keyboardType, onChangeText, ...rest } = props
+	const errorMessage =
+		meta?.touchedErrors?.[0] ?? meta?.errors?.[0] ?? meta?.error
+
+	return (
+		<View style={styles.inputGroup}>
+			{label ? <Text style={styles.label}>{label}</Text> : null}
+			<TextInput
+				{...rest}
+				keyboardType={keyboardType ?? 'numeric'}
+				style={[styles.input, style]}
+				placeholderTextColor="#9AA0A6"
+				onChangeText={(text) => {
+					if (onChangeText) onChangeText(text)
+				}}
+			/>
+			{errorMessage ? (
+				<Text style={styles.errorText}>{String(errorMessage)}</Text>
+			) : null}
+		</View>
+	)
 }
 
-function SubmitButton() {
-	return <Button title="Submit" onPress={() => {}} />
+function SubmitButton(props: {
+	onPress?: () => void
+	title?: string
+	disabled?: boolean
+}) {
+	const { onPress, title = 'Connect', disabled } = props
+	return (
+		<Pressable
+			style={[
+				styles.submitButton,
+				disabled ? styles.buttonDisabled : undefined,
+			]}
+			onPress={onPress}
+			disabled={disabled}
+		>
+			<Text style={styles.submitButtonText}>{title}</Text>
+		</Pressable>
+	)
 }
 
 // Allow us to bind components to the form to keep type safety but reduce production boilerplate
@@ -39,19 +101,19 @@ export default function Index() {
 		},
 		validators: {
 			onSubmitAsync: async (values) => {
+				// we will connect here.
+				// if connection fails, tanstack form will know the form is in an error state.
+
+				// we can read that state from the field.state.meta.errors (or errorMap)
+				//
+
 				console.log(values)
 			},
 		},
 	})
 
 	return (
-		<View
-			style={{
-				flex: 1,
-				justifyContent: 'center',
-				alignItems: 'center',
-			}}
-		>
+		<View style={styles.container}>
 			{/* <Button
 				title="Click me"
 				onPress={() => {
@@ -74,26 +136,133 @@ export default function Index() {
 					})
 				}}
 			/> */}
-			<connectionForm.AppForm>
-				<connectionForm.AppField
-					name="host"
-					children={(field) => <field.TextField />}
-				/>
-				<connectionForm.AppField
-					name="port"
-					children={(field) => <field.NumberField />}
-				/>
-				<connectionForm.AppField
-					name="username"
-					children={(field) => <field.TextField />}
-				/>
-				<connectionForm.AppField
-					name="password"
-					children={(field) => <field.TextField />}
-				/>
+			<View style={styles.card}>
+				<Text style={styles.title}>Connect to SSH Server</Text>
+				<Text style={styles.subtitle}>Enter your server credentials</Text>
 
-				<connectionForm.SubmitButton />
-			</connectionForm.AppForm>
+				<connectionForm.AppForm>
+					<connectionForm.AppField
+						name="host"
+						children={(field) => (
+							<field.TextField
+								label="Host"
+								placeholder="example.com or 192.168.0.10"
+								meta={field.state.meta}
+								autoCapitalize="none"
+								autoCorrect={false}
+							/>
+						)}
+					/>
+					<connectionForm.AppField
+						name="port"
+						children={(field) => (
+							<field.NumberField
+								label="Port"
+								placeholder="22"
+								meta={field.state.meta}
+							/>
+						)}
+					/>
+					<connectionForm.AppField
+						name="username"
+						children={(field) => (
+							<field.TextField
+								label="Username"
+								placeholder="root"
+								meta={field.state.meta}
+								autoCapitalize="none"
+								autoCorrect={false}
+							/>
+						)}
+					/>
+					<connectionForm.AppField
+						name="password"
+						children={(field) => (
+							<field.TextField
+								label="Password"
+								placeholder="••••••••"
+								meta={field.state.meta}
+								secureTextEntry
+							/>
+						)}
+					/>
+
+					<View style={styles.actions}>
+						<connectionForm.SubmitButton title="Connect" />
+					</View>
+				</connectionForm.AppForm>
+			</View>
 		</View>
 	)
 }
+
+const styles = StyleSheet.create({
+	container: {
+		flex: 1,
+		padding: 24,
+		backgroundColor: '#0B1324',
+		justifyContent: 'center',
+	},
+	card: {
+		backgroundColor: '#111B34',
+		borderRadius: 16,
+		padding: 20,
+		shadowColor: '#000',
+		shadowOpacity: 0.2,
+		shadowRadius: 12,
+		elevation: 6,
+	},
+	title: {
+		fontSize: 22,
+		fontWeight: '700',
+		color: '#E5E7EB',
+		marginBottom: 4,
+	},
+	subtitle: {
+		fontSize: 14,
+		color: '#9AA0A6',
+		marginBottom: 16,
+	},
+	inputGroup: {
+		marginBottom: 12,
+	},
+	label: {
+		marginBottom: 6,
+		fontSize: 14,
+		color: '#C6CBD3',
+		fontWeight: '600',
+	},
+	input: {
+		borderWidth: 1,
+		borderColor: '#2A3655',
+		backgroundColor: '#0E172B',
+		color: '#E5E7EB',
+		borderRadius: 10,
+		paddingHorizontal: 12,
+		paddingVertical: 12,
+		fontSize: 16,
+	},
+	errorText: {
+		marginTop: 6,
+		color: '#FCA5A5',
+		fontSize: 12,
+	},
+	actions: {
+		marginTop: 8,
+	},
+	submitButton: {
+		backgroundColor: '#2563EB',
+		borderRadius: 10,
+		paddingVertical: 14,
+		alignItems: 'center',
+	},
+	submitButtonText: {
+		color: '#FFFFFF',
+		fontWeight: '700',
+		fontSize: 16,
+	},
+	buttonDisabled: {
+		backgroundColor: '#3B82F6',
+		opacity: 0.6,
+	},
+})
