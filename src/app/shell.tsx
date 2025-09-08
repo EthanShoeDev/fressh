@@ -1,6 +1,7 @@
 /**
  * This is the page that is shown after an ssh connection
  */
+import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import {
 	Platform,
@@ -15,8 +16,7 @@ import { sshConnectionManager } from '../lib/ssh-connection-manager'
 
 export default function Shell() {
 	// https://docs.expo.dev/router/reference/url-parameters/
-	// const { session: sessionId } = useLocalSearchParams<{ session: string }>()
-	const sessionId = '123'
+	const { sessionId } = useLocalSearchParams<{ sessionId: string }>()
 	const sshConn = sshConnectionManager.getSession({ sessionId }) // this throws if the session is not found
 
 	const [shellData, setShellData] = useState('')
@@ -30,6 +30,19 @@ export default function Shell() {
 		// 	sshConn.client.off('Shell')
 		//  }
 	}, [setShellData, sshConn.client])
+
+	useEffect(() => {
+		return () => {
+			setTimeout(() => {
+				try {
+					sshConnectionManager.removeAndDisconnectSession({ sessionId })
+					console.log('Disconnected from SSH server')
+				} catch (error) {
+					console.error('Error disconnecting from SSH server', error)
+				}
+			}, 3_000)
+		}
+	}, [sessionId])
 
 	const scrollViewRef = useRef<ScrollView | null>(null)
 
