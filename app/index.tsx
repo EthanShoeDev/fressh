@@ -1,8 +1,10 @@
+import SSHClient, { PtyType } from '@dylankenneally/react-native-ssh-sftp'
 import { createFormHook, createFormHookContexts } from '@tanstack/react-form'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 
 const { fieldContext, formContext } = createFormHookContexts()
 
+// https://tanstack.com/form/latest/docs/framework/react/quick-start
 function TextField(
 	props: React.ComponentProps<typeof TextInput> & {
 		label?: string
@@ -100,14 +102,28 @@ export default function Index() {
 			password: '',
 		},
 		validators: {
-			onSubmitAsync: async (values) => {
+			onSubmitAsync: async ({ value }) => {
 				// we will connect here.
 				// if connection fails, tanstack form will know the form is in an error state.
 
 				// we can read that state from the field.state.meta.errors (or errorMap)
 				//
+				SSHClient.connectWithPassword(
+					value.host,
+					value.port,
+					value.username,
+					value.password,
+				).then(async (client) => {
+					alert('Connected')
+					client.on('Shell', (data) => {
+						console.log(data)
+					})
+					await client.startShell(PtyType.XTERM)
 
-				console.log(values)
+					setTimeout(() => {
+						client.disconnect()
+					}, 5_000)
+				})
 			},
 		},
 	})
@@ -188,7 +204,12 @@ export default function Index() {
 					/>
 
 					<View style={styles.actions}>
-						<connectionForm.SubmitButton title="Connect" />
+						<connectionForm.SubmitButton
+							title="Connect"
+							onPress={() => {
+								connectionForm.handleSubmit()
+							}}
+						/>
 					</View>
 				</connectionForm.AppForm>
 			</View>
