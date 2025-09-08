@@ -1,1 +1,7 @@
-{ "recommendations": ["expo.vscode-expo-tools"] }
+{
+    "recommendations": [
+        "expo.vscode-expo-tools",
+        "gruntfuggly.todo-tree",
+        "eamodio.gitlens"
+    ]
+}

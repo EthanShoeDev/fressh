@@ -1,136 +1,39 @@
 import SSHClient, { PtyType } from '@dylankenneally/react-native-ssh-sftp'
-import {
-	AnyFieldApi,
-	createFormHook,
-	createFormHookContexts,
-} from '@tanstack/react-form'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-
-const { fieldContext, formContext } = createFormHookContexts()
-
-// #region: UI Components
-
-// https://tanstack.com/form/latest/docs/framework/react/quick-start
-function TextField(
-	props: React.ComponentProps<typeof TextInput> & {
-		label?: string
-		field: AnyFieldApi
-	},
-) {
-	const { label, field, style, ...rest } = props
-	const meta = field.state.meta
-	const errorMessage = meta?.errors?.[0] // TODO: typesafe errors
-
-	return (
-		<View style={styles.inputGroup}>
-			{label ? <Text style={styles.label}>{label}</Text> : null}
-			<TextInput
-				{...rest}
-				style={[styles.input, style]}
-				placeholderTextColor="#9AA0A6"
-			/>
-			{errorMessage ? (
-				<Text style={styles.errorText}>{String(errorMessage)}</Text>
-			) : null}
-		</View>
-	)
-}
-
-function NumberField(
-	props: React.ComponentProps<typeof TextInput> & {
-		label?: string
-		field: AnyFieldApi
-	},
-) {
-	const { label, field, style, keyboardType, onChangeText, ...rest } = props
-	const meta = field.state.meta
-	const errorMessage = meta?.errors?.[0]
-
-	return (
-		<View style={styles.inputGroup}>
-			{label ? <Text style={styles.label}>{label}</Text> : null}
-			<TextInput
-				{...rest}
-				keyboardType={keyboardType ?? 'numeric'}
-				style={[styles.input, style]}
-				placeholderTextColor="#9AA0A6"
-				onChangeText={(text) => {
-					if (onChangeText) onChangeText(text)
-				}}
-			/>
-			{errorMessage ? (
-				<Text style={styles.errorText}>{String(errorMessage)}</Text>
-			) : null}
-		</View>
-	)
-}
-
-function SubmitButton(props: {
-	onPress?: () => void
-	title?: string
-	disabled?: boolean
-}) {
-	const { onPress, title = 'Connect', disabled } = props
-	return (
-		<Pressable
-			style={[
-				styles.submitButton,
-				disabled ? styles.buttonDisabled : undefined,
-			]}
-			onPress={onPress}
-			disabled={disabled}
-		>
-			<Text style={styles.submitButtonText}>{title}</Text>
-		</Pressable>
-	)
-}
-
-// #endregion
-
-// https://tanstack.com/form/latest/docs/framework/react/quick-start
-const { useAppForm } = createFormHook({
-	fieldComponents: {
-		TextField,
-		NumberField,
-	},
-	formComponents: {
-		SubmitButton,
-	},
-	fieldContext,
-	formContext,
-})
+import { StyleSheet, Text, View } from 'react-native'
+import { useFresshAppForm } from '../lib/app-form'
 
 export default function Index() {
-	const connectionForm = useAppForm({
+	const connectionForm = useFresshAppForm({
 		defaultValues: {
-			host: '',
+			// host: '',
+			// port: 22,
+			// username: '',
+			// password: '',
+			// TODO:  Remove this weird default
+			host: 'test.rebex.net',
 			port: 22,
-			username: '',
-			password: '',
+			username: 'demo',
+			password: 'password',
 		},
 		validators: {
+			// TODO: Add a zod validator here
+			// onChange: z.object({
+			// 	email: z.email(),
+			//   }),
 			onSubmitAsync: async ({ value }) => {
-				// we will connect here.
-				// if connection fails, tanstack form will know the form is in an error state.
-
-				// we can read that state from the field.state.meta.errors (or errorMap)
-				//
-				SSHClient.connectWithPassword(
+				console.log('Connecting to SSH server...')
+				const sshClientConnection = await SSHClient.connectWithPassword(
 					value.host,
 					value.port,
 					value.username,
 					value.password,
-				).then(async (client) => {
-					alert('Connected')
-					client.on('Shell', (data) => {
-						console.log(data)
-					})
-					await client.startShell(PtyType.XTERM)
+				)
+				console.log('Connected to SSH server')
 
-					setTimeout(() => {
-						client.disconnect()
-					}, 5_000)
+				sshClientConnection.on('Shell', (data) => {
+					console.log(data)
 				})
+				await sshClientConnection.startShell(PtyType.XTERM)
 			},
 		},
 	})
