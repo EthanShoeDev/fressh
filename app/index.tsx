@@ -8,6 +8,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 
 const { fieldContext, formContext } = createFormHookContexts()
 
+// #region: UI Components
+
 // https://tanstack.com/form/latest/docs/framework/react/quick-start
 function TextField(
 	props: React.ComponentProps<typeof TextInput> & {
@@ -83,8 +85,9 @@ function SubmitButton(props: {
 	)
 }
 
-// Allow us to bind components to the form to keep type safety but reduce production boilerplate
-// Define this once to have a generator of consistent form instances throughout your app
+// #endregion
+
+// https://tanstack.com/form/latest/docs/framework/react/quick-start
 const { useAppForm } = createFormHook({
 	fieldComponents: {
 		TextField,
@@ -134,28 +137,6 @@ export default function Index() {
 
 	return (
 		<View style={styles.container}>
-			{/* <Button
-				title="Click me"
-				onPress={() => {
-					console.log('Connecting...')
-					SSHClient.connectWithPassword(
-						'test.rebex.net',
-						22,
-						'demo',
-						'password',
-					).then(async (client) => {
-						alert('Connected')
-						client.on('Shell', (data) => {
-							console.log(data)
-						})
-						await client.startShell(PtyType.XTERM)
-
-						setTimeout(() => {
-							client.disconnect()
-						}, 5_000)
-					})
-				}}
-			/> */}
 			<View style={styles.card}>
 				<Text style={styles.title}>Connect to SSH Server</Text>
 				<Text style={styles.subtitle}>Enter your server credentials</Text>
