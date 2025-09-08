@@ -1,7 +1,49 @@
-import SSHClient, { PtyType } from '@dylankenneally/react-native-ssh-sftp'
-import { Button, Text, View } from 'react-native'
+import { createFormHook, createFormHookContexts } from '@tanstack/react-form'
+import { Button, TextInput, View } from 'react-native'
+
+const { fieldContext, formContext } = createFormHookContexts()
+
+function TextField() {
+	return <TextInput />
+}
+
+function NumberField() {
+	return <TextInput keyboardType="numeric" />
+}
+
+function SubmitButton() {
+	return <Button title="Submit" onPress={() => {}} />
+}
+
+// Allow us to bind components to the form to keep type safety but reduce production boilerplate
+// Define this once to have a generator of consistent form instances throughout your app
+const { useAppForm } = createFormHook({
+	fieldComponents: {
+		TextField,
+		NumberField,
+	},
+	formComponents: {
+		SubmitButton,
+	},
+	fieldContext,
+	formContext,
+})
 
 export default function Index() {
+	const connectionForm = useAppForm({
+		defaultValues: {
+			host: '',
+			port: 22,
+			username: '',
+			password: '',
+		},
+		validators: {
+			onSubmitAsync: async (values) => {
+				console.log(values)
+			},
+		},
+	})
+
 	return (
 		<View
 			style={{
@@ -10,8 +52,7 @@ export default function Index() {
 				alignItems: 'center',
 			}}
 		>
-			<Text>Edit app/index.tsx to edit this screen.</Text>
-			<Button
+			{/* <Button
 				title="Click me"
 				onPress={() => {
 					console.log('Connecting...')
@@ -32,7 +73,27 @@ export default function Index() {
 						}, 5_000)
 					})
 				}}
-			/>
+			/> */}
+			<connectionForm.AppForm>
+				<connectionForm.AppField
+					name="host"
+					children={(field) => <field.TextField />}
+				/>
+				<connectionForm.AppField
+					name="port"
+					children={(field) => <field.NumberField />}
+				/>
+				<connectionForm.AppField
+					name="username"
+					children={(field) => <field.TextField />}
+				/>
+				<connectionForm.AppField
+					name="password"
+					children={(field) => <field.TextField />}
+				/>
+
+				<connectionForm.SubmitButton />
+			</connectionForm.AppForm>
 		</View>
 	)
 }
