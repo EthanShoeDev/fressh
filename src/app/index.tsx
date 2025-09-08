@@ -1,8 +1,11 @@
 import SSHClient, { PtyType } from '@dylankenneally/react-native-ssh-sftp'
+import { useRouter } from 'expo-router'
 import { StyleSheet, Text, View } from 'react-native'
 import { useFresshAppForm } from '../lib/app-form'
+import { sshConnectionManager } from '../lib/ssh-connection-manager'
 
 export default function Index() {
+	const router = useRouter()
 	const connectionForm = useFresshAppForm({
 		defaultValues: {
 			// host: '',
@@ -30,10 +33,14 @@ export default function Index() {
 				)
 				console.log('Connected to SSH server')
 
-				sshClientConnection.on('Shell', (data) => {
-					console.log(data)
-				})
+				// sshClientConnection.on('Shell', (data) => {
+				// 	console.log(data)
+				// })
 				await sshClientConnection.startShell(PtyType.XTERM)
+				const sshConn = sshConnectionManager.addSession({
+					client: sshClientConnection,
+				})
+				router.push(`/shell`)
 			},
 		},
 	})
@@ -53,12 +60,22 @@ export default function Index() {
 								field={field}
 								autoCapitalize="none"
 								autoCorrect={false}
+								value={field.state.value}
+								onChangeText={field.handleChange}
+								onBlur={field.handleBlur}
 							/>
 						)}
 					</connectionForm.AppField>
 					<connectionForm.AppField name="port">
 						{(field) => (
-							<field.NumberField label="Port" placeholder="22" field={field} />
+							<field.NumberField
+								label="Port"
+								placeholder="22"
+								field={field}
+								value={field.state.value.toString()}
+								onChangeText={(text) => field.handleChange(Number(text))}
+								onBlur={field.handleBlur}
+							/>
 						)}
 					</connectionForm.AppField>
 					<connectionForm.AppField name="username">
@@ -69,6 +86,9 @@ export default function Index() {
 								field={field}
 								autoCapitalize="none"
 								autoCorrect={false}
+								value={field.state.value}
+								onChangeText={field.handleChange}
+								onBlur={field.handleBlur}
 							/>
 						)}
 					</connectionForm.AppField>
@@ -79,6 +99,9 @@ export default function Index() {
 								placeholder="••••••••"
 								field={field}
 								secureTextEntry
+								value={field.state.value}
+								onChangeText={field.handleChange}
+								onBlur={field.handleBlur}
 							/>
 						)}
 					</connectionForm.AppField>
