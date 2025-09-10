@@ -3,8 +3,9 @@
  */
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { command, run, option, oneOf } from 'cmd-ts';
+import { command, run, option, oneOf, boolean, flag } from 'cmd-ts';
 import { z } from 'zod';
+import packageJson from '../package.json' with { type: 'json' };
 import { cmd } from './script-lib';
 
 async function getSecrets(): Promise<{
@@ -56,9 +57,18 @@ const signedBuildCommand = command({
 			description: 'The format of the build to build',
 			defaultValue: () => 'aab',
 		}),
+		ghRelease: flag({
+			long: 'gh-release',
+			type: boolean,
+			short: 'g',
+			description: 'Whether to create a GitHub release',
+			defaultValue: () => false,
+		}),
 	},
-	handler: async ({ format }) => {
+	handler: async ({ format, ghRelease }) => {
 		{
+			if (ghRelease && format !== 'apk')
+				throw new Error('ghRelease is only supported for apk builds');
 			const secrets = await getSecrets();
 			await cmd(`pnpm run prebuild:clean`);
 
@@ -150,6 +160,11 @@ const signedBuildCommand = command({
 			await cmd(`./gradlew app:${bundleCommand}`, {
 				relativeCwd: './android',
 			});
+
+			if (ghRelease)
+				await cmd(
+					`gh release create v${packageJson.version} ./android/app/build/outputs/bundle/release/app-release.aab`,
+				);
 		}
 	},
 });
