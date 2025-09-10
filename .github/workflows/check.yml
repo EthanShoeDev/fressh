@@ -10,7 +10,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   lint:
@@ -22,3 +23,15 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/setup
       - run: pnpm exec turbo lint:check
+
+  # test:
+  #   name: Test
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 10
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Install dependencies
+  #       uses: ./.github/actions/setup
+  #     - run: pnpm vitest
+  #       env:
+  #         NODE_OPTIONS: --max_old_space_size=8192
