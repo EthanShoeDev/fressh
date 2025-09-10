@@ -1,7 +1,10 @@
 {
 	"extends": ["//"],
 	"tasks": {
-		"lint": {},
+		"lint": {
+			"dependsOn": ["lint:fix", "typecheck", "//#lint:root", "expo:doctor"]
+		},
+		"expo:doctor": {},
 		"lint:check": {}
 	}
 }

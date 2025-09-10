@@ -5,6 +5,8 @@ packages:
 nodeLinker: hoisted
 
 onlyBuiltDependencies:
+  - '@tailwindcss/oxide'
   - esbuild
   - oxc-resolver
+  - sharp
   - unrs-resolver
