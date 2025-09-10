@@ -120,12 +120,14 @@ export function PickerField<T>(
 	);
 }
 
-export function SubmitButton(props: {
-	onPress?: () => void;
-	title?: string;
-	disabled?: boolean;
-}) {
-	const { onPress, title = 'Connect', disabled } = props;
+export function SubmitButton(
+	props: {
+		onPress?: () => void;
+		title?: string;
+		disabled?: boolean;
+	} & React.ComponentProps<typeof Pressable>,
+) {
+	const { onPress, title = 'Connect', disabled, ...rest } = props;
 	const formContext = useFormContext();
 	const isSubmitting = useStore(
 		formContext.store,
@@ -133,6 +135,7 @@ export function SubmitButton(props: {
 	);
 	return (
 		<Pressable
+			{...rest}
 			style={[
 				styles.submitButton,
 				disabled ? styles.buttonDisabled : undefined,

@@ -89,6 +89,7 @@ function CommandInput(props: {
 	return (
 		<View style={styles.commandBar}>
 			<TextInput
+				testID="command-input"
 				style={styles.commandInput}
 				value={command}
 				onChangeText={setCommand}
@@ -99,7 +100,11 @@ function CommandInput(props: {
 				returnKeyType="send"
 				onSubmitEditing={handleExecute}
 			/>
-			<Pressable style={styles.executeButton} onPress={handleExecute}>
+			<Pressable
+				style={styles.executeButton}
+				onPress={handleExecute}
+				testID="execute-button"
+			>
 				<Text style={styles.executeButtonText}>Execute</Text>
 			</Pressable>
 		</View>

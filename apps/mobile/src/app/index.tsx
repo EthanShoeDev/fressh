@@ -113,6 +113,7 @@ export default function Index() {
 							{(field) => (
 								<field.TextField
 									label="Host"
+									testID="host"
 									placeholder="example.com or 192.168.0.10"
 									autoCapitalize="none"
 									autoCorrect={false}
@@ -120,12 +121,19 @@ export default function Index() {
 							)}
 						</connectionForm.AppField>
 						<connectionForm.AppField name="port">
-							{(field) => <field.NumberField label="Port" placeholder="22" />}
+							{(field) => (
+								<field.NumberField
+									label="Port"
+									placeholder="22"
+									testID="port"
+								/>
+							)}
 						</connectionForm.AppField>
 						<connectionForm.AppField name="username">
 							{(field) => (
 								<field.TextField
 									label="Username"
+									testID="username"
 									placeholder="root"
 									autoCapitalize="none"
 									autoCorrect={false}
@@ -145,6 +153,7 @@ export default function Index() {
 								{(field) => (
 									<field.TextField
 										label="Password"
+										testID="password"
 										placeholder="••••••••"
 										secureTextEntry
 									/>
@@ -163,6 +172,7 @@ export default function Index() {
 						<View style={styles.actions}>
 							<connectionForm.SubmitButton
 								title="Connect"
+								testID="connect"
 								onPress={() => {
 									if (isSubmitting) return;
 									void connectionForm.handleSubmit();

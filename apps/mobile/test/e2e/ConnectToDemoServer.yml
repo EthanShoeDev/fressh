@@ -1,0 +1,38 @@
+appId: dev.fressh.app
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: host
+- eraseText
+- inputText: test.rebex.net
+- tapOn:
+    id: port
+- eraseText: 5
+- inputText: '22'
+- tapOn:
+    id: username
+- eraseText
+- inputText: demo
+- tapOn:
+    id: password
+- eraseText
+- inputText: password
+- tapOn:
+    id: connect
+- tapOn:
+    id: command-input
+- inputText: help
+- tapOn:
+    id: execute-button
+- assertVisible: 'Supported commands:'
+# https://github.com/mobile-dev-inc/Maestro/issues/1592#issuecomment-2829630053
+- extendedWaitUntil:
+    visible: somethingThatIsNotInTheUI # Any random text that does not exist in the UI
+    optional: true # This should be true so that the test won't fail
+    timeout: 10000 # 10 seconds
+- back
+- extendedWaitUntil:
+    visible: somethingThatIsNotInTheUI # Any random text that does not exist in the UI
+    optional: true # This should be true so that the test won't fail
+    timeout: 10000 # 10 seconds
