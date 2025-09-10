@@ -163,7 +163,7 @@ const signedBuildCommand = command({
 
 			if (ghRelease)
 				await cmd(
-					`gh release create v${packageJson.version} ./android/app/build/outputs/bundle/release/app-release.aab`,
+					`gh release create v${packageJson.version} ./android/app/build/outputs/apk/release/app-release.apk`,
 				);
 		}
 	},
