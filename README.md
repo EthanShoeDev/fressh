@@ -1,5 +1,5 @@
-Fressh is a mobile ssh client remains clean and simple but supports powerful
-features
+Fressh is a mobile SSH client that remains clean and simple while supporting
+powerful features:
 
 - Securely storing previous connections
 - Configurable preset command buttons
@@ -8,4 +8,4 @@ features
 Coming soon
 
 - Fully accurate xterm emulation
-- On device llm used for command completion and output summarization.
+- On-device LLM for command completion and output summarization
