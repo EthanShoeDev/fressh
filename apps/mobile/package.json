@@ -8,6 +8,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "android:release": "expo run:android --variant release",
+    "build:signed:aab": "tsx scripts/signed-build.ts",
+    "build:signed:apk": "tsx scripts/signed-build.ts --format apk",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "prebuild": "expo prebuild",
@@ -59,6 +61,7 @@
   "devDependencies": {
     "@epic-web/config": "^1.21.3",
     "@types/react": "~19.1.12",
+    "cmd-ts": "^0.14.1",
     "eslint": "^9.35.0",
     "eslint-config-expo": "~10.0.0",
     "jiti": "^2.5.1",
