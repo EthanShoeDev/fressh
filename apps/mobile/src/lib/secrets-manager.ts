@@ -7,6 +7,7 @@ import { queryClient } from './utils';
 const keys = {
 	storagePrefix: 'privateKey_',
 	manifestKey: 'privateKeysManifest',
+	chunkSize: 1800, // Safely under 2048 byte limit
 } as const;
 
 const keyManifestSchema = z.object({
@@ -15,7 +16,8 @@ const keyManifestSchema = z.object({
 		z.object({
 			id: z.string(),
 			priority: z.number(),
-			createdAt: z.date(),
+			createdAtMs: z.int(),
+			chunkCount: z.number().default(1),
 		}),
 	),
 });
@@ -31,6 +33,19 @@ async function getKeyManifest() {
 	return keyManifestSchema.parse(manifest);
 }
 
+// Utility functions for chunking large data
+function splitIntoChunks(data: string, chunkSize: number): string[] {
+	const chunks: string[] = [];
+	for (let i = 0; i < data.length; i += chunkSize) {
+		chunks.push(data.substring(i, i + chunkSize));
+	}
+	return chunks;
+}
+
+function getChunkKey(keyId: string, chunkIndex: number): string {
+	return `${keys.storagePrefix}${keyId}_chunk_${chunkIndex}`;
+}
+
 async function savePrivateKey(params: {
 	keyId: string;
 	privateKey: string;
@@ -42,17 +57,24 @@ async function savePrivateKey(params: {
 
 	if (existingKey) throw new Error('Key already exists');
 
+	// Split the private key into chunks if it's too large
+	const chunks = splitIntoChunks(params.privateKey, keys.chunkSize);
+	const chunkCount = chunks.length;
+
 	const newKey = {
 		id: params.keyId,
 		priority: params.priority,
-		createdAt: new Date(),
+		createdAtMs: Date.now(),
+		chunkCount,
 	};
 
 	manifest.keys.push(newKey);
-	await SecureStore.setItemAsync(
-		`${keys.storagePrefix}${params.keyId}`,
-		params.privateKey,
-	);
+
+	// Save each chunk separately
+	for (let i = 0; i < chunks.length; i++) {
+		await SecureStore.setItemAsync(getChunkKey(params.keyId, i), chunks[i]!);
+	}
+
 	await SecureStore.setItemAsync(keys.manifestKey, JSON.stringify(manifest));
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
@@ -61,10 +83,16 @@ async function getPrivateKey(keyId: string) {
 	const manifest = await getKeyManifest();
 	const key = manifest.keys.find((key) => key.id === keyId);
 	if (!key) throw new Error('Key not found');
-	const privateKey = await SecureStore.getItemAsync(
-		`${keys.storagePrefix}${keyId}`,
-	);
-	if (!privateKey) throw new Error('Key not found');
+
+	// Reassemble the private key from chunks
+	const chunks: string[] = [];
+	for (let i = 0; i < key.chunkCount; i++) {
+		const chunk = await SecureStore.getItemAsync(getChunkKey(keyId, i));
+		if (!chunk) throw new Error(`Key chunk ${i} not found`);
+		chunks.push(chunk);
+	}
+
+	const privateKey = chunks.join('');
 	return {
 		...key,
 		privateKey,
@@ -75,9 +103,15 @@ async function deletePrivateKey(keyId: string) {
 	const manifest = await getKeyManifest();
 	const key = manifest.keys.find((key) => key.id === keyId);
 	if (!key) throw new Error('Key not found');
+
 	manifest.keys = manifest.keys.filter((key) => key.id !== keyId);
+
+	// Delete all chunks for this key
+	for (let i = 0; i < key.chunkCount; i++) {
+		await SecureStore.deleteItemAsync(getChunkKey(keyId, i));
+	}
+
 	await SecureStore.setItemAsync(keys.manifestKey, JSON.stringify(manifest));
-	await SecureStore.deleteItemAsync(`${keys.storagePrefix}${keyId}`);
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
@@ -235,9 +269,9 @@ async function generateKeyPair(params: {
 }) {
 	const keyPair = await SSHClient.generateKeyPair(
 		params.type,
-		params.passphrase,
+		params.passphrase ?? '',
 		params.keySize,
-		params.comment,
+		params.comment ?? '',
 	);
 	return keyPair;
 }

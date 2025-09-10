@@ -108,13 +108,16 @@ export function PickerField<T>(
 	return (
 		<View style={styles.inputGroup}>
 			{label ? <Text style={styles.label}>{label}</Text> : null}
-			<Picker<T>
-				selectedValue={field.state.value}
-				onValueChange={(itemValue) => field.handleChange(itemValue)}
-				{...rest}
-			>
-				{props.children}
-			</Picker>
+			<View style={[styles.input, styles.pickerContainer]}>
+				<Picker<T>
+					style={styles.picker}
+					selectedValue={field.state.value}
+					onValueChange={(itemValue) => field.handleChange(itemValue)}
+					{...rest}
+				>
+					{props.children}
+				</Picker>
+			</View>
 			<FieldInfo />
 		</View>
 	);
@@ -171,7 +174,7 @@ export const { useAppForm, withForm, withFieldGroup } = createFormHook({
 
 const styles = StyleSheet.create({
 	inputGroup: {
-		marginBottom: 12,
+		marginBottom: 16,
 	},
 	label: {
 		marginBottom: 6,
@@ -213,5 +216,12 @@ const styles = StyleSheet.create({
 		marginTop: 6,
 		color: '#FCA5A5',
 		fontSize: 12,
+	},
+	pickerContainer: {
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+	},
+	picker: {
+		color: '#E5E7EB',
 	},
 });
