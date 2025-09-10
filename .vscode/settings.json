@@ -1,7 +1,9 @@
 {
 	"editor.codeActionsOnSave": {
+		"source.organizeImports": "never",
 		"source.fixAll": "explicit",
-		"source.organizeImports": "explicit",
 		"source.sortMembers": "explicit"
-	}
+	},
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.formatOnSave": true
 }

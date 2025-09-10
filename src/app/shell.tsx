@@ -1,8 +1,8 @@
 /**
  * This is the page that is shown after an ssh connection
  */
-import { useLocalSearchParams } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
 	Platform,
 	Pressable,
@@ -11,45 +11,45 @@ import {
 	Text,
 	TextInput,
 	View,
-} from 'react-native'
-import { sshConnectionManager } from '../lib/ssh-connection-manager'
+} from 'react-native';
+import { sshConnectionManager } from '../lib/ssh-connection-manager';
 
 export default function Shell() {
 	// https://docs.expo.dev/router/reference/url-parameters/
-	const { sessionId } = useLocalSearchParams<{ sessionId: string }>()
-	const sshConn = sshConnectionManager.getSession({ sessionId }) // this throws if the session is not found
+	const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
+	const sshConn = sshConnectionManager.getSession({ sessionId }); // this throws if the session is not found
 
-	const [shellData, setShellData] = useState('')
+	const [shellData, setShellData] = useState('');
 
 	useEffect(() => {
 		sshConn.client.on('Shell', (data) => {
-			console.log('Received data (on Shell):', data)
-			setShellData((prev) => prev + data)
-		})
+			console.log('Received data (on Shell):', data);
+			setShellData((prev) => prev + data);
+		});
 		//  return () => {
 		// 	sshConn.client.off('Shell')
 		//  }
-	}, [setShellData, sshConn.client])
+	}, [setShellData, sshConn.client]);
 
 	useEffect(() => {
 		return () => {
 			setTimeout(() => {
 				try {
-					sshConnectionManager.removeAndDisconnectSession({ sessionId })
-					console.log('Disconnected from SSH server')
+					sshConnectionManager.removeAndDisconnectSession({ sessionId });
+					console.log('Disconnected from SSH server');
 				} catch (error) {
-					console.error('Error disconnecting from SSH server', error)
+					console.error('Error disconnecting from SSH server', error);
 				}
-			}, 3_000)
-		}
-	}, [sessionId])
+			}, 3_000);
+		};
+	}, [sessionId]);
 
-	const scrollViewRef = useRef<ScrollView | null>(null)
+	const scrollViewRef = useRef<ScrollView | null>(null);
 
 	useEffect(() => {
 		// Auto-scroll to bottom when new data arrives
-		scrollViewRef.current?.scrollToEnd({ animated: true })
-	}, [shellData])
+		scrollViewRef.current?.scrollToEnd({ animated: true });
+	}, [shellData]);
 
 	return (
 		<View style={styles.container}>
@@ -66,22 +66,24 @@ export default function Shell() {
 				</ScrollView>
 			</View>
 			<CommandInput
-				executeCommand={(command) => {
-					console.log('Executing command:', command)
-					sshConn.client.writeToShell(command + '\n')
+				executeCommand={async (command) => {
+					console.log('Executing command:', command);
+					await sshConn.client.writeToShell(command + '\n');
 				}}
 			/>
 		</View>
-	)
+	);
 }
 
-function CommandInput(props: { executeCommand: (command: string) => void }) {
-	const [command, setCommand] = useState('')
+function CommandInput(props: {
+	executeCommand: (command: string) => Promise<void>;
+}) {
+	const [command, setCommand] = useState('');
 
-	function handleExecute() {
-		if (!command.trim()) return
-		props.executeCommand(command)
-		setCommand('')
+	async function handleExecute() {
+		if (!command.trim()) return;
+		await props.executeCommand(command);
+		setCommand('');
 	}
 
 	return (
@@ -101,7 +103,7 @@ function CommandInput(props: { executeCommand: (command: string) => void }) {
 				<Text style={styles.executeButtonText}>Execute</Text>
 			</Pressable>
 		</View>
-	)
+	);
 }
 
 const styles = StyleSheet.create({
@@ -172,4 +174,4 @@ const styles = StyleSheet.create({
 		fontWeight: '700',
 		fontSize: 14,
 	},
-})
+});

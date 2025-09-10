@@ -1,16 +1,16 @@
-import SSHClient, { PtyType } from '@dylankenneally/react-native-ssh-sftp'
-import { Picker } from '@react-native-picker/picker'
-import { useStore } from '@tanstack/react-form'
-import { useQuery } from '@tanstack/react-query'
-import { useRouter } from 'expo-router'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { useAppForm, withFieldGroup } from '../components/form-components'
+import SSHClient, { PtyType } from '@dylankenneally/react-native-ssh-sftp';
+import { Picker } from '@react-native-picker/picker';
+import { useStore } from '@tanstack/react-form';
+import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useAppForm, withFieldGroup } from '../components/form-components';
 import {
-	ConnectionDetails,
+	type ConnectionDetails,
 	connectionDetailsSchema,
 	secretsManager,
-} from '../lib/secrets-manager'
-import { sshConnectionManager } from '../lib/ssh-connection-manager'
+} from '../lib/secrets-manager';
+import { sshConnectionManager } from '../lib/ssh-connection-manager';
 
 const defaultValues: ConnectionDetails = {
 	host: 'test.rebex.net',
@@ -20,13 +20,16 @@ const defaultValues: ConnectionDetails = {
 		type: 'password',
 		password: 'password',
 	},
-}
+};
 
 export default function Index() {
-	const router = useRouter()
-	const storedConnectionsQuery = useQuery(secretsManager.connections.query.list)
+	const router = useRouter();
+	const storedConnectionsQuery = useQuery(
+		secretsManager.connections.query.list,
+	);
 
-	const preferredStoredConnection = storedConnectionsQuery.data?.firstConnection
+	const preferredStoredConnection =
+		storedConnectionsQuery.data?.firstConnection;
 	const connectionForm = useAppForm({
 		// https://tanstack.com/form/latest/docs/framework/react/guides/async-initial-values
 		defaultValues: preferredStoredConnection
@@ -36,7 +39,7 @@ export default function Index() {
 			onChange: connectionDetailsSchema,
 			onSubmitAsync: async ({ value }) => {
 				try {
-					console.log('Connecting to SSH server...')
+					console.log('Connecting to SSH server...');
 					const sshClientConnection = await (async () => {
 						if (value.security.type === 'password') {
 							return await SSHClient.connectWithPassword(
@@ -44,47 +47,52 @@ export default function Index() {
 								value.port,
 								value.username,
 								value.security.password,
-							)
+							);
 						}
 						const privateKey = await secretsManager.keys.utils.getPrivateKey(
 							value.security.keyId,
-						)
+						);
 						return await SSHClient.connectWithKey(
 							value.host,
 							value.port,
 							value.username,
 							privateKey.privateKey,
-						)
-					})()
+						);
+					})();
 
 					await secretsManager.connections.utils.upsertConnection({
 						id: 'default',
 						details: value,
 						priority: 0,
-					})
-					await sshClientConnection.startShell(PtyType.XTERM)
+					});
+					await sshClientConnection.startShell(PtyType.XTERM);
 					const sshConn = sshConnectionManager.addSession({
 						client: sshClientConnection,
-					})
-					console.log('Connected to SSH server', sshConn.sessionId)
+					});
+					console.log('Connected to SSH server', sshConn.sessionId);
 					router.push({
 						pathname: '/shell',
 						params: {
 							sessionId: sshConn.sessionId,
 						},
-					})
+					});
 				} catch (error) {
-					console.error('Error connecting to SSH server', error)
-					throw error
+					console.error('Error connecting to SSH server', error);
+					throw error;
 				}
 			},
 		},
-	})
+	});
 
 	const securityType = useStore(
 		connectionForm.store,
 		(state) => state.values.security.type,
-	)
+	);
+
+	const isSubmitting = useStore(
+		connectionForm.store,
+		(state) => state.isSubmitting,
+	);
 
 	return (
 		<View style={styles.container}>
@@ -156,7 +164,8 @@ export default function Index() {
 							<connectionForm.SubmitButton
 								title="Connect"
 								onPress={() => {
-									connectionForm.handleSubmit()
+									if (isSubmitting) return;
+									void connectionForm.handleSubmit();
 								}}
 							/>
 						</View>
@@ -164,31 +173,33 @@ export default function Index() {
 				</View>
 				<PreviousConnectionsSection
 					onSelect={(connection) => {
-						connectionForm.setFieldValue('host', connection.host)
-						connectionForm.setFieldValue('port', connection.port)
-						connectionForm.setFieldValue('username', connection.username)
+						connectionForm.setFieldValue('host', connection.host);
+						connectionForm.setFieldValue('port', connection.port);
+						connectionForm.setFieldValue('username', connection.username);
 						connectionForm.setFieldValue(
 							'security.type',
 							connection.security.type,
-						)
+						);
 						if (connection.security.type === 'password') {
 							connectionForm.setFieldValue(
 								'security.password',
 								connection.security.password,
-							)
+							);
 						} else {
 							connectionForm.setFieldValue(
 								'security.keyId',
 								connection.security.keyId,
-							)
+							);
 						}
 					}}
 				/>
 			</ScrollView>
 		</View>
-	)
+	);
 }
 
+// Yes, HOCs are weird. Its what the docs recommend.
+// https://tanstack.com/form/v1/docs/framework/react/guides/form-composition#withform-faq
 const KeyPairSection = withFieldGroup({
 	defaultValues: {
 		type: 'key',
@@ -196,7 +207,7 @@ const KeyPairSection = withFieldGroup({
 	},
 	props: {},
 	render: function Render({ group }) {
-		const listPrivateKeysQuery = useQuery(secretsManager.keys.query.list)
+		const listPrivateKeysQuery = useQuery(secretsManager.keys.query.list);
 
 		return (
 			<group.AppField name="keyId">
@@ -221,14 +232,14 @@ const KeyPairSection = withFieldGroup({
 										await secretsManager.keys.utils.generateKeyPair({
 											type: 'rsa',
 											keySize: 4096,
-										})
+										});
 									await secretsManager.keys.utils.savePrivateKey({
 										keyId: 'default',
 										privateKey: newKeyPair.privateKey,
 										priority: 0,
-									})
-									field.handleChange('default')
-									console.log('New key pair generated and saved')
+									});
+									field.handleChange('default');
+									console.log('New key pair generated and saved');
 								}}
 							>
 								<Text style={styles.secondaryButtonText}>
@@ -239,14 +250,14 @@ const KeyPairSection = withFieldGroup({
 					)
 				}
 			</group.AppField>
-		)
+		);
 	},
-})
+});
 
 function PreviousConnectionsSection(props: {
-	onSelect: (connection: ConnectionDetails) => void
+	onSelect: (connection: ConnectionDetails) => void;
 }) {
-	const listConnectionsQuery = useQuery(secretsManager.connections.query.list)
+	const listConnectionsQuery = useQuery(secretsManager.connections.query.list);
 
 	return (
 		<View style={styles.listSection}>
@@ -269,21 +280,21 @@ function PreviousConnectionsSection(props: {
 				<Text style={styles.mutedText}>No saved connections yet</Text>
 			)}
 		</View>
-	)
+	);
 }
 
 function ConnectionRow(props: {
-	id: string
-	onSelect: (connection: ConnectionDetails) => void
+	id: string;
+	onSelect: (connection: ConnectionDetails) => void;
 }) {
-	const detailsQuery = useQuery(secretsManager.connections.query.get(props.id))
-	const details = detailsQuery.data?.details
+	const detailsQuery = useQuery(secretsManager.connections.query.get(props.id));
+	const details = detailsQuery.data?.details;
 
 	return (
 		<Pressable
 			style={styles.row}
 			onPress={() => {
-				if (details) props.onSelect(details)
+				if (details) props.onSelect(details);
 			}}
 			disabled={!details}
 		>
@@ -297,7 +308,7 @@ function ConnectionRow(props: {
 			</View>
 			<Text style={styles.rowChevron}>›</Text>
 		</Pressable>
-	)
+	);
 }
 
 const styles = StyleSheet.create({
@@ -448,4 +459,4 @@ const styles = StyleSheet.create({
 		fontSize: 22,
 		paddingHorizontal: 4,
 	},
-})
+});

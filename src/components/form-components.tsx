@@ -1,9 +1,9 @@
-import { Picker } from '@react-native-picker/picker'
+import { Picker } from '@react-native-picker/picker';
 import {
 	createFormHook,
 	createFormHookContexts,
 	useStore,
-} from '@tanstack/react-form'
+} from '@tanstack/react-form';
 import {
 	Pressable,
 	StyleSheet,
@@ -11,12 +11,12 @@ import {
 	Text,
 	TextInput,
 	View,
-} from 'react-native'
+} from 'react-native';
 
 function FieldInfo() {
-	const field = useFieldContext()
-	const meta = field.state.meta
-	const errorMessage = meta?.errors?.[0] // TODO: typesafe errors
+	const field = useFieldContext();
+	const meta = field.state.meta;
+	const errorMessage = meta?.errors?.[0]; // TODO: typesafe errors
 
 	return (
 		<View style={styles.fieldInfo}>
@@ -24,17 +24,17 @@ function FieldInfo() {
 				<Text style={styles.errorText}>{String(errorMessage)}</Text>
 			) : null}
 		</View>
-	)
+	);
 }
 
 // https://tanstack.com/form/latest/docs/framework/react/quick-start
 export function TextField(
 	props: React.ComponentProps<typeof TextInput> & {
-		label?: string
+		label?: string;
 	},
 ) {
-	const { label, style, ...rest } = props
-	const field = useFieldContext<string>()
+	const { label, style, ...rest } = props;
+	const field = useFieldContext<string>();
 
 	return (
 		<View style={styles.inputGroup}>
@@ -49,16 +49,16 @@ export function TextField(
 			/>
 			<FieldInfo />
 		</View>
-	)
+	);
 }
 
 export function NumberField(
 	props: React.ComponentProps<typeof TextInput> & {
-		label?: string
+		label?: string;
 	},
 ) {
-	const { label, style, keyboardType, onChangeText, ...rest } = props
-	const field = useFieldContext<number>()
+	const { label, style, keyboardType, onChangeText, ...rest } = props;
+	const field = useFieldContext<number>();
 	return (
 		<View style={styles.inputGroup}>
 			{label ? <Text style={styles.label}>{label}</Text> : null}
@@ -73,16 +73,16 @@ export function NumberField(
 			/>
 			<FieldInfo />
 		</View>
-	)
+	);
 }
 
 export function SwitchField(
 	props: React.ComponentProps<typeof Switch> & {
-		label?: string
+		label?: string;
 	},
 ) {
-	const { label, style, ...rest } = props
-	const field = useFieldContext<boolean>()
+	const { label, style, ...rest } = props;
+	const field = useFieldContext<boolean>();
 
 	return (
 		<View style={styles.inputGroup}>
@@ -95,16 +95,16 @@ export function SwitchField(
 				{...rest}
 			/>
 		</View>
-	)
+	);
 }
 
 export function PickerField<T>(
 	props: React.ComponentProps<typeof Picker<T>> & {
-		label?: string
+		label?: string;
 	},
 ) {
-	const { label, style, ...rest } = props
-	const field = useFieldContext<T>()
+	const { label, style, ...rest } = props;
+	const field = useFieldContext<T>();
 	return (
 		<View style={styles.inputGroup}>
 			{label ? <Text style={styles.label}>{label}</Text> : null}
@@ -117,20 +117,20 @@ export function PickerField<T>(
 			</Picker>
 			<FieldInfo />
 		</View>
-	)
+	);
 }
 
 export function SubmitButton(props: {
-	onPress?: () => void
-	title?: string
-	disabled?: boolean
+	onPress?: () => void;
+	title?: string;
+	disabled?: boolean;
 }) {
-	const { onPress, title = 'Connect', disabled } = props
-	const formContext = useFormContext()
+	const { onPress, title = 'Connect', disabled } = props;
+	const formContext = useFormContext();
 	const isSubmitting = useStore(
 		formContext.store,
 		(state) => state.isSubmitting,
-	)
+	);
 	return (
 		<Pressable
 			style={[
@@ -144,13 +144,13 @@ export function SubmitButton(props: {
 				{isSubmitting ? 'Connecting...' : title}
 			</Text>
 		</Pressable>
-	)
+	);
 }
 
 const { fieldContext, formContext, useFieldContext, useFormContext } =
-	createFormHookContexts()
+	createFormHookContexts();
 
-export { useFieldContext, useFormContext }
+export { useFieldContext, useFormContext };
 // https://tanstack.com/form/latest/docs/framework/react/quick-start
 export const { useAppForm, withForm, withFieldGroup } = createFormHook({
 	fieldComponents: {
@@ -164,7 +164,7 @@ export const { useAppForm, withForm, withFieldGroup } = createFormHook({
 	},
 	fieldContext,
 	formContext,
-})
+});
 
 const styles = StyleSheet.create({
 	inputGroup: {
@@ -211,4 +211,4 @@ const styles = StyleSheet.create({
 		color: '#FCA5A5',
 		fontSize: 12,
 	},
-})
+});
