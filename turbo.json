@@ -1,0 +1,46 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"ui": "tui",
+	"globalPassThroughEnv": ["NODE_OPTIONS"],
+	"globalEnv": ["CI"],
+	"tasks": {
+		"fmt": {},
+		"fmt:check": {},
+		"eslint:check": {
+			"dependsOn": ["^build"]
+		},
+		"lint:fix": {
+			"dependsOn": ["^build", "fmt"]
+		},
+		"typecheck": {
+			"dependsOn": ["^build"]
+		},
+		"build": {
+			"dependsOn": ["^build"]
+		},
+		"lint:check": {
+			"with": ["fmt:check"],
+			"dependsOn": ["eslint:check", "typecheck", "//#lint:check:root"]
+		},
+		"lint": {
+			"dependsOn": ["lint:fix", "typecheck", "//#lint:root"]
+		},
+		"test": {
+			"dependsOn": ["^build"]
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true,
+			"dependsOn": ["^build"]
+		},
+		"//#lint:check": {
+			"dependsOn": ["//#lint:check:root", "//#jscpd:check"]
+		},
+		"//#lint": {
+			"dependsOn": ["//#lint:root", "//#jscpd:check"]
+		},
+		"//#lint:root": {},
+		"//#lint:check:root": {},
+		"//#jscpd:check": {}
+	}
+}

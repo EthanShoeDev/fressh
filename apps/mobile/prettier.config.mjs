@@ -1,14 +1,14 @@
-import defaultConfig from '@epic-web/config/prettier';
+import epicConfig from '@epic-web/config/prettier';
 // Sometimes this plugin can remove imports that are being edited.
 // As a workaround we will only use this in the cli. (pnpm run fmt)
 // const sortImports = process.env.SORT_IMPORTS === "true";
 
 /** @type {import("prettier").Options} */
 export default {
-	...defaultConfig,
+	...epicConfig,
 	semi: true,
 	plugins: [
 		// ...(sortImports ? ["prettier-plugin-organize-imports"] : []),
-		...(defaultConfig.plugins || []),
+		...(epicConfig.plugins || []),
 	],
 };

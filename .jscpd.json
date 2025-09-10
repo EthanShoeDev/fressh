@@ -1,0 +1,16 @@
+{
+	"pattern": "**/*",
+	"ignore": [
+		"**/.expo/**",
+		"**/.turbo/**",
+		"**/mnt/**",
+		"**/dist/**",
+		"**/node_modules/**",
+		"**/android/**"
+	],
+	"threshold": 0,
+	"minTokens": 50,
+	"minLines": 33,
+	"maxLines": 1000,
+	"maxSize": "100kb"
+}

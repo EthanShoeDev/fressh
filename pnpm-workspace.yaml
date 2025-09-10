@@ -1,5 +1,4 @@
 nodeLinker: hoisted
 
-onlyBuiltDependencies:
-  - esbuild
-  - unrs-resolver
+packages:
+  - apps/*
