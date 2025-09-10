@@ -1,4 +1,9 @@
-nodeLinker: hoisted
-
 packages:
   - apps/*
+
+nodeLinker: hoisted
+
+onlyBuiltDependencies:
+  - esbuild
+  - oxc-resolver
+  - unrs-resolver

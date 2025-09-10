@@ -1,5 +1,6 @@
 {
   "name": "fressh",
+  "private": true,
   "version": "workspace:*",
   "packageManager": "pnpm@10.15.1",
   "type": "module",

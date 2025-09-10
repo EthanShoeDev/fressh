@@ -36,4 +36,6 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-app-example
+# https://docs.expo.dev/workflow/continuous-native-generation/
+android/
+ios/

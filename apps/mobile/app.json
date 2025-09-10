@@ -12,7 +12,8 @@
 			"supportsTablet": true,
 			"config": {
 				"usesNonExemptEncryption": false
-			}
+			},
+			"bundleIdentifier": "dev.fressh.app"
 		},
 		"android": {
 			"package": "dev.fressh.app",
@@ -40,7 +41,17 @@
 			],
 			"expo-secure-store",
 			"expo-font",
-			"expo-web-browser"
+			"expo-web-browser",
+			[
+				"expo-build-properties",
+				{
+					"android": {
+						"packagingOptions": {
+							"pickFirst": ["META-INF/versions/9/OSGI-INF/MANIFEST.MF"]
+						}
+					}
+				}
+			]
 		],
 		"experiments": {
 			"typedRoutes": true,

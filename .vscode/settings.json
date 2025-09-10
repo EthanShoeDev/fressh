@@ -1,0 +1,33 @@
+{
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"typescript.tsserver.maxTsServerMemory": 8192,
+	"typescript.tsserver.nodePath": "node",
+	"editor.codeActionsOnSave": {
+		"source.organizeImports": "never",
+		"source.fixAll": "explicit",
+		"source.sortMembers": "explicit"
+	},
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.formatOnSave": true,
+	"prettier.ignorePath": "",
+	"prettier.requireConfig": true,
+	"duplicatedCode.options": {
+		"absolute": true,
+		"silent": true,
+		"gitignore": true,
+		"noSymlinks": false,
+		"threshold": 0,
+		"minTokens": 50,
+		"minLines": 33,
+		"maxLines": 1000,
+		"maxSize": "100kb"
+	},
+	"duplicatedCode.exclude": [
+		"**/.expo/**",
+		"**/.turbo/**",
+		"**/mnt/**",
+		"**/dist/**",
+		"**/node_modules/**",
+		"**/android/**"
+	]
+}
