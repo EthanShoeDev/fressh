@@ -1,8 +1,8 @@
 {
   "name": "@fressh/mobile",
+  "version": "0.0.1",
   "private": true,
   "main": "expo-router/entry",
-  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "start": "expo start",
@@ -28,6 +28,7 @@
     "@expo/vector-icons": "^15.0.2",
     "@react-native-picker/picker": "2.11.2",
     "@react-navigation/bottom-tabs": "^7.4.0",
+    "@fressh/assets": "workspace:*",
     "@react-navigation/elements": "^2.6.4",
     "@react-navigation/native": "^7.1.8",
     "@tanstack/react-form": "^1.19.5",

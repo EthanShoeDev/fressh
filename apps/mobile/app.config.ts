@@ -3,11 +3,11 @@ import { type ExpoConfig } from 'expo/config';
 import packageJson from './package.json';
 
 const config: ExpoConfig = {
-	name: 'fressh',
+	name: 'Fressh',
 	slug: 'fressh',
 	version: packageJson.version,
 	orientation: 'portrait',
-	icon: './assets/images/icon.png',
+	icon: '../../packages/assets/ios-dark.png',
 	scheme: 'fressh',
 	userInterfaceStyle: 'automatic',
 	newArchEnabled: true,
@@ -21,25 +21,28 @@ const config: ExpoConfig = {
 	android: {
 		package: 'dev.fressh.app',
 		adaptiveIcon: {
-			foregroundImage: './assets/images/adaptive-icon.png',
-			backgroundColor: '#ffffff',
+			foregroundImage: '../../packages/assets/adaptive-icon.png',
+			backgroundColor: '#151718',
 		},
 		edgeToEdgeEnabled: true,
 		predictiveBackGestureEnabled: false,
 	},
 	web: {
 		output: 'static',
-		favicon: './assets/images/favicon.png',
+		favicon: '../../packages/assets/favicon.png',
 	},
 	plugins: [
 		'expo-router',
 		[
 			'expo-splash-screen',
 			{
-				image: './assets/images/splash-icon.png',
+				image: '../../packages/assets/splash-icon-light.png',
+				dark: {
+					image: '../../packages/assets/splash-icon-dark.png',
+					backgroundColor: '#151718',
+				},
 				imageWidth: 200,
-				resizeMode: 'contain',
-				backgroundColor: '#ffffff',
+				backgroundColor: '#ECEDEE',
 			},
 		],
 		'expo-secure-store',

@@ -2,6 +2,7 @@
 	"recommendations": [
 		"expo.vscode-expo-tools",
 		"gruntfuggly.todo-tree",
-		"eamodio.gitlens"
+		"eamodio.gitlens",
+		"astro-build.astro-vscode"
 	]
 }
