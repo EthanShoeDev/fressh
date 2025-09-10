@@ -1,5 +1,71 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import iosDarkAppIcon from '@fressh/assets/ios-dark-2.png';
 ---
 
-<Layout> <h1 class="text-6xl">Hello World</h1> </Layout>
+<Layout>
+	<section
+		class="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-white px-6 dark:from-gray-900 dark:to-black"
+	>
+		<img
+			src={iosDarkAppIcon.src}
+			alt="Fressh app icon"
+			class="mb-6 h-20 w-20 rounded-2xl shadow-md"
+		/>
+		<h1 class="text-5xl font-extrabold tracking-tight sm:text-6xl">Fressh</h1>
+		<p class="mt-3 text-lg text-gray-600 dark:text-gray-300">
+			A clean, powerful mobile SSH client.
+		</p>
+		<span
+			class="mt-4 inline-flex items-center gap-2 rounded-full border border-dashed border-gray-300 px-3 py-1 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300"
+			>Coming soon</span
+		>
+		<div class="mt-10 grid w-full max-w-3xl gap-6 text-left sm:grid-cols-2">
+			<div class="rounded-xl border border-gray-200 p-6 dark:border-gray-800">
+				<h2
+					class="text-base font-semibold tracking-wide text-gray-900 dark:text-gray-100"
+				>
+					Features
+				</h2>
+				<ul class="mt-3 space-y-2 text-gray-700 dark:text-gray-300">
+					<li class="flex items-start gap-3">
+						<span class="text-emerald-500">✓</span><span
+							>Securely storing previous connections</span
+						>
+					</li>
+					<li class="flex items-start gap-3">
+						<span class="text-emerald-500">✓</span><span
+							>Configurable preset command buttons</span
+						>
+					</li>
+					<li class="flex items-start gap-3">
+						<span class="text-emerald-500">✓</span><span
+							>Configurable theme</span
+						>
+					</li>
+					<ul></ul>
+				</ul>
+			</div>
+			<div class="rounded-xl border border-gray-200 p-6 dark:border-gray-800">
+				<h2
+					class="text-base font-semibold tracking-wide text-gray-900 dark:text-gray-100"
+				>
+					Coming soon
+				</h2>
+				<ul class="mt-3 space-y-2 text-gray-700 dark:text-gray-300">
+					<li class="flex items-start gap-3">
+						<span class="text-amber-500">•</span><span
+							>Fully accurate xterm emulation</span
+						>
+					</li>
+					<li class="flex items-start gap-3">
+						<span class="text-amber-500">•</span><span
+							>On-device LLM for command completion and output summarization</span
+						>
+					</li>
+					<ul></ul>
+				</ul>
+			</div>
+		</div>
+	</section>
+</Layout>

@@ -7,7 +7,7 @@ const config: ExpoConfig = {
 	slug: 'fressh',
 	version: packageJson.version,
 	orientation: 'portrait',
-	icon: '../../packages/assets/ios-dark.png',
+	icon: '../../packages/assets/ios-dark-2.png',
 	scheme: 'fressh',
 	userInterfaceStyle: 'automatic',
 	newArchEnabled: true,

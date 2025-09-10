@@ -15,10 +15,11 @@
 		"eslint:check": "eslint --max-warnings 0 --report-unused-disable-directives ."
 	},
 	"dependencies": {
+		"@astrojs/vercel": "^8.2.7",
+		"@fressh/assets": "workspace:*",
 		"@tailwindcss/vite": "^4.1.13",
 		"astro": "^5.13.7",
-		"tailwindcss": "^4.1.13",
-		"@fressh/assets": "workspace:*"
+		"tailwindcss": "^4.1.13"
 	},
 	"devDependencies": {
 		"@epic-web/config": "^1.21.3",

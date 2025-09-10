@@ -29,5 +29,27 @@
 		"**/dist/**",
 		"**/node_modules/**",
 		"**/android/**"
+	],
+	"[astro]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"eslint.validate": [
+		"javascript",
+		"javascriptreact",
+		"astro", // Enable .astro
+		"typescript", // Enable .ts
+		"typescriptreact" // Enable .tsx
+	],
+	"tailwindCSS.classAttributes": [
+		"class",
+		"className",
+		"ngClass",
+		".*className"
+	],
+	// Turbo example included it
+	"eslint.workingDirectories": [
+		{
+			"mode": "auto"
+		}
 	]
 }
