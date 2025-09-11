@@ -3,8 +3,10 @@ import { Picker } from '@react-native-picker/picker';
 import { useStore } from '@tanstack/react-form';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAppForm, withFieldGroup } from '../components/form-components';
+import { KeyManagerModal } from '../components/key-manager-modal';
 import {
 	type ConnectionDetails,
 	connectionDetailsSchema,
@@ -48,15 +50,14 @@ export default function Index() {
 								value.security.password,
 							);
 						}
-						const privateKey =
-							await secretsManager.keys.utils.betterKeyStorage.getEntry(
-								value.security.keyId,
-							);
+						const privateKey = await secretsManager.keys.utils.getPrivateKey(
+							value.security.keyId,
+						);
 						return await SSHClient.connectWithKey(
 							value.host,
 							value.port,
 							value.username,
-							privateKey,
+							privateKey.value,
 						);
 					})();
 
@@ -218,47 +219,54 @@ const KeyPairSection = withFieldGroup({
 	props: {},
 	render: function Render({ group }) {
 		const listPrivateKeysQuery = useQuery(secretsManager.keys.query.list);
+		const [showManager, setShowManager] = React.useState(false);
 
 		return (
 			<group.AppField name="keyId">
-				{(field) =>
-					listPrivateKeysQuery.isLoading ? (
-						<Text style={styles.mutedText}>Loading keys...</Text>
-					) : listPrivateKeysQuery.isError ? (
-						<Text style={styles.errorText}>
-							Error: {listPrivateKeysQuery.error.message}
-						</Text>
-					) : (
+				{(field) => {
+					if (listPrivateKeysQuery.isLoading) {
+						return <Text style={styles.mutedText}>Loading keys...</Text>;
+					}
+					if (listPrivateKeysQuery.isError) {
+						return (
+							<Text style={styles.errorText}>
+								Error: {listPrivateKeysQuery.error.message}
+							</Text>
+						);
+					}
+					return (
 						<>
 							<field.PickerField label="Key">
-								{listPrivateKeysQuery.data?.map((key) => (
-									<Picker.Item key={key.id} label={key.id} value={key.id} />
-								))}
+								{listPrivateKeysQuery.data?.map((key) => {
+									const label = `${key.metadata?.label ?? key.id}${
+										key.metadata?.isDefault ? ' • Default' : ''
+									}`;
+									return (
+										<Picker.Item key={key.id} label={label} value={key.id} />
+									);
+								})}
 							</field.PickerField>
 							<Pressable
 								style={styles.secondaryButton}
-								onPress={async () => {
-									const newKeyPair =
-										await secretsManager.keys.utils.generateKeyPair({
-											type: 'rsa',
-											keySize: 4096,
-										});
-									await secretsManager.keys.utils.upsertPrivateKey({
-										keyId: 'default',
-										privateKey: newKeyPair.privateKey,
-										priority: 0,
-									});
-									field.handleChange('default');
-									console.log('New key pair generated and saved');
-								}}
+								onPress={() => setShowManager(true)}
 							>
-								<Text style={styles.secondaryButtonText}>
-									Generate New Key Pair
-								</Text>
+								<Text style={styles.secondaryButtonText}>Manage Keys</Text>
 							</Pressable>
+							<KeyManagerModal
+								visible={showManager}
+								onClose={() => {
+									setShowManager(false);
+									if (!field.state.value && listPrivateKeysQuery.data) {
+										const def = listPrivateKeysQuery.data.find(
+											(k) => k.metadata?.isDefault,
+										);
+										if (def) field.handleChange(def.id);
+									}
+								}}
+							/>
 						</>
-					)
-				}
+					);
+				}}
 			</group.AppField>
 		);
 	},
@@ -298,7 +306,7 @@ function ConnectionRow(props: {
 	onSelect: (connection: ConnectionDetails) => void;
 }) {
 	const detailsQuery = useQuery(secretsManager.connections.query.get(props.id));
-	const details = detailsQuery.data;
+	const details = detailsQuery.data?.value;
 
 	return (
 		<Pressable
