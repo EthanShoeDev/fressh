@@ -28,8 +28,7 @@ export default function Index() {
 		secretsManager.connections.query.list,
 	);
 
-	const preferredStoredConnection =
-		storedConnectionsQuery.data?.firstConnection;
+	const preferredStoredConnection = storedConnectionsQuery.data?.[0];
 	const connectionForm = useAppForm({
 		// https://tanstack.com/form/latest/docs/framework/react/guides/async-initial-values
 		defaultValues: preferredStoredConnection
@@ -56,7 +55,7 @@ export default function Index() {
 							value.host,
 							value.port,
 							value.username,
-							privateKey.privateKey,
+							privateKey,
 						);
 					})();
 
@@ -231,7 +230,7 @@ const KeyPairSection = withFieldGroup({
 					) : (
 						<>
 							<field.PickerField label="Key">
-								{listPrivateKeysQuery.data?.keys.map((key) => (
+								{listPrivateKeysQuery.data?.map((key) => (
 									<Picker.Item key={key.id} label={key.id} value={key.id} />
 								))}
 							</field.PickerField>
@@ -276,9 +275,9 @@ function PreviousConnectionsSection(props: {
 				<Text style={styles.mutedText}>Loading connections...</Text>
 			) : listConnectionsQuery.isError ? (
 				<Text style={styles.errorText}>Error loading connections</Text>
-			) : listConnectionsQuery.data?.manifest.connections.length ? (
+			) : listConnectionsQuery.data?.length ? (
 				<View style={styles.listContainer}>
-					{listConnectionsQuery.data?.manifest.connections.map((conn) => (
+					{listConnectionsQuery.data?.map((conn) => (
 						<ConnectionRow
 							key={conn.id}
 							id={conn.id}
@@ -298,7 +297,7 @@ function ConnectionRow(props: {
 	onSelect: (connection: ConnectionDetails) => void;
 }) {
 	const detailsQuery = useQuery(secretsManager.connections.query.get(props.id));
-	const details = detailsQuery.data?.details;
+	const details = detailsQuery.data;
 
 	return (
 		<Pressable

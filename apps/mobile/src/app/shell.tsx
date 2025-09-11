@@ -26,21 +26,27 @@ export default function Shell() {
 			console.log('Received data (on Shell):', data);
 			setShellData((prev) => prev + data);
 		});
-		//  return () => {
-		// 	sshConn.client.off('Shell')
-		//  }
+		return () => {
+			// // Remove the handler by clearing the internal handler map.
+			// // The library lacks a public `.off()`, but it routes through a single
+			// // handler map per event name. Deleting the handler prevents updates.
+			// // eslint-disable-next-line @typescript-eslint/no-explicit-any
+			// delete (sshConn.client as any)._handlers?.Shell;
+
+			// Set to no-op
+			sshConn.client.on('Shell', () => {});
+		};
 	}, [setShellData, sshConn.client]);
 
 	useEffect(() => {
 		return () => {
-			setTimeout(() => {
-				try {
-					sshConnectionManager.removeAndDisconnectSession({ sessionId });
-					console.log('Disconnected from SSH server');
-				} catch (error) {
-					console.error('Error disconnecting from SSH server', error);
-				}
-			}, 3_000);
+			console.log('Clean up shell screen (immediate disconnect)');
+			try {
+				sshConnectionManager.removeAndDisconnectSession({ sessionId });
+				console.log('Disconnected from SSH server');
+			} catch (error) {
+				console.error('Error disconnecting from SSH server', error);
+			}
 		};
 	}, [sessionId]);
 

@@ -4,35 +4,6 @@ import * as SecureStore from 'expo-secure-store';
 import * as z from 'zod';
 import { queryClient } from './utils';
 
-const keys = {
-	storagePrefix: 'privateKey_',
-	manifestKey: 'privateKeysManifest',
-	chunkSize: 1800, // Safely under 2048 byte limit
-} as const;
-
-const keyManifestSchema = z.object({
-	manifestVersion: z.number().default(1),
-	keys: z.array(
-		z.object({
-			id: z.string(),
-			priority: z.number(),
-			createdAtMs: z.int(),
-			chunkCount: z.number().default(1),
-		}),
-	),
-});
-
-async function getKeyManifest() {
-	const rawManifest = await SecureStore.getItemAsync(keys.manifestKey);
-	const manifest = rawManifest
-		? JSON.parse(rawManifest)
-		: {
-				manifestVersion: 1,
-				keys: [],
-			};
-	return keyManifestSchema.parse(manifest);
-}
-
 // Utility functions for chunking large data
 function splitIntoChunks(data: string, chunkSize: number): string[] {
 	const chunks: string[] = [];
@@ -42,95 +13,263 @@ function splitIntoChunks(data: string, chunkSize: number): string[] {
 	return chunks;
 }
 
-function getChunkKey(keyId: string, chunkIndex: number): string {
-	return `${keys.storagePrefix}${keyId}_chunk_${chunkIndex}`;
+/**
+ * Secure store does not support:
+ * - Listing keys
+ * - Storing more than 2048 bytes
+ *
+ * We can bypass both of those by using manifest entries and chunking.
+ */
+function makeBetterSecureStore<T extends object = object>(params: {
+	storagePrefix: string;
+	extraManifestFieldsSchema?: z.ZodType<T>;
+}) {
+	// const sizeLimit = 2048;
+	const sizeLimit = 2000;
+	const rootManifestVersion = 1;
+	const manifestChunkVersion = 1;
+
+	const rootManifestKey = `${params.storagePrefix}rootManifest`;
+	const manifestChunkKey = (manifestChunkId: string) =>
+		`${params.storagePrefix}manifestChunk_${manifestChunkId}`;
+	const entryKey = (entryId: string, chunkIdx: number) =>
+		`${params.storagePrefix}entry_${entryId}_chunk_${chunkIdx}`;
+
+	const rootManifestSchema = z.looseObject({
+		manifestVersion: z.number().default(rootManifestVersion),
+		// We need to chunk the manifest itself
+		manifestChunksIds: z.array(z.string()),
+	});
+
+	const entrySchema = z.object({
+		id: z.string(),
+		chunkCount: z.number().default(1),
+		metadata: params.extraManifestFieldsSchema ?? z.object({}),
+	});
+	// type Entry = {
+	// 	id: string;
+	// 	chunkCount: number;
+	// 	metadata: T;
+	// };
+
+	type Entry = z.infer<typeof entrySchema>;
+
+	const manifestChunkSchema = z.object({
+		manifestChunkVersion: z.number().default(manifestChunkVersion),
+		entries: z.array(entrySchema),
+	});
+
+	async function getManifest() {
+		const rawRootManifestString =
+			await SecureStore.getItemAsync(rootManifestKey);
+
+		console.log(
+			`Root manifest for ${params.storagePrefix} is ${rawRootManifestString?.length} bytes`,
+		);
+		const unsafedRootManifest = rawRootManifestString
+			? JSON.parse(rawRootManifestString)
+			: {
+					manifestVersion: rootManifestVersion,
+					manifestChunksIds: [],
+				};
+		const rootManifest = rootManifestSchema.parse(unsafedRootManifest);
+		const manifestChunks = await Promise.all(
+			rootManifest.manifestChunksIds.map(async (manifestChunkId) => {
+				const rawManifestChunkString = await SecureStore.getItemAsync(
+					manifestChunkKey(manifestChunkId),
+				);
+				if (!rawManifestChunkString)
+					throw new Error('Manifest chunk not found');
+				console.log(
+					`Manifest chunk for ${params.storagePrefix} ${manifestChunkId} is ${rawManifestChunkString?.length} bytes`,
+				);
+				const unsafedManifestChunk = JSON.parse(rawManifestChunkString);
+				return {
+					manifestChunk: manifestChunkSchema.parse(unsafedManifestChunk),
+					manifestChunkId,
+					manifestChunkSize: rawManifestChunkString.length,
+				};
+			}),
+		);
+		return {
+			rootManifest,
+			manifestChunks,
+		};
+	}
+
+	async function getEntry(id: string) {
+		const manifest = await getManifest();
+		const manifestEntry = manifest.manifestChunks.reduce<Entry | undefined>(
+			(_, mChunk) =>
+				mChunk.manifestChunk.entries.find((entry) => entry.id === id),
+			undefined,
+		);
+		if (!manifestEntry) throw new Error('Entry not found');
+
+		const rawEntryChunks = await Promise.all(
+			Array.from({ length: manifestEntry.chunkCount }, async (_, chunkIdx) => {
+				const rawEntryChunk = await SecureStore.getItemAsync(
+					entryKey(id, chunkIdx),
+				);
+				console.log(
+					`Entry chunk for ${params.storagePrefix} ${id} ${chunkIdx} is ${rawEntryChunk?.length} bytes`,
+				);
+				return rawEntryChunk;
+			}),
+		);
+		const entry = rawEntryChunks.join('');
+		return entry;
+	}
+
+	async function listEntries() {
+		const manifest = await getManifest();
+		return manifest.manifestChunks.flatMap(
+			(mChunk) => mChunk.manifestChunk.entries,
+		);
+	}
+
+	async function deleteEntry(id: string) {
+		const manifest = await getManifest();
+		const manifestChunkContainingEntry = manifest.manifestChunks.find(
+			(mChunk) => mChunk.manifestChunk.entries.some((entry) => entry.id === id),
+		);
+		if (!manifestChunkContainingEntry) throw new Error('Entry not found');
+
+		const manifestEntry =
+			manifestChunkContainingEntry.manifestChunk.entries.find(
+				(entry) => entry.id === id,
+			);
+		if (!manifestEntry) throw new Error('Entry not found');
+
+		const deleteEntryChunksPromise = Array.from(
+			{ length: manifestEntry.chunkCount },
+			async (_, chunkIdx) => {
+				await SecureStore.deleteItemAsync(entryKey(id, chunkIdx));
+			},
+		);
+
+		const updateManifestChunkPromise = SecureStore.setItemAsync(
+			manifestChunkKey(manifestChunkContainingEntry.manifestChunkId),
+			JSON.stringify({
+				...manifestChunkContainingEntry,
+				entries: manifestChunkContainingEntry.manifestChunk.entries.filter(
+					(entry) => entry.id !== id,
+				),
+			}),
+		);
+
+		await Promise.all([
+			...deleteEntryChunksPromise,
+			updateManifestChunkPromise,
+		]);
+	}
+
+	async function upsertEntry(params: {
+		id: string;
+		metadata: T;
+		value: string;
+	}) {
+		await deleteEntry(params.id).catch(() => {
+			console.log(`Entry ${params.id} not found, creating new one`);
+		});
+
+		const valueChunks = splitIntoChunks(params.value, sizeLimit);
+		const newManifestEntry = entrySchema.parse({
+			id: params.id,
+			chunkCount: valueChunks.length,
+			...params.metadata,
+		});
+		const newManifestEntrySize = JSON.stringify(newManifestEntry).length;
+		if (newManifestEntrySize > sizeLimit / 2)
+			throw new Error('Manifest entry size is too large');
+		const manifest = await getManifest();
+
+		const existingManifestChunkWithRoom = manifest.manifestChunks.find(
+			(mChunk) => sizeLimit > mChunk.manifestChunkSize + newManifestEntrySize,
+		);
+		const manifestChunkWithRoom =
+			existingManifestChunkWithRoom ??
+			(await (async () => {
+				const newManifestChunk = {
+					manifestChunk: {
+						entries: [],
+						manifestChunkVersion: manifestChunkVersion,
+					},
+					manifestChunkId: crypto.randomUUID(),
+					manifestChunkSize: 0,
+				} satisfies NonNullable<(typeof manifest.manifestChunks)[number]>;
+				await SecureStore.setItemAsync(
+					rootManifestKey,
+					JSON.stringify(manifest.rootManifest),
+				);
+				return newManifestChunk;
+			})());
+
+		manifestChunkWithRoom.manifestChunk.entries.push(newManifestEntry);
+		await Promise.all([
+			SecureStore.setItemAsync(
+				manifestChunkKey(manifestChunkWithRoom.manifestChunkId),
+				JSON.stringify(manifestChunkWithRoom.manifestChunk),
+			),
+			...valueChunks.map((vChunk, chunkIdx) =>
+				SecureStore.setItemAsync(
+					entryKey(newManifestEntry.id, chunkIdx),
+					vChunk,
+				),
+			),
+		]);
+	}
+
+	return {
+		getManifest,
+		getEntry,
+		listEntries,
+		upsertEntry,
+		deleteEntry,
+	};
 }
+
+const betterKeyStorage = makeBetterSecureStore({
+	storagePrefix: 'privateKey_',
+	extraManifestFieldsSchema: z.object({
+		priority: z.number(),
+		createdAtMs: z.int(),
+	}),
+});
+
+const betterConnectionStorage = makeBetterSecureStore({
+	storagePrefix: 'connection_',
+	extraManifestFieldsSchema: z.object({
+		priority: z.number(),
+		createdAtMs: z.int(),
+		modifiedAtMs: z.int(),
+	}),
+});
 
 async function savePrivateKey(params: {
 	keyId: string;
 	privateKey: string;
 	priority: number;
 }) {
-	const manifest = await getKeyManifest();
-
-	const existingKey = manifest.keys.find((key) => key.id === params.keyId);
-
-	if (existingKey) throw new Error('Key already exists');
-
-	// Split the private key into chunks if it's too large
-	const chunks = splitIntoChunks(params.privateKey, keys.chunkSize);
-	const chunkCount = chunks.length;
-
-	const newKey = {
+	await betterKeyStorage.upsertEntry({
 		id: params.keyId,
-		priority: params.priority,
-		createdAtMs: Date.now(),
-		chunkCount,
-	};
-
-	manifest.keys.push(newKey);
-
-	// Save each chunk separately
-	for (let i = 0; i < chunks.length; i++) {
-		await SecureStore.setItemAsync(getChunkKey(params.keyId, i), chunks[i]!);
-	}
-
-	await SecureStore.setItemAsync(keys.manifestKey, JSON.stringify(manifest));
+		metadata: {
+			priority: params.priority,
+			createdAtMs: Date.now(),
+		},
+		value: params.privateKey,
+	});
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
 async function getPrivateKey(keyId: string) {
-	const manifest = await getKeyManifest();
-	const key = manifest.keys.find((key) => key.id === keyId);
-	if (!key) throw new Error('Key not found');
-
-	// Reassemble the private key from chunks
-	const chunks: string[] = [];
-	for (let i = 0; i < key.chunkCount; i++) {
-		const chunk = await SecureStore.getItemAsync(getChunkKey(keyId, i));
-		if (!chunk) throw new Error(`Key chunk ${i} not found`);
-		chunks.push(chunk);
-	}
-
-	const privateKey = chunks.join('');
-	return {
-		...key,
-		privateKey,
-	};
+	return await betterKeyStorage.getEntry(keyId);
 }
 
 async function deletePrivateKey(keyId: string) {
-	const manifest = await getKeyManifest();
-	const key = manifest.keys.find((key) => key.id === keyId);
-	if (!key) throw new Error('Key not found');
-
-	manifest.keys = manifest.keys.filter((key) => key.id !== keyId);
-
-	// Delete all chunks for this key
-	for (let i = 0; i < key.chunkCount; i++) {
-		await SecureStore.deleteItemAsync(getChunkKey(keyId, i));
-	}
-
-	await SecureStore.setItemAsync(keys.manifestKey, JSON.stringify(manifest));
+	await betterKeyStorage.deleteEntry(keyId);
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
-
-const connections = {
-	storagePrefix: 'connection_',
-	manifestKey: 'connectionsManifest',
-} as const;
-
-const connectionsManifestSchema = z.object({
-	manifestVersion: z.number().default(1),
-	connections: z.array(
-		z.object({
-			id: z.string(),
-			priority: z.number(),
-			createdAt: z.date(),
-			modifiedAt: z.date(),
-		}),
-	),
-});
 
 export const connectionDetailsSchema = z.object({
 	host: z.string().min(1),
@@ -150,82 +289,32 @@ export const connectionDetailsSchema = z.object({
 
 export type ConnectionDetails = z.infer<typeof connectionDetailsSchema>;
 
-async function getConnectionManifest() {
-	const rawManifest = await SecureStore.getItemAsync(connections.manifestKey);
-	const manifest = rawManifest
-		? JSON.parse(rawManifest)
-		: {
-				manifestVersion: 1,
-				connections: [],
-			};
-	return connectionsManifestSchema.parse(manifest);
-}
-
 async function upsertConnection(params: {
 	id: string;
 	details: ConnectionDetails;
 	priority: number;
 }) {
-	const manifest = await getConnectionManifest();
-	const existingConnection = manifest.connections.find(
-		(connection) => connection.id === params.id,
-	);
-
-	const newConnection = existingConnection
-		? {
-				...existingConnection,
-				priority: params.priority,
-				modifiedAt: new Date(),
-			}
-		: {
-				id: params.id,
-				priority: params.priority,
-				createdAt: new Date(),
-				modifiedAt: new Date(),
-			};
-
-	await SecureStore.setItemAsync(
-		connections.manifestKey,
-		JSON.stringify(manifest),
-	);
-	await SecureStore.setItemAsync(
-		`${connections.storagePrefix}${params.id}`,
-		JSON.stringify(params.details),
-	);
+	await betterConnectionStorage.upsertEntry({
+		id: params.id,
+		metadata: {
+			priority: params.priority,
+			createdAtMs: Date.now(),
+			modifiedAtMs: Date.now(),
+		},
+		value: JSON.stringify(params.details),
+	});
 	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
-	return existingConnection ?? newConnection;
+	return params.details;
 }
 
 async function deleteConnection(id: string) {
-	const manifest = await getConnectionManifest();
-	const connection = manifest.connections.find(
-		(connection) => connection.id === id,
-	);
-	if (!connection) throw new Error('Connection not found');
-	manifest.connections = manifest.connections.filter(
-		(connection) => connection.id !== id,
-	);
-	await SecureStore.setItemAsync(
-		connections.manifestKey,
-		JSON.stringify(manifest),
-	);
-	await SecureStore.deleteItemAsync(`${connections.storagePrefix}${id}`);
+	await betterConnectionStorage.deleteEntry(id);
 	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
 }
 
 async function getConnection(id: string) {
-	const manifest = await getConnectionManifest();
-	const connection = manifest.connections.find(
-		(connection) => connection.id === id,
-	);
-	if (!connection) throw new Error('Connection not found');
-	const detailsString = await SecureStore.getItemAsync(
-		`${connections.storagePrefix}${id}`,
-	);
-	if (!detailsString) throw new Error('Connection details not found');
-	const detailsJson = JSON.parse(detailsString);
-	const details = connectionDetailsSchema.parse(detailsJson);
-	return { ...connection, details };
+	const connDetailsString = await betterConnectionStorage.getEntry(id);
+	return connectionDetailsSchema.parse(JSON.parse(connDetailsString));
 }
 
 const connectionQueryKey = 'connections';
@@ -233,16 +322,17 @@ const connectionQueryKey = 'connections';
 const listConnectionsQueryOptions = queryOptions({
 	queryKey: [connectionQueryKey],
 	queryFn: async () => {
-		const manifest = await getConnectionManifest();
-		const firstConnectionMeta = manifest.connections[0];
-		const firstConnection = firstConnectionMeta
-			? await getConnection(firstConnectionMeta.id)
-			: null;
-
-		return {
-			manifest,
-			firstConnection,
-		};
+		const connManifests = await betterConnectionStorage.listEntries();
+		const results = await Promise.all(
+			connManifests.map(async (connManifest) => {
+				const details = await getConnection(connManifest.id);
+				return {
+					details,
+					id: connManifest.id,
+				};
+			}),
+		);
+		return results;
 	},
 });
 
@@ -256,7 +346,7 @@ const keyQueryKey = 'keys';
 
 const listKeysQueryOptions = queryOptions({
 	queryKey: [keyQueryKey],
-	queryFn: getKeyManifest,
+	queryFn: async () => await betterKeyStorage.listEntries(),
 });
 
 // https://github.com/dylankenneally/react-native-ssh-sftp/blob/ea55436d8d40378a8f9dabb95b463739ffb219fa/android/src/main/java/me/keeex/rnssh/RNSshClientModule.java#L101-L119
@@ -279,7 +369,7 @@ async function generateKeyPair(params: {
 export const secretsManager = {
 	keys: {
 		utils: {
-			getKeyManifest,
+			listPrivateKeys: () => betterKeyStorage.listEntries(),
 			savePrivateKey,
 			getPrivateKey,
 			deletePrivateKey,
