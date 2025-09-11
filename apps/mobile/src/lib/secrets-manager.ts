@@ -4,7 +4,6 @@ import * as SecureStore from 'expo-secure-store';
 import * as z from 'zod';
 import { queryClient } from './utils';
 
-// Utility functions for chunking large data
 function splitIntoChunks(data: string, chunkSize: number): string[] {
 	const chunks: string[] = [];
 	for (let i = 0; i < data.length; i += chunkSize) {
@@ -20,8 +19,12 @@ function splitIntoChunks(data: string, chunkSize: number): string[] {
  *
  * We can bypass both of those by using manifest entries and chunking.
  */
-function makeBetterSecureStore<T extends object = object>(params: {
+function makeBetterSecureStore<
+	T extends object = object,
+	Value = string,
+>(params: {
 	storagePrefix: string;
+	parseValue: (value: string) => Value;
 	extraManifestFieldsSchema?: z.ZodType<T>;
 }) {
 	// const sizeLimit = 2048;
@@ -97,6 +100,22 @@ function makeBetterSecureStore<T extends object = object>(params: {
 		};
 	}
 
+	async function _getEntryValueFromManifestEntry(manifestEntry: Entry) {
+		const rawEntryChunks = await Promise.all(
+			Array.from({ length: manifestEntry.chunkCount }, async (_, chunkIdx) => {
+				const rawEntryChunk = await SecureStore.getItemAsync(
+					entryKey(manifestEntry.id, chunkIdx),
+				);
+				console.log(
+					`Entry chunk for ${params.storagePrefix} ${manifestEntry.id} ${chunkIdx} is ${rawEntryChunk?.length} bytes`,
+				);
+				return rawEntryChunk;
+			}),
+		);
+		const entry = rawEntryChunks.join('');
+		return params.parseValue(entry);
+	}
+
 	async function getEntry(id: string) {
 		const manifest = await getManifest();
 		const manifestEntry = manifest.manifestChunks.reduce<Entry | undefined>(
@@ -106,25 +125,26 @@ function makeBetterSecureStore<T extends object = object>(params: {
 		);
 		if (!manifestEntry) throw new Error('Entry not found');
 
-		const rawEntryChunks = await Promise.all(
-			Array.from({ length: manifestEntry.chunkCount }, async (_, chunkIdx) => {
-				const rawEntryChunk = await SecureStore.getItemAsync(
-					entryKey(id, chunkIdx),
-				);
-				console.log(
-					`Entry chunk for ${params.storagePrefix} ${id} ${chunkIdx} is ${rawEntryChunk?.length} bytes`,
-				);
-				return rawEntryChunk;
-			}),
-		);
-		const entry = rawEntryChunks.join('');
-		return entry;
+		return _getEntryValueFromManifestEntry(manifestEntry);
 	}
 
 	async function listEntries() {
 		const manifest = await getManifest();
-		return manifest.manifestChunks.flatMap(
+		const manifestEntries = manifest.manifestChunks.flatMap(
 			(mChunk) => mChunk.manifestChunk.entries,
+		);
+		return manifestEntries;
+	}
+
+	async function listEntriesWithValues() {
+		const manifestEntries = await listEntries();
+		return await Promise.all(
+			manifestEntries.map(async (entry) => {
+				return {
+					...entry,
+					value: await _getEntryValueFromManifestEntry(entry),
+				};
+			}),
 		);
 	}
 
@@ -224,6 +244,7 @@ function makeBetterSecureStore<T extends object = object>(params: {
 		getManifest,
 		getEntry,
 		listEntries,
+		listEntriesWithValues,
 		upsertEntry,
 		deleteEntry,
 	};
@@ -235,18 +256,10 @@ const betterKeyStorage = makeBetterSecureStore({
 		priority: z.number(),
 		createdAtMs: z.int(),
 	}),
+	parseValue: (value) => value,
 });
 
-const betterConnectionStorage = makeBetterSecureStore({
-	storagePrefix: 'connection_',
-	extraManifestFieldsSchema: z.object({
-		priority: z.number(),
-		createdAtMs: z.int(),
-		modifiedAtMs: z.int(),
-	}),
-});
-
-async function savePrivateKey(params: {
+async function upsertPrivateKey(params: {
 	keyId: string;
 	privateKey: string;
 	priority: number;
@@ -262,14 +275,23 @@ async function savePrivateKey(params: {
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
-async function getPrivateKey(keyId: string) {
-	return await betterKeyStorage.getEntry(keyId);
-}
-
 async function deletePrivateKey(keyId: string) {
 	await betterKeyStorage.deleteEntry(keyId);
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
+
+const keyQueryKey = 'keys';
+
+const listKeysQueryOptions = queryOptions({
+	queryKey: [keyQueryKey],
+	queryFn: async () => await betterKeyStorage.listEntries(),
+});
+
+const getKeyQueryOptions = (keyId: string) =>
+	queryOptions({
+		queryKey: [keyQueryKey, keyId],
+		queryFn: () => betterKeyStorage.getEntry(keyId),
+	});
 
 export const connectionDetailsSchema = z.object({
 	host: z.string().min(1),
@@ -285,6 +307,16 @@ export const connectionDetailsSchema = z.object({
 			keyId: z.string().min(1),
 		}),
 	]),
+});
+
+const betterConnectionStorage = makeBetterSecureStore({
+	storagePrefix: 'connection_',
+	extraManifestFieldsSchema: z.object({
+		priority: z.number(),
+		createdAtMs: z.int(),
+		modifiedAtMs: z.int(),
+	}),
+	parseValue: (value) => connectionDetailsSchema.parse(JSON.parse(value)),
 });
 
 export type ConnectionDetails = z.infer<typeof connectionDetailsSchema>;
@@ -312,42 +344,18 @@ async function deleteConnection(id: string) {
 	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
 }
 
-async function getConnection(id: string) {
-	const connDetailsString = await betterConnectionStorage.getEntry(id);
-	return connectionDetailsSchema.parse(JSON.parse(connDetailsString));
-}
-
 const connectionQueryKey = 'connections';
 
 const listConnectionsQueryOptions = queryOptions({
 	queryKey: [connectionQueryKey],
-	queryFn: async () => {
-		const connManifests = await betterConnectionStorage.listEntries();
-		const results = await Promise.all(
-			connManifests.map(async (connManifest) => {
-				const details = await getConnection(connManifest.id);
-				return {
-					details,
-					id: connManifest.id,
-				};
-			}),
-		);
-		return results;
-	},
+	queryFn: () => betterConnectionStorage.listEntriesWithValues(),
 });
 
 const getConnectionQueryOptions = (id: string) =>
 	queryOptions({
 		queryKey: [connectionQueryKey, id],
-		queryFn: () => getConnection(id),
+		queryFn: () => betterConnectionStorage.getEntry(id),
 	});
-
-const keyQueryKey = 'keys';
-
-const listKeysQueryOptions = queryOptions({
-	queryKey: [keyQueryKey],
-	queryFn: async () => await betterKeyStorage.listEntries(),
-});
 
 // https://github.com/dylankenneally/react-native-ssh-sftp/blob/ea55436d8d40378a8f9dabb95b463739ffb219fa/android/src/main/java/me/keeex/rnssh/RNSshClientModule.java#L101-L119
 export type SshPrivateKeyType = 'dsa' | 'rsa' | 'ecdsa' | 'ed25519' | 'ed448';
@@ -369,18 +377,19 @@ async function generateKeyPair(params: {
 export const secretsManager = {
 	keys: {
 		utils: {
-			listPrivateKeys: () => betterKeyStorage.listEntries(),
-			savePrivateKey,
-			getPrivateKey,
+			betterKeyStorage,
+			upsertPrivateKey,
 			deletePrivateKey,
 			generateKeyPair,
 		},
 		query: {
 			list: listKeysQueryOptions,
+			get: getKeyQueryOptions,
 		},
 	},
 	connections: {
 		utils: {
+			betterConnectionStorage,
 			upsertConnection,
 			deleteConnection,
 		},

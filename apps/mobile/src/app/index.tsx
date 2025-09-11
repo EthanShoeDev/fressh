@@ -32,7 +32,7 @@ export default function Index() {
 	const connectionForm = useAppForm({
 		// https://tanstack.com/form/latest/docs/framework/react/guides/async-initial-values
 		defaultValues: preferredStoredConnection
-			? preferredStoredConnection.details
+			? preferredStoredConnection.value
 			: defaultValues,
 		validators: {
 			onChange: connectionDetailsSchema,
@@ -48,9 +48,10 @@ export default function Index() {
 								value.security.password,
 							);
 						}
-						const privateKey = await secretsManager.keys.utils.getPrivateKey(
-							value.security.keyId,
-						);
+						const privateKey =
+							await secretsManager.keys.utils.betterKeyStorage.getEntry(
+								value.security.keyId,
+							);
 						return await SSHClient.connectWithKey(
 							value.host,
 							value.port,
@@ -242,7 +243,7 @@ const KeyPairSection = withFieldGroup({
 											type: 'rsa',
 											keySize: 4096,
 										});
-									await secretsManager.keys.utils.savePrivateKey({
+									await secretsManager.keys.utils.upsertPrivateKey({
 										keyId: 'default',
 										privateKey: newKeyPair.privateKey,
 										priority: 0,
