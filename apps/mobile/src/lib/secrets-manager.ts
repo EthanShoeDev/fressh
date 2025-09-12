@@ -1,7 +1,7 @@
 import SSHClient from '@dylankenneally/react-native-ssh-sftp';
 import { queryOptions } from '@tanstack/react-query';
+import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
-import uuid from 'react-native-uuid';
 import * as z from 'zod';
 import { queryClient, type StrictOmit } from './utils';
 
@@ -257,7 +257,7 @@ function makeBetterSecureStore<
 						entries: [],
 						manifestChunkVersion: manifestChunkVersion,
 					},
-					manifestChunkId: String(uuid.v4()),
+					manifestChunkId: Crypto.randomUUID(),
 					manifestChunkSize: 0,
 				} satisfies NonNullable<(typeof manifest.manifestChunks)[number]>;
 				console.log(

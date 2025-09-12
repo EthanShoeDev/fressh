@@ -47,6 +47,7 @@ const config: ExpoConfig = {
 		],
 		'expo-secure-store',
 		'expo-font',
+		'expo-dev-client',
 		'expo-web-browser',
 		[
 			'expo-build-properties',

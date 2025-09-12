@@ -17,11 +17,14 @@
 
 - https://docs.expo.dev/guides/keyboard-handling/
 - https://kirillzyusko.github.io/react-native-keyboard-controller/
+- https://docs.expo.dev/versions/latest/sdk/clipboard/
 
 #### Styling and components
 
 - https://reactnativereusables.com/ https://www.unistyl.es/
 - https://github.com/Shopify/restyle
+- https://docs.expo.dev/versions/latest/sdk/segmented-control/
+- https://docs.expo.dev/versions/latest/sdk/ui/
 
 #### SSH Conn
 
