@@ -1,5 +1,5 @@
 import type SSHClient from '@dylankenneally/react-native-ssh-sftp';
-import uuid from 'react-native-uuid';
+import * as Crypto from 'expo-crypto';
 
 export type SSHConn = {
 	client: SSHClient;
@@ -10,7 +10,7 @@ export type SSHConn = {
 const sshConnections = new Map<string, SSHConn>();
 
 function addSession(params: { client: SSHClient }) {
-	const sessionId = uuid.v4();
+	const sessionId = Crypto.randomUUID();
 	const createdAt = new Date();
 	const sshConn: SSHConn = {
 		client: params.client,
