@@ -1,0 +1,34 @@
+
+avd_name := "ExpoRnA36"
+avd_system_image := "system-images;android-36.0-Baklava;google_apis_playstore;x86_64"
+
+
+default:
+    @just --list
+
+avd-list:
+    avdmanager list avd
+
+avd-ensure:
+    #! /bin/bash
+    set -ex
+    # avdmanager create avd -n {{ avd_name }} -k "{{ avd_system_image }}"
+    if ! avdmanager list avd | grep -q "Name: {{avd_name}}"; then
+      echo "Creating AVD {{avd_name}}..."
+    #   yes | 
+      avdmanager create avd -n "{{avd_name}}" \
+        -k "{{avd_system_image}}" \
+        --abi "x86_64"
+        # --device "pixel_7" \
+    fi
+    echo "AVD {{avd_name}} created"
+
+avd-start:
+    emulator -avd {{ avd_name }}
+
+avd-start-headless:
+    emulator -avd {{ avd_name }} -no-window -no-audio
+
+avd-mirror-remote ssh_target:
+    ssh -N -L 5037:127.0.0.1:5037 {{ ssh_target }}
+    scrcpy
