@@ -1,4 +1,4 @@
-import 'tsx/cjs'; // Add this to import TypeScript files
+import 'tsx/cjs';
 import { type ExpoConfig } from 'expo/config';
 import packageJson from './package.json';
 
@@ -13,9 +13,7 @@ const config: ExpoConfig = {
 	newArchEnabled: true,
 	ios: {
 		supportsTablet: true,
-		config: {
-			usesNonExemptEncryption: false,
-		},
+		config: { usesNonExemptEncryption: false },
 		bundleIdentifier: 'dev.fressh.app',
 	},
 	android: {
@@ -53,17 +51,23 @@ const config: ExpoConfig = {
 			'expo-build-properties',
 			{
 				android: {
+					// dylankenneally/react-native-ssh-sftp fails to build without this
 					packagingOptions: {
 						pickFirst: ['META-INF/versions/9/OSGI-INF/MANIFEST.MF'],
 					},
 				},
+				ios: {
+					// https://github.com/dylankenneally/react-native-ssh-sftp/issues/20#issuecomment-3286693445
+					// ../../docs/ios-sim-not-working.md (Update 1)
+					extraPods: [
+					  { name: 'CSSH-Binary', podspec: 'https://gist.githubusercontent.com/EthanShoeDev/1ab212949007d7aeabfeb199b7b9e951/raw/8602ec55efdf8c620dbbae93cd54023e2a36a8b9/CSSH-Binary.podspec' },
+					  { name: 'NMSSH', git: 'https://github.com/EthanShoeDev/NMSSH.git', branch: 'master' },
+					],
+				  },
 			},
 		],
 	],
-	experiments: {
-		typedRoutes: true,
-		reactCompiler: true,
-	},
+	experiments: { typedRoutes: true, reactCompiler: true },
 };
 
 export default config;
