@@ -1,17 +1,10 @@
 import SSHClient, { PtyType } from '@dylankenneally/react-native-ssh-sftp';
-// Removed inline Picker usage in favor of modal selection
+import SegmentedControl from '@react-native-segmented-control/segmented-control';
 import { useStore } from '@tanstack/react-form';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import {
-	Pressable,
-	ScrollView,
-	StyleSheet,
-	Text,
-	View,
-	Switch,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAppForm, useFieldContext } from '../components/form-components';
 import { KeyManagerModal } from '../components/key-manager-modal';
 import {
@@ -31,77 +24,80 @@ const defaultValues: ConnectionDetails = {
 	},
 };
 
-export default function Index() {
+const useSshConnMutation = () => {
 	const router = useRouter();
-	// const storedConnectionsQuery = useQuery(
-	// 	secretsManager.connections.query.list,
-	// );
 
+	return useMutation({
+		mutationFn: async (value: ConnectionDetails) => {
+			try {
+				console.log('Connecting to SSH server...');
+				const effective = await (async () => {
+					if (value.security.type === 'password') return value;
+					if (value.security.keyId) return value;
+					const keys = await secretsManager.keys.utils.listEntriesWithValues();
+					const def = keys.find((k) => k.metadata?.isDefault);
+					const pick = def ?? keys[0];
+					if (pick) {
+						return {
+							...value,
+							security: { type: 'key', keyId: pick.id },
+						} as ConnectionDetails;
+					}
+					return value;
+				})();
+
+				const sshClientConnection = await (async () => {
+					if (effective.security.type === 'password') {
+						return await SSHClient.connectWithPassword(
+							effective.host,
+							effective.port,
+							effective.username,
+							effective.security.password,
+						);
+					}
+					const privateKey = await secretsManager.keys.utils.getPrivateKey(
+						effective.security.keyId,
+					);
+					return await SSHClient.connectWithKey(
+						effective.host,
+						effective.port,
+						effective.username,
+						privateKey.value,
+					);
+				})();
+
+				await secretsManager.connections.utils.upsertConnection({
+					id: 'default',
+					details: effective,
+					priority: 0,
+				});
+				await sshClientConnection.startShell(PtyType.XTERM);
+				const sshConn = sshConnectionManager.addSession({
+					client: sshClientConnection,
+				});
+				console.log('Connected to SSH server', sshConn.sessionId);
+				router.push({
+					pathname: '/shell',
+					params: {
+						sessionId: sshConn.sessionId,
+					},
+				});
+			} catch (error) {
+				console.error('Error connecting to SSH server', error);
+				throw error;
+			}
+		},
+	});
+};
+
+export default function Index() {
+	const sshConnMutation = useSshConnMutation();
 	const connectionForm = useAppForm({
 		// https://tanstack.com/form/latest/docs/framework/react/guides/async-initial-values
 		defaultValues,
 		validators: {
 			onChange: connectionDetailsSchema,
-			onSubmitAsync: async ({ value }) => {
-				try {
-					console.log('Connecting to SSH server...');
-					const effective = await (async () => {
-						if (value.security.type === 'password') return value;
-						if (value.security.keyId) return value;
-						const keys =
-							await secretsManager.keys.utils.listEntriesWithValues();
-						const def = keys.find((k) => k.metadata?.isDefault);
-						const pick = def ?? keys[0];
-						if (pick) {
-							return {
-								...value,
-								security: { type: 'key', keyId: pick.id },
-							} as ConnectionDetails;
-						}
-						return value;
-					})();
-
-					const sshClientConnection = await (async () => {
-						if (effective.security.type === 'password') {
-							return await SSHClient.connectWithPassword(
-								effective.host,
-								effective.port,
-								effective.username,
-								effective.security.password,
-							);
-						}
-						const privateKey = await secretsManager.keys.utils.getPrivateKey(
-							effective.security.keyId,
-						);
-						return await SSHClient.connectWithKey(
-							effective.host,
-							effective.port,
-							effective.username,
-							privateKey.value,
-						);
-					})();
-
-					await secretsManager.connections.utils.upsertConnection({
-						id: 'default',
-						details: effective,
-						priority: 0,
-					});
-					await sshClientConnection.startShell(PtyType.XTERM);
-					const sshConn = sshConnectionManager.addSession({
-						client: sshClientConnection,
-					});
-					console.log('Connected to SSH server', sshConn.sessionId);
-					router.push({
-						pathname: '/shell',
-						params: {
-							sessionId: sshConn.sessionId,
-						},
-					});
-				} catch (error) {
-					console.error('Error connecting to SSH server', error);
-					throw error;
-				}
-			},
+			onSubmitAsync: async ({ value }) => sshConnMutation.mutateAsync(value),
 		},
 	});
 
@@ -164,16 +160,17 @@ export default function Index() {
 						<connectionForm.AppField name="security.type">
 							{(field) => (
 								<View style={styles.inputGroup}>
-									<Text style={styles.label}>Use Private Key</Text>
-									<View>
-										{/* Map boolean switch to discriminated union */}
-										<Switch
-											value={field.state.value === 'key'}
-											onValueChange={(val) => {
-												field.handleChange(val ? 'key' : 'password');
-											}}
-										/>
-									</View>
+									<SegmentedControl
+										values={['Password', 'Private Key']}
+										selectedIndex={field.state.value === 'password' ? 0 : 1}
+										onChange={(event) => {
+											field.handleChange(
+												event.nativeEvent.selectedSegmentIndex === 0
+													? 'password'
+													: 'key',
+											);
+										}}
+									/>
 								</View>
 							)}
 						</connectionForm.AppField>
