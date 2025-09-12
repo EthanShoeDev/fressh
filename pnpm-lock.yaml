@@ -87,8 +87,8 @@ importers:
         specifier: ~14.0.7
         version: 14.0.7(expo@54.0.3)
       expo-file-system:
-        specifier: ~19.0.12
-        version: 19.0.12(expo@54.0.3)(react-native@0.81.4(@babel/core@7.28.3)(@types/react@19.1.12)(react@19.1.0))
+        specifier: ~19.0.13
+        version: 19.0.13(expo@54.0.3)(react-native@0.81.4(@babel/core@7.28.3)(@types/react@19.1.12)(react@19.1.0))
       expo-font:
         specifier: ~14.0.8
         version: 14.0.8(expo@54.0.3)(react-native@0.81.4(@babel/core@7.28.3)(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
@@ -3639,12 +3639,6 @@ packages:
     resolution: {integrity: sha512-81Jh8RDD0GYBUoSTmIBq30hXXjmkDV1ZY2BNIp1+3HR5PDSh2WmdhD/Ezz5YFsv46hIXHsQc+Kh1q8vn6OLT9Q==}
     peerDependencies:
       expo: '*'
-
-  expo-file-system@19.0.12:
-    resolution: {integrity: sha512-gqpxpnjfhzXLcqMOi49isB5S1Af49P9410fsaFfnLZWN3X6Dwc8EplDwbaolOI/wnGwP81P+/nDn5RNmU6m7mQ==}
-    peerDependencies:
-      expo: '*'
-      react-native: '*'
 
   expo-file-system@19.0.13:
     resolution: {integrity: sha512-ACDxp9/HA30XxqLEX39dTNvjf/9R64woMoeySu02xoclGl98VsHTQhKk0GF4BxjD0KwA9jamS/scTaC9P0BWLA==}
@@ -11027,11 +11021,6 @@ snapshots:
   expo-document-picker@14.0.7(expo@54.0.3):
     dependencies:
       expo: 54.0.3(@babel/core@7.28.3)(@expo/metro-runtime@6.1.1)(expo-router@6.0.1)(react-native@0.81.4(@babel/core@7.28.3)(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
-
-  expo-file-system@19.0.12(expo@54.0.3)(react-native@0.81.4(@babel/core@7.28.3)(@types/react@19.1.12)(react@19.1.0)):
-    dependencies:
-      expo: 54.0.3(@babel/core@7.28.3)(@expo/metro-runtime@6.1.1)(expo-router@6.0.1)(react-native@0.81.4(@babel/core@7.28.3)(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
-      react-native: 0.81.4(@babel/core@7.28.3)(@types/react@19.1.12)(react@19.1.0)
 
   expo-file-system@19.0.13(expo@54.0.3)(react-native@0.81.4(@babel/core@7.28.3)(@types/react@19.1.12)(react@19.1.0)):
     dependencies:
