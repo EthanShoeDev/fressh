@@ -14,23 +14,25 @@ import { secretsManager } from '../lib/secrets-manager';
 export function KeyManagerModal(props: {
 	visible: boolean;
 	onClose: () => void;
+	selectedKeyId?: string;
+	onSelect?: (keyId: string) => void;
 }) {
-    const listKeysQuery = useQuery(secretsManager.keys.query.list);
+	const listKeysQuery = useQuery(secretsManager.keys.query.list);
 
-    const generateMutation = useMutation({
-        mutationFn: async () => {
-            const id = `key_${Date.now()}`;
-            const pair = await secretsManager.keys.utils.generateKeyPair({
-                type: 'rsa',
-                keySize: 4096,
-            });
-            await secretsManager.keys.utils.upsertPrivateKey({
-                keyId: id,
-                metadata: { priority: 0, label: 'New Key', isDefault: false },
-                value: pair.privateKey,
-            });
-        },
-    });
+	const generateMutation = useMutation({
+		mutationFn: async () => {
+			const id = `key_${Date.now()}`;
+			const pair = await secretsManager.keys.utils.generateKeyPair({
+				type: 'rsa',
+				keySize: 4096,
+			});
+			await secretsManager.keys.utils.upsertPrivateKey({
+				keyId: id,
+				metadata: { priority: 0, label: 'New Key', isDefault: false },
+				value: pair.privateKey,
+			});
+		},
+	});
 
 	async function handleDelete(keyId: string) {
 		await secretsManager.keys.utils.deletePrivateKey(keyId);
@@ -54,7 +56,7 @@ export function KeyManagerModal(props: {
 	}
 
 	async function handleGenerate() {
-    await generateMutation.mutateAsync();
+		await generateMutation.mutateAsync();
 	}
 
 	return (
@@ -68,20 +70,20 @@ export function KeyManagerModal(props: {
 						</Pressable>
 					</View>
 
-                    <Pressable
-                        style={[
-                            styles.primaryButton,
-                            generateMutation.isPending && { opacity: 0.7 },
-                        ]}
-                        disabled={generateMutation.isPending}
-                        onPress={handleGenerate}
-                    >
-                        <Text style={styles.primaryButtonText}>
-                            {generateMutation.isPending
-                                ? 'Generating…'
-                                : 'Generate New RSA 4096 Key'}
-                        </Text>
-                    </Pressable>
+					<Pressable
+						style={[
+							styles.primaryButton,
+							generateMutation.isPending && { opacity: 0.7 },
+						]}
+						disabled={generateMutation.isPending}
+						onPress={handleGenerate}
+					>
+						<Text style={styles.primaryButtonText}>
+							{generateMutation.isPending
+								? 'Generating…'
+								: 'Generate New RSA 4096 Key'}
+						</Text>
+					</Pressable>
 
 					{listKeysQuery.isLoading ? (
 						<View style={styles.centerRow}>
@@ -96,6 +98,11 @@ export function KeyManagerModal(props: {
 								<KeyRow
 									key={k.id}
 									entry={k}
+									selected={props.selectedKeyId === k.id}
+									onSelect={() => {
+										if (props.onSelect) props.onSelect(k.id);
+										props.onClose();
+									}}
 									onDelete={() => handleDelete(k.id)}
 									onSetDefault={() => handleSetDefault(k.id)}
 								/>
@@ -114,34 +121,36 @@ function KeyRow(props: {
 	entry: Awaited<
 		ReturnType<typeof secretsManager.keys.utils.listEntriesWithValues>
 	>[number];
+	selected?: boolean;
+	onSelect?: () => void;
 	onDelete: () => void;
 	onSetDefault: () => void;
 }) {
-    const [isEditing, setIsEditing] = React.useState(false);
-    const [label, setLabel] = React.useState(props.entry.metadata?.label ?? '');
-    const isDefault = props.entry.metadata?.isDefault;
+	const [isEditing, setIsEditing] = React.useState(false);
+	const [label, setLabel] = React.useState(props.entry.metadata?.label ?? '');
+	const isDefault = props.entry.metadata?.isDefault;
 
-    const renameMutation = useMutation({
-        mutationFn: async (newLabel: string) => {
-            await secretsManager.keys.utils.upsertPrivateKey({
-                keyId: props.entry.id,
-                value: props.entry.value,
-                metadata: {
-                    priority: props.entry.metadata.priority,
-                    label: newLabel,
-                    isDefault: props.entry.metadata.isDefault,
-                },
-            });
-        },
-        onSuccess: () => setIsEditing(false),
-    });
+	const renameMutation = useMutation({
+		mutationFn: async (newLabel: string) => {
+			await secretsManager.keys.utils.upsertPrivateKey({
+				keyId: props.entry.id,
+				value: props.entry.value,
+				metadata: {
+					priority: props.entry.metadata.priority,
+					label: newLabel,
+					isDefault: props.entry.metadata.isDefault,
+				},
+			});
+		},
+		onSuccess: () => setIsEditing(false),
+	});
 
-    async function saveLabel() {
-        await renameMutation.mutateAsync(label);
-    }
+	async function saveLabel() {
+		await renameMutation.mutateAsync(label);
+	}
 
 	return (
-		<View style={styles.row}>
+		<Pressable style={styles.row} onPress={props.onSelect}>
 			<View style={{ flex: 1, marginRight: 8 }}>
 				<Text style={styles.rowTitle}>
 					{(props.entry.metadata?.label ?? props.entry.id) +
@@ -159,6 +168,13 @@ function KeyRow(props: {
 				) : null}
 			</View>
 			<View style={styles.rowActions}>
+				{props.onSelect ? (
+					<View style={styles.radioWrap}>
+						<View
+							style={[styles.radio, props.selected && styles.radioSelected]}
+						/>
+					</View>
+				) : null}
 				{!isDefault ? (
 					<Pressable
 						style={styles.secondaryButton}
@@ -167,32 +183,32 @@ function KeyRow(props: {
 						<Text style={styles.secondaryButtonText}>Set Default</Text>
 					</Pressable>
 				) : null}
-                {isEditing ? (
-                    <Pressable
-                        style={[
-                            styles.secondaryButton,
-                            renameMutation.isPending && { opacity: 0.6 },
-                        ]}
-                        onPress={saveLabel}
-                        disabled={renameMutation.isPending}
-                    >
-                        <Text style={styles.secondaryButtonText}>
-                            {renameMutation.isPending ? 'Saving…' : 'Save'}
-                        </Text>
-                    </Pressable>
-                ) : (
-                    <Pressable
-                        style={styles.secondaryButton}
-                        onPress={() => setIsEditing(true)}
-                    >
-                        <Text style={styles.secondaryButtonText}>Rename</Text>
-                    </Pressable>
-                )}
+				{isEditing ? (
+					<Pressable
+						style={[
+							styles.secondaryButton,
+							renameMutation.isPending && { opacity: 0.6 },
+						]}
+						onPress={saveLabel}
+						disabled={renameMutation.isPending}
+					>
+						<Text style={styles.secondaryButtonText}>
+							{renameMutation.isPending ? 'Saving…' : 'Save'}
+						</Text>
+					</Pressable>
+				) : (
+					<Pressable
+						style={styles.secondaryButton}
+						onPress={() => setIsEditing(true)}
+					>
+						<Text style={styles.secondaryButtonText}>Rename</Text>
+					</Pressable>
+				)}
 				<Pressable style={styles.dangerButton} onPress={props.onDelete}>
 					<Text style={styles.dangerButtonText}>Delete</Text>
 				</Pressable>
 			</View>
-		</View>
+		</Pressable>
 	);
 }
 
@@ -291,6 +307,23 @@ const styles = StyleSheet.create({
 	rowActions: {
 		gap: 6,
 		alignItems: 'flex-end',
+	},
+	radioWrap: {
+		justifyContent: 'center',
+		alignItems: 'center',
+		marginRight: 6,
+	},
+	radio: {
+		width: 16,
+		height: 16,
+		borderRadius: 16,
+		borderColor: '#2A3655',
+		borderWidth: 2,
+		backgroundColor: 'transparent',
+	},
+	radioSelected: {
+		backgroundColor: '#2563EB',
+		borderColor: '#2563EB',
 	},
 	secondaryButton: {
 		backgroundColor: 'transparent',

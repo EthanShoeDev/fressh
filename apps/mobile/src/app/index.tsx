@@ -1,11 +1,18 @@
 import SSHClient, { PtyType } from '@dylankenneally/react-native-ssh-sftp';
-import { Picker } from '@react-native-picker/picker';
+// Removed inline Picker usage in favor of modal selection
 import { useStore } from '@tanstack/react-form';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useAppForm, withFieldGroup } from '../components/form-components';
+import {
+	Pressable,
+	ScrollView,
+	StyleSheet,
+	Text,
+	View,
+	Switch,
+} from 'react-native';
+import { useAppForm, useFieldContext } from '../components/form-components';
 import { KeyManagerModal } from '../components/key-manager-modal';
 import {
 	type ConnectionDetails,
@@ -26,44 +33,57 @@ const defaultValues: ConnectionDetails = {
 
 export default function Index() {
 	const router = useRouter();
-	const storedConnectionsQuery = useQuery(
-		secretsManager.connections.query.list,
-	);
+	// const storedConnectionsQuery = useQuery(
+	// 	secretsManager.connections.query.list,
+	// );
 
-	const preferredStoredConnection = storedConnectionsQuery.data?.[0];
 	const connectionForm = useAppForm({
 		// https://tanstack.com/form/latest/docs/framework/react/guides/async-initial-values
-		defaultValues: preferredStoredConnection
-			? preferredStoredConnection.value
-			: defaultValues,
+		defaultValues,
 		validators: {
 			onChange: connectionDetailsSchema,
 			onSubmitAsync: async ({ value }) => {
 				try {
 					console.log('Connecting to SSH server...');
+					const effective = await (async () => {
+						if (value.security.type === 'password') return value;
+						if (value.security.keyId) return value;
+						const keys =
+							await secretsManager.keys.utils.listEntriesWithValues();
+						const def = keys.find((k) => k.metadata?.isDefault);
+						const pick = def ?? keys[0];
+						if (pick) {
+							return {
+								...value,
+								security: { type: 'key', keyId: pick.id },
+							} as ConnectionDetails;
+						}
+						return value;
+					})();
+
 					const sshClientConnection = await (async () => {
-						if (value.security.type === 'password') {
+						if (effective.security.type === 'password') {
 							return await SSHClient.connectWithPassword(
-								value.host,
-								value.port,
-								value.username,
-								value.security.password,
+								effective.host,
+								effective.port,
+								effective.username,
+								effective.security.password,
 							);
 						}
 						const privateKey = await secretsManager.keys.utils.getPrivateKey(
-							value.security.keyId,
+							effective.security.keyId,
 						);
 						return await SSHClient.connectWithKey(
-							value.host,
-							value.port,
-							value.username,
+							effective.host,
+							effective.port,
+							effective.username,
 							privateKey.value,
 						);
 					})();
 
 					await secretsManager.connections.utils.upsertConnection({
 						id: 'default',
-						details: value,
+						details: effective,
 						priority: 0,
 					});
 					await sshClientConnection.startShell(PtyType.XTERM);
@@ -143,10 +163,18 @@ export default function Index() {
 						</connectionForm.AppField>
 						<connectionForm.AppField name="security.type">
 							{(field) => (
-								<field.PickerField label="Security Type">
-									<Picker.Item label="Password" value="password" />
-									<Picker.Item label="Key" value="key" />
-								</field.PickerField>
+								<View style={styles.inputGroup}>
+									<Text style={styles.label}>Use Private Key</Text>
+									<View>
+										{/* Map boolean switch to discriminated union */}
+										<Switch
+											value={field.state.value === 'key'}
+											onValueChange={(val) => {
+												field.handleChange(val ? 'key' : 'password');
+											}}
+										/>
+									</View>
+								</View>
 							)}
 						</connectionForm.AppField>
 						{securityType === 'password' ? (
@@ -161,13 +189,9 @@ export default function Index() {
 								)}
 							</connectionForm.AppField>
 						) : (
-							<KeyPairSection
-								form={connectionForm}
-								fields={{
-									keyId: 'security.keyId',
-									type: 'security.type',
-								}}
-							/>
+							<connectionForm.AppField name="security.keyId">
+								{() => <KeyIdPicker />}
+							</connectionForm.AppField>
 						)}
 
 						<View style={styles.actions}>
@@ -209,68 +233,60 @@ export default function Index() {
 	);
 }
 
-// Yes, HOCs are weird. Its what the docs recommend.
-// https://tanstack.com/form/v1/docs/framework/react/guides/form-composition#withform-faq
-const KeyPairSection = withFieldGroup({
-	defaultValues: {
-		type: 'key',
-		keyId: '',
-	},
-	props: {},
-	render: function Render({ group }) {
-		const listPrivateKeysQuery = useQuery(secretsManager.keys.query.list);
-		const [showManager, setShowManager] = React.useState(false);
+function KeyIdPicker() {
+	const field = useFieldContext<string>();
+	const hasInteractedRef = React.useRef(false);
+	const [manualVisible, setManualVisible] = React.useState(false);
 
-		return (
-			<group.AppField name="keyId">
-				{(field) => {
-					if (listPrivateKeysQuery.isLoading) {
-						return <Text style={styles.mutedText}>Loading keys...</Text>;
-					}
-					if (listPrivateKeysQuery.isError) {
-						return (
-							<Text style={styles.errorText}>
-								Error: {listPrivateKeysQuery.error.message}
-							</Text>
-						);
-					}
-					return (
-						<>
-							<field.PickerField label="Key">
-								{listPrivateKeysQuery.data?.map((key) => {
-									const label = `${key.metadata?.label ?? key.id}${
-										key.metadata?.isDefault ? ' • Default' : ''
-									}`;
-									return (
-										<Picker.Item key={key.id} label={label} value={key.id} />
-									);
-								})}
-							</field.PickerField>
-							<Pressable
-								style={styles.secondaryButton}
-								onPress={() => setShowManager(true)}
-							>
-								<Text style={styles.secondaryButtonText}>Manage Keys</Text>
-							</Pressable>
-							<KeyManagerModal
-								visible={showManager}
-								onClose={() => {
-									setShowManager(false);
-									if (!field.state.value && listPrivateKeysQuery.data) {
-										const def = listPrivateKeysQuery.data.find(
-											(k) => k.metadata?.isDefault,
-										);
-										if (def) field.handleChange(def.id);
-									}
-								}}
-							/>
-						</>
-					);
+	const listPrivateKeysQuery = useQuery(secretsManager.keys.query.list);
+	const defaultPick = React.useMemo(() => {
+		const keys = listPrivateKeysQuery.data ?? [];
+		const def = keys.find((k) => k.metadata?.isDefault);
+		return def ?? keys[0];
+	}, [listPrivateKeysQuery.data]);
+	const keys = listPrivateKeysQuery.data ?? [];
+
+	const computedSelectedId = field.state.value ?? defaultPick?.id;
+	const selected = keys.find((k) => k.id === computedSelectedId);
+	const display = selected ? (selected.metadata?.label ?? selected.id) : 'None';
+
+	const isEmpty = (listPrivateKeysQuery.data?.length ?? 0) === 0;
+	const visible = manualVisible || (!hasInteractedRef.current && isEmpty);
+
+	return (
+		<>
+			<View style={styles.inputGroup}>
+				<Text style={styles.label}>Private Key</Text>
+				<Pressable
+					style={[styles.input, { justifyContent: 'center' }]}
+					onPress={() => {
+						hasInteractedRef.current = true;
+						setManualVisible(true);
+					}}
+				>
+					<Text style={{ color: '#E5E7EB' }}>{display}</Text>
+				</Pressable>
+				{!selected && (
+					<Text style={styles.mutedText}>
+						Open Key Manager to add/select a key
+					</Text>
+				)}
+			</View>
+			<KeyManagerModal
+				visible={visible}
+				selectedKeyId={computedSelectedId}
+				onSelect={(id) => {
+					hasInteractedRef.current = true;
+					field.handleChange(id);
 				}}
-			</group.AppField>
-		);
-	},
-});
+				onClose={() => {
+					hasInteractedRef.current = true;
+					setManualVisible(false);
+				}}
+			/>
+		</>
+	);
+}
 
 function PreviousConnectionsSection(props: {
 	onSelect: (connection: ConnectionDetails) => void;
