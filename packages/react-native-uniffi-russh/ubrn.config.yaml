@@ -3,5 +3,5 @@
 #   branch: jhugman/bump-uniffi-to-0.29
 #   manifestPath: rust/foobar/Cargo.toml
 rust:
-  directory: ./rust_modules/uniffi-starter
-  manifestPath: rust/foobar/Cargo.toml
+  directory: rust_modules/uniffi-starter/rust
+  manifestPath: foobar/Cargo.toml

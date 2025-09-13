@@ -1,23 +1,11 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [".nvmrc", ".yarnrc.yml"],
-  "globalEnv": ["NODE_ENV"],
   "tasks": {
-    "build:android": {
-      "env": ["ANDROID_HOME", "ORG_GRADLE_PROJECT_newArchEnabled"],
-      "inputs": [
-        "package.json",
-        "android",
-        "!android/build",
-        "src/*.ts",
-        "src/*.tsx"
-      ],
-      "outputs": []
+    "build": {
+      "outputs": ["lib/**", "android/**", "ios/**", "cpp/**", "src/**"]
     },
-    "build:ios": {
-      "env": ["RCT_USE_RN_DEP", "RCT_USE_PREBUILT_RNCORE"],
-      "inputs": ["package.json", "*.podspec", "ios", "src/*.ts", "src/*.tsx"],
-      "outputs": []
+    "typecheck": {
+      "dependsOn": ["build"]
     }
   },
   "extends": ["//"]
