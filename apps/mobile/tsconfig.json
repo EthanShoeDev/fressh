@@ -28,6 +28,5 @@
 		".expo/types/**/*.ts",
 		"expo-env.d.ts",
 		"eslint.config.js"
-	],
-	"exclude": ["**/node_modules"]
+	]
 }
