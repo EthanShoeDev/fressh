@@ -35,6 +35,9 @@
                 build-tools-36-0-0
                 platforms-android-36
                 system-images-android-36-0-Baklava-google-apis-playstore-x86-64
+                # Add NDK + CMake for native builds
+                ndk-26-1-10909125
+                cmake-3-22-1
               ])
             else if mode == "remote" then
               (with sdk; [

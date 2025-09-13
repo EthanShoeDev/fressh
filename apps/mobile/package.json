@@ -27,6 +27,7 @@
     "@dylankenneally/react-native-ssh-sftp": "^1.5.20",
     "@expo/vector-icons": "^15.0.2",
     "@fressh/assets": "workspace:*",
+    "@fressh/react-native-uniffi-russh": "workspace:*",
     "@react-native-picker/picker": "2.11.1",
     "@react-native-segmented-control/segmented-control": "2.5.7",
     "@react-navigation/bottom-tabs": "^7.4.0",
