@@ -22,7 +22,7 @@
 #### Styling and components
 
 - https://www.unistyl.es/
-- https://reactnativereusables.com/ 
+- https://reactnativereusables.com/
 - https://github.com/Shopify/restyle
 - https://docs.expo.dev/versions/latest/sdk/segmented-control/
 - https://docs.expo.dev/versions/latest/sdk/ui/

@@ -60,10 +60,18 @@ const config: ExpoConfig = {
 					// https://github.com/dylankenneally/react-native-ssh-sftp/issues/20#issuecomment-3286693445
 					// ../../docs/ios-sim-not-working.md (Update 1)
 					extraPods: [
-					  { name: 'CSSH-Binary', podspec: 'https://gist.githubusercontent.com/EthanShoeDev/1ab212949007d7aeabfeb199b7b9e951/raw/8602ec55efdf8c620dbbae93cd54023e2a36a8b9/CSSH-Binary.podspec' },
-					  { name: 'NMSSH', git: 'https://github.com/EthanShoeDev/NMSSH.git', branch: 'master' },
+						{
+							name: 'CSSH-Binary',
+							podspec:
+								'https://gist.githubusercontent.com/EthanShoeDev/1ab212949007d7aeabfeb199b7b9e951/raw/8602ec55efdf8c620dbbae93cd54023e2a36a8b9/CSSH-Binary.podspec',
+						},
+						{
+							name: 'NMSSH',
+							git: 'https://github.com/EthanShoeDev/NMSSH.git',
+							branch: 'master',
+						},
 					],
-				  },
+				},
 			},
 		],
 	],
