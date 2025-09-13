@@ -33,7 +33,7 @@
   ],
   "scripts": {
     "build": "if [ \"$(uname)\" = \"Darwin\" ]; then npm run build:ios; else npm run build:android; fi",
-    "build:ios": "ubrn build ios --and-generate && bob build",
+    "build:ios": "ubrn build ios --and-generate --release && bob build",
     "build:android": "ubrn build android --and-generate --release && bob build",
     "ubrn:web": "ubrn build web",
     "ubrn:clean": "rm -rfv cpp/ android/CMakeLists.txt android/src/main/java android/*.cpp ios/ src/Native* src/index.*ts* src/generated/",

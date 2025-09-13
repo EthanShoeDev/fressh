@@ -64,7 +64,7 @@ build_xcframework() {
   fi
 }
 
-basename=foobar
+basename=uniffi-russh
 
 cargo build -p $basename --lib --release --target x86_64-apple-ios
 cargo build -p $basename --lib --release --target aarch64-apple-ios-sim
