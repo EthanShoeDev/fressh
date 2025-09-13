@@ -10,3 +10,6 @@ onlyBuiltDependencies:
   - oxc-resolver
   - sharp
   - unrs-resolver
+
+patchedDependencies:
+  uniffi-bindgen-react-native: patches/uniffi-bindgen-react-native.patch

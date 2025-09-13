@@ -38,4 +38,5 @@
 
 Uniffi is broken on RN 0.80
 
+- https://github.com/jhugman/uniffi-bindgen-react-native/issues/295
 - https://github.com/realm/realm-js/issues/7011#issuecomment-3149613234
