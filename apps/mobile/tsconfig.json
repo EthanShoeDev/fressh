@@ -2,12 +2,19 @@
 	"extends": "expo/tsconfig.base",
 	"compilerOptions": {
 		"strict": true,
-		"noUnusedLocals": true,
-		"noUnusedParameters": true,
+
+		// https://github.com/jhugman/uniffi-bindgen-react-native/pull/198
+		// https://github.com/microsoft/TypeScript/issues/41883#issuecomment-1758692340
+		// "noUnusedLocals": true,
+		// "noUnusedParameters": true,
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
+		"noImplicitOverride": false,
+
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedIndexedAccess": true,
 		"verbatimModuleSyntax": true,
-		"noImplicitOverride": true,
+		// "noImplicitOverride": true,
 		"allowJs": true,
 		"strictNullChecks": true,
 		"baseUrl": ".",
@@ -21,5 +28,6 @@
 		".expo/types/**/*.ts",
 		"expo-env.d.ts",
 		"eslint.config.js"
-	]
+	],
+	"exclude": ["**/node_modules"]
 }

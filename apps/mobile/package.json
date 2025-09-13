@@ -21,7 +21,8 @@
     "typecheck": "tsc",
     "lint:fix": "eslint --fix --max-warnings 0 --report-unused-disable-directives .",
     "eslint:check": "eslint --max-warnings 0 --report-unused-disable-directives .",
-    "test:e2e": "maestro test test/e2e/"
+    "test:e2e": "maestro test test/e2e/",
+    "adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done"
   },
   "dependencies": {
     "@dylankenneally/react-native-ssh-sftp": "^1.5.20",

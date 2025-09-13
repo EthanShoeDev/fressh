@@ -88,3 +88,5 @@ nitrogen/
 # From uniffi-bindgen-react-native
 rust_modules/
 *.a
+android/
+cpp/
