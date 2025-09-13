@@ -1,5 +1,7 @@
 {
   "name": "@fressh/react-native-uniffi-russh",
+  "homepage": "https://github.com/EthanShoeDev/fressh",
+  "license": "UNKNOWN",
   "description": "Uniffi bindings for russh",
   "version": "0.0.1",
   "main": "./lib/module/index.js",
@@ -30,7 +32,7 @@
     "!**/.*"
   ],
   "scripts": {
-    "ubrn:ios": "ubrn build ios --and-generate && (cd example/ios && pod install)",
+    "ubrn:ios": "ubrn build ios --and-generate",
     "ubrn:android": "ubrn build android --and-generate --release",
     "ubrn:web": "ubrn build web",
     "ubrn:checkout": "ubrn checkout",
@@ -39,7 +41,7 @@
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
-    "prepare": "pnpm run ubrn:checkout && pnpm run ubrn:android && bob build",
+    "prepare": "pnpm run ubrn:checkout && pnpm run ubrn:ios && bob build",
     "release": "release-it --only-version"
   },
   "keywords": [

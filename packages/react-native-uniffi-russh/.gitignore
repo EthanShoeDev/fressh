@@ -89,5 +89,8 @@ nitrogen/
 rust_modules/
 *.a
 android/
+ios/
 cpp/
 src/
+*.xcframework
+*.podspec
