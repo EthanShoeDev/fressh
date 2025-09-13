@@ -13,7 +13,7 @@ import {
 	secretsManager,
 } from '../lib/secrets-manager';
 import { sshConnectionManager } from '../lib/ssh-connection-manager';
-import { result } from '../lib/test-uniffi-russh';
+import '../lib/test-uniffi-russh';
 const defaultValues: ConnectionDetails = {
 	host: 'test.rebex.net',
 	port: 22,
@@ -119,9 +119,7 @@ export default function Index() {
 			>
 				<View style={styles.header}>
 					<Text style={styles.appName}>fressh</Text>
-					<Text style={styles.appTagline}>
-						A fast, friendly SSH client {result}
-					</Text>
+					<Text style={styles.appTagline}>A fast, friendly SSH client</Text>
 				</View>
 				<View style={styles.card}>
 					<Text style={styles.title}>Connect to SSH Server</Text>
