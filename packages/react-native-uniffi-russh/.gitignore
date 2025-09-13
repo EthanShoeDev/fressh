@@ -86,11 +86,11 @@ android/generated
 nitrogen/
 
 # From uniffi-bindgen-react-native
-rust_modules/
+# rust_modules/
 *.a
-android/
-ios/
-cpp/
-src/
+./android/
+./ios/
+./cpp/
+./src/
 *.xcframework
 *.podspec

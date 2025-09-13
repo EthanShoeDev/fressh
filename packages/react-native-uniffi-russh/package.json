@@ -35,13 +35,12 @@
     "ubrn:ios": "ubrn build ios --and-generate",
     "ubrn:android": "ubrn build android --and-generate --release",
     "ubrn:web": "ubrn build web",
-    "ubrn:checkout": "ubrn checkout",
     "ubrn:clean": "rm -rfv cpp/ android/CMakeLists.txt android/src/main/java android/*.cpp ios/ src/Native* src/index.*ts* src/generated/",
     "test": "jest",
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
-    "prepare": "pnpm run ubrn:checkout && pnpm run ubrn:ios && bob build",
+    "x:prepare": "pnpm run ubrn:ios && bob build",
     "release": "release-it --only-version"
   },
   "keywords": [
