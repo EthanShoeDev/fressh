@@ -1,4 +1,4 @@
-import SSHClient from '@dylankenneally/react-native-ssh-sftp';
+import * as Russh from '@fressh/react-native-uniffi-russh';
 import { queryOptions } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
@@ -443,11 +443,11 @@ async function generateKeyPair(params: {
 	keySize?: number;
 	comment?: string;
 }) {
-	const keyPair = await SSHClient.generateKeyPair(
-		params.type,
-		params.passphrase ?? '',
-		params.keySize,
-		params.comment ?? '',
+	console.log('DEBUG: generating key pair', params);
+	const keyPair = await Russh.generateKeyPair(
+		Russh.KeyType.Ed25519,
+		// params.keySize,
+		// params.comment ?? '',
 	);
 	return keyPair;
 }

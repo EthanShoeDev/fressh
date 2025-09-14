@@ -29,7 +29,7 @@ export function KeyManagerModal(props: {
 			await secretsManager.keys.utils.upsertPrivateKey({
 				keyId: id,
 				metadata: { priority: 0, label: 'New Key', isDefault: false },
-				value: pair.privateKey,
+				value: pair,
 			});
 		},
 	});

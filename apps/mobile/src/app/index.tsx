@@ -1,4 +1,4 @@
-import SSHClient, { PtyType } from '@dylankenneally/react-native-ssh-sftp';
+import { connect, PtyType, Security } from '@fressh/react-native-uniffi-russh';
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
 import { useStore } from '@tanstack/react-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -13,7 +13,6 @@ import {
 	secretsManager,
 } from '../lib/secrets-manager';
 import { sshConnectionManager } from '../lib/ssh-connection-manager';
-import '../lib/test-uniffi-russh';
 const defaultValues: ConnectionDetails = {
 	host: 'test.rebex.net',
 	port: 22,
@@ -28,52 +27,40 @@ const useSshConnMutation = () => {
 	const router = useRouter();
 
 	return useMutation({
-		mutationFn: async (value: ConnectionDetails) => {
+		mutationFn: async (connectionDetails: ConnectionDetails) => {
 			try {
 				console.log('Connecting to SSH server...');
-				const effective = await (async () => {
-					if (value.security.type === 'password') return value;
-					if (value.security.keyId) return value;
-					const keys = await secretsManager.keys.utils.listEntriesWithValues();
-					const def = keys.find((k) => k.metadata?.isDefault);
-					const pick = def ?? keys[0];
-					if (pick) {
-						return {
-							...value,
-							security: { type: 'key', keyId: pick.id },
-						} as ConnectionDetails;
-					}
-					return value;
-				})();
-
-				const sshClientConnection = await (async () => {
-					if (effective.security.type === 'password') {
-						return await SSHClient.connectWithPassword(
-							effective.host,
-							effective.port,
-							effective.username,
-							effective.security.password,
-						);
-					}
-					const privateKey = await secretsManager.keys.utils.getPrivateKey(
-						effective.security.keyId,
-					);
-					return await SSHClient.connectWithKey(
-						effective.host,
-						effective.port,
-						effective.username,
-						privateKey.value,
-					);
-				})();
+				const sshConnection = await connect(
+					{
+						host: connectionDetails.host,
+						port: connectionDetails.port,
+						username: connectionDetails.username,
+						security:
+							connectionDetails.security.type === 'password'
+								? new Security.Password({
+										password: connectionDetails.security.password,
+									})
+								: new Security.Key({ keyId: connectionDetails.security.keyId }),
+					},
+					{
+						onStatusChange: (status) => {
+							console.log('SSH connection status', status);
+						},
+					},
+				);
 
 				await secretsManager.connections.utils.upsertConnection({
 					id: 'default',
-					details: effective,
+					details: connectionDetails,
 					priority: 0,
 				});
-				await sshClientConnection.startShell(PtyType.XTERM);
+				await sshConnection.startShell(PtyType.Xterm, {
+					onStatusChange: (status) => {
+						console.log('SSH shell status', status);
+					},
+				});
 				const sshConn = sshConnectionManager.addSession({
-					client: sshClientConnection,
+					client: sshConnection,
 				});
 				console.log('Connected to SSH server', sshConn.sessionId);
 				router.push({
