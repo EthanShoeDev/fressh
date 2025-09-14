@@ -5,6 +5,13 @@ import * as SecureStore from 'expo-secure-store';
 import * as z from 'zod';
 import { queryClient, type StrictOmit } from './utils';
 
+const shouldLog = false as boolean;
+const log = (...args: Parameters<typeof console.log>) => {
+	if (shouldLog) {
+		console.log(...args);
+	}
+};
+
 function splitIntoChunks(data: string, chunkSize: number): string[] {
 	const chunks: string[] = [];
 	for (let i = 0; i < data.length; i += chunkSize) {
@@ -67,9 +74,9 @@ function makeBetterSecureStore<
 		const rawRootManifestString =
 			await SecureStore.getItemAsync(rootManifestKey);
 
-		console.log('DEBUG rawRootManifestString', rawRootManifestString);
+		log('DEBUG rawRootManifestString', rawRootManifestString);
 
-		console.log(
+		log(
 			`Root manifest for ${rootManifestKey} is ${rawRootManifestString?.length ?? 0} bytes`,
 		);
 		const unsafedRootManifest = rawRootManifestString
@@ -87,7 +94,7 @@ function makeBetterSecureStore<
 				);
 				if (!rawManifestChunkString)
 					throw new Error('Manifest chunk not found');
-				console.log(
+				log(
 					`Manifest chunk for ${manifestChunkKeyString} is ${rawManifestChunkString?.length} bytes`,
 				);
 				const unsafedManifestChunk = JSON.parse(rawManifestChunkString);
@@ -111,7 +118,7 @@ function makeBetterSecureStore<
 			Array.from({ length: manifestEntry.chunkCount }, async (_, chunkIdx) => {
 				const entryKeyString = entryKey(manifestEntry.id, chunkIdx);
 				const rawEntryChunk = await SecureStore.getItemAsync(entryKeyString);
-				console.log(
+				log(
 					`Entry chunk for ${entryKeyString} is ${rawEntryChunk?.length} bytes`,
 				);
 				if (!rawEntryChunk) throw new Error('Entry chunk not found');
@@ -197,10 +204,7 @@ function makeBetterSecureStore<
 			(mChunk) => mChunk.manifestChunk.entries.length === 0,
 		);
 		if (emptyManifestChunks.length > 0) {
-			console.log(
-				'DEBUG: removing empty manifest chunks',
-				emptyManifestChunks.length,
-			);
+			log('DEBUG: removing empty manifest chunks', emptyManifestChunks.length);
 			manifest.rootManifest.manifestChunksIds =
 				manifest.rootManifest.manifestChunksIds.filter(
 					(mChunkId) =>
@@ -228,7 +232,7 @@ function makeBetterSecureStore<
 		value: string;
 	}) {
 		await deleteEntry(params.id).catch(() => {
-			console.log(`Entry ${params.id} not found, creating new one`);
+			log(`Entry ${params.id} not found, creating new one`);
 		});
 
 		const valueChunks = splitIntoChunks(params.value, sizeLimit);
@@ -245,10 +249,7 @@ function makeBetterSecureStore<
 		const existingManifestChunkWithRoom = manifest.manifestChunks.find(
 			(mChunk) => sizeLimit > mChunk.manifestChunkSize + newManifestEntrySize,
 		);
-		console.log(
-			'DEBUG existingManifestChunkWithRoom',
-			existingManifestChunkWithRoom,
-		);
+		log('DEBUG existingManifestChunkWithRoom', existingManifestChunkWithRoom);
 		const manifestChunkWithRoom =
 			existingManifestChunkWithRoom ??
 			(await (async () => {
@@ -260,9 +261,7 @@ function makeBetterSecureStore<
 					manifestChunkId: Crypto.randomUUID(),
 					manifestChunkSize: 0,
 				} satisfies NonNullable<(typeof manifest.manifestChunks)[number]>;
-				console.log(
-					`Adding new manifest chunk ${newManifestChunk.manifestChunkId}`,
-				);
+				log(`Adding new manifest chunk ${newManifestChunk.manifestChunkId}`);
 				manifest.rootManifest.manifestChunksIds.push(
 					newManifestChunk.manifestChunkId,
 				);
@@ -270,7 +269,7 @@ function makeBetterSecureStore<
 					rootManifestKey,
 					JSON.stringify(manifest.rootManifest),
 				);
-				console.log('DEBUG: newRootManifest', manifest.rootManifest);
+				log('DEBUG: newRootManifest', manifest.rootManifest);
 				return newManifestChunk;
 			})());
 
@@ -283,14 +282,14 @@ function makeBetterSecureStore<
 				manifestChunkKeyString,
 				JSON.stringify(manifestChunkWithRoom.manifestChunk),
 			).then(() => {
-				console.log(
+				log(
 					`Set manifest chunk for ${manifestChunkKeyString} to ${JSON.stringify(manifestChunkWithRoom.manifestChunk).length} bytes`,
 				);
 			}),
 			...valueChunks.map(async (vChunk, chunkIdx) => {
 				const entryKeyString = entryKey(newManifestEntry.id, chunkIdx);
 				await SecureStore.setItemAsync(entryKeyString, vChunk);
-				console.log(
+				log(
 					`Set entry chunk for ${entryKeyString} ${chunkIdx} to ${vChunk.length} bytes`,
 				);
 			}),
@@ -328,7 +327,7 @@ async function upsertPrivateKey(params: {
 	metadata: StrictOmit<KeyMetadata, 'createdAtMs'>;
 	value: string;
 }) {
-	console.log(`Upserting private key ${params.keyId}`);
+	log(`Upserting private key ${params.keyId}`);
 	// Preserve createdAtMs if the entry already exists
 	const existing = await betterKeyStorage
 		.getEntry(params.keyId)
@@ -344,7 +343,7 @@ async function upsertPrivateKey(params: {
 		},
 		value: params.value,
 	});
-	console.log('DEBUG: invalidating key query');
+	log('DEBUG: invalidating key query');
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
@@ -359,7 +358,7 @@ const listKeysQueryOptions = queryOptions({
 	queryKey: [keyQueryKey],
 	queryFn: async () => {
 		const results = await betterKeyStorage.listEntriesWithValues();
-		console.log(`Listed ${results.length} private keys`);
+		log(`Listed ${results.length} private keys`);
 		return results;
 	},
 });
@@ -412,7 +411,7 @@ async function upsertConnection(params: {
 		},
 		value: JSON.stringify(params.details),
 	});
-	console.log('DEBUG: invalidating connection query');
+	log('DEBUG: invalidating connection query');
 	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
 	return params.details;
 }
@@ -443,7 +442,7 @@ async function generateKeyPair(params: {
 	keySize?: number;
 	comment?: string;
 }) {
-	console.log('DEBUG: generating key pair', params);
+	log('DEBUG: generating key pair', params);
 	const keyPair = await RnRussh.generateKeyPair(
 		'ed25519',
 		// params.keySize,

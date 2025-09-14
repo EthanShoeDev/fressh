@@ -53,7 +53,6 @@ export type StartShellOptions = {
   onStatusChange?: (status: SshConnectionStatus) => void;
   abortSignal?: AbortSignal;
 }
-
 async function connect(options: ConnectOptions) {
   const security =
     options.security.type === 'password'
@@ -79,20 +78,28 @@ async function connect(options: ConnectOptions) {
       }
       : undefined
   );
-  const originalStartShell = sshConnectionInterface.startShell;
-  return {
-    ...sshConnectionInterface,
-    startShell: (params: StartShellOptions) => {
-      return originalStartShell({
+  // Wrap startShell in-place to preserve the UniFFI object's internal pointer.
+  // Spreading into a new object would drop the hidden native pointer and cause
+  // "Raw pointer value was null" when methods access `this`.
+  const originalStartShell = sshConnectionInterface.startShell.bind(sshConnectionInterface);
+  const betterStartShell = async (params: StartShellOptions) => {
+    return originalStartShell(
+      {
         pty: ptyTypeLiteralToEnum[params.pty],
-        onStatusChange: params.onStatusChange ? {
-          onChange: (statusEnum) => {
-            params.onStatusChange?.(sshConnStatusEnumToLiteral[statusEnum]!);
-          },
-        } : undefined,
-      }, params.abortSignal ? { signal: params.abortSignal } : undefined);
-    }
+        onStatusChange: params.onStatusChange
+          ? {
+            onChange: (statusEnum) => {
+              params.onStatusChange?.(sshConnStatusEnumToLiteral[statusEnum]!);
+            },
+          }
+          : undefined,
+      },
+      params.abortSignal ? { signal: params.abortSignal } : undefined,
+    );
   }
+  type BetterStartShellFn = typeof betterStartShell;
+  (sshConnectionInterface as any).startShell = betterStartShell
+  return sshConnectionInterface as GeneratedRussh.SshConnectionInterface & { startShell: BetterStartShellFn };
 }
 
 export type SshConnection = Awaited<ReturnType<typeof connect>>;
