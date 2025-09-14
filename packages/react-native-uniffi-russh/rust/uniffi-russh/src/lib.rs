@@ -1,212 +1,181 @@
-use std::sync::Arc;
-// You must call this once
+// lib.rs (or your crate root)
+
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::fmt;
+
+
+// You must call this once in your crate
 uniffi::setup_scaffolding!();
 
-// What follows is an intentionally ridiculous whirlwind tour of how you'd expose a complex API to UniFFI.
+/// ----- Types that mirror your TS schema -----
 
-#[derive(Debug, PartialEq, uniffi::Enum, Default)]
-pub enum ComputationState {
-    /// Initial state with no value computed
-    #[default]
-    Init,
-    Computed {
-        result: ComputationResult,
-    },
+#[derive(Debug, Clone, PartialEq, uniffi::Enum)]
+pub enum Security {
+    Password { password: String },
+    Key { key_id: String },
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, uniffi::Record)]
-pub struct ComputationResult {
-    pub value: i64,
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct ConnectionDetails {
+    pub host: String,
+    pub port: u16, // maps cleanly to JS number
+    pub username: String,
+    pub security: Security,
 }
 
-#[derive(Debug, PartialEq, thiserror::Error, uniffi::Error)]
-pub enum ComputationError {
-    #[error("Division by zero is not allowed.")]
-    DivisionByZero,
-    #[error("Result overflowed the numeric type bounds.")]
-    Overflow,
-    #[error("There is no existing computation state, so you cannot perform this operation.")]
-    IllegalComputationWithInitState,
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Enum)]
+pub enum SSHConnectionStatus {
+    TcpConnecting,
+    TcpConnected,
+    TcpDisconnected,
+    ShellConnecting,
+    ShellConnected,
+    ShellDisconnected,
 }
 
-/// A binary operator that performs some mathematical operation with two numbers.
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+pub enum SshError {
+    #[error("The connection is not available.")]
+    Disconnected,
+    #[error("Unsupported key type.")]
+    UnsupportedKeyType,
+}
+
+/// Callback for status changes: onStatusChange(status)
 #[uniffi::export(with_foreign)]
-pub trait BinaryOperator: Send + Sync {
-    fn perform(&self, lhs: i64, rhs: i64) -> Result<i64, ComputationError>;
+pub trait StatusListener: Send + Sync {
+    fn on_status_change(&self, status: SSHConnectionStatus);
 }
 
-/// A somewhat silly demonstration of functional core/imperative shell in the form of a calculator with arbitrary operators.
-///
-/// Operations return a new calculator with updated internal state reflecting the computation.
-#[derive(PartialEq, Debug, Default, uniffi::Object)]
-pub struct Calculator {
-    state: ComputationState,
+/// Data listener: on_data(ArrayBuffer)
+#[uniffi::export(with_foreign)]
+pub trait DataListener: Send + Sync {
+    fn on_data(&self, data: Vec<u8>);
 }
 
-#[uniffi::export]
-impl Calculator {
-    #[uniffi::constructor]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn last_result(&self) -> Option<ComputationResult> {
-        match self.state {
-            ComputationState::Init => None,
-            ComputationState::Computed { result } => Some(result),
-        }
-    }
-
-    /// Performs a calculation using the supplied binary operator and operands.
-    pub fn calculate(
-        &self,
-        op: Arc<dyn BinaryOperator>,
-        lhs: i64,
-        rhs: i64,
-    ) -> Result<Calculator, ComputationError> {
-        let value = op.perform(lhs, rhs)?;
-
-        Ok(Calculator {
-            state: ComputationState::Computed {
-                result: ComputationResult { value },
-            },
-        })
-    }
-
-    /// Performs a calculation using the supplied binary operator, the last computation result, and the supplied operand.
-    ///
-    /// The supplied operand will be the right-hand side in the mathematical operation.
-    pub fn calculate_more(
-        &self,
-        op: Arc<dyn BinaryOperator>,
-        rhs: i64,
-    ) -> Result<Calculator, ComputationError> {
-        let ComputationState::Computed { result } = &self.state else {
-            return Err(ComputationError::IllegalComputationWithInitState);
-        };
-
-        let value = op.perform(result.value, rhs)?;
-
-        Ok(Calculator {
-            state: ComputationState::Computed {
-                result: ComputationResult { value },
-            },
-        })
-    }
+/// Key types
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Enum)]
+pub enum KeyType {
+    Rsa,
+    Ecdsa,
+    Ed25519,
+    Ed448,
 }
+
+/// ----- SSHConnection object -----
 
 #[derive(uniffi::Object)]
-struct SafeAddition {}
+pub struct SSHConnection {
+    connection_details: ConnectionDetails,
+    session_id: String,
+    created_at_ms: f64,
+    established_at_ms: f64,
+    listeners: Mutex<Vec<Arc<dyn DataListener>>>,
+}
 
-// Makes it easy to construct from foreign code
-#[uniffi::export]
-impl SafeAddition {
-    #[uniffi::constructor]
-    fn new() -> Self {
-        SafeAddition {}
+impl fmt::Debug for SSHConnection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SSHConnection")
+            .field("connection_details", &self.connection_details)
+            .field("session_id", &self.session_id)
+            .field("created_at_ms", &self.created_at_ms)
+            .field("established_at_ms", &self.established_at_ms)
+            // Don’t try to print the trait objects; just show count or omit entirely.
+            .field(
+                "listeners_len",
+                &self.listeners.lock().map(|v| v.len()).unwrap_or(0),
+            )
+            .finish()
     }
 }
 
 #[uniffi::export]
-impl BinaryOperator for SafeAddition {
-    fn perform(&self, lhs: i64, rhs: i64) -> Result<i64, ComputationError> {
-        lhs.checked_add(rhs).ok_or(ComputationError::Overflow)
+impl SSHConnection {
+    // Read-only “properties” via getters (JS sees methods: connectionDetails(), etc.)
+    pub fn connection_details(&self) -> ConnectionDetails {
+        self.connection_details.clone()
+    }
+
+    pub fn session_id(&self) -> String {
+        self.session_id.clone()
+    }
+
+    pub fn created_at_ms(&self) -> f64 {
+        self.created_at_ms
+    }
+
+    pub fn established_at_ms(&self) -> f64 {
+        self.established_at_ms
+    }
+
+    /// Register a data listener (no-op storage for now; we keep it so you can emit later)
+    pub fn add_data_listener(&self, listener: Arc<dyn DataListener>) {
+        let mut vec = self.listeners.lock().unwrap();
+        vec.push(listener);
+        // If you want to prove it works, you could immediately emit a hello packet:
+        // if let Some(last) = vec.last() {
+        //     last.on_data(b"hello-from-rust".to_vec());
+        // }
+    }
+
+    /// Send bytes to the session (dummy async)
+    pub async fn send_data(&self, _data: Vec<u8>) -> Result<(), SshError> {
+        // No real transport yet; just succeed.
+        Ok(())
+    }
+
+    /// Disconnect (dummy async)
+    pub async fn disconnect(&self) -> Result<(), SshError> {
+        // No real transport yet; just succeed.
+        Ok(())
     }
 }
 
-#[derive(uniffi::Object)]
-struct SafeDivision {}
+/// ----- Top-level API surface -----
 
-// Makes it easy to construct from foreign code
+/// Connect and emit a few status transitions. Returns a ready SSHConnection.
+/// Kept async so JS sees a Promise<SSHConnection>.
 #[uniffi::export]
-impl SafeDivision {
-    #[uniffi::constructor]
-    fn new() -> Self {
-        SafeDivision {}
-    }
+pub async fn connect(
+    details: ConnectionDetails,
+    status_listener: Arc<dyn StatusListener>,
+) -> Result<Arc<SSHConnection>, SshError> {
+    // Fire a short, synchronous sequence of status updates (no sleeps needed for now)
+    status_listener.on_status_change(SSHConnectionStatus::TcpConnecting);
+    status_listener.on_status_change(SSHConnectionStatus::TcpConnected);
+    status_listener.on_status_change(SSHConnectionStatus::ShellConnecting);
+    status_listener.on_status_change(SSHConnectionStatus::ShellConnected);
+
+    let now = now_ms();
+
+    let conn = Arc::new(SSHConnection {
+        connection_details: details,
+        session_id: "SESSION-STATIC-0001".to_string(),
+        created_at_ms: now,
+        established_at_ms: now,
+        listeners: Mutex::new(Vec::new()),
+    });
+
+    Ok(conn)
 }
 
+/// Generate a key pair as a PEM string (dummy content)
 #[uniffi::export]
-impl BinaryOperator for SafeDivision {
-    fn perform(&self, lhs: i64, rhs: i64) -> Result<i64, ComputationError> {
-        if rhs == 0 {
-            Err(ComputationError::DivisionByZero)
-        } else {
-            lhs.checked_div(rhs).ok_or(ComputationError::Overflow)
-        }
-    }
+pub async fn generate_key_pair(key_type: KeyType) -> Result<String, SshError> {
+    let pem = match key_type {
+        KeyType::Rsa => "-----BEGIN RSA PRIVATE KEY-----\n...dummy...\n-----END RSA PRIVATE KEY-----",
+        KeyType::Ecdsa => "-----BEGIN EC PRIVATE KEY-----\n...dummy...\n-----END EC PRIVATE KEY-----",
+        KeyType::Ed25519 => "-----BEGIN OPENSSH PRIVATE KEY-----\n...dummy-ed25519...\n-----END OPENSSH PRIVATE KEY-----",
+        KeyType::Ed448 => "-----BEGIN OPENSSH PRIVATE KEY-----\n...dummy-ed448...\n-----END OPENSSH PRIVATE KEY-----",
+    };
+    Ok(pem.to_string())
 }
 
-// Helpers that only exist because the concrete objects above DO NOT have the requisite protocol conformances
-// stated in the glue code. It's easy to extend classes in Swift, but you can't just declare a conformance in Kotlin.
-// So, to keep things easy, we just do this as a compromise.
-
-#[uniffi::export]
-fn safe_addition_operator() -> Arc<dyn BinaryOperator> {
-    Arc::new(SafeAddition::new())
-}
-
-#[uniffi::export]
-fn safe_division_operator() -> Arc<dyn BinaryOperator> {
-    Arc::new(SafeDivision::new())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn addition() {
-        let calc = Calculator::new();
-        let op = Arc::new(SafeAddition {});
-
-        let calc = calc
-            .calculate(op.clone(), 2, 2)
-            .expect("Something went wrong");
-        assert_eq!(calc.last_result().unwrap().value, 4);
-
-        assert_eq!(
-            calc.calculate_more(op.clone(), i64::MAX),
-            Err(ComputationError::Overflow)
-        );
-        assert_eq!(
-            calc.calculate_more(op, 8)
-                .unwrap()
-                .last_result()
-                .unwrap()
-                .value,
-            12
-        );
-    }
-
-    #[test]
-    fn division() {
-        let calc = Calculator::new();
-        let op = Arc::new(SafeDivision {});
-
-        let calc = calc
-            .calculate(op.clone(), 2, 2)
-            .expect("Something went wrong");
-        assert_eq!(calc.last_result().unwrap().value, 1);
-
-        assert_eq!(
-            calc.calculate_more(op.clone(), 0),
-            Err(ComputationError::DivisionByZero)
-        );
-        assert_eq!(
-            calc.calculate(op, i64::MIN, -1),
-            Err(ComputationError::Overflow)
-        );
-    }
-
-    #[test]
-    fn compute_more_from_init_state() {
-        let calc = Calculator::new();
-        let op = Arc::new(SafeAddition {});
-
-        assert_eq!(
-            calc.calculate_more(op, 1),
-            Err(ComputationError::IllegalComputationWithInitState)
-        );
-    }
+/// Helper
+fn now_ms() -> f64 {
+    let d = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    d.as_millis() as f64
 }
