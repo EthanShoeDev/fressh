@@ -4,12 +4,12 @@
   "license": "UNKNOWN",
   "description": "Uniffi bindings for russh",
   "version": "0.0.1",
-  "main": "./lib/module/index.js",
-  "types": "./lib/typescript/src/index.d.ts",
+  "main": "./lib/module/api.js",
+  "types": "./lib/typescript/src/api.d.ts",
   "exports": {
     ".": {
-      "types": "./lib/typescript/src/index.d.ts",
-      "default": "./lib/module/index.js"
+      "types": "./lib/typescript/src/api.d.ts",
+      "default": "./lib/module/api.js"
     },
     "./package.json": "./package.json"
   },

@@ -22,20 +22,14 @@ export default function Shell() {
 	const [shellData, setShellData] = useState('');
 
 	useEffect(() => {
-		// sshConn.client.on('Shell', (data) => {
-		// 	console.log('Received data (on Shell):', data);
-		// 	setShellData((prev) => prev + data);
-		// });
-		sshConn.client.addChannelListener({
+		const channelListenerId = sshConn.client.addChannelListener({
 			onData: (data) => {
 				console.log('Received data (on Shell):', data);
 				setShellData((prev) => prev + data);
 			},
 		});
 		return () => {
-			sshConn.client.removeChannelListener({
-				onData: () => {},
-			});
+			sshConn.client.removeChannelListener(channelListenerId);
 		};
 	}, [setShellData, sshConn.client]);
 

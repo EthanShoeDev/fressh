@@ -1,4 +1,4 @@
-import { connect, PtyType, Security } from '@fressh/react-native-uniffi-russh';
+import { RnRussh } from '@fressh/react-native-uniffi-russh';
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
 import { useStore } from '@tanstack/react-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -13,6 +13,7 @@ import {
 	secretsManager,
 } from '../lib/secrets-manager';
 import { sshConnectionManager } from '../lib/ssh-connection-manager';
+
 const defaultValues: ConnectionDetails = {
 	host: 'test.rebex.net',
 	port: 22,
@@ -30,31 +31,29 @@ const useSshConnMutation = () => {
 		mutationFn: async (connectionDetails: ConnectionDetails) => {
 			try {
 				console.log('Connecting to SSH server...');
-				const sshConnection = await connect(
-					{
-						host: connectionDetails.host,
-						port: connectionDetails.port,
-						username: connectionDetails.username,
-						security:
-							connectionDetails.security.type === 'password'
-								? new Security.Password({
-										password: connectionDetails.security.password,
-									})
-								: new Security.Key({ keyId: connectionDetails.security.keyId }),
+				const sshConnection = await RnRussh.connect({
+					host: connectionDetails.host,
+					port: connectionDetails.port,
+					username: connectionDetails.username,
+					security:
+						connectionDetails.security.type === 'password'
+							? {
+									type: 'password',
+									password: connectionDetails.security.password,
+								}
+							: { type: 'key', privateKey: 'TODO' },
+					onStatusChange: (status) => {
+						console.log('SSH connection status', status);
 					},
-					{
-						onStatusChange: (status) => {
-							console.log('SSH connection status', status);
-						},
-					},
-				);
+				});
 
 				await secretsManager.connections.utils.upsertConnection({
 					id: 'default',
 					details: connectionDetails,
 					priority: 0,
 				});
-				await sshConnection.startShell(PtyType.Xterm, {
+				await sshConnection.startShell({
+					pty: 'Xterm',
 					onStatusChange: (status) => {
 						console.log('SSH shell status', status);
 					},

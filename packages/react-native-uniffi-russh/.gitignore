@@ -91,6 +91,8 @@ nitrogen/
 /android
 /ios
 /cpp
-/src
+/src/*
 *.xcframework
 *.podspec
+
+!src/api.ts

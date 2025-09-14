@@ -40,3 +40,7 @@ Uniffi is broken on RN 0.80
 
 - https://github.com/jhugman/uniffi-bindgen-react-native/issues/295
 - https://github.com/realm/realm-js/issues/7011#issuecomment-3149613234
+
+- https://jhugman.github.io/uniffi-bindgen-react-native/idioms/common-types.html
+- https://jhugman.github.io/uniffi-bindgen-react-native/idioms/callback-interfaces.html
+- https://jhugman.github.io/uniffi-bindgen-react-native/idioms/async-callbacks.html

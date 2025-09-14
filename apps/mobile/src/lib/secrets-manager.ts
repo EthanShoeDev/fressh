@@ -1,4 +1,4 @@
-import * as Russh from '@fressh/react-native-uniffi-russh';
+import { RnRussh } from '@fressh/react-native-uniffi-russh';
 import { queryOptions } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
@@ -444,8 +444,8 @@ async function generateKeyPair(params: {
 	comment?: string;
 }) {
 	console.log('DEBUG: generating key pair', params);
-	const keyPair = await Russh.generateKeyPair(
-		Russh.KeyType.Ed25519,
+	const keyPair = await RnRussh.generateKeyPair(
+		'ed25519',
 		// params.keySize,
 		// params.comment ?? '',
 	);

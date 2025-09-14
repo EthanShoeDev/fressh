@@ -1,14 +1,14 @@
-import { type SshConnectionInterface } from '@fressh/react-native-uniffi-russh';
+import { type SshConnection } from '@fressh/react-native-uniffi-russh';
 import * as Crypto from 'expo-crypto';
 export type SSHConn = {
-	client: SshConnectionInterface;
+	client: SshConnection;
 	sessionId: string;
 	createdAt: Date;
 };
 
 const sshConnections = new Map<string, SSHConn>();
 
-function addSession(params: { client: SshConnectionInterface }) {
+function addSession(params: { client: SshConnection }) {
 	const sessionId = Crypto.randomUUID();
 	const createdAt = new Date();
 	const sshConn: SSHConn = {
@@ -28,7 +28,6 @@ function getSession(params: { sessionId: string }) {
 
 async function removeAndDisconnectSession(params: { sessionId: string }) {
 	const sshConn = getSession(params);
-	// sshConn.client.closeShell()
 	await sshConn.client.disconnect();
 	sshConnections.delete(params.sessionId);
 }

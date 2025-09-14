@@ -1,5 +1,5 @@
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rand::rngs::OsRng;
@@ -12,6 +12,10 @@ use russh_keys::{Algorithm as KeyAlgorithm, EcdsaCurve, PrivateKey};
 use russh_keys::ssh_key::{self, LineEnding};
 
 uniffi::setup_scaffolding!();
+
+// Simpler aliases to satisfy clippy type-complexity.
+type ListenerEntry = (u64, Arc<dyn ChannelListener>);
+type ListenerList = Vec<ListenerEntry>;
 
 /// ---------- Types ----------
 
@@ -27,6 +31,17 @@ pub struct ConnectionDetails {
     pub port: u16,
     pub username: String,
     pub security: Security,
+}
+
+/// Options for establishing a TCP connection and authenticating.
+/// Listener is embedded here so TS has a single arg.
+#[derive(Clone, uniffi::Record)]
+pub struct ConnectOptions {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub security: Security,
+    pub on_status_change: Option<Arc<dyn StatusListener>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Enum)]
@@ -92,7 +107,7 @@ impl From<ssh_key::Error> for SshError {
 /// Status callback (used separately by connect and by start_shell)
 #[uniffi::export(with_foreign)]
 pub trait StatusListener: Send + Sync {
-    fn on_status_change(&self, status: SSHConnectionStatus);
+    fn on_change(&self, status: SSHConnectionStatus);
 }
 
 /// Channel data callback (stdout/stderr unified)
@@ -110,6 +125,29 @@ pub enum KeyType {
     Ed448,
 }
 
+/// Options for starting a shell.
+#[derive(Clone, uniffi::Record)]
+pub struct StartShellOptions {
+    pub pty: PtyType,
+    pub on_status_change: Option<Arc<dyn StatusListener>>,
+}
+
+/// Snapshot of current connection info for property-like access in TS.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct SshConnectionInfo {
+    pub connection_details: ConnectionDetails,
+    pub created_at_ms: f64,
+    pub tcp_established_at_ms: f64,
+}
+
+/// Snapshot of shell session info for property-like access in TS.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct ShellSessionInfo {
+    pub channel_id: u32,
+    pub created_at_ms: f64,
+    pub pty: PtyType,
+}
+
 /// ---------- Connection object (no shell until start_shell) ----------
 
 #[derive(uniffi::Object)]
@@ -121,19 +159,28 @@ pub struct SSHConnection {
     handle: AsyncMutex<ClientHandle<NoopHandler>>,
 
     // Shell state (one active shell per connection by design).
-    shell: AsyncMutex<Option<ShellState>>,
+    shell: AsyncMutex<Option<Arc<ShellSession>>>,
 
-    // Data listeners for whatever shell is active.
-    listeners: Arc<Mutex<Vec<Arc<dyn ChannelListener>>>>,
+    // Weak self for child sessions to refer back without cycles.
+    self_weak: AsyncMutex<Weak<SSHConnection>>,
+
+    // Data listeners for whatever shell is active. We track by id for removal.
+    listeners: Arc<Mutex<ListenerList>>,
+    next_listener_id: Arc<Mutex<u64>>, // simple counter guarded by same kind of mutex
 }
 
-struct ShellState {
+#[derive(uniffi::Object)]
+pub struct ShellSession {
+    // Weak backref; avoid retain cycle.
+    parent: std::sync::Weak<SSHConnection>,
     channel_id: u32,
-    writer: russh::ChannelWriteHalf<client::Msg>,
+    writer: AsyncMutex<russh::ChannelWriteHalf<client::Msg>>,
     // We keep the reader task to allow cancellation on close.
     reader_task: tokio::task::JoinHandle<()>,
     // Only used for Shell* statuses.
     shell_status_listener: Option<Arc<dyn StatusListener>>,
+    created_at_ms: f64,
+    pty: PtyType,
 }
 
 impl fmt::Debug for SSHConnection {
@@ -152,6 +199,15 @@ impl fmt::Debug for SSHConnection {
 struct NoopHandler;
 impl client::Handler for NoopHandler {
     type Error = SshError;
+    // Accept any server key for now so dev UX isn't blocked.
+    // TODO: Add known-hosts verification and surface API to control this.
+    #[allow(unused_variables)]
+    fn check_server_key(
+        &mut self,
+        _server_public_key: &russh::keys::PublicKey,
+    ) -> impl std::future::Future<Output = std::result::Result<bool, <Self as russh::client::Handler>::Error>> + std::marker::Send {
+        std::future::ready(Ok(true))
+    }
 }
 
 /// ---------- Methods ----------
@@ -168,33 +224,41 @@ impl SSHConnection {
         self.tcp_established_at_ms
     }
 
-    /// Return current shell channel id, if any.
-    pub async fn channel_id(&self) -> Option<u32> {
-        self.shell.lock().await.as_ref().map(|s| s.channel_id)
-    }
-
-    pub fn add_channel_listener(&self, listener: Arc<dyn ChannelListener>) {
-        self.listeners.lock().unwrap().push(listener);
-    }
-    pub fn remove_channel_listener(&self, listener: Arc<dyn ChannelListener>) {
-        if let Ok(mut v) = self.listeners.lock() {
-            v.retain(|l| !Arc::ptr_eq(l, &listener));
+    /// Convenience snapshot for property-like access in TS.
+    pub async fn info(&self) -> SshConnectionInfo {
+        SshConnectionInfo {
+            connection_details: self.connection_details.clone(),
+            created_at_ms: self.created_at_ms,
+            tcp_established_at_ms: self.tcp_established_at_ms,
         }
     }
 
-    /// Start a shell with the given PTY. Emits only Shell* statuses via `shell_status_listener`.
-    pub async fn start_shell(
-        &self,
-        pty: PtyType,
-        shell_status_listener: Option<Arc<dyn StatusListener>>,
-    ) -> Result<u32, SshError> {
+    /// Add a channel listener and get an id you can later remove with.
+    pub fn add_channel_listener(&self, listener: Arc<dyn ChannelListener>) -> u64 {
+        let mut guard = self.listeners.lock().unwrap();
+        let mut id_guard = self.next_listener_id.lock().unwrap();
+        let id = *id_guard + 1;
+        *id_guard = id;
+        guard.push((id, listener));
+        id
+    }
+    pub fn remove_channel_listener(&self, id: u64) {
+        if let Ok(mut v) = self.listeners.lock() {
+            v.retain(|(lid, _)| *lid != id);
+        }
+    }
+
+    /// Start a shell with the given PTY. Emits only Shell* statuses via options.on_status_change.
+    pub async fn start_shell(&self, opts: StartShellOptions) -> Result<Arc<ShellSession>, SshError> {
         // Prevent double-start (safe default).
         if self.shell.lock().await.is_some() {
             return Err(SshError::ShellAlreadyRunning);
         }
 
+        let pty = opts.pty;
+        let shell_status_listener = opts.on_status_change.clone();
         if let Some(sl) = shell_status_listener.as_ref() {
-            sl.on_status_change(SSHConnectionStatus::ShellConnecting);
+            sl.on_change(SSHConnectionStatus::ShellConnecting);
         }
 
         // Open session channel.
@@ -217,19 +281,19 @@ impl SSHConnection {
                         if let Ok(cl) = listeners.lock() {
                             let snapshot = cl.clone();
                             let buf = data.to_vec();
-                            for l in snapshot { l.on_data(buf.clone()); }
+                            for (_, l) in snapshot { l.on_data(buf.clone()); }
                         }
                     }
                     Some(ChannelMsg::ExtendedData { data, .. }) => {
                         if let Ok(cl) = listeners.lock() {
                             let snapshot = cl.clone();
                             let buf = data.to_vec();
-                            for l in snapshot { l.on_data(buf.clone()); }
+                            for (_, l) in snapshot { l.on_data(buf.clone()); }
                         }
                     }
                     Some(ChannelMsg::Close) | None => {
                         if let Some(sl) = shell_listener_for_task.as_ref() {
-                            sl.on_status_change(SSHConnectionStatus::ShellDisconnected);
+                            sl.on_change(SSHConnectionStatus::ShellDisconnected);
                         }
                         break;
                     }
@@ -238,38 +302,38 @@ impl SSHConnection {
             }
         });
 
-        *self.shell.lock().await = Some(ShellState {
+        let session = Arc::new(ShellSession {
+            parent: self.self_weak.lock().await.clone(),
             channel_id,
-            writer,
+            writer: AsyncMutex::new(writer),
             reader_task,
             shell_status_listener,
+            created_at_ms: now_ms(),
+            pty,
         });
 
+        *self.shell.lock().await = Some(session.clone());
+
         // Report ShellConnected.
-        if let Some(sl) = self.shell.lock().await.as_ref().and_then(|s| s.shell_status_listener.clone()) {
-            sl.on_status_change(SSHConnectionStatus::ShellConnected);
+        if let Some(sl) = session.shell_status_listener.as_ref() {
+            sl.on_change(SSHConnectionStatus::ShellConnected);
         }
 
-        Ok(channel_id)
+        Ok(session)
     }
 
     /// Send bytes to the active shell (stdin).
     pub async fn send_data(&self, data: Vec<u8>) -> Result<(), SshError> {
-        let mut guard = self.shell.lock().await;
-        let state = guard.as_mut().ok_or(SshError::Disconnected)?;
-        state.writer.data(&data[..]).await?;
-        Ok(())
+        let guard = self.shell.lock().await;
+        let session = guard.as_ref().ok_or(SshError::Disconnected)?;
+        session.send_data(data).await
     }
 
     /// Close the active shell channel (if any) and stop its reader task.
     pub async fn close_shell(&self) -> Result<(), SshError> {
-        if let Some(state) = self.shell.lock().await.take() {
-            // Try to close channel gracefully; ignore error.
-            state.writer.close().await.ok();
-            state.reader_task.abort();
-            if let Some(sl) = state.shell_status_listener {
-                sl.on_status_change(SSHConnectionStatus::ShellDisconnected);
-            }
+        if let Some(session) = self.shell.lock().await.take() {
+            // Try to close via the session; ignore error.
+            let _ = session.close().await;
         }
         Ok(())
     }
@@ -285,15 +349,57 @@ impl SSHConnection {
     }
 }
 
+#[uniffi::export(async_runtime = "tokio")]
+impl ShellSession {
+    pub fn info(&self) -> ShellSessionInfo {
+        ShellSessionInfo {
+            channel_id: self.channel_id,
+            created_at_ms: self.created_at_ms,
+            pty: self.pty,
+        }
+    }
+    pub fn channel_id(&self) -> u32 { self.channel_id }
+    pub fn created_at_ms(&self) -> f64 { self.created_at_ms }
+    pub fn pty(&self) -> PtyType { self.pty }
+
+    /// Send bytes to the active shell (stdin).
+    pub async fn send_data(&self, data: Vec<u8>) -> Result<(), SshError> {
+        let w = self.writer.lock().await;
+        w.data(&data[..]).await?;
+        Ok(())
+    }
+
+    /// Close the associated shell channel and stop its reader task.
+    pub async fn close(&self) -> Result<(), SshError> {
+        // Try to close channel gracefully; ignore error.
+        self.writer.lock().await.close().await.ok();
+        self.reader_task.abort();
+        if let Some(sl) = self.shell_status_listener.as_ref() {
+            sl.on_change(SSHConnectionStatus::ShellDisconnected);
+        }
+        // Clear parent's notion of active shell if it matches us.
+        if let Some(parent) = self.parent.upgrade() {
+            let mut guard = parent.shell.lock().await;
+            if let Some(current) = guard.as_ref() {
+                if current.channel_id == self.channel_id { *guard = None; }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// ---------- Top-level API ----------
 
 #[uniffi::export(async_runtime = "tokio")]
-pub async fn connect(
-    details: ConnectionDetails,
-    connect_status_listener: Option<Arc<dyn StatusListener>>,
-) -> Result<Arc<SSHConnection>, SshError> {
-    if let Some(sl) = connect_status_listener.as_ref() {
-        sl.on_status_change(SSHConnectionStatus::TcpConnecting);
+pub async fn connect(options: ConnectOptions) -> Result<Arc<SSHConnection>, SshError> {
+    let details = ConnectionDetails {
+        host: options.host.clone(),
+        port: options.port,
+        username: options.username.clone(),
+        security: options.security.clone(),
+    };
+    if let Some(sl) = options.on_status_change.as_ref() {
+        sl.on_change(SSHConnectionStatus::TcpConnecting);
     }
 
     // TCP
@@ -301,8 +407,8 @@ pub async fn connect(
     let addr = format!("{}:{}", details.host, details.port);
     let mut handle: ClientHandle<NoopHandler> = client::connect(cfg, addr, NoopHandler).await?;
 
-    if let Some(sl) = connect_status_listener.as_ref() {
-        sl.on_status_change(SSHConnectionStatus::TcpConnected);
+    if let Some(sl) = options.on_status_change.as_ref() {
+        sl.on_change(SSHConnectionStatus::TcpConnected);
     }
 
     // Auth
@@ -320,14 +426,19 @@ pub async fn connect(
     }
 
     let now = now_ms();
-    Ok(Arc::new(SSHConnection {
+    let conn = Arc::new(SSHConnection {
         connection_details: details,
         created_at_ms: now,
         tcp_established_at_ms: now,
         handle: AsyncMutex::new(handle),
         shell: AsyncMutex::new(None),
+        self_weak: AsyncMutex::new(Weak::new()),
         listeners: Arc::new(Mutex::new(Vec::new())),
-    }))
+        next_listener_id: Arc::new(Mutex::new(0)),
+    });
+    // Initialize weak self reference.
+    *conn.self_weak.lock().await = Arc::downgrade(&conn);
+    Ok(conn)
 }
 
 #[uniffi::export(async_runtime = "tokio")]
