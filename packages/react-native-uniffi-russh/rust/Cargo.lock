@@ -2015,9 +2015,15 @@ dependencies = [
 name = "uniffi-russh"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "bytes",
+ "futures",
+ "once_cell",
+ "rand",
  "russh",
  "russh-keys",
  "thiserror",
+ "tokio",
  "uniffi",
 ]
 
