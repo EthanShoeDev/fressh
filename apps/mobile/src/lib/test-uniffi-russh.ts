@@ -5,8 +5,9 @@ import {
 } from '@fressh/react-native-uniffi-russh';
 
 void uniffiInitAsync().then(() => {
-	const testKeyPair = generateKeyPair(KeyType.Ed25519);
-	console.log('testKeyPair', testKeyPair);
+	void generateKeyPair(KeyType.Ed25519).then((keyPair) => {
+		console.log('testKeyPair', keyPair);
+	});
 });
 
 // // https://jhugman.github.io/uniffi-bindgen-react-native/idioms/common-types.html
