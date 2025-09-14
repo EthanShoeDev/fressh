@@ -22,11 +22,17 @@ export default function Shell() {
 	const [shellData, setShellData] = useState('');
 
 	useEffect(() => {
-		const channelListenerId = sshConn.client.addChannelListener({
-			onData: (data) => {
-				console.log('Received data (on Shell):', data);
-				setShellData((prev) => prev + data);
-			},
+		// Decode ArrayBuffer bytes from the SSH channel into text
+		const decoder = new TextDecoder('utf-8');
+		const channelListenerId = sshConn.client.addChannelListener((data) => {
+			try {
+				const bytes = new Uint8Array(data);
+				const chunk = decoder.decode(bytes);
+				console.log('Received data (on Shell):', chunk.length, 'chars');
+				setShellData((prev) => prev + chunk);
+			} catch (e) {
+				console.warn('Failed to decode shell data', e);
+			}
 		});
 		return () => {
 			sshConn.client.removeChannelListener(channelListenerId);

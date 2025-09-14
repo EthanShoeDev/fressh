@@ -68,7 +68,9 @@ async function connect(options: ConnectOptions) {
       security,
       onStatusChange: options.onStatusChange ? {
         onChange: (statusEnum) => {
-          options.onStatusChange?.(sshConnStatusEnumToLiteral[statusEnum]!);
+          const tsLiteral = sshConnStatusEnumToLiteral[statusEnum];
+          if (!tsLiteral) throw new Error(`Invalid status enum: ${statusEnum}`);
+          options.onStatusChange?.(tsLiteral);
         },
       } : undefined,
     },
@@ -99,7 +101,20 @@ async function connect(options: ConnectOptions) {
   }
   type BetterStartShellFn = typeof betterStartShell;
   (sshConnectionInterface as any).startShell = betterStartShell
-  return sshConnectionInterface as GeneratedRussh.SshConnectionInterface & { startShell: BetterStartShellFn };
+
+
+  const originalAddChannelListener = sshConnectionInterface.addChannelListener.bind(sshConnectionInterface);
+  const betterAddChannelListener = (listener: GeneratedRussh.ChannelListener['onData']) => {
+    return originalAddChannelListener({
+      onData: (data) => {
+        listener(data);
+      },
+    });
+  }
+  type BetterAddChannelListenerFn = typeof betterAddChannelListener;
+  (sshConnectionInterface as any).addChannelListener = betterAddChannelListener;
+
+  return sshConnectionInterface as GeneratedRussh.SshConnectionInterface & { startShell: BetterStartShellFn; addChannelListener: BetterAddChannelListenerFn };
 }
 
 export type SshConnection = Awaited<ReturnType<typeof connect>>;
