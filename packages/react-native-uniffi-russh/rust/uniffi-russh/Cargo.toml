@@ -3,14 +3,58 @@ name = "uniffi-russh"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
+# ──────────────────────────────────────────────────────────────────────────────
+# Runtime + FFI + SSH deps
+# ──────────────────────────────────────────────────────────────────────────────
 [dependencies]
-uniffi.workspace = true
+# UniFFI runtime (from your workspace). The `tokio` feature enables
+# the `#[uniffi::export(async_runtime = "tokio")]` path so async Rust fns
+# surface as Promises on the JS side.
+uniffi = { workspace = true, features = ["tokio"] }
+
+# Lightweight error enum derive for FFI-safe error reporting.
 thiserror = "1.0.64"
 
+# # Tokio async runtime + IO bits. We use:
+# # - rt-multi-thread : multithreaded scheduler
+# # - macros          : attribute macros (if you ever need #[tokio::test], etc.)
+# # - time            : timers/sleeps
+# # - net             : sockets; russh uses this
+# # - sync            : async Mutex, channels, etc.
+# # - io-util         : AsyncRead/Write extension traits (write_all/flush)
+# tokio = { version = "1.47.1", features = ["rt-multi-thread", "macros", "time", "net", "sync", "io-util"] }
+
+# # Common async ecosystem utilities (not strictly required by our code, but
+# # frequently useful and pulled in by transitive deps).
+# bytes = "1.10.1"
+# futures = "0.3.31"
+
+# # SSH client and keys. `russh` is the client; `russh-keys` handles key types,
+# # generation, and OpenSSH (PEM) encoding/decoding.
+russh = { version = "0.54.3", default-features = false, features = ["ring", "flate2", "rsa"] }
+russh-keys = "0.49.2"
+
+# # Secure RNG for key generation (OsRng).
+# rand = "0.8"
+
+# # Handy but currently optional; you can remove it if unused.
+# once_cell = "1.21.3"
+
+# # Optional helper for async trait impls; safe to keep even if unused.
+# async-trait = "0.1"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Build-time codegen for UniFFI
+# ──────────────────────────────────────────────────────────────────────────────
 [build-dependencies]
+# UniFFI build helper to generate bindings at compile time.
 uniffi = { workspace = true, features = ["build"] }
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Library outputs
+# ──────────────────────────────────────────────────────────────────────────────
 [lib]
+# - cdylib   : C-compatible dynamic library (Android/iOS; what RN/JSI loads)
+# - staticlib: Static archive (useful for iOS static linking)
+# - lib      : Normal Rust rlib (unit tests, internal usage)
 crate-type = ["cdylib", "staticlib", "lib"]
