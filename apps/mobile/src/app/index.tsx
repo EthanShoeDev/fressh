@@ -5,6 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AbortSignalTimeout } from '@/lib/utils';
 import { useAppForm, useFieldContext } from '../components/form-components';
 import { KeyManagerModal } from '../components/key-manager-modal';
 import {
@@ -45,6 +46,7 @@ const useSshConnMutation = () => {
 					onStatusChange: (status) => {
 						console.log('SSH connection status', status);
 					},
+					abortSignal: AbortSignalTimeout(5_000),
 				});
 
 				await secretsManager.connections.utils.upsertConnection({
@@ -57,6 +59,7 @@ const useSshConnMutation = () => {
 					onStatusChange: (status) => {
 						console.log('SSH shell status', status);
 					},
+					abortSignal: AbortSignalTimeout(5_000),
 				});
 
 				const channelId = shellInterface.channelId as number;

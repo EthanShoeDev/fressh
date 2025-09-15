@@ -2,7 +2,7 @@
   "name": "fressh",
   "private": true,
   "version": "workspace:*",
-  "packageManager": "pnpm@10.16.0",
+  "packageManager": "pnpm@10.16.1",
   "type": "module",
   "engines": {
     "node": ">=22"
