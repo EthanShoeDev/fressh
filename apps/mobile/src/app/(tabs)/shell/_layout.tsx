@@ -1,6 +1,19 @@
+import { Stack } from 'expo-router';
 import React from 'react';
-import ShellStackLayout from '../../shell/_layout';
 
 export default function TabsShellStack() {
-	return <ShellStackLayout />;
+	return (
+		<Stack
+			screenOptions={{
+				headerBlurEffect: 'systemMaterial',
+				headerTransparent: true,
+			}}
+		>
+			<Stack.Screen name="index" options={{ title: 'Shells' }} />
+			<Stack.Screen
+				name="[connectionId]/[channelId]"
+				options={{ title: 'SSH Shell' }}
+			/>
+		</Stack>
+	);
 }
