@@ -1,11 +1,16 @@
 import { RnRussh } from '@fressh/react-native-uniffi-russh';
-import { queryOptions, useMutation } from '@tanstack/react-query';
+import {
+	queryOptions,
+	useMutation,
+	useQueryClient,
+} from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { secretsManager, type ConnectionDetails } from './secrets-manager';
 import { AbortSignalTimeout } from './utils';
 
 export const useSshConnMutation = () => {
 	const router = useRouter();
+	const queryClient = useQueryClient();
 
 	return useMutation({
 		mutationFn: async (connectionDetails: ConnectionDetails) => {
@@ -46,6 +51,10 @@ export const useSshConnMutation = () => {
 					sshConnection.connectionId ??
 					`${sshConnection.connectionDetails.username}@${sshConnection.connectionDetails.host}:${sshConnection.connectionDetails.port}|${Math.floor(sshConnection.createdAtMs)}`;
 				console.log('Connected to SSH server', connectionId, channelId);
+
+				await queryClient.invalidateQueries({
+					queryKey: listSshShellsQueryOptions.queryKey,
+				});
 				router.push({
 					pathname: '/shell/[connectionId]/[channelId]',
 					params: {
@@ -61,8 +70,7 @@ export const useSshConnMutation = () => {
 	});
 };
 
-
 export const listSshShellsQueryOptions = queryOptions({
 	queryKey: ['ssh-shells'],
 	queryFn: () => RnRussh.listSshConnectionsWithShells(),
-})
+});
