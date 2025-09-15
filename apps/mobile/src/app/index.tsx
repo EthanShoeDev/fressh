@@ -12,7 +12,7 @@ import {
 	connectionDetailsSchema,
 	secretsManager,
 } from '../lib/secrets-manager';
-import { sshConnectionManager } from '../lib/ssh-connection-manager';
+// import { sshConnectionManager } from '../lib/ssh-connection-manager';
 
 const defaultValues: ConnectionDetails = {
 	host: 'test.rebex.net',
@@ -52,20 +52,23 @@ const useSshConnMutation = () => {
 					details: connectionDetails,
 					priority: 0,
 				});
-				await sshConnection.startShell({
+				const shellInterface = await sshConnection.startShell({
 					pty: 'Xterm',
 					onStatusChange: (status) => {
 						console.log('SSH shell status', status);
 					},
 				});
-				const sshConn = sshConnectionManager.addSession({
-					client: sshConnection,
-				});
-				console.log('Connected to SSH server', sshConn.sessionId);
+
+				const channelId = shellInterface.channelId as number;
+				const connectionId =
+					sshConnection.connectionId ??
+					`${sshConnection.connectionDetails.username}@${sshConnection.connectionDetails.host}:${sshConnection.connectionDetails.port}|${Math.floor(sshConnection.createdAtMs)}`;
+				console.log('Connected to SSH server', connectionId, channelId);
 				router.push({
 					pathname: '/shell',
 					params: {
-						sessionId: sshConn.sessionId,
+						connectionId,
+						channelId: String(channelId),
 					},
 				});
 			} catch (error) {

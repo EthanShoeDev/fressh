@@ -1,6 +1,7 @@
 /**
  * This is the page that is shown after an ssh connection
  */
+import { RnRussh } from '@fressh/react-native-uniffi-russh';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -12,46 +13,47 @@ import {
 	TextInput,
 	View,
 } from 'react-native';
-import { sshConnectionManager } from '../lib/ssh-connection-manager';
 
 export default function Shell() {
 	// https://docs.expo.dev/router/reference/url-parameters/
-	const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
-	const sshConn = sshConnectionManager.getSession({ sessionId }); // this throws if the session is not found
+	const { connectionId, channelId } = useLocalSearchParams<{
+		connectionId: string;
+		channelId: string;
+	}>();
+
+	const channelIdNum = Number(channelId);
+	const connection = RnRussh.getSshConnection(connectionId);
+	const shell = RnRussh.getSshShell(connectionId, channelIdNum);
 
 	const [shellData, setShellData] = useState('');
 
+	// Subscribe to data frames on the connection
 	useEffect(() => {
-		// Decode ArrayBuffer bytes from the SSH channel into text
+		if (!connection) return;
 		const decoder = new TextDecoder('utf-8');
-		const channelListenerId = sshConn.client.addChannelListener((data) => {
-			try {
-				const bytes = new Uint8Array(data);
-				const chunk = decoder.decode(bytes);
-				console.log('Received data (on Shell):', chunk.length, 'chars');
-				setShellData((prev) => prev + chunk);
-			} catch (e) {
-				console.warn('Failed to decode shell data', e);
-			}
-		});
+		const channelListenerId = connection.addChannelListener(
+			(data: ArrayBuffer) => {
+				try {
+					const bytes = new Uint8Array(data);
+					const chunk = decoder.decode(bytes);
+					console.log('Received data (on Shell):', chunk.length, 'chars');
+					setShellData((prev) => prev + chunk);
+				} catch (e) {
+					console.warn('Failed to decode shell data', e);
+				}
+			},
+		);
 		return () => {
-			sshConn.client.removeChannelListener(channelListenerId);
+			connection.removeChannelListener(channelListenerId);
 		};
-	}, [setShellData, sshConn.client]);
+	}, [connection]);
 
+	// Cleanup when leaving screen
 	useEffect(() => {
 		return () => {
-			console.log('Clean up shell screen (immediate disconnect)');
-			void sshConnectionManager
-				.removeAndDisconnectSession({ sessionId })
-				.then(() => {
-					console.log('Disconnected from SSH server');
-				})
-				.catch((e: unknown) => {
-					console.error('Error disconnecting from SSH server', e);
-				});
+			if (connection) void connection.disconnect().catch(() => {});
 		};
-	}, [sessionId]);
+	}, [connection, shell]);
 
 	const scrollViewRef = useRef<ScrollView | null>(null);
 
@@ -77,7 +79,7 @@ export default function Shell() {
 			<CommandInput
 				executeCommand={async (command) => {
 					console.log('Executing command:', command);
-					await sshConn.client.sendData(
+					await shell?.sendData(
 						Uint8Array.from(new TextEncoder().encode(command + '\n')).buffer,
 					);
 				}}

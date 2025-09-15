@@ -5,6 +5,7 @@
 //! - https://jhugman.github.io/uniffi-bindgen-react-native/idioms/callback-interfaces.html
 //! - https://jhugman.github.io/uniffi-bindgen-react-native/idioms/async-callbacks.html
 
+use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -17,12 +18,24 @@ use russh::{self, client, ChannelMsg, Disconnect};
 use russh::client::{Config as ClientConfig, Handle as ClientHandle};
 use russh_keys::{Algorithm as KeyAlgorithm, EcdsaCurve, PrivateKey};
 use russh_keys::ssh_key::{self, LineEnding};
+use once_cell::sync::Lazy;
 
 uniffi::setup_scaffolding!();
 
 // Simpler aliases to satisfy clippy type-complexity.
 type ListenerEntry = (u64, Arc<dyn ChannelListener>);
 type ListenerList = Vec<ListenerEntry>;
+
+// Type aliases to keep static types simple and satisfy clippy.
+type ConnectionId = String;
+type ChannelId = u32;
+type ShellKey = (ConnectionId, ChannelId);
+type ConnMap = HashMap<ConnectionId, Arc<SSHConnection>>;
+type ShellMap = HashMap<ShellKey, Arc<ShellSession>>;
+
+// ---------- Global registries (strong references; lifecycle managed explicitly) ----------
+static CONNECTIONS: Lazy<Mutex<ConnMap>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static SHELLS: Lazy<Mutex<ShellMap>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// ---------- Types ----------
 
@@ -142,6 +155,7 @@ pub struct StartShellOptions {
 /// Snapshot of current connection info for property-like access in TS.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct SshConnectionInfo {
+    pub connection_id: String,
     pub connection_details: ConnectionDetails,
     pub created_at_ms: f64,
     pub tcp_established_at_ms: f64,
@@ -153,12 +167,14 @@ pub struct ShellSessionInfo {
     pub channel_id: u32,
     pub created_at_ms: f64,
     pub pty: PtyType,
+    pub connection_id: String,
 }
 
 /// ---------- Connection object (no shell until start_shell) ----------
 
 #[derive(uniffi::Object)]
 pub struct SSHConnection {
+    connection_id: String,
     connection_details: ConnectionDetails,
     created_at_ms: f64,
     tcp_established_at_ms: f64,
@@ -221,19 +237,10 @@ impl client::Handler for NoopHandler {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SSHConnection {
-    pub fn connection_details(&self) -> ConnectionDetails {
-        self.connection_details.clone()
-    }
-    pub fn created_at_ms(&self) -> f64 {
-        self.created_at_ms
-    }
-    pub fn tcp_established_at_ms(&self) -> f64 {
-        self.tcp_established_at_ms
-    }
-
     /// Convenience snapshot for property-like access in TS.
-    pub async fn info(&self) -> SshConnectionInfo {
+    pub fn info(&self) -> SshConnectionInfo {
         SshConnectionInfo {
+            connection_id: self.connection_id.clone(),
             connection_details: self.connection_details.clone(),
             created_at_ms: self.created_at_ms,
             tcp_established_at_ms: self.tcp_established_at_ms,
@@ -321,6 +328,12 @@ impl SSHConnection {
 
         *self.shell.lock().await = Some(session.clone());
 
+        // Register shell in global registry
+        if let Some(parent) = self.self_weak.lock().await.upgrade() {
+            let key = (parent.connection_id.clone(), channel_id);
+            if let Ok(mut map) = SHELLS.lock() { map.insert(key, session.clone()); }
+        }
+
         // Report ShellConnected.
         if let Some(sl) = session.shell_status_listener.as_ref() {
             sl.on_change(SSHConnectionStatus::ShellConnected);
@@ -336,22 +349,19 @@ impl SSHConnection {
         session.send_data(data).await
     }
 
-    /// Close the active shell channel (if any) and stop its reader task.
-    pub async fn close_shell(&self) -> Result<(), SshError> {
-        if let Some(session) = self.shell.lock().await.take() {
-            // Try to close via the session; ignore error.
-            let _ = session.close().await;
-        }
-        Ok(())
-    }
+    // No exported close_shell: shell closure is handled via ShellSession::close()
 
     /// Disconnect TCP (also closes any active shell).
     pub async fn disconnect(&self) -> Result<(), SshError> {
         // Close shell first.
-        let _ = self.close_shell().await;
+        if let Some(session) = self.shell.lock().await.take() {
+            let _ = ShellSession::close_internal(&session).await;
+        }
 
         let h = self.handle.lock().await;
         h.disconnect(Disconnect::ByApplication, "bye", "").await?;
+        // Remove from registry after disconnect
+        if let Ok(mut map) = CONNECTIONS.lock() { map.remove(&self.connection_id); }
         Ok(())
     }
 }
@@ -363,11 +373,9 @@ impl ShellSession {
             channel_id: self.channel_id,
             created_at_ms: self.created_at_ms,
             pty: self.pty,
+            connection_id: self.parent.upgrade().map(|p| p.connection_id.clone()).unwrap_or_default(),
         }
     }
-    pub fn channel_id(&self) -> u32 { self.channel_id }
-    pub fn created_at_ms(&self) -> f64 { self.created_at_ms }
-    pub fn pty(&self) -> PtyType { self.pty }
 
     /// Send bytes to the active shell (stdin).
     pub async fn send_data(&self, data: Vec<u8>) -> Result<(), SshError> {
@@ -377,7 +385,12 @@ impl ShellSession {
     }
 
     /// Close the associated shell channel and stop its reader task.
-    pub async fn close(&self) -> Result<(), SshError> {
+    pub async fn close(&self) -> Result<(), SshError> { self.close_internal().await }
+}
+
+// Internal lifecycle helpers (not exported via UniFFI)
+impl ShellSession {
+    async fn close_internal(&self) -> Result<(), SshError> {
         // Try to close channel gracefully; ignore error.
         self.writer.lock().await.close().await.ok();
         self.reader_task.abort();
@@ -389,6 +402,10 @@ impl ShellSession {
             let mut guard = parent.shell.lock().await;
             if let Some(current) = guard.as_ref() {
                 if current.channel_id == self.channel_id { *guard = None; }
+            }
+            // Remove from registry
+            if let Ok(mut map) = SHELLS.lock() {
+                map.remove(&(parent.connection_id.clone(), self.channel_id));
             }
         }
         Ok(())
@@ -433,7 +450,9 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SSHConnection>, SshE
     }
 
     let now = now_ms();
+    let connection_id = format!("{}@{}:{}|{}", details.username, details.host, details.port, now as u64);
     let conn = Arc::new(SSHConnection {
+        connection_id,
         connection_details: details,
         created_at_ms: now,
         tcp_established_at_ms: now,
@@ -445,7 +464,38 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SSHConnection>, SshE
     });
     // Initialize weak self reference.
     *conn.self_weak.lock().await = Arc::downgrade(&conn);
+    // Register connection in global registry (strong ref; explicit lifecycle)
+    if let Ok(mut map) = CONNECTIONS.lock() { map.insert(conn.connection_id.clone(), conn.clone()); }
     Ok(conn)
+}
+
+/// ---------- Registry/listing API ----------
+
+#[uniffi::export]
+pub fn list_ssh_connections() -> Vec<SshConnectionInfo> {
+    // Collect clones outside the lock to avoid holding a MutexGuard across await
+    let conns: Vec<Arc<SSHConnection>> = CONNECTIONS
+        .lock()
+        .map(|map| map.values().cloned().collect())
+        .unwrap_or_default();
+    let mut out = Vec::with_capacity(conns.len());
+    for conn in conns { out.push(conn.info()); }
+    out
+}
+
+#[uniffi::export]
+pub fn get_ssh_connection(id: String) -> Result<Arc<SSHConnection>, SshError> {
+    if let Ok(map) = CONNECTIONS.lock() { if let Some(conn) = map.get(&id) { return Ok(conn.clone()); } }
+    Err(SshError::Disconnected)
+}
+
+// list_ssh_shells_for_connection removed; derive in JS from list_ssh_connections + get_ssh_shell
+
+#[uniffi::export]
+pub fn get_ssh_shell(connection_id: String, channel_id: u32) -> Result<Arc<ShellSession>, SshError> {
+    let key = (connection_id, channel_id);
+    if let Ok(map) = SHELLS.lock() { if let Some(shell) = map.get(&key) { return Ok(shell.clone()); } }
+    Err(SshError::Disconnected)
 }
 
 #[uniffi::export(async_runtime = "tokio")]

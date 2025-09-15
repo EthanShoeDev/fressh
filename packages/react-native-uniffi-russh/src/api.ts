@@ -7,6 +7,66 @@
 import * as GeneratedRussh from './index';
 
 
+// #region Ideal API
+
+export type ConnectionDetails = {
+  host: string;
+  port: number;
+  username: string;
+  security:
+  | { type: 'password'; password: string }
+  | { type: 'key'; privateKey: string };
+};
+
+export type ConnectOptions = ConnectionDetails & {
+  onStatusChange?: (status: SshConnectionStatus) => void;
+  abortSignal?: AbortSignal;
+};
+
+export type StartShellOptions = {
+  pty: PtyType;
+  onStatusChange?: (status: SshConnectionStatus) => void;
+  abortSignal?: AbortSignal;
+}
+export type SshConnection = {
+  connectionId: string;
+  readonly createdAtMs: number;
+  readonly tcpEstablishedAtMs: number;
+  readonly connectionDetails: ConnectionDetails;
+  startShell: (params: StartShellOptions) => Promise<SshShellSession>;
+  addChannelListener: (listener: (data: ArrayBuffer) => void) => bigint;
+  removeChannelListener: (id: bigint) => void;
+  disconnect: (params?: { signal: AbortSignal }) => Promise<void>;
+};
+
+export type SshShellSession = {
+  readonly channelId: number;
+  readonly createdAtMs: number;
+  readonly pty: GeneratedRussh.PtyType;
+  sendData: (
+    data: ArrayBuffer,
+    options?: { signal: AbortSignal }
+  ) => Promise<void>;
+  close: (params?: { signal: AbortSignal }) => Promise<void>;
+};
+
+
+type RusshApi = {
+  connect: (options: ConnectOptions) => Promise<SshConnection>;
+
+  getSshConnection: (id: string) => SshConnection | undefined;
+  listSshConnections: () => SshConnection[];
+  getSshShell: (connectionId: string, channelId: number) => SshShellSession | undefined;
+
+  generateKeyPair: (type: PrivateKeyType) => Promise<string>;
+
+  uniffiInitAsync: () => Promise<void>;
+}
+
+// #endregion
+
+// #region Weird stuff we have to do to get uniffi to have that ideal API
+
 const privateKeyTypeLiteralToEnum = {
   rsa: GeneratedRussh.KeyType.Rsa,
   ecdsa: GeneratedRussh.KeyType.Ecdsa,
@@ -37,23 +97,63 @@ const sshConnStatusEnumToLiteral = {
 } as const satisfies Record<GeneratedRussh.SshConnectionStatus, string>;
 export type SshConnectionStatus = (typeof sshConnStatusEnumToLiteral)[keyof typeof sshConnStatusEnumToLiteral];
 
-export type ConnectOptions = {
-  onStatusChange?: (status: SshConnectionStatus) => void;
-  abortSignal?: AbortSignal;
-  host: string;
-  port: number;
-  username: string;
-  security:
-  | { type: 'password'; password: string }
-  | { type: 'key'; privateKey: string };
-};
 
-export type StartShellOptions = {
-  pty: PtyType;
-  onStatusChange?: (status: SshConnectionStatus) => void;
-  abortSignal?: AbortSignal;
+function generatedConnDetailsToIdeal(details: GeneratedRussh.ConnectionDetails): ConnectionDetails {
+  return {
+    host: details.host,
+    port: details.port,
+    username: details.username,
+    security: details.security instanceof GeneratedRussh.Security.Password ? { type: 'password', password: details.security.inner.password } : { type: 'key', privateKey: details.security.inner.keyId },
+  };
 }
-async function connect(options: ConnectOptions) {
+
+function wrapConnection(conn: GeneratedRussh.SshConnectionInterface): SshConnection {
+  // Wrap startShell in-place to preserve the UniFFI object's internal pointer.
+  const originalStartShell = conn.startShell.bind(conn);
+  const betterStartShell = async (params: StartShellOptions) => {
+    const shell = await originalStartShell(
+      {
+        pty: ptyTypeLiteralToEnum[params.pty],
+        onStatusChange: params.onStatusChange
+          ? { onChange: (statusEnum) => params.onStatusChange?.(sshConnStatusEnumToLiteral[statusEnum]!) }
+          : undefined,
+      },
+      params.abortSignal ? { signal: params.abortSignal } : undefined,
+    );
+    return wrapShellSession(shell);
+  };
+
+  // Accept a function for onData and adapt to the generated listener object.
+  const originalAddChannelListener = conn.addChannelListener.bind(conn);
+  const betterAddChannelListener = (listener: (data: ArrayBuffer) => void) =>
+    originalAddChannelListener({ onData: listener });
+
+  const connInfo = conn.info();
+  return {
+    connectionId: connInfo.connectionId,
+    connectionDetails: generatedConnDetailsToIdeal(connInfo.connectionDetails),
+    createdAtMs: connInfo.createdAtMs,
+    tcpEstablishedAtMs: connInfo.tcpEstablishedAtMs,
+    startShell: betterStartShell,
+    addChannelListener: betterAddChannelListener,
+    removeChannelListener: conn.removeChannelListener.bind(conn),
+    disconnect: conn.disconnect.bind(conn),
+  };
+}
+
+function wrapShellSession(shell: GeneratedRussh.ShellSessionInterface): SshShellSession {
+  const info = shell.info();
+
+  return {
+    channelId: info.channelId,
+    createdAtMs: info.createdAtMs,
+    pty: info.pty,
+    sendData: shell.sendData.bind(shell),
+    close: shell.close.bind(shell)
+  };
+}
+
+async function connect(options: ConnectOptions): Promise<SshConnection> {
   const security =
     options.security.type === 'password'
       ? new GeneratedRussh.Security.Password({
@@ -80,52 +180,54 @@ async function connect(options: ConnectOptions) {
       }
       : undefined
   );
-  // Wrap startShell in-place to preserve the UniFFI object's internal pointer.
-  // Spreading into a new object would drop the hidden native pointer and cause
-  // "Raw pointer value was null" when methods access `this`.
-  const originalStartShell = sshConnectionInterface.startShell.bind(sshConnectionInterface);
-  const betterStartShell = async (params: StartShellOptions) => {
-    return originalStartShell(
-      {
-        pty: ptyTypeLiteralToEnum[params.pty],
-        onStatusChange: params.onStatusChange
-          ? {
-            onChange: (statusEnum) => {
-              params.onStatusChange?.(sshConnStatusEnumToLiteral[statusEnum]!);
-            },
-          }
-          : undefined,
-      },
-      params.abortSignal ? { signal: params.abortSignal } : undefined,
-    );
-  }
-  type BetterStartShellFn = typeof betterStartShell;
-  (sshConnectionInterface as any).startShell = betterStartShell
-
-
-  const originalAddChannelListener = sshConnectionInterface.addChannelListener.bind(sshConnectionInterface);
-  const betterAddChannelListener = (listener: GeneratedRussh.ChannelListener['onData']) => {
-    return originalAddChannelListener({
-      onData: (data) => {
-        listener(data);
-      },
-    });
-  }
-  type BetterAddChannelListenerFn = typeof betterAddChannelListener;
-  (sshConnectionInterface as any).addChannelListener = betterAddChannelListener;
-
-  return sshConnectionInterface as GeneratedRussh.SshConnectionInterface & { startShell: BetterStartShellFn; addChannelListener: BetterAddChannelListenerFn };
+  return wrapConnection(sshConnectionInterface);
 }
 
-export type SshConnection = Awaited<ReturnType<typeof connect>>;
+// Optional registry lookups: return undefined if not found/disconnected
+function getSshConnection(id: string): SshConnection | undefined {
+  try {
+    const conn = GeneratedRussh.getSshConnection(id);
+    return wrapConnection(conn);
+  } catch {
+    return undefined;
+  }
+}
+
+function getSshShell(connectionId: string, channelId: number): SshShellSession | undefined {
+  try {
+    const shell = GeneratedRussh.getSshShell(connectionId, channelId);
+    return wrapShellSession(shell);
+  } catch {
+    return undefined;
+  }
+}
+
+function listSshConnections(): SshConnection[] {
+  const infos = GeneratedRussh.listSshConnections();
+  const out: SshConnection[] = [];
+  for (const info of infos) {
+    try {
+      const conn = GeneratedRussh.getSshConnection(info.connectionId);
+      out.push(wrapConnection(conn));
+    } catch {
+      // ignore entries that no longer exist between snapshot and lookup
+    }
+  }
+  return out;
+}
+
 
 async function generateKeyPair(type: PrivateKeyType) {
   return GeneratedRussh.generateKeyPair(privateKeyTypeLiteralToEnum[type]);
 }
 
+// #endregion
+
 export const RnRussh = {
   uniffiInitAsync: GeneratedRussh.uniffiInitAsync,
   connect,
   generateKeyPair,
-  PtyType: GeneratedRussh.PtyType,
-};
+  getSshConnection,
+  listSshConnections,
+  getSshShell,
+} satisfies RusshApi;
