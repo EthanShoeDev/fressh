@@ -109,11 +109,11 @@ export default function Index() {
 			contentContainerStyle={styles.scrollContent}
 			keyboardShouldPersistTaps="handled"
 		>
-			<SafeAreaView style={styles.container}>
-				<View style={styles.header}>
+			<View style={styles.container}>
+				<SafeAreaView style={styles.header}>
 					<Text style={styles.appName}>fressh</Text>
 					<Text style={styles.appTagline}>A fast, friendly SSH client</Text>
-				</View>
+				</SafeAreaView>
 				<View style={styles.card}>
 					<Text style={styles.title}>Connect to SSH Server</Text>
 					<Text style={styles.subtitle}>Enter your server credentials</Text>
@@ -218,7 +218,7 @@ export default function Index() {
 						}
 					}}
 				/>
-			</SafeAreaView>
+			</View>
 		</ScrollView>
 	);
 }

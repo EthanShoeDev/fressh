@@ -34,6 +34,7 @@ https://github.com/betomoedano/snapai
 - https://github.com/Shopify/restyle
 - https://docs.expo.dev/versions/latest/sdk/segmented-control/
 - https://docs.expo.dev/versions/latest/sdk/ui/
+- https://github.com/nativewind/react-native-css
 
 #### SSH Conn
 

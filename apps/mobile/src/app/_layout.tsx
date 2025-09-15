@@ -5,7 +5,7 @@ import { queryClient } from '../lib/utils';
 export default function RootLayout() {
 	return (
 		<QueryClientProvider client={queryClient}>
-			<NativeTabs>
+			<NativeTabs backgroundColor="red">
 				<NativeTabs.Trigger name="index">
 					<Label>Host</Label>
 					<Icon sf="house.fill" drawable="custom_android_drawable" />
