@@ -234,8 +234,8 @@ importers:
   packages/react-native-uniffi-russh:
     dependencies:
       uniffi-bindgen-react-native:
-        specifier: 0.29.3-1
-        version: 0.29.3-1(patch_hash=527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec)
+        specifier: github:EthanShoeDev/uniffi-bindgen-react-native#build-ts
+        version: https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/5933e251a5464a8209e78fd679b72293ef4c68bb(patch_hash=527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec)
     devDependencies:
       '@eslint/compat':
         specifier: ^1.3.2
@@ -8075,8 +8075,9 @@ packages:
     resolution: {integrity: sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA==}
     engines: {node: '>=18'}
 
-  uniffi-bindgen-react-native@0.29.3-1:
-    resolution: {integrity: sha512-o6gXZsAh55yuvhwF2WSFdIHV4phyfWcCmg4DuyfJWJ7CvUz1UcIz2S4u9SmXAz1jsuqvu6Xc9hexrRBB0a5osg==}
+  uniffi-bindgen-react-native@https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/5933e251a5464a8209e78fd679b72293ef4c68bb:
+    resolution: {tarball: https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/5933e251a5464a8209e78fd679b72293ef4c68bb}
+    version: 0.29.3-1
     hasBin: true
 
   unified@11.0.5:
@@ -18212,7 +18213,7 @@ snapshots:
 
   unicorn-magic@0.3.0: {}
 
-  uniffi-bindgen-react-native@0.29.3-1(patch_hash=527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec): {}
+  uniffi-bindgen-react-native@https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/5933e251a5464a8209e78fd679b72293ef4c68bb(patch_hash=527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec): {}
 
   unified@11.0.5:
     dependencies:
