@@ -5,6 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AbortSignalTimeout } from '@/lib/utils';
 import { useAppForm, useFieldContext } from '../components/form-components';
 import { KeyManagerModal } from '../components/key-manager-modal';
@@ -104,7 +105,7 @@ export default function Index() {
 	);
 
 	return (
-		<View style={styles.container}>
+		<SafeAreaView style={styles.container}>
 			<ScrollView
 				contentContainerStyle={styles.scrollContent}
 				keyboardShouldPersistTaps="handled"
@@ -218,7 +219,7 @@ export default function Index() {
 					}}
 				/>
 			</ScrollView>
-		</View>
+		</SafeAreaView>
 	);
 }
 

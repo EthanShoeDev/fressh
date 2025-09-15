@@ -8,6 +8,14 @@
 
 ### Future reading
 
+#### Misc
+
+https://www.youtube.com/watch?v=iYh-7WfJTR0 - Expo 54 highlights
+
+#### App icon generator
+
+https://github.com/betomoedano/snapai
+
 #### AI Libraries
 
 - https://github.com/software-mansion/react-native-executorch
@@ -36,7 +44,7 @@
 - https://code.visualstudio.com/docs/terminal/shell-integration
 - https://github.com/termux/termux-app/wiki/Termux-Libraries/bd010af15b8434ba136c32fa70a50c504ea04363
 
-Uniffi is broken on RN 0.80
+#### Uniffi is broken on RN 0.80
 
 - https://github.com/jhugman/uniffi-bindgen-react-native/issues/295
 - https://github.com/realm/realm-js/issues/7011#issuecomment-3149613234
