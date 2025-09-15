@@ -3,6 +3,9 @@
 		"expo.vscode-expo-tools",
 		"gruntfuggly.todo-tree",
 		"eamodio.gitlens",
-		"astro-build.astro-vscode"
+		"astro-build.astro-vscode",
+		"mhutchie.git-graph",
+		"esbenp.prettier-vscode",
+		"yoavbls.pretty-ts-errors"
 	]
 }
