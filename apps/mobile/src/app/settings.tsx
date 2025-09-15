@@ -6,13 +6,10 @@ export default function Tab() {
 		<View style={styles.container}>
 			<Text style={{ color: '#E5E7EB', marginBottom: 12 }}>Settings</Text>
 			<Link
-				href="/(shared)/key-manager"
+				href="/(tabs)/settings/key-manager"
 				style={{ color: '#60A5FA', marginBottom: 8 }}
 			>
 				Manage Keys
-			</Link>
-			<Link href="/(modals)/key-manager?select=1" style={{ color: '#60A5FA' }}>
-				Open Key Picker (modal)
 			</Link>
 		</View>
 	);
