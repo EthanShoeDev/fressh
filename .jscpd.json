@@ -6,7 +6,9 @@
 		"**/mnt/**",
 		"**/dist/**",
 		"**/node_modules/**",
-		"**/android/**"
+		"**/android/**",
+		"**/generated/**",
+		"**/rust/target/**"
 	],
 	"threshold": 0,
 	"minTokens": 50,

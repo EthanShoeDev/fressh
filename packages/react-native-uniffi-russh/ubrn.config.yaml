@@ -1,0 +1,7 @@
+# rust:
+#   repo: https://github.com/jhugman/uniffi-starter.git
+#   branch: jhugman/bump-uniffi-to-0.29
+#   manifestPath: rust/foobar/Cargo.toml
+rust:
+  directory: rust
+  manifestPath: uniffi-russh/Cargo.toml

@@ -1,0 +1,7 @@
+{
+    "recommendations": [
+        "nefrob.vscode-just-syntax",
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml"
+    ]
+}

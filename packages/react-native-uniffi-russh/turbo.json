@@ -1,0 +1,17 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "outputs": ["lib/**", "android/**", "ios/**", "cpp/**", "src/**"],
+      "dependsOn": ["lint:rust"]
+    },
+    "typecheck": {
+      "dependsOn": ["build"]
+    },
+    "lint": {
+      "with": ["typecheck", "lint:rust"]
+    },
+    "lint:rust": {}
+  },
+  "extends": ["//"]
+}

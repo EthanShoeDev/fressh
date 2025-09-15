@@ -32,3 +32,6 @@ avd-start-headless:
 avd-mirror-remote ssh_target:
     ssh -N -L 5037:127.0.0.1:5037 {{ ssh_target }}
     scrcpy
+
+adb-logs:
+    while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done

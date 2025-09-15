@@ -1,6 +1,12 @@
 {
 	"extends": ["//"],
 	"tasks": {
+		"android": {
+			"dependsOn": ["^build"]
+		},
+		"ios": {
+			"dependsOn": ["^build"]
+		},
 		"lint": {
 			"dependsOn": ["lint:fix", "typecheck", "//#lint:root", "expo:doctor"]
 		},
