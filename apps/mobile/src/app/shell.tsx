@@ -13,6 +13,7 @@ import {
 	TextInput,
 	View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function Shell() {
 	// https://docs.expo.dev/router/reference/url-parameters/
@@ -63,28 +64,30 @@ export default function Shell() {
 	}, [shellData]);
 
 	return (
-		<View style={styles.container}>
-			<Text style={styles.title}>SSH Shell</Text>
-			<View style={styles.terminal}>
-				<ScrollView
-					ref={scrollViewRef}
-					contentContainerStyle={styles.terminalContent}
-					keyboardShouldPersistTaps="handled"
-				>
-					<Text selectable style={styles.terminalText}>
-						{shellData || 'Connected. Output will appear here...'}
-					</Text>
-				</ScrollView>
-			</View>
-			<CommandInput
-				executeCommand={async (command) => {
-					console.log('Executing command:', command);
-					await shell?.sendData(
-						Uint8Array.from(new TextEncoder().encode(command + '\n')).buffer,
-					);
-				}}
-			/>
-		</View>
+		<ScrollView keyboardShouldPersistTaps="handled">
+			<SafeAreaView style={styles.container}>
+				<Text style={styles.title}>SSH Shell</Text>
+				<View style={styles.terminal}>
+					<ScrollView
+						ref={scrollViewRef}
+						contentContainerStyle={styles.terminalContent}
+						keyboardShouldPersistTaps="handled"
+					>
+						<Text selectable style={styles.terminalText}>
+							{shellData || 'Connected. Output will appear here...'}
+						</Text>
+					</ScrollView>
+				</View>
+				<CommandInput
+					executeCommand={async (command) => {
+						console.log('Executing command:', command);
+						await shell?.sendData(
+							Uint8Array.from(new TextEncoder().encode(command + '\n')).buffer,
+						);
+					}}
+				/>
+			</SafeAreaView>
+		</ScrollView>
 	);
 }
 
