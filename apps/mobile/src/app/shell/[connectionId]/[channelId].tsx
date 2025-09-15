@@ -68,13 +68,6 @@ export default function ShellDetail() {
 		};
 	}, [connection]);
 
-	// Cleanup when leaving screen
-	useEffect(() => {
-		return () => {
-			if (connection) void connection.disconnect().catch(() => {});
-		};
-	}, [connection, shell]);
-
 	const scrollViewRef = useRef<ScrollView | null>(null);
 
 	useEffect(() => {

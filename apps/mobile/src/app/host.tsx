@@ -16,6 +16,7 @@ import {
 	SafeAreaView,
 	useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import { KeyList } from '@/components/key-manager/KeyList';
 import { AbortSignalTimeout } from '@/lib/utils';
 import { useAppForm, useFieldContext } from '../components/form-components';
 import {
@@ -25,8 +26,6 @@ import {
 } from '../lib/secrets-manager';
 // import { sshConnectionManager } from '../lib/ssh-connection-manager';
 import { useTheme } from '../theme';
-import { useFocusEffect } from '@react-navigation/native';
-import { KeyList } from '@/components/key-manager/KeyList';
 
 const defaultValues: ConnectionDetails = {
 	host: 'test.rebex.net',
@@ -260,11 +259,15 @@ function KeyIdPickerField() {
 	}, [listPrivateKeysQuery.data]);
 	const keys = listPrivateKeysQuery.data ?? [];
 
+	const fieldValue = field.state.value;
+	const defaultPickId = defaultPick?.id;
+	const fieldHandleChange = field.handleChange;
+
 	React.useEffect(() => {
-		if (!field.state.value && defaultPick?.id) {
-			field.handleChange(defaultPick.id);
+		if (!fieldValue && defaultPickId) {
+			fieldHandleChange(defaultPickId);
 		}
-	}, [field.state.value, defaultPick?.id]);
+	}, [fieldValue, defaultPickId, fieldHandleChange]);
 
 	const computedSelectedId = field.state.value ?? defaultPick?.id;
 	const selected = keys.find((k) => k.id === computedSelectedId);

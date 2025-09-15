@@ -49,9 +49,6 @@ importers:
       '@fressh/react-native-uniffi-russh':
         specifier: workspace:*
         version: link:../../packages/react-native-uniffi-russh
-      '@react-native-picker/picker':
-        specifier: 2.11.1
-        version: 2.11.1(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       '@react-native-segmented-control/segmented-control':
         specifier: 2.5.7
         version: 2.5.7(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
@@ -64,6 +61,9 @@ importers:
       '@react-navigation/native':
         specifier: ^7.1.8
         version: 7.1.17(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
+      '@shopify/flash-list':
+        specifier: 2.0.2
+        version: 2.0.2(@babel/runtime@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       '@tanstack/react-form':
         specifier: ^1.20.0
         version: 1.20.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -238,7 +238,7 @@ importers:
     dependencies:
       uniffi-bindgen-react-native:
         specifier: github:EthanShoeDev/uniffi-bindgen-react-native#build-ts
-        version: https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/5933e251a5464a8209e78fd679b72293ef4c68bb(patch_hash=527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec)
+        version: https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/54dd681081a4117ee417f78607a942544636b145(patch_hash=527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec)
     devDependencies:
       '@eslint/compat':
         specifier: ^1.3.2
@@ -2326,12 +2326,6 @@ packages:
     engines: {node: '>=20.19.4'}
     hasBin: true
 
-  '@react-native-picker/picker@2.11.1':
-    resolution: {integrity: sha512-ThklnkK4fV3yynnIIRBkxxjxR4IFbdMNJVF6tlLdOJ/zEFUEFUEdXY0KmH0iYzMwY8W4/InWsLiA7AkpAbnexA==}
-    peerDependencies:
-      react: '*'
-      react-native: '*'
-
   '@react-native-segmented-control/segmented-control@2.5.7':
     resolution: {integrity: sha512-l84YeVX8xAU3lvOJSvV4nK/NbGhIm2gBfveYolwaoCbRp+/SLXtc6mYrQmM9ScXNwU14mnzjQTpTHWl5YPnkzQ==}
     peerDependencies:
@@ -2617,6 +2611,13 @@ packages:
 
   '@shikijs/vscode-textmate@10.0.2':
     resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
+
+  '@shopify/flash-list@2.0.2':
+    resolution: {integrity: sha512-zhlrhA9eiuEzja4wxVvotgXHtqd3qsYbXkQ3rsBfOgbFA9BVeErpDE/yEwtlIviRGEqpuFj/oU5owD6ByaNX+w==}
+    peerDependencies:
+      '@babel/runtime': '*'
+      react: '*'
+      react-native: '*'
 
   '@sideway/address@4.1.5':
     resolution: {integrity: sha512-IqO/DUQHUkPeixNQ8n0JA6102hT9CmaljNTPmQ1u8MEhBo/R4Q8eKLN/vGZxuebwOroDB4cbpjheD4+/sKFK4Q==}
@@ -8180,8 +8181,8 @@ packages:
     resolution: {integrity: sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA==}
     engines: {node: '>=18'}
 
-  uniffi-bindgen-react-native@https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/5933e251a5464a8209e78fd679b72293ef4c68bb:
-    resolution: {tarball: https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/5933e251a5464a8209e78fd679b72293ef4c68bb}
+  uniffi-bindgen-react-native@https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/54dd681081a4117ee417f78607a942544636b145:
+    resolution: {tarball: https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/54dd681081a4117ee417f78607a942544636b145}
     version: 0.29.3-1
     hasBin: true
 
@@ -11282,11 +11283,6 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@react-native-picker/picker@2.11.1(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)':
-    dependencies:
-      react: 19.1.0
-      react-native: 0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0)
-
   '@react-native-segmented-control/segmented-control@2.5.7(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)':
     dependencies:
       react: 19.1.0
@@ -11682,6 +11678,13 @@ snapshots:
       '@types/hast': 3.0.4
 
   '@shikijs/vscode-textmate@10.0.2': {}
+
+  '@shopify/flash-list@2.0.2(@babel/runtime@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      '@babel/runtime': 7.28.3
+      react: 19.1.0
+      react-native: 0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0)
+      tslib: 2.8.1
 
   '@sideway/address@4.1.5':
     dependencies:
@@ -18502,7 +18505,7 @@ snapshots:
 
   unicorn-magic@0.3.0: {}
 
-  uniffi-bindgen-react-native@https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/5933e251a5464a8209e78fd679b72293ef4c68bb(patch_hash=527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec): {}
+  uniffi-bindgen-react-native@https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/54dd681081a4117ee417f78607a942544636b145(patch_hash=527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec): {}
 
   unified@11.0.5:
     dependencies:

@@ -43,6 +43,7 @@ export type SshShellSession = {
   readonly channelId: number;
   readonly createdAtMs: number;
   readonly pty: GeneratedRussh.PtyType;
+  readonly connectionId: string;
   sendData: (
     data: ArrayBuffer,
     options?: { signal: AbortSignal }
@@ -55,8 +56,10 @@ type RusshApi = {
   connect: (options: ConnectOptions) => Promise<SshConnection>;
 
   getSshConnection: (id: string) => SshConnection | undefined;
-  listSshConnections: () => SshConnection[];
   getSshShell: (connectionId: string, channelId: number) => SshShellSession | undefined;
+  listSshConnections: () => SshConnection[];
+  listSshShells: () => SshShellSession[];
+  listSshConnectionsWithShells: () => (SshConnection & { shells: SshShellSession[] })[];
 
   generateKeyPair: (type: PrivateKeyType) => Promise<string>;
 
@@ -148,6 +151,7 @@ function wrapShellSession(shell: GeneratedRussh.ShellSessionInterface): SshShell
     channelId: info.channelId,
     createdAtMs: info.createdAtMs,
     pty: info.pty,
+    connectionId: info.connectionId,
     sendData: shell.sendData.bind(shell),
     close: shell.close.bind(shell)
   };
@@ -216,6 +220,33 @@ function listSshConnections(): SshConnection[] {
   return out;
 }
 
+function listSshShells(): SshShellSession[] {
+  const infos = GeneratedRussh.listSshShells();
+  const out: SshShellSession[] = [];
+  for (const info of infos) {
+    try {
+      const shell = GeneratedRussh.getSshShell(info.connectionId, info.channelId);
+      out.push(wrapShellSession(shell));
+    } catch {
+      // ignore entries that no longer exist between snapshot and lookup
+    }
+  }
+  return out;
+}
+
+/**
+ * TODO: This feels a bit hacky. It is probably more effecient to do this join in rust and send 
+ * the joined result to the app.
+ */
+function listSshConnectionsWithShells(): (SshConnection & { shells: SshShellSession[] })[] {
+  const connections = listSshConnections();
+  const shells = listSshShells();
+  return connections.map(connection => ({
+    ...connection,
+    shells: shells.filter(shell => shell.connectionId === connection.connectionId),
+  }));
+}
+
 
 async function generateKeyPair(type: PrivateKeyType) {
   return GeneratedRussh.generateKeyPair(privateKeyTypeLiteralToEnum[type]);
@@ -229,5 +260,7 @@ export const RnRussh = {
   generateKeyPair,
   getSshConnection,
   listSshConnections,
+  listSshShells,
+  listSshConnectionsWithShells,
   getSshShell,
 } satisfies RusshApi;

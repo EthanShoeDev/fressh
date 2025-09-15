@@ -484,6 +484,18 @@ pub fn list_ssh_connections() -> Vec<SshConnectionInfo> {
 }
 
 #[uniffi::export]
+pub fn list_ssh_shells() -> Vec<ShellSessionInfo> {
+    // Collect shells outside the lock to avoid holding a MutexGuard across await
+    let shells: Vec<Arc<ShellSession>> = SHELLS
+        .lock()
+        .map(|map| map.values().cloned().collect())
+        .unwrap_or_default();
+    let mut out = Vec::with_capacity(shells.len());
+    for shell in shells { out.push(shell.info()); }
+    out
+}
+
+#[uniffi::export]
 pub fn get_ssh_connection(id: String) -> Result<Arc<SSHConnection>, SshError> {
     if let Ok(map) = CONNECTIONS.lock() { if let Some(conn) = map.get(&id) { return Ok(conn.clone()); } }
     Err(SshError::Disconnected)

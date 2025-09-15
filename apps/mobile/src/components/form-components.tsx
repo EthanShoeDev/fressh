@@ -1,4 +1,3 @@
-import { Picker } from '@react-native-picker/picker';
 import {
 	createFormHook,
 	createFormHookContexts,
@@ -98,31 +97,6 @@ export function SwitchField(
 	);
 }
 
-export function PickerField<T>(
-	props: React.ComponentProps<typeof Picker<T>> & {
-		label?: string;
-	},
-) {
-	const { label, style, ...rest } = props;
-	const field = useFieldContext<T>();
-	return (
-		<View style={styles.inputGroup}>
-			{label ? <Text style={styles.label}>{label}</Text> : null}
-			<View style={[styles.input, styles.pickerContainer]}>
-				<Picker<T>
-					style={styles.picker}
-					selectedValue={field.state.value}
-					onValueChange={(itemValue) => field.handleChange(itemValue)}
-					{...rest}
-				>
-					{props.children}
-				</Picker>
-			</View>
-			<FieldInfo />
-		</View>
-	);
-}
-
 export function SubmitButton(
 	props: {
 		onPress?: () => void;
@@ -162,7 +136,6 @@ export const { useAppForm, withForm, withFieldGroup } = createFormHook({
 	fieldComponents: {
 		TextField,
 		NumberField,
-		PickerField,
 		SwitchField,
 	},
 	formComponents: {
