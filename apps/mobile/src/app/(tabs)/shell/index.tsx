@@ -8,15 +8,22 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { listSshShellsQueryOptions } from '@/lib/query-fns';
+import { useTheme ,type  AppTheme } from '@/lib/theme';
 
 export default function TabsShellList() {
-	return <ShellList />;
+	const theme = useTheme();
+	return (
+		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+			<ShellContent />
+		</SafeAreaView>
+	);
 }
 
 type ShellWithConnection = SshShellSession & { connection: SshConnection };
 
-function ShellList() {
+function ShellContent() {
 	const connectionsWithShells = useQuery(listSshShellsQueryOptions);
 
 	if (!connectionsWithShells.data) {
@@ -26,6 +33,8 @@ function ShellList() {
 }
 
 function LoadingState() {
+	const theme = useTheme();
+	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	return (
 		<View style={styles.container}>
 			<Text style={styles.text}>Loading...</Text>
@@ -67,6 +76,8 @@ function LoadedState({
 }
 
 function EmptyState() {
+	const theme = useTheme();
+	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	return (
 		<View style={styles.container}>
 			<Text style={styles.text}>No active shells. Connect from Host tab.</Text>
@@ -76,6 +87,8 @@ function EmptyState() {
 }
 
 function ShellCard({ shell }: { shell: ShellWithConnection }) {
+	const theme = useTheme();
+	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	return (
 		<View style={styles.container}>
 			<Text style={styles.text}>{shell.connectionId}</Text>
@@ -93,7 +106,9 @@ function ShellCard({ shell }: { shell: ShellWithConnection }) {
 	);
 }
 
-const styles = StyleSheet.create({
-	container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-	text: { color: 'black', marginBottom: 8 },
-});
+function makeStyles(theme: AppTheme) {
+	return StyleSheet.create({
+		container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+		text: { color: theme.colors.textPrimary, marginBottom: 8 },
+	});
+}

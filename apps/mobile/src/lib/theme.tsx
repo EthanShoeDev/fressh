@@ -6,12 +6,18 @@ export type AppTheme = {
 		surface: string;
 		terminalBackground: string;
 		border: string;
+		borderStrong: string;
 		textPrimary: string;
 		textSecondary: string;
 		muted: string;
 		primary: string;
 		buttonTextOnPrimary: string;
 		inputBackground: string;
+		danger: string;
+		overlay: string;
+		transparent: string;
+		shadow: string;
+		primaryDisabled: string;
 	};
 };
 
@@ -21,12 +27,18 @@ export const darkTheme: AppTheme = {
 		surface: '#111B34',
 		terminalBackground: '#0E172B',
 		border: '#2A3655',
+		borderStrong: '#1E293B',
 		textPrimary: '#E5E7EB',
 		textSecondary: '#C6CBD3',
 		muted: '#9AA0A6',
 		primary: '#2563EB',
 		buttonTextOnPrimary: '#FFFFFF',
 		inputBackground: '#0E172B',
+		danger: '#FCA5A5',
+		overlay: 'rgba(0,0,0,0.4)',
+		transparent: 'transparent',
+		shadow: '#000000',
+		primaryDisabled: '#3B82F6',
 	},
 };
 

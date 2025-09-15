@@ -7,6 +7,7 @@
 		"mhutchie.git-graph",
 		"esbenp.prettier-vscode",
 		"yoavbls.pretty-ts-errors",
-		"ctf0.duplicated-code-new"
+		"ctf0.duplicated-code-new",
+		"github.vscode-github-actions"
 	]
 }

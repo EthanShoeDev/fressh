@@ -6,11 +6,11 @@
   "type": "module",
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android",
+    "android": "expo run:android --port 8082",
+    "ios": "expo run:ios --port 8081",
     "android:release": "expo run:android --variant release",
     "build:signed:aab": "tsx scripts/signed-build.ts",
     "build:signed:apk": "tsx scripts/signed-build.ts --format apk",
-    "ios": "expo run:ios",
     "web": "expo start --web",
     "prebuild": "expo prebuild",
     "prebuild:clean": "expo prebuild --clean",

@@ -1,11 +1,5 @@
 import { RnRussh } from '@fressh/react-native-uniffi-russh';
-import {
-	Link,
-	Stack,
-	useLocalSearchParams,
-	useNavigation,
-	useRouter,
-} from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
 	Platform,
@@ -17,7 +11,7 @@ import {
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '@/theme';
+import { useTheme } from '@/lib/theme';
 
 export default function TabsShellDetail() {
 	return <ShellDetail />;

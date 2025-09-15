@@ -22,7 +22,7 @@ import {
 	connectionDetailsSchema,
 	secretsManager,
 } from '@/lib/secrets-manager';
-import { useTheme } from '@/theme';
+import { useTheme ,type  AppTheme } from '@/lib/theme';
 
 export default function TabsIndex() {
 	return <Host />;
@@ -40,6 +40,7 @@ const defaultValues: ConnectionDetails = {
 
 function Host() {
 	const theme = useTheme();
+	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	const insets = useSafeAreaInsets();
 	const sshConnMutation = useSshConnMutation();
 	const connectionForm = useAppForm({
@@ -192,6 +193,8 @@ function Host() {
 }
 
 function KeyIdPickerField() {
+	const theme = useTheme();
+	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	const field = useFieldContext<string>();
 	const [open, setOpen] = React.useState(false);
 
@@ -228,7 +231,7 @@ function KeyIdPickerField() {
 						setOpen(true);
 					}}
 				>
-					<Text style={{ color: '#E5E7EB' }}>{display}</Text>
+					<Text style={{ color: theme.colors.textPrimary }}>{display}</Text>
 				</Pressable>
 				{!selected && (
 					<Text style={styles.mutedText}>
@@ -270,6 +273,8 @@ function KeyIdPickerField() {
 function PreviousConnectionsSection(props: {
 	onSelect: (connection: ConnectionDetails) => void;
 }) {
+	const theme = useTheme();
+	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	const listConnectionsQuery = useQuery(secretsManager.connections.query.list);
 
 	return (
@@ -300,6 +305,8 @@ function ConnectionRow(props: {
 	id: string;
 	onSelect: (connection: ConnectionDetails) => void;
 }) {
+	const theme = useTheme();
+	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	const detailsQuery = useQuery(secretsManager.connections.query.get(props.id));
 	const details = detailsQuery.data?.value;
 
@@ -324,196 +331,198 @@ function ConnectionRow(props: {
 	);
 }
 
-const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		padding: 24,
-		backgroundColor: '#0B1324',
-		justifyContent: 'center',
-	},
-	scrollContent: {
-		paddingBottom: 32,
-	},
-	header: {
-		marginBottom: 16,
-		alignItems: 'center',
-	},
-	appName: {
-		fontSize: 28,
-		fontWeight: '800',
-		color: '#E5E7EB',
-		letterSpacing: 1,
-	},
-	appTagline: {
-		marginTop: 4,
-		fontSize: 13,
-		color: '#9AA0A6',
-	},
-	card: {
-		backgroundColor: '#111B34',
-		borderRadius: 20,
-		padding: 24,
-		marginHorizontal: 4,
-		shadowColor: '#000',
-		shadowOpacity: 0.3,
-		shadowRadius: 16,
-		shadowOffset: { width: 0, height: 4 },
-		elevation: 8,
-		borderWidth: 1,
-		borderColor: '#1E293B',
-	},
-	title: {
-		fontSize: 24,
-		fontWeight: '700',
-		color: '#E5E7EB',
-		marginBottom: 6,
-		letterSpacing: 0.5,
-	},
-	subtitle: {
-		fontSize: 15,
-		color: '#9AA0A6',
-		marginBottom: 24,
-		lineHeight: 20,
-	},
-	inputGroup: {
-		marginBottom: 12,
-	},
-	label: {
-		marginBottom: 6,
-		fontSize: 14,
-		color: '#C6CBD3',
-		fontWeight: '600',
-	},
-	input: {
-		borderWidth: 1,
-		borderColor: '#2A3655',
-		backgroundColor: '#0E172B',
-		color: '#E5E7EB',
-		borderRadius: 10,
-		paddingHorizontal: 12,
-		paddingVertical: 12,
-		fontSize: 16,
-	},
-	errorText: {
-		marginTop: 6,
-		color: '#FCA5A5',
-		fontSize: 12,
-	},
-	actions: {
-		marginTop: 20,
-	},
-	mutedText: {
-		color: '#9AA0A6',
-		fontSize: 14,
-	},
-	submitButton: {
-		backgroundColor: '#2563EB',
-		borderRadius: 12,
-		paddingVertical: 16,
-		alignItems: 'center',
-		shadowColor: '#2563EB',
-		shadowOpacity: 0.3,
-		shadowRadius: 8,
-		shadowOffset: { width: 0, height: 2 },
-		elevation: 4,
-	},
-	submitButtonText: {
-		color: '#FFFFFF',
-		fontWeight: '700',
-		fontSize: 16,
-		letterSpacing: 0.5,
-	},
-	buttonDisabled: {
-		backgroundColor: '#3B82F6',
-		opacity: 0.6,
-	},
-	secondaryButton: {
-		backgroundColor: 'transparent',
-		borderWidth: 1,
-		borderColor: '#2A3655',
-		borderRadius: 12,
-		paddingVertical: 14,
-		alignItems: 'center',
-		marginTop: 12,
-	},
-	secondaryButtonText: {
-		color: '#C6CBD3',
-		fontWeight: '600',
-		fontSize: 14,
-		letterSpacing: 0.3,
-	},
-	listSection: {
-		marginTop: 20,
-	},
-	listTitle: {
-		fontSize: 16,
-		fontWeight: '700',
-		color: '#E5E7EB',
-		marginBottom: 8,
-	},
-	listContainer: {
-		// Intentionally empty for RN compatibility
-	},
-	row: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-		backgroundColor: '#0E172B',
-		borderWidth: 1,
-		borderColor: '#2A3655',
-		borderRadius: 12,
-		paddingHorizontal: 12,
-		paddingVertical: 12,
-		marginBottom: 8,
-	},
-	rowTextContainer: {
-		flex: 1,
-		marginRight: 12,
-	},
-	rowTitle: {
-		color: '#E5E7EB',
-		fontSize: 15,
-		fontWeight: '600',
-	},
-	rowSubtitle: {
-		color: '#9AA0A6',
-		marginTop: 2,
-		fontSize: 12,
-	},
-	rowChevron: {
-		color: '#9AA0A6',
-		fontSize: 22,
-		paddingHorizontal: 4,
-	},
-	modalOverlay: {
-		flex: 1,
-		backgroundColor: 'rgba(0,0,0,0.4)',
-		justifyContent: 'flex-end',
-	},
-	modalSheet: {
-		backgroundColor: '#0B1324',
-		borderTopLeftRadius: 16,
-		borderTopRightRadius: 16,
-		padding: 16,
-		borderColor: '#1E293B',
-		borderWidth: 1,
-		maxHeight: '85%',
-	},
-	modalHeader: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 8,
-	},
-	modalCloseButton: {
-		paddingHorizontal: 8,
-		paddingVertical: 6,
-		borderRadius: 8,
-		borderWidth: 1,
-		borderColor: '#2A3655',
-	},
-	modalCloseText: {
-		color: '#C6CBD3',
-		fontWeight: '600',
-	},
-});
+function makeStyles(theme: AppTheme) {
+	return StyleSheet.create({
+		container: {
+			flex: 1,
+			padding: 24,
+			backgroundColor: theme.colors.background,
+			justifyContent: 'center',
+		},
+		scrollContent: {
+			paddingBottom: 32,
+		},
+		header: {
+			marginBottom: 16,
+			alignItems: 'center',
+		},
+		appName: {
+			fontSize: 28,
+			fontWeight: '800',
+			color: theme.colors.textPrimary,
+			letterSpacing: 1,
+		},
+		appTagline: {
+			marginTop: 4,
+			fontSize: 13,
+			color: theme.colors.muted,
+		},
+		card: {
+			backgroundColor: theme.colors.surface,
+			borderRadius: 20,
+			padding: 24,
+			marginHorizontal: 4,
+			shadowColor: theme.colors.shadow,
+			shadowOpacity: 0.3,
+			shadowRadius: 16,
+			shadowOffset: { width: 0, height: 4 },
+			elevation: 8,
+			borderWidth: 1,
+			borderColor: theme.colors.borderStrong,
+		},
+		title: {
+			fontSize: 24,
+			fontWeight: '700',
+			color: theme.colors.textPrimary,
+			marginBottom: 6,
+			letterSpacing: 0.5,
+		},
+		subtitle: {
+			fontSize: 15,
+			color: theme.colors.muted,
+			marginBottom: 24,
+			lineHeight: 20,
+		},
+		inputGroup: {
+			marginBottom: 12,
+		},
+		label: {
+			marginBottom: 6,
+			fontSize: 14,
+			color: theme.colors.textSecondary,
+			fontWeight: '600',
+		},
+		input: {
+			borderWidth: 1,
+			borderColor: theme.colors.border,
+			backgroundColor: theme.colors.inputBackground,
+			color: theme.colors.textPrimary,
+			borderRadius: 10,
+			paddingHorizontal: 12,
+			paddingVertical: 12,
+			fontSize: 16,
+		},
+		errorText: {
+			marginTop: 6,
+			color: theme.colors.danger,
+			fontSize: 12,
+		},
+		actions: {
+			marginTop: 20,
+		},
+		mutedText: {
+			color: theme.colors.muted,
+			fontSize: 14,
+		},
+		submitButton: {
+			backgroundColor: theme.colors.primary,
+			borderRadius: 12,
+			paddingVertical: 16,
+			alignItems: 'center',
+			shadowColor: theme.colors.primary,
+			shadowOpacity: 0.3,
+			shadowRadius: 8,
+			shadowOffset: { width: 0, height: 2 },
+			elevation: 4,
+		},
+		submitButtonText: {
+			color: theme.colors.buttonTextOnPrimary,
+			fontWeight: '700',
+			fontSize: 16,
+			letterSpacing: 0.5,
+		},
+		buttonDisabled: {
+			backgroundColor: theme.colors.primaryDisabled,
+			opacity: 0.6,
+		},
+		secondaryButton: {
+			backgroundColor: theme.colors.transparent,
+			borderWidth: 1,
+			borderColor: theme.colors.border,
+			borderRadius: 12,
+			paddingVertical: 14,
+			alignItems: 'center',
+			marginTop: 12,
+		},
+		secondaryButtonText: {
+			color: theme.colors.textSecondary,
+			fontWeight: '600',
+			fontSize: 14,
+			letterSpacing: 0.3,
+		},
+		listSection: {
+			marginTop: 20,
+		},
+		listTitle: {
+			fontSize: 16,
+			fontWeight: '700',
+			color: theme.colors.textPrimary,
+			marginBottom: 8,
+		},
+		listContainer: {
+			// Intentionally empty for RN compatibility
+		},
+		row: {
+			flexDirection: 'row',
+			alignItems: 'center',
+			justifyContent: 'space-between',
+			backgroundColor: theme.colors.inputBackground,
+			borderWidth: 1,
+			borderColor: theme.colors.border,
+			borderRadius: 12,
+			paddingHorizontal: 12,
+			paddingVertical: 12,
+			marginBottom: 8,
+		},
+		rowTextContainer: {
+			flex: 1,
+			marginRight: 12,
+		},
+		rowTitle: {
+			color: theme.colors.textPrimary,
+			fontSize: 15,
+			fontWeight: '600',
+		},
+		rowSubtitle: {
+			color: theme.colors.muted,
+			marginTop: 2,
+			fontSize: 12,
+		},
+		rowChevron: {
+			color: theme.colors.muted,
+			fontSize: 22,
+			paddingHorizontal: 4,
+		},
+		modalOverlay: {
+			flex: 1,
+			backgroundColor: theme.colors.overlay,
+			justifyContent: 'flex-end',
+		},
+		modalSheet: {
+			backgroundColor: theme.colors.background,
+			borderTopLeftRadius: 16,
+			borderTopRightRadius: 16,
+			padding: 16,
+			borderColor: theme.colors.borderStrong,
+			borderWidth: 1,
+			maxHeight: '85%',
+		},
+		modalHeader: {
+			flexDirection: 'row',
+			justifyContent: 'space-between',
+			alignItems: 'center',
+			marginBottom: 8,
+		},
+		modalCloseButton: {
+			paddingHorizontal: 8,
+			paddingVertical: 6,
+			borderRadius: 8,
+			borderWidth: 1,
+			borderColor: theme.colors.border,
+		},
+		modalCloseText: {
+			color: theme.colors.textSecondary,
+			fontWeight: '600',
+		},
+	});
+}
