@@ -11,6 +11,8 @@ import Analytics from '@vercel/analytics/astro';
 		<link rel="icon" type="image/png" href="/favicon.png" />
 		<meta name="generator" content={Astro.generator} />
 		<title>Fressh - SSH Client</title>
+		<!-- Page-level head content injection -->
+		<slot name="head" />
 		<Analytics />
 	</head>
 	<body>

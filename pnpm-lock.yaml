@@ -94,6 +94,9 @@ importers:
       expo-font:
         specifier: ~14.0.8
         version: 14.0.8(expo@54.0.7)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
+      expo-glass-effect:
+        specifier: ^0.1.3
+        version: 0.1.3(expo@54.0.7)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       expo-haptics:
         specifier: ~15.0.7
         version: 15.0.7(expo@54.0.7)
@@ -4729,6 +4732,13 @@ packages:
 
   expo-font@14.0.8:
     resolution: {integrity: sha512-bTUHaJWRZ7ywP8dg3f+wfOwv6RwMV3mWT2CDUIhsK70GjNGlCtiWOCoHsA5Od/esPaVxqc37cCBvQGQRFStRlA==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
+
+  expo-glass-effect@0.1.3:
+    resolution: {integrity: sha512-wGWS8DdenyqwBHpVKwFCishtB08HD4SW6SZjIx9BXw92q/9b9fiygBypFob9dT0Mct6d05g7XRBRZ8Ryw5rYIg==}
     peerDependencies:
       expo: '*'
       react: '*'
@@ -14189,6 +14199,12 @@ snapshots:
     dependencies:
       expo: 54.0.7(@babel/core@7.28.3)(@expo/metro-runtime@6.1.1)(expo-router@6.0.4)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       fontfaceobserver: 2.3.0
+      react: 19.1.0
+      react-native: 0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0)
+
+  expo-glass-effect@0.1.3(expo@54.0.7)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0):
+    dependencies:
+      expo: 54.0.7(@babel/core@7.28.3)(@expo/metro-runtime@6.1.1)(expo-router@6.0.4)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       react: 19.1.0
       react-native: 0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0)
 

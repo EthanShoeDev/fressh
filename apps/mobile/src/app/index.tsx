@@ -5,7 +5,10 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+	SafeAreaView,
+	useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { AbortSignalTimeout } from '@/lib/utils';
 import { useAppForm, useFieldContext } from '../components/form-components';
 import { KeyManagerModal } from '../components/key-manager-modal';
@@ -15,6 +18,7 @@ import {
 	secretsManager,
 } from '../lib/secrets-manager';
 // import { sshConnectionManager } from '../lib/ssh-connection-manager';
+import { useTheme } from '../theme';
 
 const defaultValues: ConnectionDetails = {
 	host: 'test.rebex.net',
@@ -69,11 +73,11 @@ const useSshConnMutation = () => {
 					`${sshConnection.connectionDetails.username}@${sshConnection.connectionDetails.host}:${sshConnection.connectionDetails.port}|${Math.floor(sshConnection.createdAtMs)}`;
 				console.log('Connected to SSH server', connectionId, channelId);
 				router.push({
-					pathname: '/shell',
-					params: {
-						connectionId,
-						channelId: String(channelId),
-					},
+					pathname:
+						'/shell/' +
+						encodeURIComponent(connectionId) +
+						'/' +
+						String(channelId),
 				});
 			} catch (error) {
 				console.error('Error connecting to SSH server', error);
@@ -84,6 +88,8 @@ const useSshConnMutation = () => {
 };
 
 export default function Index() {
+	const theme = useTheme();
+	const insets = useSafeAreaInsets();
 	const sshConnMutation = useSshConnMutation();
 	const connectionForm = useAppForm({
 		// https://tanstack.com/form/latest/docs/framework/react/guides/async-initial-values
@@ -105,121 +111,132 @@ export default function Index() {
 	);
 
 	return (
-		<ScrollView
-			contentContainerStyle={styles.scrollContent}
-			keyboardShouldPersistTaps="handled"
-		>
-			<View style={styles.container}>
-				<SafeAreaView style={styles.header}>
-					<Text style={styles.appName}>fressh</Text>
-					<Text style={styles.appTagline}>A fast, friendly SSH client</Text>
-				</SafeAreaView>
-				<View style={styles.card}>
-					<Text style={styles.title}>Connect to SSH Server</Text>
-					<Text style={styles.subtitle}>Enter your server credentials</Text>
+		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+			<ScrollView
+				contentContainerStyle={[
+					styles.scrollContent,
+					{ paddingBottom: Math.max(32, insets.bottom + 24) },
+				]}
+				keyboardShouldPersistTaps="handled"
+				style={{ backgroundColor: theme.colors.background }}
+			>
+				<View
+					style={[
+						styles.container,
+						{ backgroundColor: theme.colors.background },
+					]}
+				>
+					<View style={styles.header}>
+						<Text style={styles.appName}>fressh</Text>
+						<Text style={styles.appTagline}>A fast, friendly SSH client</Text>
+					</View>
+					<View style={styles.card}>
+						<Text style={styles.title}>Connect to SSH Server</Text>
+						<Text style={styles.subtitle}>Enter your server credentials</Text>
 
-					<connectionForm.AppForm>
-						<connectionForm.AppField name="host">
-							{(field) => (
-								<field.TextField
-									label="Host"
-									testID="host"
-									placeholder="example.com or 192.168.0.10"
-									autoCapitalize="none"
-									autoCorrect={false}
-								/>
-							)}
-						</connectionForm.AppField>
-						<connectionForm.AppField name="port">
-							{(field) => (
-								<field.NumberField
-									label="Port"
-									placeholder="22"
-									testID="port"
-								/>
-							)}
-						</connectionForm.AppField>
-						<connectionForm.AppField name="username">
-							{(field) => (
-								<field.TextField
-									label="Username"
-									testID="username"
-									placeholder="root"
-									autoCapitalize="none"
-									autoCorrect={false}
-								/>
-							)}
-						</connectionForm.AppField>
-						<connectionForm.AppField name="security.type">
-							{(field) => (
-								<View style={styles.inputGroup}>
-									<SegmentedControl
-										values={['Password', 'Private Key']}
-										selectedIndex={field.state.value === 'password' ? 0 : 1}
-										onChange={(event) => {
-											field.handleChange(
-												event.nativeEvent.selectedSegmentIndex === 0
-													? 'password'
-													: 'key',
-											);
-										}}
-									/>
-								</View>
-							)}
-						</connectionForm.AppField>
-						{securityType === 'password' ? (
-							<connectionForm.AppField name="security.password">
+						<connectionForm.AppForm>
+							<connectionForm.AppField name="host">
 								{(field) => (
 									<field.TextField
-										label="Password"
-										testID="password"
-										placeholder="••••••••"
-										secureTextEntry
+										label="Host"
+										testID="host"
+										placeholder="example.com or 192.168.0.10"
+										autoCapitalize="none"
+										autoCorrect={false}
 									/>
 								)}
 							</connectionForm.AppField>
-						) : (
-							<connectionForm.AppField name="security.keyId">
-								{() => <KeyIdPicker />}
+							<connectionForm.AppField name="port">
+								{(field) => (
+									<field.NumberField
+										label="Port"
+										placeholder="22"
+										testID="port"
+									/>
+								)}
 							</connectionForm.AppField>
-						)}
+							<connectionForm.AppField name="username">
+								{(field) => (
+									<field.TextField
+										label="Username"
+										testID="username"
+										placeholder="root"
+										autoCapitalize="none"
+										autoCorrect={false}
+									/>
+								)}
+							</connectionForm.AppField>
+							<connectionForm.AppField name="security.type">
+								{(field) => (
+									<View style={styles.inputGroup}>
+										<SegmentedControl
+											values={['Password', 'Private Key']}
+											selectedIndex={field.state.value === 'password' ? 0 : 1}
+											onChange={(event) => {
+												field.handleChange(
+													event.nativeEvent.selectedSegmentIndex === 0
+														? 'password'
+														: 'key',
+												);
+											}}
+										/>
+									</View>
+								)}
+							</connectionForm.AppField>
+							{securityType === 'password' ? (
+								<connectionForm.AppField name="security.password">
+									{(field) => (
+										<field.TextField
+											label="Password"
+											testID="password"
+											placeholder="••••••••"
+											secureTextEntry
+										/>
+									)}
+								</connectionForm.AppField>
+							) : (
+								<connectionForm.AppField name="security.keyId">
+									{() => <KeyIdPicker />}
+								</connectionForm.AppField>
+							)}
 
-						<View style={styles.actions}>
-							<connectionForm.SubmitButton
-								title="Connect"
-								testID="connect"
-								onPress={() => {
-									if (isSubmitting) return;
-									void connectionForm.handleSubmit();
-								}}
-							/>
-						</View>
-					</connectionForm.AppForm>
+							<View style={styles.actions}>
+								<connectionForm.SubmitButton
+									title="Connect"
+									testID="connect"
+									onPress={() => {
+										if (isSubmitting) return;
+										void connectionForm.handleSubmit();
+									}}
+								/>
+							</View>
+						</connectionForm.AppForm>
+					</View>
+					<PreviousConnectionsSection
+						onSelect={(connection) => {
+							connectionForm.setFieldValue('host', connection.host);
+							connectionForm.setFieldValue('port', connection.port);
+							connectionForm.setFieldValue('username', connection.username);
+							connectionForm.setFieldValue(
+								'security.type',
+								connection.security.type,
+							);
+							if (connection.security.type === 'password') {
+								connectionForm.setFieldValue(
+									'security.password',
+									connection.security.password,
+								);
+							} else {
+								connectionForm.setFieldValue(
+									'security.keyId',
+									connection.security.keyId,
+								);
+							}
+						}}
+					/>
 				</View>
-				<PreviousConnectionsSection
-					onSelect={(connection) => {
-						connectionForm.setFieldValue('host', connection.host);
-						connectionForm.setFieldValue('port', connection.port);
-						connectionForm.setFieldValue('username', connection.username);
-						connectionForm.setFieldValue(
-							'security.type',
-							connection.security.type,
-						);
-						if (connection.security.type === 'password') {
-							connectionForm.setFieldValue(
-								'security.password',
-								connection.security.password,
-							);
-						} else {
-							connectionForm.setFieldValue(
-								'security.keyId',
-								connection.security.keyId,
-							);
-						}
-					}}
-				/>
-			</View>
-		</ScrollView>
+			</ScrollView>
+		</SafeAreaView>
 	);
 }
 

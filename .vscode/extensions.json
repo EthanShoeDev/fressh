@@ -6,6 +6,7 @@
 		"astro-build.astro-vscode",
 		"mhutchie.git-graph",
 		"esbenp.prettier-vscode",
-		"yoavbls.pretty-ts-errors"
+		"yoavbls.pretty-ts-errors",
+		"ctf0.duplicated-code-new"
 	]
 }

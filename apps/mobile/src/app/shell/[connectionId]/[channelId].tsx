@@ -1,8 +1,5 @@
-/**
- * This is the page that is shown after an ssh connection
- */
 import { RnRussh } from '@fressh/react-native-uniffi-russh';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
 	Platform,
@@ -14,19 +11,42 @@ import {
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../../../theme';
 
-export default function Shell() {
-	// https://docs.expo.dev/router/reference/url-parameters/
+export default function ShellDetail() {
 	const { connectionId, channelId } = useLocalSearchParams<{
 		connectionId: string;
 		channelId: string;
 	}>();
+	const router = useRouter();
+	const navigation = useNavigation();
+	const theme = useTheme();
 
 	const channelIdNum = Number(channelId);
 	const connection = RnRussh.getSshConnection(connectionId);
 	const shell = RnRussh.getSshShell(connectionId, channelIdNum);
 
 	const [shellData, setShellData] = useState('');
+
+	useEffect(() => {
+		navigation.setOptions({
+			title: 'SSH Shell',
+			headerRight: () => (
+				<Pressable
+					onPress={async () => {
+						try {
+							await connection?.disconnect();
+						} catch {}
+						router.replace('/shell');
+					}}
+				>
+					<Text style={{ color: theme.colors.primary, fontWeight: '700' }}>
+						Disconnect
+					</Text>
+				</Pressable>
+			),
+		});
+	}, [connection, navigation, router, theme.colors.primary]);
 
 	// Subscribe to data frames on the connection
 	useEffect(() => {
@@ -37,7 +57,6 @@ export default function Shell() {
 				try {
 					const bytes = new Uint8Array(data);
 					const chunk = decoder.decode(bytes);
-					console.log('Received data (on Shell):', chunk.length, 'chars');
 					setShellData((prev) => prev + chunk);
 				} catch (e) {
 					console.warn('Failed to decode shell data', e);
@@ -59,14 +78,14 @@ export default function Shell() {
 	const scrollViewRef = useRef<ScrollView | null>(null);
 
 	useEffect(() => {
-		// Auto-scroll to bottom when new data arrives
 		scrollViewRef.current?.scrollToEnd({ animated: true });
 	}, [shellData]);
 
 	return (
-		<ScrollView keyboardShouldPersistTaps="handled">
-			<SafeAreaView style={styles.container}>
-				<Text style={styles.title}>SSH Shell</Text>
+		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+			<View
+				style={[styles.container, { backgroundColor: theme.colors.background }]}
+			>
 				<View style={styles.terminal}>
 					<ScrollView
 						ref={scrollViewRef}
@@ -80,14 +99,13 @@ export default function Shell() {
 				</View>
 				<CommandInput
 					executeCommand={async (command) => {
-						console.log('Executing command:', command);
 						await shell?.sendData(
 							Uint8Array.from(new TextEncoder().encode(command + '\n')).buffer,
 						);
 					}}
 				/>
-			</SafeAreaView>
-		</ScrollView>
+			</View>
+		</SafeAreaView>
 	);
 }
 
@@ -103,7 +121,7 @@ function CommandInput(props: {
 	}
 
 	return (
-		<View style={styles.commandBar}>
+		<View>
 			<TextInput
 				testID="command-input"
 				style={styles.commandInput}
@@ -117,7 +135,7 @@ function CommandInput(props: {
 				onSubmitEditing={handleExecute}
 			/>
 			<Pressable
-				style={styles.executeButton}
+				style={[styles.executeButton, { marginTop: 8 }]}
 				onPress={handleExecute}
 				testID="execute-button"
 			>
@@ -132,12 +150,6 @@ const styles = StyleSheet.create({
 		flex: 1,
 		backgroundColor: '#0B1324',
 		padding: 16,
-	},
-	title: {
-		color: '#E5E7EB',
-		fontSize: 18,
-		fontWeight: '700',
-		marginBottom: 12,
 	},
 	terminal: {
 		flex: 1,
@@ -160,11 +172,6 @@ const styles = StyleSheet.create({
 			android: 'monospace',
 			default: 'monospace',
 		}),
-	},
-	commandBar: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 8,
 	},
 	commandInput: {
 		flex: 1,
