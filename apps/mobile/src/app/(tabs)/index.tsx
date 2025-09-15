@@ -22,7 +22,7 @@ import {
 	connectionDetailsSchema,
 	secretsManager,
 } from '@/lib/secrets-manager';
-import { useTheme ,type  AppTheme } from '@/lib/theme';
+import { useTheme, type AppTheme } from '@/lib/theme';
 
 export default function TabsIndex() {
 	return <Host />;

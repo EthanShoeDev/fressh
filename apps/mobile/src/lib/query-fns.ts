@@ -23,9 +23,9 @@ export const useSshConnMutation = () => {
 					security:
 						connectionDetails.security.type === 'password'
 							? {
-								type: 'password',
-								password: connectionDetails.security.password,
-							}
+									type: 'password',
+									password: connectionDetails.security.password,
+								}
 							: { type: 'key', privateKey: 'TODO' },
 					onStatusChange: (status) => {
 						console.log('SSH connection status', status);
@@ -56,7 +56,7 @@ export const useSshConnMutation = () => {
 					queryKey: listSshShellsQueryOptions.queryKey,
 				});
 				router.push({
-					pathname: '/shell/[connectionId]/[channelId]',
+					pathname: '/shell/detail',
 					params: {
 						connectionId: connectionId,
 						channelId: String(channelId),

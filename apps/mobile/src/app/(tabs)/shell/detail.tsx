@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { RnRussh } from '@fressh/react-native-uniffi-russh';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -19,40 +20,41 @@ export default function TabsShellDetail() {
 
 function ShellDetail() {
 	const { connectionId, channelId } = useLocalSearchParams<{
-		connectionId: string;
-		channelId: string;
+		connectionId?: string;
+		channelId?: string;
 	}>();
 	const router = useRouter();
 	const theme = useTheme();
 
 	const channelIdNum = Number(channelId);
-	const connection = RnRussh.getSshConnection(connectionId);
-	const shell = RnRussh.getSshShell(connectionId, channelIdNum);
+	const connection = connectionId
+		? RnRussh.getSshConnection(String(connectionId))
+		: undefined;
+	const shell =
+		connectionId && channelId
+			? RnRussh.getSshShell(String(connectionId), channelIdNum)
+			: undefined;
 
 	const [shellData, setShellData] = useState('');
 
-	// Subscribe to data frames on the connection
 	useEffect(() => {
 		if (!connection) return;
 		const decoder = new TextDecoder('utf-8');
-		const channelListenerId = connection.addChannelListener(
-			(data: ArrayBuffer) => {
-				try {
-					const bytes = new Uint8Array(data);
-					const chunk = decoder.decode(bytes);
-					setShellData((prev) => prev + chunk);
-				} catch (e) {
-					console.warn('Failed to decode shell data', e);
-				}
-			},
-		);
+		const listenerId = connection.addChannelListener((data: ArrayBuffer) => {
+			try {
+				const bytes = new Uint8Array(data);
+				const chunk = decoder.decode(bytes);
+				setShellData((prev) => prev + chunk);
+			} catch (e) {
+				console.warn('Failed to decode shell data', e);
+			}
+		});
 		return () => {
-			connection.removeChannelListener(channelListenerId);
+			connection.removeChannelListener(listenerId);
 		};
 	}, [connection]);
 
 	const scrollViewRef = useRef<ScrollView | null>(null);
-
 	useEffect(() => {
 		scrollViewRef.current?.scrollToEnd({ animated: true });
 	}, [shellData]);
@@ -63,16 +65,17 @@ function ShellDetail() {
 				options={{
 					headerLeft: () => (
 						<Pressable
-							onPress={async () => {
-								router.back();
-							}}
+							onPress={() => router.back()}
+							hitSlop={10}
+							style={{ paddingHorizontal: 4, paddingVertical: 4 }}
 						>
-							<Text style={{ color: theme.colors.primary, fontWeight: '700' }}>
-								Back
-							</Text>
+							<Ionicons
+								name="chevron-back"
+								size={22}
+								color={theme.colors.textPrimary}
+							/>
 						</Pressable>
 					),
-
 					headerRight: () => (
 						<Pressable
 							onPress={async () => {

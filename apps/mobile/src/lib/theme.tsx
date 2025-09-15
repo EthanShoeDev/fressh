@@ -1,4 +1,5 @@
 import React from 'react';
+import { MMKV } from 'react-native-mmkv';
 
 export type AppTheme = {
 	colors: {
@@ -42,8 +43,38 @@ export const darkTheme: AppTheme = {
 	},
 };
 
+export const lightTheme: AppTheme = {
+	colors: {
+		background: '#F9FAFB',
+		surface: '#FFFFFF',
+		terminalBackground: '#F3F4F6',
+		border: '#E5E7EB',
+		borderStrong: '#D1D5DB',
+		textPrimary: '#111827',
+		textSecondary: '#374151',
+		muted: '#6B7280',
+		primary: '#2563EB',
+		buttonTextOnPrimary: '#FFFFFF',
+		inputBackground: '#FFFFFF',
+		danger: '#DC2626',
+		overlay: 'rgba(0,0,0,0.2)',
+		transparent: 'transparent',
+		shadow: '#000000',
+		primaryDisabled: '#93C5FD',
+	},
+};
+
+export type ThemeName = 'dark' | 'light';
+export const themes: Record<ThemeName, AppTheme> = {
+	dark: darkTheme,
+	light: lightTheme,
+};
+
 type ThemeContextValue = {
 	theme: AppTheme;
+	themeName: ThemeName;
+	setThemeName: (name: ThemeName) => void;
+	// Back-compat; not used externally but kept to avoid breaking imports
 	setTheme: (theme: AppTheme) => void;
 };
 
@@ -51,10 +82,31 @@ const ThemeContext = React.createContext<ThemeContextValue | undefined>(
 	undefined,
 );
 
-export function ThemeProvider(props: { children: React.ReactNode }) {
-	const [theme, setTheme] = React.useState<AppTheme>(darkTheme);
+const storage = new MMKV({ id: 'settings' });
+const THEME_KEY = 'theme';
 
-	const value = React.useMemo(() => ({ theme, setTheme }), [theme]);
+export function ThemeProvider(props: { children: React.ReactNode }) {
+	const [themeName, setThemeName] = React.useState<ThemeName>(() => {
+		const stored = storage.getString(THEME_KEY);
+		return stored === 'light' ? 'light' : 'dark';
+	});
+
+	const theme = themes[themeName];
+
+	const handleSetThemeName = React.useCallback((name: ThemeName) => {
+		setThemeName(name);
+		storage.set(THEME_KEY, name);
+	}, []);
+
+	const value = React.useMemo<ThemeContextValue>(
+		() => ({
+			theme,
+			themeName,
+			setThemeName: handleSetThemeName,
+			setTheme: () => {},
+		}),
+		[theme, themeName, handleSetThemeName],
+	);
 
 	return (
 		<ThemeContext.Provider value={value}>
@@ -67,4 +119,12 @@ export function useTheme() {
 	const ctx = React.useContext(ThemeContext);
 	if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
 	return ctx.theme;
+}
+
+export function useThemeControls() {
+	const ctx = React.useContext(ThemeContext);
+	if (!ctx)
+		throw new Error('useThemeControls must be used within ThemeProvider');
+	const { themeName, setThemeName } = ctx;
+	return { themeName, setThemeName };
 }
