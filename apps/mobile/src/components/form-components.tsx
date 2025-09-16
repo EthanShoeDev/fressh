@@ -3,7 +3,14 @@ import {
 	createFormHookContexts,
 	useStore,
 } from '@tanstack/react-form';
-import { Pressable, Switch, Text, TextInput, View } from 'react-native';
+import {
+	Pressable,
+	Switch,
+	Text,
+	TextInput,
+	View,
+	StyleSheet,
+} from 'react-native';
 
 function FieldInfo() {
 	const field = useFieldContext();
@@ -32,18 +39,7 @@ export function TextField(
 
 	return (
 		<View style={{ marginBottom: 16 }}>
-			{label ? (
-				<Text
-					style={{
-						marginBottom: 6,
-						fontSize: 14,
-						color: '#C6CBD3',
-						fontWeight: '600',
-					}}
-				>
-					{label}
-				</Text>
-			) : null}
+			{label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
 			<TextInput
 				style={[
 					{
@@ -116,6 +112,15 @@ export function NumberField(
 	);
 }
 
+const styles = StyleSheet.create({
+	fieldLabel: {
+		marginBottom: 6,
+		color: '#C6CBD3',
+		fontWeight: '600',
+		fontSize: 14,
+	},
+});
+
 export function SwitchField(
 	props: React.ComponentProps<typeof Switch> & {
 		label?: string;
@@ -126,18 +131,7 @@ export function SwitchField(
 
 	return (
 		<View style={{ marginBottom: 16 }}>
-			{label ? (
-				<Text
-					style={{
-						marginBottom: 6,
-						fontSize: 14,
-						color: '#C6CBD3',
-						fontWeight: '600',
-					}}
-				>
-					{label}
-				</Text>
-			) : null}
+			{label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
 			<Switch
 				style={[
 					{
