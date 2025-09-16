@@ -10,7 +10,7 @@ import {
 	type QueryClient,
 } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { secretsManager, type ConnectionDetails } from './secrets-manager';
+import { secretsManager, type InputConnectionDetails } from './secrets-manager';
 import { AbortSignalTimeout } from './utils';
 
 export const useSshConnMutation = () => {
@@ -18,7 +18,7 @@ export const useSshConnMutation = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: async (connectionDetails: ConnectionDetails) => {
+		mutationFn: async (connectionDetails: InputConnectionDetails) => {
 			try {
 				console.log('Connecting to SSH server...');
 				const sshConnection = await RnRussh.connect({
@@ -28,9 +28,9 @@ export const useSshConnMutation = () => {
 					security:
 						connectionDetails.security.type === 'password'
 							? {
-									type: 'password',
-									password: connectionDetails.security.password,
-								}
+								type: 'password',
+								password: connectionDetails.security.password,
+							}
 							: { type: 'key', privateKey: 'TODO' },
 					onStatusChange: (status) => {
 						console.log('SSH connection status', status);

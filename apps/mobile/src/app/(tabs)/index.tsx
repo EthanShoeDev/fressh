@@ -17,7 +17,7 @@ import { useSshConnMutation } from '@/lib/query-fns';
 import {
 	connectionDetailsSchema,
 	secretsManager,
-	type ConnectionDetails,
+	type InputConnectionDetails,
 } from '@/lib/secrets-manager';
 import { useTheme, type AppTheme } from '@/lib/theme';
 
@@ -25,7 +25,7 @@ export default function TabsIndex() {
 	return <Host />;
 }
 
-const defaultValues: ConnectionDetails = {
+const defaultValues: InputConnectionDetails = {
 	host: 'test.rebex.net',
 	port: 22,
 	username: 'demo',
@@ -265,7 +265,7 @@ function KeyIdPickerField() {
 }
 
 function PreviousConnectionsSection(props: {
-	onSelect: (connection: ConnectionDetails) => void;
+	onSelect: (connection: InputConnectionDetails) => void;
 }) {
 	const theme = useTheme();
 	const styles = React.useMemo(() => makeStyles(theme), [theme]);
@@ -297,7 +297,7 @@ function PreviousConnectionsSection(props: {
 
 function ConnectionRow(props: {
 	id: string;
-	onSelect: (connection: ConnectionDetails) => void;
+	onSelect: (connection: InputConnectionDetails) => void;
 }) {
 	const theme = useTheme();
 	const styles = React.useMemo(() => makeStyles(theme), [theme]);

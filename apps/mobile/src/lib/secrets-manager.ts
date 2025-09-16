@@ -82,9 +82,9 @@ function makeBetterSecureStore<
 		const unsafedRootManifest = rawRootManifestString
 			? JSON.parse(rawRootManifestString)
 			: {
-					manifestVersion: rootManifestVersion,
-					manifestChunksIds: [],
-				};
+				manifestVersion: rootManifestVersion,
+				manifestChunksIds: [],
+			};
 		const rootManifest = rootManifestSchema.parse(unsafedRootManifest);
 		const manifestChunks = await Promise.all(
 			rootManifest.manifestChunksIds.map(async (manifestChunkId) => {
@@ -395,11 +395,11 @@ const betterConnectionStorage = makeBetterSecureStore({
 	parseValue: (value) => connectionDetailsSchema.parse(JSON.parse(value)),
 });
 
-export type ConnectionDetails = z.infer<typeof connectionDetailsSchema>;
+export type InputConnectionDetails = z.infer<typeof connectionDetailsSchema>;
 
 async function upsertConnection(params: {
 	id: string;
-	details: ConnectionDetails;
+	details: InputConnectionDetails;
 	priority: number;
 }) {
 	await betterConnectionStorage.upsertEntry({

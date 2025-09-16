@@ -63,6 +63,7 @@ function ShellDetail() {
 		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
 			<Stack.Screen
 				options={{
+					headerBackVisible: true,
 					headerLeft: () => (
 						<Pressable
 							onPress={() => router.back()}

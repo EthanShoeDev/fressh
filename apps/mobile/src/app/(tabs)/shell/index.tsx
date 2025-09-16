@@ -39,8 +39,6 @@ export default function TabsShellList() {
 function ShellContent() {
 	const connectionsQuery = useQuery(listSshShellsQueryOptions);
 
-	console.log('DEBUG connectionsQuery.data', !!connectionsQuery.data);
-
 	return (
 		<View style={{ flex: 1 }}>
 			<Stack.Screen
