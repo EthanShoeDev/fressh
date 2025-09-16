@@ -13,7 +13,6 @@ import {
 	Modal,
 	Platform,
 	Pressable,
-	StyleSheet,
 	Text,
 	View,
 } from 'react-native';
@@ -25,7 +24,7 @@ import {
 	listSshShellsQueryOptions,
 	type ShellWithConnection,
 } from '@/lib/query-fns';
-import { useTheme, type AppTheme } from '@/lib/theme';
+import { useTheme } from '@/lib/theme';
 
 export default function TabsShellList() {
 	const theme = useTheme();
@@ -59,10 +58,16 @@ function ShellContent() {
 
 function LoadingState() {
 	const theme = useTheme();
-	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	return (
-		<View style={styles.centerContent}>
-			<Text style={styles.mutedText}>Loading...</Text>
+		<View
+			style={{
+				flex: 1,
+				alignItems: 'center',
+				justifyContent: 'center',
+				gap: 12,
+			}}
+		>
+			<Text style={{ color: theme.colors.muted }}>Loading...</Text>
 		</View>
 	);
 }
@@ -177,7 +182,6 @@ function GroupedView({
 	setActionTarget: (target: ActionTarget) => void;
 }) {
 	const theme = useTheme();
-	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
 	return (
 		<FlashList
@@ -185,9 +189,19 @@ function GroupedView({
 			// estimatedItemSize={80}
 			keyExtractor={(item) => item.connectionId}
 			renderItem={({ item }) => (
-				<View style={styles.groupContainer}>
+				<View style={{ gap: 12 }}>
 					<Pressable
-						style={styles.groupHeader}
+						style={{
+							backgroundColor: theme.colors.surface,
+							borderWidth: 1,
+							borderColor: theme.colors.border,
+							borderRadius: 12,
+							paddingHorizontal: 12,
+							paddingVertical: 12,
+							flexDirection: 'row',
+							alignItems: 'center',
+							justifyContent: 'space-between',
+						}}
 						onPress={() =>
 							setExpanded((prev) => ({
 								...prev,
@@ -196,15 +210,27 @@ function GroupedView({
 						}
 					>
 						<View>
-							<Text style={styles.groupTitle}>
+							<Text
+								style={{
+									color: theme.colors.textPrimary,
+									fontSize: 16,
+									fontWeight: '700',
+								}}
+							>
 								{item.connectionDetails.username}@{item.connectionDetails.host}
 							</Text>
-							<Text style={styles.groupSubtitle}>
+							<Text
+								style={{
+									color: theme.colors.muted,
+									fontSize: 12,
+									marginTop: 2,
+								}}
+							>
 								Port {item.connectionDetails.port} • {item.shells.length} shell
 								{item.shells.length === 1 ? '' : 's'}
 							</Text>
 						</View>
-						<Text style={styles.groupChevron}>
+						<Text style={{ color: theme.colors.muted, fontSize: 18 }}>
 							{expanded[item.connectionId] ? '▾' : '▸'}
 						</Text>
 					</Pressable>
@@ -237,13 +263,19 @@ function GroupedView({
 
 function EmptyState() {
 	const theme = useTheme();
-	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	return (
-		<View style={styles.centerContent}>
-			<Text style={styles.mutedText}>
+		<View
+			style={{
+				flex: 1,
+				alignItems: 'center',
+				justifyContent: 'center',
+				gap: 12,
+			}}
+		>
+			<Text style={{ color: theme.colors.muted }}>
 				No active shells. Connect from Host tab.
 			</Text>
-			<Link href="/" style={styles.link}>
+			<Link href="/" style={{ color: theme.colors.primary, fontWeight: '600' }}>
 				Go to Hosts
 			</Link>
 		</View>
@@ -258,14 +290,23 @@ function ShellCard({
 	onLongPress?: () => void;
 }) {
 	const theme = useTheme();
-	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	const router = useRouter();
 	const since = formatDistanceToNow(new Date(shell.createdAtMs), {
 		addSuffix: true,
 	});
 	return (
 		<Pressable
-			style={styles.card}
+			style={{
+				flexDirection: 'row',
+				alignItems: 'center',
+				justifyContent: 'space-between',
+				backgroundColor: theme.colors.inputBackground,
+				borderWidth: 1,
+				borderColor: theme.colors.border,
+				borderRadius: 12,
+				paddingHorizontal: 12,
+				paddingVertical: 12,
+			}}
 			onPress={() =>
 				router.push({
 					pathname: '/shell/detail',
@@ -278,16 +319,40 @@ function ShellCard({
 			onLongPress={onLongPress}
 		>
 			<View style={{ flex: 1 }}>
-				<Text style={styles.cardTitle} numberOfLines={1}>
+				<Text
+					style={{
+						color: theme.colors.textPrimary,
+						fontSize: 15,
+						fontWeight: '600',
+					}}
+					numberOfLines={1}
+				>
 					{shell.connection.connectionDetails.username}@
 					{shell.connection.connectionDetails.host}
 				</Text>
-				<Text style={styles.cardSubtitle} numberOfLines={1}>
+				<Text
+					style={{
+						color: theme.colors.textSecondary,
+						fontSize: 12,
+						marginTop: 2,
+					}}
+					numberOfLines={1}
+				>
 					Port {shell.connection.connectionDetails.port} • {shell.pty}
 				</Text>
-				<Text style={styles.cardMeta}>Started {since}</Text>
+				<Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 6 }}>
+					Started {since}
+				</Text>
 			</View>
-			<Text style={styles.cardChevron}>›</Text>
+			<Text
+				style={{
+					color: theme.colors.muted,
+					fontSize: 22,
+					paddingHorizontal: 4,
+				}}
+			>
+				›
+			</Text>
 		</Pressable>
 	);
 }
@@ -304,7 +369,6 @@ function ActionsSheet({
 	onDisconnect: () => void;
 }) {
 	const theme = useTheme();
-	const styles = React.useMemo(() => makeStyles(theme), [theme]);
 	const open = !!target;
 	return (
 		<Modal
@@ -313,22 +377,98 @@ function ActionsSheet({
 			animationType="slide"
 			onRequestClose={onClose}
 		>
-			<View style={styles.modalOverlay}>
-				<View style={styles.modalSheet}>
-					<Text style={styles.title}>Shell Actions</Text>
+			<View
+				style={{
+					flex: 1,
+					backgroundColor: theme.colors.overlay,
+					justifyContent: 'flex-end',
+				}}
+			>
+				<View
+					style={{
+						backgroundColor: theme.colors.background,
+						borderTopLeftRadius: 16,
+						borderTopRightRadius: 16,
+						padding: 16,
+						borderColor: theme.colors.borderStrong,
+						borderWidth: 1,
+					}}
+				>
+					<Text
+						style={{
+							color: theme.colors.textPrimary,
+							fontSize: 18,
+							fontWeight: '700',
+						}}
+					>
+						Shell Actions
+					</Text>
 					<View style={{ height: 12 }} />
-					<Pressable style={styles.primaryButton} onPress={onCloseShell}>
-						<Text style={styles.primaryButtonText}>Close Shell</Text>
+					<Pressable
+						style={{
+							backgroundColor: theme.colors.primary,
+							borderRadius: 12,
+							paddingVertical: 14,
+							alignItems: 'center',
+						}}
+						onPress={onCloseShell}
+					>
+						<Text
+							style={{
+								color: theme.colors.buttonTextOnPrimary,
+								fontWeight: '700',
+								fontSize: 14,
+								letterSpacing: 0.3,
+							}}
+						>
+							Close Shell
+						</Text>
 					</Pressable>
 					<View style={{ height: 8 }} />
-					<Pressable style={styles.secondaryButton} onPress={onDisconnect}>
-						<Text style={styles.secondaryButtonText}>
+					<Pressable
+						style={{
+							backgroundColor: theme.colors.transparent,
+							borderWidth: 1,
+							borderColor: theme.colors.border,
+							borderRadius: 12,
+							paddingVertical: 14,
+							alignItems: 'center',
+						}}
+						onPress={onDisconnect}
+					>
+						<Text
+							style={{
+								color: theme.colors.textSecondary,
+								fontWeight: '600',
+								fontSize: 14,
+								letterSpacing: 0.3,
+							}}
+						>
 							Disconnect Connection
 						</Text>
 					</Pressable>
 					<View style={{ height: 8 }} />
-					<Pressable style={styles.secondaryButton} onPress={onClose}>
-						<Text style={styles.secondaryButtonText}>Cancel</Text>
+					<Pressable
+						style={{
+							backgroundColor: theme.colors.transparent,
+							borderWidth: 1,
+							borderColor: theme.colors.border,
+							borderRadius: 12,
+							paddingVertical: 14,
+							alignItems: 'center',
+						}}
+						onPress={onClose}
+					>
+						<Text
+							style={{
+								color: theme.colors.textSecondary,
+								fontWeight: '600',
+								fontSize: 14,
+								letterSpacing: 0.3,
+							}}
+						>
+							Cancel
+						</Text>
 					</Pressable>
 				</View>
 			</View>
@@ -381,126 +521,4 @@ function HeaderViewModeButton() {
 			<Ionicons name={icon} size={22} color={theme.colors.textPrimary} />
 		</Pressable>
 	);
-}
-
-function makeStyles(theme: AppTheme) {
-	return StyleSheet.create({
-		centerContent: {
-			flex: 1,
-			alignItems: 'center',
-			justifyContent: 'center',
-			gap: 12,
-		},
-		mutedText: { color: theme.colors.muted },
-		link: { color: theme.colors.primary, fontWeight: '600' },
-
-		// headerBar/title removed in favor of TopBarToggle
-
-		groupContainer: {
-			gap: 12,
-		},
-		groupHeader: {
-			backgroundColor: theme.colors.surface,
-			borderWidth: 1,
-			borderColor: theme.colors.border,
-			borderRadius: 12,
-			paddingHorizontal: 12,
-			paddingVertical: 12,
-			flexDirection: 'row',
-			alignItems: 'center',
-			justifyContent: 'space-between',
-		},
-		groupTitle: {
-			color: theme.colors.textPrimary,
-			fontSize: 16,
-			fontWeight: '700',
-		},
-		groupSubtitle: {
-			color: theme.colors.muted,
-			fontSize: 12,
-			marginTop: 2,
-		},
-		groupChevron: {
-			color: theme.colors.muted,
-			fontSize: 18,
-		},
-
-		card: {
-			flexDirection: 'row',
-			alignItems: 'center',
-			justifyContent: 'space-between',
-			backgroundColor: theme.colors.inputBackground,
-			borderWidth: 1,
-			borderColor: theme.colors.border,
-			borderRadius: 12,
-			paddingHorizontal: 12,
-			paddingVertical: 12,
-		},
-		cardTitle: {
-			color: theme.colors.textPrimary,
-			fontSize: 15,
-			fontWeight: '600',
-		},
-		cardSubtitle: {
-			color: theme.colors.textSecondary,
-			fontSize: 12,
-			marginTop: 2,
-		},
-		cardMeta: {
-			color: theme.colors.muted,
-			fontSize: 12,
-			marginTop: 6,
-		},
-		cardChevron: {
-			color: theme.colors.muted,
-			fontSize: 22,
-			paddingHorizontal: 4,
-		},
-
-		modalOverlay: {
-			flex: 1,
-			backgroundColor: theme.colors.overlay,
-			justifyContent: 'flex-end',
-		},
-		modalSheet: {
-			backgroundColor: theme.colors.background,
-			borderTopLeftRadius: 16,
-			borderTopRightRadius: 16,
-			padding: 16,
-			borderColor: theme.colors.borderStrong,
-			borderWidth: 1,
-		},
-		title: {
-			color: theme.colors.textPrimary,
-			fontSize: 18,
-			fontWeight: '700',
-		},
-
-		primaryButton: {
-			backgroundColor: theme.colors.primary,
-			borderRadius: 12,
-			paddingVertical: 14,
-			alignItems: 'center',
-		},
-		primaryButtonText: {
-			color: theme.colors.buttonTextOnPrimary,
-			fontWeight: '700',
-			fontSize: 14,
-			letterSpacing: 0.3,
-		},
-		secondaryButton: {
-			backgroundColor: theme.colors.transparent,
-			borderWidth: 1,
-			borderColor: theme.colors.border,
-			borderRadius: 12,
-			paddingVertical: 14,
-			alignItems: 'center',
-		},
-		secondaryButtonText: {
-			color: theme.colors.textSecondary,
-			fontWeight: '600',
-			fontSize: 14,
-			letterSpacing: 0.3,
-		},
-	});
 }

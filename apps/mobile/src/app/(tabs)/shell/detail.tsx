@@ -6,7 +6,6 @@ import {
 	Platform,
 	Pressable,
 	ScrollView,
-	StyleSheet,
 	Text,
 	TextInput,
 	View,
@@ -36,8 +35,6 @@ function ShellDetail() {
 			: undefined;
 
 	const [shellData, setShellData] = useState('');
-	const [inputValue, setInputValue] = useState('');
-	const hiddenInputRef = useRef<TextInput | null>(null);
 
 	useEffect(() => {
 		if (!connection) return;
@@ -61,42 +58,11 @@ function ShellDetail() {
 		scrollViewRef.current?.scrollToEnd({ animated: true });
 	}, [shellData]);
 
-	useEffect(() => {
-		const focusTimeout = setTimeout(() => {
-			hiddenInputRef.current?.focus();
-		}, 0);
-		return () => clearTimeout(focusTimeout);
-	}, []);
-
-	async function sendChunk(chunk: string) {
-		if (!shell || !chunk) return;
-		const bytes = Uint8Array.from(new TextEncoder().encode(chunk)).buffer;
-		try {
-			await shell.sendData(bytes);
-		} catch {}
-	}
-
 	return (
 		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
 			<Stack.Screen
 				options={{
 					headerBackVisible: true,
-					headerLeft:
-						Platform.OS === 'android'
-							? () => (
-									<Pressable
-										onPress={() => router.back()}
-										hitSlop={10}
-										style={{ paddingHorizontal: 4, paddingVertical: 4 }}
-									>
-										<Ionicons
-											name="chevron-back"
-											size={22}
-											color={theme.colors.textPrimary}
-										/>
-									</Pressable>
-								)
-							: undefined,
 					headerRight: () => (
 						<Pressable
 							accessibilityLabel="Disconnect"
@@ -114,93 +80,120 @@ function ShellDetail() {
 				}}
 			/>
 			<View
-				style={[styles.container, { backgroundColor: theme.colors.background }]}
+				style={[
+					{ flex: 1, backgroundColor: '#0B1324', padding: 12 },
+					{ backgroundColor: theme.colors.background },
+				]}
 			>
 				<View
-					style={styles.terminal}
-					onStartShouldSetResponder={() => {
-						hiddenInputRef.current?.focus();
-						return false;
+					style={{
+						flex: 1,
+						backgroundColor: '#0E172B',
+						borderRadius: 12,
+						height: 400,
+						borderWidth: 1,
+						borderColor: '#2A3655',
+						overflow: 'hidden',
+						marginBottom: 12,
 					}}
 				>
 					<ScrollView
 						ref={scrollViewRef}
-						contentContainerStyle={styles.terminalContent}
+						contentContainerStyle={{
+							paddingHorizontal: 12,
+							paddingTop: 4,
+							paddingBottom: 12,
+						}}
 						keyboardShouldPersistTaps="handled"
 					>
-						<Text selectable style={styles.terminalText}>
+						<Text
+							selectable
+							style={{
+								color: '#D1D5DB',
+								fontSize: 14,
+								lineHeight: 18,
+								fontFamily: Platform.select({
+									ios: 'Menlo',
+									android: 'monospace',
+									default: 'monospace',
+								}),
+							}}
+						>
 							{shellData || 'Connected. Output will appear here...'}
 						</Text>
 					</ScrollView>
-					<TextInput
-						ref={hiddenInputRef}
-						value={inputValue}
-						onChangeText={async (text) => {
-							if (!text) return;
-							await sendChunk(text);
-							setInputValue('');
-						}}
-						onKeyPress={async (e) => {
-							const key = e.nativeEvent.key;
-							if (key === 'Backspace') {
-								await sendChunk('\b');
-							}
-						}}
-						onSubmitEditing={async () => {
-							await sendChunk('\n');
-						}}
-						style={styles.hiddenInput}
-						autoFocus
-						multiline
-						caretHidden
-						autoCorrect={false}
-						autoCapitalize="none"
-						keyboardType="visible-password"
-						blurOnSubmit={false}
-					/>
 				</View>
+				<CommandInput
+					executeCommand={async (command) => {
+						await shell?.sendData(
+							Uint8Array.from(new TextEncoder().encode(command + '\n')).buffer,
+						);
+					}}
+				/>
 			</View>
 		</SafeAreaView>
 	);
 }
 
-const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: '#0B1324',
-		padding: 12,
-	},
-	terminal: {
-		flex: 1,
-		backgroundColor: '#0E172B',
-		borderRadius: 12,
-		borderWidth: 1,
-		borderColor: '#2A3655',
-		overflow: 'hidden',
-		marginBottom: 12,
-	},
-	terminalContent: {
-		paddingHorizontal: 12,
-		paddingTop: 4,
-		paddingBottom: 12,
-	},
-	terminalText: {
-		color: '#D1D5DB',
-		fontSize: 14,
-		lineHeight: 18,
-		fontFamily: Platform.select({
-			ios: 'Menlo',
-			android: 'monospace',
-			default: 'monospace',
-		}),
-	},
-	hiddenInput: {
-		position: 'absolute',
-		top: 0,
-		left: 0,
-		right: 0,
-		bottom: 0,
-		opacity: 0,
-		color: 'transparent',
-	},
-});
+function CommandInput(props: {
+	executeCommand: (command: string) => Promise<void>;
+}) {
+	const [command, setCommand] = useState('');
+
+	async function handleExecute() {
+		if (!command.trim()) return;
+		await props.executeCommand(command);
+		setCommand('');
+	}
+
+	return (
+		<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+			<TextInput
+				testID="command-input"
+				style={{
+					flex: 1,
+					backgroundColor: '#0E172B',
+					borderWidth: 1,
+					borderColor: '#2A3655',
+					borderRadius: 10,
+					paddingHorizontal: 12,
+					paddingVertical: 12,
+					color: '#E5E7EB',
+					fontSize: 16,
+					fontFamily: Platform.select({
+						ios: 'Menlo',
+						android: 'monospace',
+						default: 'monospace',
+					}),
+				}}
+				value={command}
+				onChangeText={setCommand}
+				placeholder="Type a command and press Enter or Execute"
+				placeholderTextColor="#9AA0A6"
+				autoCapitalize="none"
+				autoCorrect={false}
+				returnKeyType="send"
+				onSubmitEditing={handleExecute}
+			/>
+			<Pressable
+				style={[
+					{
+						backgroundColor: '#2563EB',
+						borderRadius: 10,
+						paddingHorizontal: 16,
+						paddingVertical: 12,
+						alignItems: 'center',
+						justifyContent: 'center',
+					},
+					{ marginTop: 8 },
+				]}
+				onPress={handleExecute}
+				testID="execute-button"
+			>
+				<Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+					Execute
+				</Text>
+			</Pressable>
+		</View>
+	);
+}
