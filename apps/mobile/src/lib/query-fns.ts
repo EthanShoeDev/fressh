@@ -28,9 +28,9 @@ export const useSshConnMutation = () => {
 					security:
 						connectionDetails.security.type === 'password'
 							? {
-								type: 'password',
-								password: connectionDetails.security.password,
-							}
+									type: 'password',
+									password: connectionDetails.security.password,
+								}
 							: { type: 'key', privateKey: 'TODO' },
 					onStatusChange: (status) => {
 						console.log('SSH connection status', status);

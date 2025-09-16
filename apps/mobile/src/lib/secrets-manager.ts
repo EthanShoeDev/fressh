@@ -82,9 +82,9 @@ function makeBetterSecureStore<
 		const unsafedRootManifest = rawRootManifestString
 			? JSON.parse(rawRootManifestString)
 			: {
-				manifestVersion: rootManifestVersion,
-				manifestChunksIds: [],
-			};
+					manifestVersion: rootManifestVersion,
+					manifestChunksIds: [],
+				};
 		const rootManifest = rootManifestSchema.parse(unsafedRootManifest);
 		const manifestChunks = await Promise.all(
 			rootManifest.manifestChunksIds.map(async (manifestChunkId) => {
