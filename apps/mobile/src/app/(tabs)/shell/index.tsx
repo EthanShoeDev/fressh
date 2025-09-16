@@ -8,9 +8,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Link, Stack, useRouter } from 'expo-router';
 import React from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+	ActionSheetIOS,
+	Modal,
+	Platform,
+	Pressable,
+	StyleSheet,
+	Text,
+	View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconSegmentedControl } from '@/components/icon-segmented-control';
 import { preferences } from '@/lib/preferences';
 import {
 	closeSshShellAndInvalidateQuery,
@@ -38,7 +45,7 @@ function ShellContent() {
 		<View style={{ flex: 1 }}>
 			<Stack.Screen
 				options={{
-					headerRight: () => <TopBarToggle />,
+					headerRight: () => <HeaderViewModeButton />,
 				}}
 			/>
 			{!connectionsQuery.data ? (
@@ -241,7 +248,6 @@ function EmptyState() {
 			<Link href="/" style={styles.link}>
 				Go to Hosts
 			</Link>
-			<TopBarToggle />
 		</View>
 	);
 }
@@ -332,34 +338,50 @@ function ActionsSheet({
 	);
 }
 
-function TopBarToggle() {
+function HeaderViewModeButton() {
 	const theme = useTheme();
-	const iconStyle = (isActive: boolean) => ({
-		color: isActive ? theme.colors.textPrimary : theme.colors.muted,
-	});
 	const [shellListViewMode, setShellListViewMode] =
 		preferences.shellListViewMode.useShellListViewModePref();
+
+	const icon = shellListViewMode === 'flat' ? 'list' : 'git-branch';
+	const accessibilityLabel =
+		shellListViewMode === 'flat'
+			? 'Switch to grouped view'
+			: 'Switch to flat list view';
+
+	const handleToggle = React.useCallback(() => {
+		const nextMode = shellListViewMode === 'flat' ? 'grouped' : 'flat';
+		setShellListViewMode(nextMode);
+	}, [setShellListViewMode, shellListViewMode]);
+
+	const handleLongPress = React.useCallback(() => {
+		if (Platform.OS !== 'ios') return;
+		ActionSheetIOS.showActionSheetWithOptions(
+			{
+				title: 'View Mode',
+				options: ['Flat list', 'Grouped by connection', 'Cancel'],
+				cancelButtonIndex: 2,
+			},
+			(buttonIndex) => {
+				if (buttonIndex === 0) setShellListViewMode('flat');
+				if (buttonIndex === 1) setShellListViewMode('grouped');
+			},
+		);
+	}, [setShellListViewMode]);
+
 	return (
-		<IconSegmentedControl
-			values={[
-				{
-					child: ({ isActive }) => (
-						<Ionicons name="list" size={18} style={iconStyle(isActive)} />
-					),
-					accessibilityLabel: 'Flat list',
-					value: 'flat',
-				},
-				{
-					child: ({ isActive }) => (
-						<Ionicons name="git-branch" size={18} style={iconStyle(isActive)} />
-					),
-					accessibilityLabel: 'Grouped by connection',
-					value: 'grouped',
-				},
-			]}
-			value={shellListViewMode}
-			onChange={setShellListViewMode}
-		/>
+		<Pressable
+			onPress={handleToggle}
+			onLongPress={handleLongPress}
+			hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+			accessibilityRole="button"
+			accessibilityLabel={accessibilityLabel}
+			style={({ pressed }) => ({
+				opacity: pressed ? 0.4 : 1,
+			})}
+		>
+			<Ionicons name={icon} size={22} color={theme.colors.textPrimary} />
+		</Pressable>
 	);
 }
 
