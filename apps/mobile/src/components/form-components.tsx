@@ -3,14 +3,7 @@ import {
 	createFormHookContexts,
 	useStore,
 } from '@tanstack/react-form';
-import {
-	Pressable,
-	StyleSheet,
-	Switch,
-	Text,
-	TextInput,
-	View,
-} from 'react-native';
+import { Pressable, Switch, Text, TextInput, View } from 'react-native';
 
 function FieldInfo() {
 	const field = useFieldContext();
@@ -18,9 +11,11 @@ function FieldInfo() {
 	const errorMessage = meta?.errors?.[0]; // TODO: typesafe errors
 
 	return (
-		<View style={styles.fieldInfo}>
+		<View style={{ marginTop: 6 }}>
 			{errorMessage ? (
-				<Text style={styles.errorText}>{String(errorMessage)}</Text>
+				<Text style={{ color: '#FCA5A5', fontSize: 12 }}>
+					{String(errorMessage)}
+				</Text>
 			) : null}
 		</View>
 	);
@@ -36,10 +31,33 @@ export function TextField(
 	const field = useFieldContext<string>();
 
 	return (
-		<View style={styles.inputGroup}>
-			{label ? <Text style={styles.label}>{label}</Text> : null}
+		<View style={{ marginBottom: 16 }}>
+			{label ? (
+				<Text
+					style={{
+						marginBottom: 6,
+						fontSize: 14,
+						color: '#C6CBD3',
+						fontWeight: '600',
+					}}
+				>
+					{label}
+				</Text>
+			) : null}
 			<TextInput
-				style={[styles.input, style]}
+				style={[
+					{
+						borderWidth: 1,
+						borderColor: '#2A3655',
+						backgroundColor: '#0E172B',
+						color: '#E5E7EB',
+						borderRadius: 10,
+						paddingHorizontal: 12,
+						paddingVertical: 12,
+						fontSize: 16,
+					},
+					style,
+				]}
 				placeholderTextColor="#9AA0A6"
 				value={field.state.value}
 				onChangeText={field.handleChange}
@@ -59,11 +77,34 @@ export function NumberField(
 	const { label, style, keyboardType, onChangeText, ...rest } = props;
 	const field = useFieldContext<number>();
 	return (
-		<View style={styles.inputGroup}>
-			{label ? <Text style={styles.label}>{label}</Text> : null}
+		<View style={{ marginBottom: 16 }}>
+			{label ? (
+				<Text
+					style={{
+						marginBottom: 6,
+						fontSize: 14,
+						color: '#C6CBD3',
+						fontWeight: '600',
+					}}
+				>
+					{label}
+				</Text>
+			) : null}
 			<TextInput
 				keyboardType={keyboardType ?? 'numeric'}
-				style={[styles.input, style]}
+				style={[
+					{
+						borderWidth: 1,
+						borderColor: '#2A3655',
+						backgroundColor: '#0E172B',
+						color: '#E5E7EB',
+						borderRadius: 10,
+						paddingHorizontal: 12,
+						paddingVertical: 12,
+						fontSize: 16,
+					},
+					style,
+				]}
 				placeholderTextColor="#9AA0A6"
 				value={field.state.value.toString()}
 				onChangeText={(text) => field.handleChange(Number(text))}
@@ -84,10 +125,31 @@ export function SwitchField(
 	const field = useFieldContext<boolean>();
 
 	return (
-		<View style={styles.inputGroup}>
-			{label ? <Text style={styles.label}>{label}</Text> : null}
+		<View style={{ marginBottom: 16 }}>
+			{label ? (
+				<Text
+					style={{
+						marginBottom: 6,
+						fontSize: 14,
+						color: '#C6CBD3',
+						fontWeight: '600',
+					}}
+				>
+					{label}
+				</Text>
+			) : null}
 			<Switch
-				style={[styles.input, style]}
+				style={[
+					{
+						borderWidth: 1,
+						borderColor: '#2A3655',
+						backgroundColor: '#0E172B',
+						borderRadius: 10,
+						paddingHorizontal: 12,
+						paddingVertical: 12,
+					},
+					style,
+				]}
 				value={field.state.value}
 				onChange={(event) => field.handleChange(event.nativeEvent.value)}
 				onBlur={field.handleBlur}
@@ -114,13 +176,18 @@ export function SubmitButton(
 		<Pressable
 			{...rest}
 			style={[
-				styles.submitButton,
-				disabled ? styles.buttonDisabled : undefined,
+				{
+					backgroundColor: '#2563EB',
+					borderRadius: 10,
+					paddingVertical: 14,
+					alignItems: 'center',
+				},
+				disabled ? { backgroundColor: '#3B82F6', opacity: 0.6 } : undefined,
 			]}
 			onPress={onPress}
 			disabled={disabled || isSubmitting}
 		>
-			<Text style={styles.submitButtonText}>
+			<Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>
 				{isSubmitting ? 'Connecting...' : title}
 			</Text>
 		</Pressable>
@@ -145,56 +212,4 @@ export const { useAppForm, withForm, withFieldGroup } = createFormHook({
 	formContext,
 });
 
-const styles = StyleSheet.create({
-	inputGroup: {
-		marginBottom: 16,
-	},
-	label: {
-		marginBottom: 6,
-		fontSize: 14,
-		color: '#C6CBD3',
-		fontWeight: '600',
-	},
-	input: {
-		borderWidth: 1,
-		borderColor: '#2A3655',
-		backgroundColor: '#0E172B',
-		color: '#E5E7EB',
-		borderRadius: 10,
-		paddingHorizontal: 12,
-		paddingVertical: 12,
-		fontSize: 16,
-	},
-	errorText: {
-		marginTop: 6,
-		color: '#FCA5A5',
-		fontSize: 12,
-	},
-	submitButton: {
-		backgroundColor: '#2563EB',
-		borderRadius: 10,
-		paddingVertical: 14,
-		alignItems: 'center',
-	},
-	submitButtonText: {
-		color: '#FFFFFF',
-		fontWeight: '700',
-		fontSize: 16,
-	},
-	buttonDisabled: {
-		backgroundColor: '#3B82F6',
-		opacity: 0.6,
-	},
-	fieldInfo: {
-		marginTop: 6,
-		color: '#FCA5A5',
-		fontSize: 12,
-	},
-	pickerContainer: {
-		paddingHorizontal: 8,
-		paddingVertical: 4,
-	},
-	picker: {
-		color: '#E5E7EB',
-	},
-});
+// Styles inlined per component

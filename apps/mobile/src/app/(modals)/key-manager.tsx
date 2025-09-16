@@ -28,6 +28,3 @@ export default function KeyManagerModalRoute() {
 		</SafeAreaView>
 	);
 }
-
-// // styles kept for potential future local additions
-// const styles = StyleSheet.create({});

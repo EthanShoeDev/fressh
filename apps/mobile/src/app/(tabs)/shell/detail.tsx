@@ -6,7 +6,6 @@ import {
 	Platform,
 	Pressable,
 	ScrollView,
-	StyleSheet,
 	Text,
 	TextInput,
 	View,
@@ -63,21 +62,11 @@ function ShellDetail() {
 		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
 			<Stack.Screen
 				options={{
-					headerLeft: () => (
-						<Pressable
-							onPress={() => router.back()}
-							hitSlop={10}
-							style={{ paddingHorizontal: 4, paddingVertical: 4 }}
-						>
-							<Ionicons
-								name="chevron-back"
-								size={22}
-								color={theme.colors.textPrimary}
-							/>
-						</Pressable>
-					),
+					headerBackVisible: true,
 					headerRight: () => (
 						<Pressable
+							accessibilityLabel="Disconnect"
+							hitSlop={10}
 							onPress={async () => {
 								try {
 									await connection?.disconnect();
@@ -85,23 +74,51 @@ function ShellDetail() {
 								router.replace('/shell');
 							}}
 						>
-							<Text style={{ color: theme.colors.primary, fontWeight: '700' }}>
-								Disconnect
-							</Text>
+							<Ionicons name="power" size={20} color={theme.colors.primary} />
 						</Pressable>
 					),
 				}}
 			/>
 			<View
-				style={[styles.container, { backgroundColor: theme.colors.background }]}
+				style={[
+					{ flex: 1, backgroundColor: '#0B1324', padding: 12 },
+					{ backgroundColor: theme.colors.background },
+				]}
 			>
-				<View style={styles.terminal}>
+				<View
+					style={{
+						flex: 1,
+						backgroundColor: '#0E172B',
+						borderRadius: 12,
+						height: 400,
+						borderWidth: 1,
+						borderColor: '#2A3655',
+						overflow: 'hidden',
+						marginBottom: 12,
+					}}
+				>
 					<ScrollView
 						ref={scrollViewRef}
-						contentContainerStyle={styles.terminalContent}
+						contentContainerStyle={{
+							paddingHorizontal: 12,
+							paddingTop: 4,
+							paddingBottom: 12,
+						}}
 						keyboardShouldPersistTaps="handled"
 					>
-						<Text selectable style={styles.terminalText}>
+						<Text
+							selectable
+							style={{
+								color: '#D1D5DB',
+								fontSize: 14,
+								lineHeight: 18,
+								fontFamily: Platform.select({
+									ios: 'Menlo',
+									android: 'monospace',
+									default: 'monospace',
+								}),
+							}}
+						>
 							{shellData || 'Connected. Output will appear here...'}
 						</Text>
 					</ScrollView>
@@ -130,10 +147,25 @@ function CommandInput(props: {
 	}
 
 	return (
-		<View>
+		<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
 			<TextInput
 				testID="command-input"
-				style={styles.commandInput}
+				style={{
+					flex: 1,
+					backgroundColor: '#0E172B',
+					borderWidth: 1,
+					borderColor: '#2A3655',
+					borderRadius: 10,
+					paddingHorizontal: 12,
+					paddingVertical: 12,
+					color: '#E5E7EB',
+					fontSize: 16,
+					fontFamily: Platform.select({
+						ios: 'Menlo',
+						android: 'monospace',
+						default: 'monospace',
+					}),
+				}}
 				value={command}
 				onChangeText={setCommand}
 				placeholder="Type a command and press Enter or Execute"
@@ -144,71 +176,24 @@ function CommandInput(props: {
 				onSubmitEditing={handleExecute}
 			/>
 			<Pressable
-				style={[styles.executeButton, { marginTop: 8 }]}
+				style={[
+					{
+						backgroundColor: '#2563EB',
+						borderRadius: 10,
+						paddingHorizontal: 16,
+						paddingVertical: 12,
+						alignItems: 'center',
+						justifyContent: 'center',
+					},
+					{ marginTop: 8 },
+				]}
 				onPress={handleExecute}
 				testID="execute-button"
 			>
-				<Text style={styles.executeButtonText}>Execute</Text>
+				<Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+					Execute
+				</Text>
 			</Pressable>
 		</View>
 	);
 }
-
-const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: '#0B1324',
-		padding: 16,
-	},
-	terminal: {
-		flex: 1,
-		backgroundColor: '#0E172B',
-		borderRadius: 12,
-		borderWidth: 1,
-		borderColor: '#2A3655',
-		overflow: 'hidden',
-		marginBottom: 12,
-	},
-	terminalContent: {
-		padding: 12,
-	},
-	terminalText: {
-		color: '#D1D5DB',
-		fontSize: 14,
-		lineHeight: 18,
-		fontFamily: Platform.select({
-			ios: 'Menlo',
-			android: 'monospace',
-			default: 'monospace',
-		}),
-	},
-	commandInput: {
-		flex: 1,
-		backgroundColor: '#0E172B',
-		borderWidth: 1,
-		borderColor: '#2A3655',
-		borderRadius: 10,
-		paddingHorizontal: 12,
-		paddingVertical: 12,
-		color: '#E5E7EB',
-		fontSize: 16,
-		fontFamily: Platform.select({
-			ios: 'Menlo',
-			android: 'monospace',
-			default: 'monospace',
-		}),
-	},
-	executeButton: {
-		backgroundColor: '#2563EB',
-		borderRadius: 10,
-		paddingHorizontal: 16,
-		paddingVertical: 12,
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
-	executeButtonText: {
-		color: '#FFFFFF',
-		fontWeight: '700',
-		fontSize: 14,
-	},
-});

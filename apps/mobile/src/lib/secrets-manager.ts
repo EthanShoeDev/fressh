@@ -395,11 +395,11 @@ const betterConnectionStorage = makeBetterSecureStore({
 	parseValue: (value) => connectionDetailsSchema.parse(JSON.parse(value)),
 });
 
-export type ConnectionDetails = z.infer<typeof connectionDetailsSchema>;
+export type InputConnectionDetails = z.infer<typeof connectionDetailsSchema>;
 
 async function upsertConnection(params: {
 	id: string;
-	details: ConnectionDetails;
+	details: InputConnectionDetails;
 	priority: number;
 }) {
 	await betterConnectionStorage.upsertEntry({
