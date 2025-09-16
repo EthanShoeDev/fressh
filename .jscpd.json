@@ -8,7 +8,8 @@
 		"**/node_modules/**",
 		"**/android/**",
 		"**/generated/**",
-		"**/rust/target/**"
+		"**/rust/target/**",
+		"**/mobile/ios/**"
 	],
 	"threshold": 0,
 	"minTokens": 50,

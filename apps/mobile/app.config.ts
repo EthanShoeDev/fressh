@@ -1,5 +1,5 @@
-import 'tsx/cjs';
 import { type ExpoConfig } from 'expo/config';
+import 'tsx/cjs';
 import packageJson from './package.json';
 
 const config: ExpoConfig = {

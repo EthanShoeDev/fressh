@@ -3,7 +3,7 @@
  */
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { command, run, option, oneOf, boolean, flag } from 'cmd-ts';
+import { boolean, command, flag, oneOf, option, run } from 'cmd-ts';
 import { z } from 'zod';
 import packageJson from '../package.json' with { type: 'json' };
 import { cmd } from './script-lib';

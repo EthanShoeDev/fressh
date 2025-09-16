@@ -3,24 +3,21 @@ import { useStore } from '@tanstack/react-form';
 import { useQuery } from '@tanstack/react-query';
 import React from 'react';
 import {
+	Modal,
 	Pressable,
 	ScrollView,
 	StyleSheet,
 	Text,
 	View,
-	Modal,
 } from 'react-native';
-import {
-	SafeAreaView,
-	useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppForm, useFieldContext } from '@/components/form-components';
 import { KeyList } from '@/components/key-manager/KeyList';
 import { useSshConnMutation } from '@/lib/query-fns';
 import {
-	type ConnectionDetails,
 	connectionDetailsSchema,
 	secretsManager,
+	type ConnectionDetails,
 } from '@/lib/secrets-manager';
 import { useTheme, type AppTheme } from '@/lib/theme';
 
@@ -41,7 +38,7 @@ const defaultValues: ConnectionDetails = {
 function Host() {
 	const theme = useTheme();
 	const styles = React.useMemo(() => makeStyles(theme), [theme]);
-	const insets = useSafeAreaInsets();
+	// const insets = useSafeAreaInsets();
 	const sshConnMutation = useSshConnMutation();
 	const connectionForm = useAppForm({
 		// https://tanstack.com/form/latest/docs/framework/react/guides/async-initial-values
@@ -65,10 +62,7 @@ function Host() {
 	return (
 		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
 			<ScrollView
-				contentContainerStyle={[
-					styles.scrollContent,
-					{ paddingBottom: Math.max(32, insets.bottom + 24) },
-				]}
+				contentContainerStyle={[styles.scrollContent]}
 				keyboardShouldPersistTaps="handled"
 				style={{ backgroundColor: theme.colors.background }}
 			>

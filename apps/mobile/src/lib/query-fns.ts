@@ -1,8 +1,13 @@
-import { RnRussh } from '@fressh/react-native-uniffi-russh';
+import {
+	RnRussh,
+	type SshConnection,
+	type SshShellSession,
+} from '@fressh/react-native-uniffi-russh';
 import {
 	queryOptions,
 	useMutation,
 	useQueryClient,
+	type QueryClient,
 } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { secretsManager, type ConnectionDetails } from './secrets-manager';
@@ -74,3 +79,38 @@ export const listSshShellsQueryOptions = queryOptions({
 	queryKey: ['ssh-shells'],
 	queryFn: () => RnRussh.listSshConnectionsWithShells(),
 });
+
+export type ShellWithConnection = SshShellSession & {
+	connection: SshConnection;
+};
+
+export const closeSshShellAndInvalidateQuery = async (params: {
+	channelId: number;
+	connectionId: string;
+	queryClient: QueryClient;
+}) => {
+	const currentActiveShells = RnRussh.listSshConnectionsWithShells();
+	const connection = currentActiveShells.find(
+		(c) => c.connectionId === params.connectionId,
+	);
+	if (!connection) throw new Error('Connection not found');
+	const shell = connection.shells.find((s) => s.channelId === params.channelId);
+	if (!shell) throw new Error('Shell not found');
+	await shell.close();
+	if (connection.shells.length <= 1) await connection.disconnect();
+	await params.queryClient.invalidateQueries({
+		queryKey: listSshShellsQueryOptions.queryKey,
+	});
+};
+
+export const disconnectSshConnectionAndInvalidateQuery = async (params: {
+	connectionId: string;
+	queryClient: QueryClient;
+}) => {
+	const connection = RnRussh.getSshConnection(params.connectionId);
+	if (!connection) throw new Error('Connection not found');
+	await connection.disconnect();
+	await params.queryClient.invalidateQueries({
+		queryKey: listSshShellsQueryOptions.queryKey,
+	});
+};

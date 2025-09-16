@@ -48,7 +48,7 @@
     "expo-haptics": "~15.0.7",
     "expo-image": "~3.0.8",
     "expo-linking": "~8.0.8",
-    "expo-router": "6.0.4",
+    "expo-router": "6.0.5",
     "expo-secure-store": "~15.0.7",
     "expo-splash-screen": "~31.0.10",
     "expo-status-bar": "~3.0.8",
@@ -75,6 +75,7 @@
     "jiti": "^2.5.1",
     "npm-run-all": "^4.1.5",
     "prettier": "^3.6.2",
+    "prettier-plugin-organize-imports": "^4.2.0",
     "tsx": "^4.20.5",
     "typescript": "~5.9.2"
   },

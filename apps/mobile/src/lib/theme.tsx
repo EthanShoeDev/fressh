@@ -1,5 +1,5 @@
 import React from 'react';
-import { MMKV } from 'react-native-mmkv';
+import { preferences } from './preferences';
 
 export type AppTheme = {
 	colors: {
@@ -74,38 +74,23 @@ type ThemeContextValue = {
 	theme: AppTheme;
 	themeName: ThemeName;
 	setThemeName: (name: ThemeName) => void;
-	// Back-compat; not used externally but kept to avoid breaking imports
-	setTheme: (theme: AppTheme) => void;
 };
 
 const ThemeContext = React.createContext<ThemeContextValue | undefined>(
 	undefined,
 );
 
-const storage = new MMKV({ id: 'settings' });
-const THEME_KEY = 'theme';
-
 export function ThemeProvider(props: { children: React.ReactNode }) {
-	const [themeName, setThemeName] = React.useState<ThemeName>(() => {
-		const stored = storage.getString(THEME_KEY);
-		return stored === 'light' ? 'light' : 'dark';
-	});
-
+	const [themeName, setThemeName] = preferences.theme.useThemePref();
 	const theme = themes[themeName];
-
-	const handleSetThemeName = React.useCallback((name: ThemeName) => {
-		setThemeName(name);
-		storage.set(THEME_KEY, name);
-	}, []);
 
 	const value = React.useMemo<ThemeContextValue>(
 		() => ({
 			theme,
 			themeName,
-			setThemeName: handleSetThemeName,
-			setTheme: () => {},
+			setThemeName,
 		}),
-		[theme, themeName, handleSetThemeName],
+		[theme, themeName, setThemeName],
 	);
 
 	return (

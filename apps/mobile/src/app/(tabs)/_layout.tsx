@@ -1,4 +1,4 @@
-import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
+import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import React from 'react';
 import { useTheme } from '@/lib/theme';
 
@@ -15,10 +15,10 @@ export default function TabsLayout() {
 			// android
 			backBehavior="initialRoute"
 			indicatorColor={theme.colors.primary}
-			labelVisibilityMode="labeled"
+			// labelVisibilityMode="labeled"
 			// rippleColor={theme.colors.transparent}
 			// ios
-			blurEffect="systemDefault"
+			// blurEffect="systemChromeMaterial"
 		>
 			<NativeTabs.Trigger name="index">
 				<Label selectedStyle={{ color: theme.colors.textPrimary }}>Hosts</Label>
