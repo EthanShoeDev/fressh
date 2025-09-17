@@ -38,9 +38,9 @@ function ShellDetail() {
 
 	function sendDataToXterm(data: ArrayBuffer) {
 		try {
-			const bytes = new Uint8Array(data);
-			console.log('sendDataToXterm', new TextDecoder().decode(bytes));
-			xtermWebViewRef.current?.write(bytes);
+			const bytes = new Uint8Array(data.slice());
+			console.log('sendDataToXterm', new TextDecoder().decode(bytes.slice()));
+			xtermWebViewRef.current?.write(bytes.slice());
 		} catch (e) {
 			console.warn('Failed to decode shell data', e);
 		}
@@ -59,7 +59,10 @@ function ShellDetail() {
 		const xtermQueue = queueRef.current;
 		if (!connection || !xtermQueue) return;
 		const listenerId = connection.addChannelListener((data: ArrayBuffer) => {
-			console.log('ssh.onData', new TextDecoder().decode(new Uint8Array(data)));
+			console.log(
+				'ssh.onData',
+				new TextDecoder().decode(new Uint8Array(data.slice())),
+			);
 			void xtermQueue.add(() => {
 				sendDataToXterm(data);
 			});
@@ -126,7 +129,7 @@ setTimeout(() => {
 						}
 						const data = message.data;
 						console.log('xterm.onMessage', new TextDecoder().decode(data));
-						void shell?.sendData(data.buffer as ArrayBuffer);
+						void shell?.sendData(data.slice().buffer as ArrayBuffer);
 					}}
 				/>
 			</View>

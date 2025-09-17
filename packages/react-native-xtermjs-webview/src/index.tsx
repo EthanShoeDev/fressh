@@ -1,6 +1,6 @@
 import { useImperativeHandle, useRef, type ComponentProps } from 'react';
 import { WebView } from 'react-native-webview';
-import htmlString from '@fressh/react-native-xtermjs-webview-internal/dist/index.html?raw';
+import htmlString from '../dist-internal/index.html?raw';
 import { Base64 } from 'js-base64';
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
@@ -27,7 +27,7 @@ export function XtermJsWebView({
 	useImperativeHandle(ref, () => {
 		return {
 			write: (data) => {
-				const base64Data = Base64.fromUint8Array(data);
+				const base64Data = Base64.fromUint8Array(data.slice());
 				webViewRef.current?.injectJavaScript(`
 					window?.terminalWriteBase64?.('${base64Data}');
 				`);
@@ -46,7 +46,7 @@ export function XtermJsWebView({
 					onMessage?.({ type: 'initialized' });
 					return;
 				}
-				const data = Base64.toUint8Array(message);
+				const data = Base64.toUint8Array(message.slice());
 				onMessage?.({ type: 'data', data });
 			}}
 			{...props}
