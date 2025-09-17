@@ -42,15 +42,17 @@ function ShellDetail() {
 	useEffect(() => {
 		if (!connection) return;
 
+		const xterm = xtermRef.current;
+
 		const listenerId = connection.addChannelListener((data: ArrayBuffer) => {
 			// Forward bytes to terminal (no string conversion)
-			xtermRef.current?.write(new Uint8Array(data));
+			xterm?.write(new Uint8Array(data));
 		});
 
 		return () => {
 			connection.removeChannelListener(listenerId);
 			// Flush any buffered writes on unmount
-			xtermRef.current?.flush?.();
+			xterm?.flush?.();
 		};
 	}, [connection]);
 
@@ -92,13 +94,29 @@ function ShellDetail() {
 				<XtermJsWebView
 					ref={xtermRef}
 					style={{ flex: 1 }}
+					keyboardDisplayRequiresUserAction={false}
+					setSupportMultipleWindows={false}
+					overScrollMode="never"
+					pullToRefreshEnabled={false}
+					bounces={false}
+					setBuiltInZoomControls={false}
+					setDisplayZoomControls={false}
+					textZoom={100}
+					allowsLinkPreview={false}
+					textInteractionEnabled={false}
+					onRenderProcessGone={() => {
+						xtermRef.current?.clear?.();
+					}}
+					onContentProcessDidTerminate={() => {
+						xtermRef.current?.clear?.();
+					}}
 					// Optional: set initial theme/font
 					onLoadEnd={() => {
 						// Set theme bg/fg and font settings once WebView loads; the page will
 						// still send 'initialized' after xterm is ready.
 						xtermRef.current?.setTheme?.(
 							theme.colors.background,
-							theme.colors.text,
+							theme.colors.textPrimary,
 						);
 						xtermRef.current?.setFont?.('Menlo, ui-monospace, monospace', 14);
 					}}

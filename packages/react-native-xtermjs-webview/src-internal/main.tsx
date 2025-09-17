@@ -10,6 +10,7 @@ const term = new Terminal({
 	allowProposedApi: true,
 	convertEol: true,
 	scrollback: 10000,
+	cursorBlink: true,
 });
 const fitAddon = new FitAddon();
 term.loadAddon(fitAddon);
