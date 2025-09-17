@@ -1,0 +1,7 @@
+{
+	"extends": ["//"],
+	"tasks": {
+		"lint": {},
+		"lint:check": {}
+	}
+}

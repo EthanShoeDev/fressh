@@ -48,6 +48,7 @@
     "expo-haptics": "~15.0.7",
     "expo-image": "~3.0.8",
     "expo-linking": "~8.0.8",
+    "@fressh/react-native-xtermjs-webview": "workspace:*",
     "expo-router": "6.0.6",
     "expo-secure-store": "~15.0.7",
     "expo-splash-screen": "~31.0.10",

@@ -1,5 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { RnRussh } from '@fressh/react-native-uniffi-russh';
+import {
+	XtermJsWebView,
+	type XtermWebViewHandle,
+} from '@fressh/react-native-xtermjs-webview';
+
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -13,11 +18,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/lib/theme';
 
+const renderer: 'xtermjs' | 'rn-text' = 'xtermjs';
+const decoder = new TextDecoder('utf-8');
+
 export default function TabsShellDetail() {
 	return <ShellDetail />;
 }
 
 function ShellDetail() {
+	const xtermWebViewRef = useRef<XtermWebViewHandle>(null);
 	const { connectionId, channelId } = useLocalSearchParams<{
 		connectionId?: string;
 		channelId?: string;
@@ -38,10 +47,10 @@ function ShellDetail() {
 
 	useEffect(() => {
 		if (!connection) return;
-		const decoder = new TextDecoder('utf-8');
 		const listenerId = connection.addChannelListener((data: ArrayBuffer) => {
 			try {
 				const bytes = new Uint8Array(data);
+				xtermWebViewRef.current?.write(bytes);
 				const chunk = decoder.decode(bytes);
 				setShellData((prev) => prev + chunk);
 			} catch (e) {
@@ -85,51 +94,76 @@ function ShellDetail() {
 					{ backgroundColor: theme.colors.background },
 				]}
 			>
-				<View
-					style={{
-						flex: 1,
-						backgroundColor: '#0E172B',
-						borderRadius: 12,
-						height: 400,
-						borderWidth: 1,
-						borderColor: '#2A3655',
-						overflow: 'hidden',
-						marginBottom: 12,
-					}}
-				>
-					<ScrollView
-						ref={scrollViewRef}
-						contentContainerStyle={{
-							paddingHorizontal: 12,
-							paddingTop: 4,
-							paddingBottom: 12,
-						}}
-						keyboardShouldPersistTaps="handled"
-					>
-						<Text
-							selectable
+				<ScrollView>
+					{renderer === 'xtermjs' ? (
+						<XtermJsWebView
+							ref={xtermWebViewRef}
+							style={{ flex: 1, height: 400 }}
+							// textZoom={0}
+							// injectedJavaScript={`
+							// setTimeout(() => {
+							// 	document.body.style.backgroundColor = '${theme.colors.background}';
+							// 	document.body.style.color = '${theme.colors.textPrimary}';
+							// 	document.body.style.fontSize = '80px';
+							// 	const termDiv = document.getElementById('terminal');
+							// 	termDiv.style.backgroundColor = '${theme.colors.background}';
+							// 	termDiv.style.color = '${theme.colors.textPrimary}';
+							// 	window.terminal.options.fontSize = 50;
+							// }, 50);
+							// `}
+							onMessage={(event) => {
+								console.log('onMessage', event.nativeEvent.data);
+							}}
+						/>
+					) : (
+						<View
 							style={{
-								color: '#D1D5DB',
-								fontSize: 14,
-								lineHeight: 18,
-								fontFamily: Platform.select({
-									ios: 'Menlo',
-									android: 'monospace',
-									default: 'monospace',
-								}),
+								flex: 1,
+								backgroundColor: '#0E172B',
+								borderRadius: 12,
+								height: 400,
+								borderWidth: 1,
+								borderColor: '#2A3655',
+								overflow: 'hidden',
+								marginBottom: 12,
 							}}
 						>
-							{shellData || 'Connected. Output will appear here...'}
-						</Text>
-					</ScrollView>
-				</View>
-				<CommandInput
-					executeCommand={async (command) => {
-						await shell?.sendData(
-							Uint8Array.from(new TextEncoder().encode(command + '\n')).buffer,
-						);
-					}}
-				/>
+							<ScrollView
+								ref={scrollViewRef}
+								contentContainerStyle={{
+									paddingHorizontal: 12,
+									paddingTop: 4,
+									paddingBottom: 12,
+								}}
+								keyboardShouldPersistTaps="handled"
+							>
+								<Text
+									selectable
+									style={{
+										color: '#D1D5DB',
+										fontSize: 14,
+										lineHeight: 18,
+										fontFamily: Platform.select({
+											ios: 'Menlo',
+											android: 'monospace',
+											default: 'monospace',
+										}),
+									}}
+								>
+									{shellData || 'Connected. Output will appear here...'}
+								</Text>
+							</ScrollView>
+						</View>
+					)}
+					<CommandInput
+						executeCommand={async (command) => {
+							await shell?.sendData(
+								Uint8Array.from(new TextEncoder().encode(command + '\n'))
+									.buffer,
+							);
+						}}
+					/>
+				</ScrollView>
 			</View>
 		</SafeAreaView>
 	);

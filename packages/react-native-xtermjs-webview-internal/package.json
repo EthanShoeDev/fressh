@@ -1,5 +1,5 @@
 {
-  "name": "react-native-xtermjs-webview-internal",
+  "name": "@fressh/react-native-xtermjs-webview-internal",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,7 +9,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "fmt:check": "cross-env SORT_IMPORTS=true prettier --check .",
+    "fmt": "cross-env SORT_IMPORTS=true prettier --write .",
+    "eslint:check": "eslint . --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint --fix --report-unused-disable-directives --max-warnings 0 .",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -23,11 +27,15 @@
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.2",
     "eslint": "^9.35.0",
+    "prettier": "^3.6.2",
+    "prettier-plugin-organize-imports": "^4.2.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.4.0",
+    "@epic-web/config": "^1.21.3",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.44.0",
-    "vite": "6.3.6"
+    "vite": "6.3.6",
+    "vite-plugin-singlefile": "^2.3.0"
   }
 }
