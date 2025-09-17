@@ -8,13 +8,19 @@ type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 export type XtermWebViewHandle = {
 	write: (data: Uint8Array) => void;
 };
-const decoder = new TextDecoder('utf-8');
 
 export function XtermJsWebView({
 	ref,
+	onMessage,
 	...props
-}: StrictOmit<ComponentProps<typeof WebView>, 'source' | 'originWhitelist'> & {
+}: StrictOmit<
+	ComponentProps<typeof WebView>,
+	'source' | 'originWhitelist' | 'onMessage'
+> & {
 	ref: React.RefObject<XtermWebViewHandle | null>;
+	onMessage?: (
+		data: { type: 'data'; data: Uint8Array } | { type: 'initialized' },
+	) => void;
 }) {
 	const webViewRef = useRef<WebView>(null);
 
@@ -22,17 +28,8 @@ export function XtermJsWebView({
 		return {
 			write: (data) => {
 				const base64Data = Base64.fromUint8Array(data);
-				console.log('writing rn side', {
-					base64Data,
-					dataLength: data.length,
-				});
-
-				console.log(
-					'try to decode',
-					decoder.decode(Base64.toUint8Array(base64Data)),
-				);
 				webViewRef.current?.injectJavaScript(`
-					window?.terminalWriteBase64('${base64Data}');
+					window?.terminalWriteBase64?.('${base64Data}');
 				`);
 			},
 		};
@@ -43,6 +40,15 @@ export function XtermJsWebView({
 			ref={webViewRef}
 			originWhitelist={['*']}
 			source={{ html: htmlString }}
+			onMessage={(event) => {
+				const message = event.nativeEvent.data;
+				if (message === 'initialized') {
+					onMessage?.({ type: 'initialized' });
+					return;
+				}
+				const data = Base64.toUint8Array(message);
+				onMessage?.({ type: 'data', data });
+			}}
 			{...props}
 		/>
 	);

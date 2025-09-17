@@ -1,24 +1,30 @@
 import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { Base64 } from 'js-base64';
+
 import '@xterm/xterm/css/xterm.css';
 
-const decoder = new TextDecoder('utf-8');
-
 const terminal = new Terminal();
+const fitAddon = new FitAddon();
+terminal.loadAddon(fitAddon);
 terminal.open(document.getElementById('terminal')!);
-terminal.write('Hello from Xterm.js!');
+fitAddon.fit();
 window.terminal = terminal;
+window.fitAddon = fitAddon;
 const postMessage = (arg: string) => {
 	window.ReactNativeWebView?.postMessage?.(arg);
 };
 setTimeout(() => {
-	postMessage('DEBUG: set timeout');
-}, 1000);
+	postMessage('initialized');
+}, 10);
+
+terminal.onData((data) => {
+	const base64Data = Base64.encode(data);
+	postMessage(base64Data);
+});
 function terminalWriteBase64(base64Data: string) {
 	try {
-		postMessage(`DEBUG: terminalWriteBase64 ${base64Data}`);
-		const data = new Uint8Array(Buffer.from(base64Data, 'base64'));
-		postMessage(`DEBUG: terminalWriteBase64 decoded ${decoder.decode(data)}`);
-
+		const data = Base64.toUint8Array(base64Data);
 		terminal.write(data);
 	} catch (e) {
 		postMessage(`DEBUG: terminalWriteBase64 error ${e}`);
