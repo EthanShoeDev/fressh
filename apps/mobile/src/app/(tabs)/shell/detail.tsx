@@ -7,7 +7,6 @@ import {
 
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import PQueue from 'p-queue';
 import React, { useEffect, useRef } from 'react';
 import { Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +18,7 @@ export default function TabsShellDetail() {
 }
 
 function ShellDetail() {
-	const xtermWebViewRef = useRef<XtermWebViewHandle>(null);
+	const xtermRef = useRef<XtermWebViewHandle>(null);
 	const { connectionId, channelId } = useLocalSearchParams<{
 		connectionId?: string;
 		channelId?: string;
@@ -36,43 +35,24 @@ function ShellDetail() {
 			? RnRussh.getSshShell(String(connectionId), channelIdNum)
 			: undefined;
 
-	function sendDataToXterm(data: ArrayBuffer) {
-		try {
-			const bytes = new Uint8Array(data.slice());
-			console.log('sendDataToXterm', new TextDecoder().decode(bytes.slice()));
-			xtermWebViewRef.current?.write(bytes.slice());
-		} catch (e) {
-			console.warn('Failed to decode shell data', e);
-		}
-	}
-
-	const queueRef = useRef<PQueue>(null);
-
+	/**
+	 * SSH -> xterm (remote output)
+	 * Send bytes only; batching is handled inside XtermJsWebView.
+	 */
 	useEffect(() => {
-		if (!queueRef.current)
-			queueRef.current = new PQueue({
-				concurrency: 1,
-				intervalCap: 1, // <= one task per interval
-				interval: 100, // <= 100ms between tasks
-				autoStart: false, // <= buffer until we start()
-			});
-		const xtermQueue = queueRef.current;
-		if (!connection || !xtermQueue) return;
+		if (!connection) return;
+
 		const listenerId = connection.addChannelListener((data: ArrayBuffer) => {
-			console.log(
-				'ssh.onData',
-				new TextDecoder().decode(new Uint8Array(data.slice())),
-			);
-			void xtermQueue.add(() => {
-				sendDataToXterm(data);
-			});
+			// Forward bytes to terminal (no string conversion)
+			xtermRef.current?.write(new Uint8Array(data));
 		});
+
 		return () => {
 			connection.removeChannelListener(listenerId);
-			xtermQueue.pause();
-			xtermQueue.clear();
+			// Flush any buffered writes on unmount
+			xtermRef.current?.flush?.();
 		};
-	}, [connection, queueRef]);
+	}, [connection]);
 
 	const queryClient = useQueryClient();
 
@@ -90,7 +70,7 @@ function ShellDetail() {
 								try {
 									await disconnectSshConnectionAndInvalidateQuery({
 										connectionId: connection.connectionId,
-										queryClient: queryClient,
+										queryClient,
 									});
 								} catch (e) {
 									console.warn('Failed to disconnect', e);
@@ -110,26 +90,33 @@ function ShellDetail() {
 				]}
 			>
 				<XtermJsWebView
-					ref={xtermWebViewRef}
-					style={{ flex: 1, height: 400 }}
-					// textZoom={0}
-					injectedJavaScript={`
-document.body.style.backgroundColor = '${theme.colors.background}';
-const termDiv = document.getElementById('terminal');
-window.terminal.options.fontSize = 50;
-setTimeout(() => {
-	window.fitAddon?.fit();
-}, 1_000);
-							`}
+					ref={xtermRef}
+					style={{ flex: 1 }}
+					// Optional: set initial theme/font
+					onLoadEnd={() => {
+						// Set theme bg/fg and font settings once WebView loads; the page will
+						// still send 'initialized' after xterm is ready.
+						xtermRef.current?.setTheme?.(
+							theme.colors.background,
+							theme.colors.text,
+						);
+						xtermRef.current?.setFont?.('Menlo, ui-monospace, monospace', 14);
+					}}
 					onMessage={(message) => {
 						if (message.type === 'initialized') {
-							console.log('xterm.onMessage initialized');
-							queueRef.current?.start();
+							// Terminal is ready; you could send a greeting or focus it
+							xtermRef.current?.focus?.();
 							return;
 						}
-						const data = message.data;
-						console.log('xterm.onMessage', new TextDecoder().decode(data));
-						void shell?.sendData(data.slice().buffer as ArrayBuffer);
+						if (message.type === 'data') {
+							// xterm user input -> SSH
+							// NOTE: msg.data is a fresh Uint8Array starting at offset 0
+							void shell?.sendData(message.data.buffer as ArrayBuffer);
+							return;
+						}
+						if (message.type === 'debug') {
+							console.log('xterm.debug', message.message);
+						}
 					}}
 				/>
 			</View>
