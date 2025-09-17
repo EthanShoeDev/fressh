@@ -98,8 +98,8 @@ importers:
         specifier: ~14.0.8
         version: 14.0.8(expo@54.0.8)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       expo-glass-effect:
-        specifier: ^0.1.3
-        version: 0.1.3(expo@54.0.8)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
+        specifier: ^0.1.4
+        version: 0.1.4(expo@54.0.8)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       expo-haptics:
         specifier: ~15.0.7
         version: 15.0.7(expo@54.0.8)
@@ -4761,8 +4761,8 @@ packages:
       react: '*'
       react-native: '*'
 
-  expo-glass-effect@0.1.3:
-    resolution: {integrity: sha512-wGWS8DdenyqwBHpVKwFCishtB08HD4SW6SZjIx9BXw92q/9b9fiygBypFob9dT0Mct6d05g7XRBRZ8Ryw5rYIg==}
+  expo-glass-effect@0.1.4:
+    resolution: {integrity: sha512-RW7lf2SWNVSvpJqBxQUlC/VVzeeHFrJeoKoIlNIFfKTFj3HyF7xQKq6/h/bpO8M0ssy0v5KEKw4GggkjTwx7Fw==}
     peerDependencies:
       expo: '*'
       react: '*'
@@ -14254,7 +14254,7 @@ snapshots:
       react: 19.1.0
       react-native: 0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0)
 
-  expo-glass-effect@0.1.3(expo@54.0.8)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0):
+  expo-glass-effect@0.1.4(expo@54.0.8)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0):
     dependencies:
       expo: 54.0.8(@babel/core@7.28.3)(@expo/metro-runtime@6.1.1)(expo-router@6.0.6)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       react: 19.1.0
