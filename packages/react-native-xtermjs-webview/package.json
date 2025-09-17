@@ -1,0 +1,39 @@
+{
+  "name": "react-native-xtermjs-webview",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react-native-xtermjs-webview-internal": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native-webview": "13.15.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.35.0",
+    "@types/react": "~19.1.12",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.2",
+    "eslint": "^9.35.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.4.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native-webview": "13.15.0",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "^8.44.0",
+    "vite": "6.3.6"
+  }
+}
