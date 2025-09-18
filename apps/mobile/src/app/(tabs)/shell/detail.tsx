@@ -19,8 +19,8 @@ export default function TabsShellDetail() {
 
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
-	const terminalReadyRef = useRef(false); // gate for initial SSH output buffering
-	const pendingOutputRef = useRef<Uint8Array[]>([]); // bytes we got before xterm init
+	const terminalReadyRef = useRef(false);
+	const pendingOutputRef = useRef<Uint8Array[]>([]);
 
 	const { connectionId, channelId } = useLocalSearchParams<{
 		connectionId?: string;
@@ -38,24 +38,19 @@ function ShellDetail() {
 			? RnRussh.getSshShell(String(connectionId), channelIdNum)
 			: undefined;
 
-	/**
-	 * SSH -> xterm (remote output)
-	 * If xterm isn't ready yet, buffer and flush on 'initialized'.
-	 */
+	// SSH -> xterm (remote output). Buffer until xterm is initialized.
 	useEffect(() => {
 		if (!connection) return;
+
 		const xterm = xtermRef.current;
 
 		const listenerId = connection.addChannelListener((ab: ArrayBuffer) => {
 			const bytes = new Uint8Array(ab);
 			if (!terminalReadyRef.current) {
-				// Buffer until WebView->xterm has signaled 'initialized'
 				pendingOutputRef.current.push(bytes);
-				// Debug
 				console.log('SSH->buffer', { len: bytes.length });
 				return;
 			}
-			// Forward bytes immediately
 			console.log('SSH->xterm', { len: bytes.length });
 			xterm?.write(bytes);
 		});
@@ -104,7 +99,7 @@ function ShellDetail() {
 				<XtermJsWebView
 					ref={xtermRef}
 					style={{ flex: 1 }}
-					// WebView controls that make terminals feel right:
+					// WebView behavior that suits terminals
 					keyboardDisplayRequiresUserAction={false}
 					setSupportMultipleWindows={false}
 					overScrollMode="never"
@@ -115,25 +110,21 @@ function ShellDetail() {
 					textZoom={100}
 					allowsLinkPreview={false}
 					textInteractionEnabled={false}
-					onRenderProcessGone={() => {
-						console.log('WebView render process gone, clearing terminal');
-						xtermRef.current?.clear?.();
-					}}
-					onContentProcessDidTerminate={() => {
-						console.log(
-							'WKWebView content process terminated, clearing terminal',
-						);
-						xtermRef.current?.clear?.();
-					}}
-					// xterm-flavored props for styling/behavior
+					// xterm-ish props (applied via setOptions inside the page)
 					fontFamily="Menlo, ui-monospace, monospace"
-					fontSize={15}
+					fontSize={18} // bump if it still feels small
 					cursorBlink
 					scrollback={10000}
 					themeBackground={theme.colors.background}
 					themeForeground={theme.colors.textPrimary}
-					// page load => we can push initial options/theme right away;
-					// xterm itself will still send 'initialized' once it's truly ready.
+					onRenderProcessGone={() => {
+						console.log('WebView render process gone -> clear()');
+						xtermRef.current?.clear?.();
+					}}
+					onContentProcessDidTerminate={() => {
+						console.log('WKWebView content process terminated -> clear()');
+						xtermRef.current?.clear?.();
+					}}
 					onLoadEnd={() => {
 						console.log('WebView onLoadEnd');
 					}}
@@ -142,7 +133,7 @@ function ShellDetail() {
 						if (m.type === 'initialized') {
 							terminalReadyRef.current = true;
 
-							// Flush any buffered SSH output (welcome banners, etc.)
+							// Flush buffered banner/welcome lines
 							if (pendingOutputRef.current.length) {
 								const total = pendingOutputRef.current.reduce(
 									(n, a) => n + a.length,
@@ -159,13 +150,11 @@ function ShellDetail() {
 								xtermRef.current?.flush?.();
 							}
 
-							// Focus after ready to pop the soft keyboard (iOS needs this prop)
+							// Focus to pop the keyboard (iOS needs the prop we set)
 							xtermRef.current?.focus?.();
 							return;
 						}
 						if (m.type === 'data') {
-							// xterm user input -> SSH
-							// NOTE: msg.data is a fresh Uint8Array starting at offset 0
 							console.log('xterm->SSH', { len: m.data.length });
 							void shell?.sendData(m.data.buffer as ArrayBuffer);
 							return;

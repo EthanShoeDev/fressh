@@ -56,7 +56,7 @@ export interface XtermJsWebViewProps
 	ref: React.RefObject<XtermWebViewHandle | null>;
 	onMessage?: (msg: XtermInbound) => void;
 
-	// xterm-ish props (applied via setOptions before/after init)
+	// xterm-ish props
 	fontFamily?: string;
 	fontSize?: number;
 	cursorBlink?: boolean;
