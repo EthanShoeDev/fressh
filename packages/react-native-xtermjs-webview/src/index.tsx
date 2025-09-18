@@ -16,105 +16,115 @@ type OutboundMessage =
 	| { type: 'resize'; cols?: number; rows?: number }
 	| { type: 'setFont'; family?: string; size?: number }
 	| { type: 'setTheme'; background?: string; foreground?: string }
+	| {
+			type: 'setOptions';
+			opts: Partial<{
+				cursorBlink: boolean;
+				scrollback: number;
+				fontFamily: string;
+				fontSize: number;
+			}>;
+	  }
 	| { type: 'clear' }
 	| { type: 'focus' };
 
+export type XtermInbound =
+	| { type: 'initialized' }
+	| { type: 'data'; data: Uint8Array }
+	| { type: 'debug'; message: string };
+
 export type XtermWebViewHandle = {
-	/**
-	 * Push raw bytes (Uint8Array) into the terminal.
-	 * Writes are batched (rAF or >=8KB) for performance.
-	 */
-	write: (data: Uint8Array) => void;
-
-	/** Force-flush any buffered output immediately. */
-	flush: () => void;
-
-	/** Resize the terminal to given cols/rows (optional, fit addon also runs). */
+	write: (data: Uint8Array) => void; // bytes in (batched)
+	flush: () => void; // force-flush outgoing writes
 	resize: (cols?: number, rows?: number) => void;
-
-	/** Set font props inside the WebView page. */
 	setFont: (family?: string, size?: number) => void;
-
-	/** Set basic theme colors (background/foreground). */
 	setTheme: (background?: string, foreground?: string) => void;
-
-	/** Clear terminal contents. */
+	setOptions: (
+		opts: OutboundMessage extends { type: 'setOptions'; opts: infer O }
+			? O
+			: never,
+	) => void;
 	clear: () => void;
-
-	/** Focus the terminal input. */
 	focus: () => void;
 };
+
+export interface XtermJsWebViewProps
+	extends StrictOmit<
+		React.ComponentProps<typeof WebView>,
+		'source' | 'originWhitelist' | 'onMessage'
+	> {
+	ref: React.RefObject<XtermWebViewHandle | null>;
+	onMessage?: (msg: XtermInbound) => void;
+
+	// xterm-ish props (applied via setOptions before/after init)
+	fontFamily?: string;
+	fontSize?: number;
+	cursorBlink?: boolean;
+	scrollback?: number;
+	themeBackground?: string;
+	themeForeground?: string;
+}
 
 export function XtermJsWebView({
 	ref,
 	onMessage,
+	fontFamily,
+	fontSize,
+	cursorBlink,
+	scrollback,
+	themeBackground,
+	themeForeground,
 	...props
-}: StrictOmit<
-	React.ComponentProps<typeof WebView>,
-	'source' | 'originWhitelist' | 'onMessage'
-> & {
-	ref: React.RefObject<XtermWebViewHandle | null>;
-	onMessage?: (
-		msg:
-			| { type: 'initialized' }
-			| { type: 'data'; data: Uint8Array } // input from xterm (user typed)
-			| { type: 'debug'; message: string },
-	) => void;
-}) {
-	const webViewRef = useRef<WebView>(null);
+}: XtermJsWebViewProps) {
+	const webRef = useRef<WebView>(null);
 
-	// ---- RN -> WebView message sender via injectJavaScript + window MessageEvent
+	// ---- RN -> WebView message sender
 	const send = (obj: OutboundMessage) => {
 		const payload = JSON.stringify(obj);
 		console.log('sending msg', payload);
 		const js = `window.dispatchEvent(new MessageEvent('message',{data:${JSON.stringify(
 			payload,
 		)}})); true;`;
-		webViewRef.current?.injectJavaScript(js);
+		webRef.current?.injectJavaScript(js);
 	};
 
 	// ---- rAF + 8KB coalescer for writes
-	const writeBufferRef = useRef<Uint8Array | null>(null);
-	const rafIdRef = useRef<number | null>(null);
-	const THRESHOLD = 8 * 1024; // 8KB
+	const bufRef = useRef<Uint8Array | null>(null);
+	const rafRef = useRef<number | null>(null);
+	const THRESHOLD = 8 * 1024;
 
 	const flush = () => {
-		if (!writeBufferRef.current) return;
-		const b64 = Base64.fromUint8Array(writeBufferRef.current);
-		writeBufferRef.current = null;
-		if (rafIdRef.current != null) {
-			cancelAnimationFrame(rafIdRef.current);
-			rafIdRef.current = null;
+		if (!bufRef.current) return;
+		const b64 = Base64.fromUint8Array(bufRef.current);
+		bufRef.current = null;
+		if (rafRef.current != null) {
+			cancelAnimationFrame(rafRef.current);
+			rafRef.current = null;
 		}
 		send({ type: 'write', b64 });
 	};
 
-	const scheduleFlush = () => {
-		if (rafIdRef.current != null) return;
-		rafIdRef.current = requestAnimationFrame(() => {
-			rafIdRef.current = null;
+	const schedule = () => {
+		if (rafRef.current != null) return;
+		rafRef.current = requestAnimationFrame(() => {
+			rafRef.current = null;
 			flush();
 		});
 	};
 
 	const write = (data: Uint8Array) => {
 		if (!data || data.length === 0) return;
-		const chunk = data; // already a fresh Uint8Array per caller
-		if (!writeBufferRef.current) {
-			writeBufferRef.current = chunk;
+		if (!bufRef.current) {
+			bufRef.current = data;
 		} else {
-			// concat
-			const a = writeBufferRef.current;
-			const merged = new Uint8Array(a.length + chunk.length);
+			const a = bufRef.current;
+			const merged = new Uint8Array(a.length + data.length);
 			merged.set(a, 0);
-			merged.set(chunk, a.length);
-			writeBufferRef.current = merged;
+			merged.set(data, a.length);
+			bufRef.current = merged;
 		}
-		if ((writeBufferRef.current?.length ?? 0) >= THRESHOLD) {
-			flush();
-		} else {
-			scheduleFlush();
-		}
+		if ((bufRef.current?.length ?? 0) >= THRESHOLD) flush();
+		else schedule();
 	};
 
 	useImperativeHandle(ref, () => ({
@@ -126,6 +136,7 @@ export function XtermJsWebView({
 			send({ type: 'setFont', family, size }),
 		setTheme: (background?: string, foreground?: string) =>
 			send({ type: 'setTheme', background, foreground }),
+		setOptions: (opts) => send({ type: 'setOptions', opts }),
 		clear: () => send({ type: 'clear' }),
 		focus: () => send({ type: 'focus' }),
 	}));
@@ -133,29 +144,46 @@ export function XtermJsWebView({
 	// Cleanup pending rAF on unmount
 	useEffect(() => {
 		return () => {
-			if (rafIdRef.current != null) {
-				cancelAnimationFrame(rafIdRef.current);
-				rafIdRef.current = null;
-			}
-			writeBufferRef.current = null;
+			if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+			rafRef.current = null;
+			bufRef.current = null;
 		};
 	}, []);
 
+	// Push initial options/theme whenever props change
+	useEffect(() => {
+		const opts: Record<string, unknown> = {};
+		if (typeof cursorBlink === 'boolean') opts.cursorBlink = cursorBlink;
+		if (typeof scrollback === 'number') opts.scrollback = scrollback;
+		if (fontFamily) opts.fontFamily = fontFamily;
+		if (typeof fontSize === 'number') opts.fontSize = fontSize;
+		if (Object.keys(opts).length) send({ type: 'setOptions', opts });
+	}, [cursorBlink, scrollback, fontFamily, fontSize]);
+
+	useEffect(() => {
+		if (themeBackground || themeForeground) {
+			send({
+				type: 'setTheme',
+				background: themeBackground,
+				foreground: themeForeground,
+			});
+		}
+	}, [themeBackground, themeForeground]);
+
 	return (
 		<WebView
-			ref={webViewRef}
+			ref={webRef}
 			originWhitelist={['*']}
 			source={{ html: htmlString }}
-			onMessage={(event) => {
+			onMessage={(e) => {
 				try {
-					const msg: InboundMessage = JSON.parse(event.nativeEvent.data);
+					const msg: InboundMessage = JSON.parse(e.nativeEvent.data);
 					console.log('received msg', msg);
 					if (msg.type === 'initialized') {
 						onMessage?.({ type: 'initialized' });
 						return;
 					}
 					if (msg.type === 'input') {
-						// Convert base64 -> bytes for the caller (SSH writer)
 						const bytes = Base64.toUint8Array(msg.b64);
 						onMessage?.({ type: 'data', data: bytes });
 						return;

@@ -19,6 +19,9 @@ export default function TabsShellDetail() {
 
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
+	const terminalReadyRef = useRef(false); // gate for initial SSH output buffering
+	const pendingOutputRef = useRef<Uint8Array[]>([]); // bytes we got before xterm init
+
 	const { connectionId, channelId } = useLocalSearchParams<{
 		connectionId?: string;
 		channelId?: string;
@@ -37,22 +40,28 @@ function ShellDetail() {
 
 	/**
 	 * SSH -> xterm (remote output)
-	 * Send bytes only; batching is handled inside XtermJsWebView.
+	 * If xterm isn't ready yet, buffer and flush on 'initialized'.
 	 */
 	useEffect(() => {
 		if (!connection) return;
-
 		const xterm = xtermRef.current;
 
-		const listenerId = connection.addChannelListener((data: ArrayBuffer) => {
-			// Forward bytes to terminal (no string conversion)
-			const uInt8 = new Uint8Array(data);
-			xterm?.write(uInt8);
+		const listenerId = connection.addChannelListener((ab: ArrayBuffer) => {
+			const bytes = new Uint8Array(ab);
+			if (!terminalReadyRef.current) {
+				// Buffer until WebView->xterm has signaled 'initialized'
+				pendingOutputRef.current.push(bytes);
+				// Debug
+				console.log('SSH->buffer', { len: bytes.length });
+				return;
+			}
+			// Forward bytes immediately
+			console.log('SSH->xterm', { len: bytes.length });
+			xterm?.write(bytes);
 		});
 
 		return () => {
 			connection.removeChannelListener(listenerId);
-			// Flush any buffered writes on unmount
 			xterm?.flush?.();
 		};
 	}, [connection]);
@@ -95,6 +104,7 @@ function ShellDetail() {
 				<XtermJsWebView
 					ref={xtermRef}
 					style={{ flex: 1 }}
+					// WebView controls that make terminals feel right:
 					keyboardDisplayRequiresUserAction={false}
 					setSupportMultipleWindows={false}
 					overScrollMode="never"
@@ -106,35 +116,62 @@ function ShellDetail() {
 					allowsLinkPreview={false}
 					textInteractionEnabled={false}
 					onRenderProcessGone={() => {
+						console.log('WebView render process gone, clearing terminal');
 						xtermRef.current?.clear?.();
 					}}
 					onContentProcessDidTerminate={() => {
+						console.log(
+							'WKWebView content process terminated, clearing terminal',
+						);
 						xtermRef.current?.clear?.();
 					}}
-					// Optional: set initial theme/font
+					// xterm-flavored props for styling/behavior
+					fontFamily="Menlo, ui-monospace, monospace"
+					fontSize={15}
+					cursorBlink
+					scrollback={10000}
+					themeBackground={theme.colors.background}
+					themeForeground={theme.colors.textPrimary}
+					// page load => we can push initial options/theme right away;
+					// xterm itself will still send 'initialized' once it's truly ready.
 					onLoadEnd={() => {
-						// Set theme bg/fg and font settings once WebView loads; the page will
-						// still send 'initialized' after xterm is ready.
-						xtermRef.current?.setTheme?.(
-							theme.colors.background,
-							theme.colors.textPrimary,
-						);
-						xtermRef.current?.setFont?.('Menlo, ui-monospace, monospace', 50);
+						console.log('WebView onLoadEnd');
 					}}
-					onMessage={(message) => {
-						if (message.type === 'initialized') {
-							// Terminal is ready; you could send a greeting or focus it
+					onMessage={(m) => {
+						console.log('received msg', m);
+						if (m.type === 'initialized') {
+							terminalReadyRef.current = true;
+
+							// Flush any buffered SSH output (welcome banners, etc.)
+							if (pendingOutputRef.current.length) {
+								const total = pendingOutputRef.current.reduce(
+									(n, a) => n + a.length,
+									0,
+								);
+								console.log('Flushing buffered output', {
+									chunks: pendingOutputRef.current.length,
+									bytes: total,
+								});
+								for (const chunk of pendingOutputRef.current) {
+									xtermRef.current?.write(chunk);
+								}
+								pendingOutputRef.current = [];
+								xtermRef.current?.flush?.();
+							}
+
+							// Focus after ready to pop the soft keyboard (iOS needs this prop)
 							xtermRef.current?.focus?.();
 							return;
 						}
-						if (message.type === 'data') {
+						if (m.type === 'data') {
 							// xterm user input -> SSH
 							// NOTE: msg.data is a fresh Uint8Array starting at offset 0
-							void shell?.sendData(message.data.buffer as ArrayBuffer);
+							console.log('xterm->SSH', { len: m.data.length });
+							void shell?.sendData(m.data.buffer as ArrayBuffer);
 							return;
 						}
-						if (message.type === 'debug') {
-							console.log('xterm.debug', message.message);
+						if (m.type === 'debug') {
+							console.log('xterm.debug', m.message);
 						}
 					}}
 				/>
