@@ -185,6 +185,8 @@ export function XtermJsWebView({
 		<WebView
 			ref={webRef}
 			originWhitelist={['*']}
+			scalesPageToFit={false}
+			contentMode="mobile"
 			source={{ html: htmlString }}
 			onMessage={(e) => {
 				try {
