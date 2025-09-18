@@ -148,6 +148,7 @@ function ShellDetail() {
 					onMessage={(m) => {
 						console.log('received msg', m);
 						if (m.type === 'initialized') {
+							if (terminalReadyRef.current) return;
 							terminalReadyRef.current = true;
 
 							// Replay from head, then attach live listener
@@ -173,8 +174,9 @@ function ShellDetail() {
 											const chunk = ev as TerminalChunk;
 											xtermRef.current?.write(chunk.bytes);
 										},
-										{ cursor: { mode: 'live' } },
+										{ cursor: { mode: 'seq', seq: res.nextSeq } },
 									);
+									console.log('shell listener attached', id.toString());
 									listenerIdRef.current = id;
 								})();
 							}
@@ -185,7 +187,10 @@ function ShellDetail() {
 						}
 						if (m.type === 'data') {
 							console.log('xterm->SSH', { len: m.data.length });
-							void shell?.sendData(m.data.buffer as ArrayBuffer);
+							// Ensure we send the exact slice; send CR only for Enter.
+							const { buffer, byteOffset, byteLength } = m.data;
+							const ab = buffer.slice(byteOffset, byteOffset + byteLength);
+							void shell?.sendData(ab as ArrayBuffer);
 							return;
 						}
 						if (m.type === 'debug') {

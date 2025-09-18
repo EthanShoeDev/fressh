@@ -245,8 +245,15 @@ function wrapShellSession(shell: GeneratedRussh.ShellSessionInterface): SshShell
       }
     } satisfies GeneratedRussh.ShellListener;
 
-    const id = shell.addListener(listener, { cursor: cursorToGenerated(opts.cursor), coalesceMs: opts.coalesceMs });
-    return BigInt(id);
+    try {
+      const id = shell.addListener(listener, { cursor: cursorToGenerated(opts.cursor), coalesceMs: opts.coalesceMs });
+      if (id === 0n) {
+        throw new Error('Failed to attach shell listener (id=0)');
+      }
+      return BigInt(id);
+    } catch (e) {
+      throw new Error(`addListener failed: ${String((e as any)?.message ?? e)}`);
+    }
   };
 
   return {

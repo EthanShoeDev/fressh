@@ -54,7 +54,7 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 	const enc = new TextEncoder();
 
 	// Initial handshake (send once)
-	setTimeout(() => post({ type: 'initialized' }), 8_000);
+	setTimeout(() => post({ type: 'initialized' }), 500);
 
 	// User input from xterm -> RN (SSH) as UTF-8 bytes (Base64)
 	term.onData((data /* string */) => {
