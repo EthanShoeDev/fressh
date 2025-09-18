@@ -1,26 +1,56 @@
 import { Ionicons } from '@expo/vector-icons';
-import { RnRussh } from '@fressh/react-native-uniffi-russh';
+import {
+	type ListenerEvent,
+	type TerminalChunk,
+} from '@fressh/react-native-uniffi-russh';
 import {
 	XtermJsWebView,
 	type XtermWebViewHandle,
 } from '@fressh/react-native-xtermjs-webview';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef } from 'react';
-import { Pressable, View } from 'react-native';
+import {
+	Stack,
+	useLocalSearchParams,
+	useRouter,
+	useFocusEffect,
+} from 'expo-router';
+import React, { startTransition, useEffect, useRef, useState } from 'react';
+import { Pressable, View, Text } from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { disconnectSshConnectionAndInvalidateQuery } from '@/lib/query-fns';
+import { getSession } from '@/lib/ssh-registry';
 import { useTheme } from '@/lib/theme';
 
 export default function TabsShellDetail() {
+	const [ready, setReady] = useState(false);
+
+	useFocusEffect(
+		React.useCallback(() => {
+			startTransition(() => setReady(true)); // React 19: non-urgent
+
+			return () => setReady(false);
+		}, []),
+	);
+
+	if (!ready) return <RouteSkeleton />;
 	return <ShellDetail />;
+}
+
+function RouteSkeleton() {
+	return (
+		<View>
+			<Text>Loading</Text>
+		</View>
+	);
 }
 
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
 	const terminalReadyRef = useRef(false);
-	const pendingOutputRef = useRef<Uint8Array[]>([]);
+	// Legacy buffer no longer used; relying on Rust ring for replay
+	const listenerIdRef = useRef<bigint | null>(null);
 
 	const { connectionId, channelId } = useLocalSearchParams<{
 		connectionId?: string;
@@ -30,36 +60,23 @@ function ShellDetail() {
 	const theme = useTheme();
 
 	const channelIdNum = Number(channelId);
-	const connection = connectionId
-		? RnRussh.getSshConnection(String(connectionId))
-		: undefined;
-	const shell =
+	const sess =
 		connectionId && channelId
-			? RnRussh.getSshShell(String(connectionId), channelIdNum)
+			? getSession(String(connectionId), channelIdNum)
 			: undefined;
+	const connection = sess?.connection;
+	const shell = sess?.shell;
 
-	// SSH -> xterm (remote output). Buffer until xterm is initialized.
+	// SSH -> xterm: on initialized, replay ring head then attach live listener
 	useEffect(() => {
-		if (!connection) return;
-
 		const xterm = xtermRef.current;
-
-		const listenerId = connection.addChannelListener((ab: ArrayBuffer) => {
-			const bytes = new Uint8Array(ab);
-			if (!terminalReadyRef.current) {
-				pendingOutputRef.current.push(bytes);
-				console.log('SSH->buffer', { len: bytes.length });
-				return;
-			}
-			console.log('SSH->xterm', { len: bytes.length });
-			xterm?.write(bytes);
-		});
-
 		return () => {
-			connection.removeChannelListener(listenerId);
+			if (shell && listenerIdRef.current != null)
+				shell.removeListener(listenerIdRef.current);
+			listenerIdRef.current = null;
 			xterm?.flush?.();
 		};
-	}, [connection]);
+	}, [shell]);
 
 	const queryClient = useQueryClient();
 
@@ -133,21 +150,33 @@ function ShellDetail() {
 						if (m.type === 'initialized') {
 							terminalReadyRef.current = true;
 
-							// Flush buffered banner/welcome lines
-							if (pendingOutputRef.current.length) {
-								const total = pendingOutputRef.current.reduce(
-									(n, a) => n + a.length,
-									0,
-								);
-								console.log('Flushing buffered output', {
-									chunks: pendingOutputRef.current.length,
-									bytes: total,
-								});
-								for (const chunk of pendingOutputRef.current) {
-									xtermRef.current?.write(chunk);
-								}
-								pendingOutputRef.current = [];
-								xtermRef.current?.flush?.();
+							// Replay from head, then attach live listener
+							if (shell) {
+								void (async () => {
+									const res = await shell.readBuffer({ mode: 'head' });
+									console.log('readBuffer(head)', {
+										chunks: res.chunks.length,
+										nextSeq: res.nextSeq,
+										dropped: res.dropped,
+									});
+									if (res.chunks.length) {
+										const chunks = res.chunks.map((c) => c.bytes);
+										xtermRef.current?.writeMany?.(chunks);
+										xtermRef.current?.flush?.();
+									}
+									const id = shell.addListener(
+										(ev: ListenerEvent) => {
+											if ('kind' in ev && ev.kind === 'dropped') {
+												console.log('listener.dropped', ev);
+												return;
+											}
+											const chunk = ev as TerminalChunk;
+											xtermRef.current?.write(chunk.bytes);
+										},
+										{ cursor: { mode: 'live' } },
+									);
+									listenerIdRef.current = id;
+								})();
 							}
 
 							// Focus to pop the keyboard (iOS needs the prop we set)

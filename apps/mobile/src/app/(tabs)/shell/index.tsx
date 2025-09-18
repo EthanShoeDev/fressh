@@ -1,8 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import {
-	type RnRussh,
-	type SshConnection,
-} from '@fressh/react-native-uniffi-russh';
+import { type SshConnection } from '@fressh/react-native-uniffi-russh';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
@@ -24,6 +21,7 @@ import {
 	listSshShellsQueryOptions,
 	type ShellWithConnection,
 } from '@/lib/query-fns';
+import { type listConnectionsWithShells as registryList } from '@/lib/ssh-registry';
 import { useTheme } from '@/lib/theme';
 
 export default function TabsShellList() {
@@ -80,11 +78,9 @@ type ActionTarget =
 			connection: SshConnection;
 	  };
 
-function LoadedState({
-	connections,
-}: {
-	connections: ReturnType<typeof RnRussh.listSshConnectionsWithShells>;
-}) {
+type ConnectionsList = ReturnType<typeof registryList>;
+
+function LoadedState({ connections }: { connections: ConnectionsList }) {
 	const [actionTarget, setActionTarget] = React.useState<null | ActionTarget>(
 		null,
 	);
@@ -137,9 +133,7 @@ function FlatView({
 	connectionsWithShells,
 	setActionTarget,
 }: {
-	connectionsWithShells: ReturnType<
-		typeof RnRussh.listSshConnectionsWithShells
-	>;
+	connectionsWithShells: ConnectionsList;
 	setActionTarget: (target: ActionTarget) => void;
 }) {
 	const flatShells = React.useMemo(() => {
@@ -149,7 +143,7 @@ function FlatView({
 		}, []);
 	}, [connectionsWithShells]);
 	return (
-		<FlashList
+		<FlashList<ShellWithConnection>
 			data={flatShells}
 			keyExtractor={(item) => `${item.connectionId}:${item.channelId}`}
 			renderItem={({ item }) => (
@@ -176,15 +170,13 @@ function GroupedView({
 	connectionsWithShells,
 	setActionTarget,
 }: {
-	connectionsWithShells: ReturnType<
-		typeof RnRussh.listSshConnectionsWithShells
-	>;
+	connectionsWithShells: ConnectionsList;
 	setActionTarget: (target: ActionTarget) => void;
 }) {
 	const theme = useTheme();
 	const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
 	return (
-		<FlashList
+		<FlashList<ConnectionsList[number]>
 			data={connectionsWithShells}
 			// estimatedItemSize={80}
 			keyExtractor={(item) => item.connectionId}

@@ -35,6 +35,8 @@ export type XtermInbound =
 
 export type XtermWebViewHandle = {
 	write: (data: Uint8Array) => void; // bytes in (batched)
+	// Efficiently write many chunks in one postMessage (for initial replay)
+	writeMany: (chunks: Uint8Array[]) => void;
 	flush: () => void; // force-flush outgoing writes
 	resize: (cols?: number, rows?: number) => void;
 	setFont: (family?: string, size?: number) => void;
@@ -127,8 +129,17 @@ export function XtermJsWebView({
 		else schedule();
 	};
 
+	const writeMany = (chunks: Uint8Array[]) => {
+		if (!chunks || chunks.length === 0) return;
+		// Ensure any pending small buffered write is flushed before bulk write
+		flush();
+		const b64s = chunks.map((c) => Base64.fromUint8Array(c));
+		send({ type: 'write', chunks: b64s });
+	};
+
 	useImperativeHandle(ref, () => ({
 		write,
+		writeMany,
 		flush,
 		resize: (cols?: number, rows?: number) =>
 			send({ type: 'resize', cols, rows }),
