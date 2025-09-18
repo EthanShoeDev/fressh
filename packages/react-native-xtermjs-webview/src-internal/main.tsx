@@ -1,7 +1,11 @@
-import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { Terminal, type ITerminalOptions, type ITheme } from '@xterm/xterm';
 import { Base64 } from 'js-base64';
 import '@xterm/xterm/css/xterm.css';
+import {
+	type BridgeInboundMessage,
+	type BridgeOutboundMessage,
+} from '../src/bridge';
 
 declare global {
 	interface Window {
@@ -17,7 +21,7 @@ declare global {
 /**
  * Post typed messages to React Native
  */
-const post = (msg: unknown) =>
+const post = (msg: BridgeInboundMessage) =>
 	window.ReactNativeWebView?.postMessage?.(JSON.stringify(msg));
 
 /**
@@ -71,32 +75,17 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 	// RN -> WebView handler (write, resize, setFont, setTheme, setOptions, clear, focus)
 	const handler = (e: MessageEvent<string>) => {
 		try {
-			const msg = JSON.parse(e.data) as
-				| { type: 'write'; b64?: string; chunks?: string[] }
-				| { type: 'resize'; cols?: number; rows?: number }
-				| { type: 'setFont'; family?: string; size?: number }
-				| { type: 'setTheme'; background?: string; foreground?: string }
-				| {
-						type: 'setOptions';
-						opts: Partial<{
-							cursorBlink: boolean;
-							scrollback: number;
-							fontFamily: string;
-							fontSize: number;
-						}>;
-				  }
-				| { type: 'clear' }
-				| { type: 'focus' };
+			const msg = JSON.parse(e.data) as BridgeOutboundMessage;
 
 			if (!msg || typeof msg.type !== 'string') return;
 
 			switch (msg.type) {
 				case 'write': {
-					if (typeof msg.b64 === 'string') {
+					if ('b64' in msg) {
 						const bytes = Base64.toUint8Array(msg.b64);
 						term.write(bytes);
 						post({ type: 'debug', message: `write(bytes=${bytes.length})` });
-					} else if (Array.isArray(msg.chunks)) {
+					} else if ('chunks' in msg && Array.isArray(msg.chunks)) {
 						for (const b64 of msg.chunks) {
 							const bytes = Base64.toUint8Array(b64);
 							term.write(bytes);
@@ -120,7 +109,7 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 
 				case 'setFont': {
 					const { family, size } = msg;
-					const patch: Partial<import('@xterm/xterm').ITerminalOptions> = {};
+					const patch: Partial<ITerminalOptions> = {};
 					if (family) patch.fontFamily = family;
 					if (typeof size === 'number') patch.fontSize = size;
 					if (Object.keys(patch).length) {
@@ -136,7 +125,7 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 
 				case 'setTheme': {
 					const { background, foreground } = msg;
-					const theme: Partial<import('@xterm/xterm').ITheme> = {};
+					const theme: Partial<ITheme> = {};
 					if (background) {
 						theme.background = background;
 						document.body.style.backgroundColor = background;
@@ -153,20 +142,44 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 				}
 
 				case 'setOptions': {
-					const opts = msg.opts ?? {};
-					const { cursorBlink, scrollback, fontFamily, fontSize } = opts;
-					const patch: Partial<import('@xterm/xterm').ITerminalOptions> = {};
-					if (typeof cursorBlink === 'boolean') patch.cursorBlink = cursorBlink;
-					if (typeof scrollback === 'number') patch.scrollback = scrollback;
-					if (fontFamily) patch.fontFamily = fontFamily;
-					if (typeof fontSize === 'number') patch.fontSize = fontSize;
+					const incoming = (msg.opts ?? {}) as Record<string, unknown>;
+					type PatchRecord = Partial<
+						Record<
+							keyof ITerminalOptions,
+							ITerminalOptions[keyof ITerminalOptions]
+						>
+					>;
+					const patch: PatchRecord = {};
+					for (const [k, v] of Object.entries(incoming)) {
+						// Avoid touching cols/rows via options setters here
+						if (k === 'cols' || k === 'rows') continue;
+						// Theme: also mirror background to page for seamless visuals
+						if (k === 'theme' && v && typeof v === 'object') {
+							const theme = v as ITheme;
+							if (theme.background) {
+								document.body.style.backgroundColor = theme.background;
+							}
+							patch.theme = theme;
+							continue;
+						}
+						const key = k as keyof ITerminalOptions;
+						patch[key] = v as ITerminalOptions[keyof ITerminalOptions];
+					}
 					if (Object.keys(patch).length) {
 						term.options = patch;
 						post({
 							type: 'debug',
 							message: `setOptions(${Object.keys(patch).join(',')})`,
 						});
-						if (patch.fontFamily || patch.fontSize) fitAddon.fit();
+						// If dimensions-affecting options changed, refit
+						if (
+							patch.fontFamily !== undefined ||
+							patch.fontSize !== undefined ||
+							patch.letterSpacing !== undefined ||
+							patch.lineHeight !== undefined
+						) {
+							fitAddon.fit();
+						}
 					}
 					break;
 				}

@@ -28,7 +28,8 @@
 		"**/mnt/**",
 		"**/dist/**",
 		"**/node_modules/**",
-		"**/android/**"
+		"**/android/**",
+		"**/eslint.config.js"
 	],
 	"[astro]": {
 		"editor.defaultFormatter": "esbenp.prettier-vscode"

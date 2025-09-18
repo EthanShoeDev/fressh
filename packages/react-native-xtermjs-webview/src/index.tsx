@@ -1,33 +1,31 @@
+type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
+import { Base64 } from 'js-base64';
 import React, { useEffect, useImperativeHandle, useRef } from 'react';
 import { WebView } from 'react-native-webview';
 import htmlString from '../dist-internal/index.html?raw';
-import { Base64 } from 'js-base64';
+import {
+	type BridgeInboundMessage,
+	type BridgeOutboundMessage,
+	type TerminalOptionsPatch,
+} from './bridge';
+// Re-exported shared types live in src/bridge.ts for library build
+// Internal page imports the same file via ../src/bridge
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 
-type InboundMessage =
-	| { type: 'initialized' }
-	| { type: 'input'; b64: string } // user typed data from xterm -> RN
-	| { type: 'debug'; message: string };
+/**
+ * Message from the webview to RN
+ */
+type InboundMessage = BridgeInboundMessage;
 
-type OutboundMessage =
-	| { type: 'write'; b64: string }
-	| { type: 'write'; chunks: string[] }
-	| { type: 'resize'; cols?: number; rows?: number }
-	| { type: 'setFont'; family?: string; size?: number }
-	| { type: 'setTheme'; background?: string; foreground?: string }
-	| {
-			type: 'setOptions';
-			opts: Partial<{
-				cursorBlink: boolean;
-				scrollback: number;
-				fontFamily: string;
-				fontSize: number;
-			}>;
-	  }
-	| { type: 'clear' }
-	| { type: 'focus' };
+/**
+ * Message from RN to the webview
+ */
+type OutboundMessage = BridgeOutboundMessage;
 
+/**
+ * Message from this pkg to calling RN
+ */
 export type XtermInbound =
 	| { type: 'initialized' }
 	| { type: 'data'; data: Uint8Array }
@@ -41,11 +39,7 @@ export type XtermWebViewHandle = {
 	resize: (cols?: number, rows?: number) => void;
 	setFont: (family?: string, size?: number) => void;
 	setTheme: (background?: string, foreground?: string) => void;
-	setOptions: (
-		opts: OutboundMessage extends { type: 'setOptions'; opts: infer O }
-			? O
-			: never,
-	) => void;
+	setOptions: (opts: TerminalOptionsPatch) => void;
 	clear: () => void;
 	focus: () => void;
 };
@@ -58,24 +52,14 @@ export interface XtermJsWebViewProps
 	ref: React.RefObject<XtermWebViewHandle | null>;
 	onMessage?: (msg: XtermInbound) => void;
 
-	// xterm-ish props
-	fontFamily?: string;
-	fontSize?: number;
-	cursorBlink?: boolean;
-	scrollback?: number;
-	themeBackground?: string;
-	themeForeground?: string;
+	// xterm Terminal.setOptions props (typed from @xterm/xterm)
+	options?: Partial<ITerminalOptions>;
 }
 
 export function XtermJsWebView({
 	ref,
 	onMessage,
-	fontFamily,
-	fontSize,
-	cursorBlink,
-	scrollback,
-	themeBackground,
-	themeForeground,
+	options,
 	...props
 }: XtermJsWebViewProps) {
 	const webRef = useRef<WebView>(null);
@@ -161,25 +145,39 @@ export function XtermJsWebView({
 		};
 	}, []);
 
-	// Push initial options/theme whenever props change
+	// Apply options changes via setOptions without remounting
+	const prevOptsRef = useRef<Partial<ITerminalOptions> | null>(null);
 	useEffect(() => {
-		const opts: Record<string, unknown> = {};
-		if (typeof cursorBlink === 'boolean') opts.cursorBlink = cursorBlink;
-		if (typeof scrollback === 'number') opts.scrollback = scrollback;
-		if (fontFamily) opts.fontFamily = fontFamily;
-		if (typeof fontSize === 'number') opts.fontSize = fontSize;
-		if (Object.keys(opts).length) send({ type: 'setOptions', opts });
-	}, [cursorBlink, scrollback, fontFamily, fontSize]);
+		const merged: Partial<ITerminalOptions> = {
+			...(options ?? {}),
+		};
 
-	useEffect(() => {
-		if (themeBackground || themeForeground) {
-			send({
-				type: 'setTheme',
-				background: themeBackground,
-				foreground: themeForeground,
-			});
+		// Compute shallow patch of changed keys to reduce noise
+		const prev: Partial<ITerminalOptions> = (prevOptsRef.current ??
+			{}) as Partial<ITerminalOptions>;
+		type PatchRecord = Partial<
+			Record<keyof ITerminalOptions, ITerminalOptions[keyof ITerminalOptions]>
+		>;
+		const patch: PatchRecord = {};
+		const keys = new Set<string>([
+			...Object.keys(prev as object),
+			...Object.keys(merged as object),
+		]);
+		let changed = false;
+		for (const k of keys) {
+			const key = k as keyof ITerminalOptions;
+			const prevVal = prev[key];
+			const nextVal = merged[key];
+			if (prevVal !== nextVal) {
+				patch[key] = nextVal as ITerminalOptions[keyof ITerminalOptions];
+				changed = true;
+			}
 		}
-	}, [themeBackground, themeForeground]);
+		if (changed) {
+			send({ type: 'setOptions', opts: patch });
+			prevOptsRef.current = merged;
+		}
+	}, [options]);
 
 	return (
 		<WebView

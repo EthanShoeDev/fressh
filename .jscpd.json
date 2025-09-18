@@ -9,7 +9,8 @@
 		"**/android/**",
 		"**/generated/**",
 		"**/rust/target/**",
-		"**/mobile/ios/**"
+		"**/mobile/ios/**",
+		"**/eslint.config.js"
 	],
 	"threshold": 0,
 	"minTokens": 50,

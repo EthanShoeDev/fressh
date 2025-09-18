@@ -72,6 +72,15 @@ function ShellDetail() {
 	const connection = sess?.connection;
 	const shell = sess?.shell;
 
+	// If the shell disconnects, leave this screen to the list view
+	useEffect(() => {
+		if (!sess) return;
+		if (sess.status === 'disconnected') {
+			// Replace so the detail screen isn't on the stack anymore
+			router.replace('/shell');
+		}
+	}, [router, sess]);
+
 	// SSH -> xterm: on initialized, replay ring head then attach live listener
 	useEffect(() => {
 		const xterm = xtermRef.current;
@@ -153,13 +162,17 @@ function ShellDetail() {
 				textZoom={100}
 				allowsLinkPreview={false}
 				textInteractionEnabled={false}
-				// xterm-ish props (applied via setOptions inside the page)
-				fontFamily="Menlo, ui-monospace, monospace"
-				fontSize={18} // bump if it still feels small
-				cursorBlink
-				scrollback={10000}
-				themeBackground={theme.colors.background}
-				themeForeground={theme.colors.textPrimary}
+				// xterm options
+				options={{
+					fontFamily: 'Menlo, ui-monospace, monospace',
+					fontSize: 18,
+					cursorBlink: true,
+					scrollback: 10000,
+					theme: {
+						background: theme.colors.background,
+						foreground: theme.colors.textPrimary,
+					},
+				}}
 				onRenderProcessGone={() => {
 					console.log('WebView render process gone -> clear()');
 					const xr = xtermRef.current;

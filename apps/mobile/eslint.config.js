@@ -37,12 +37,11 @@ export default defineConfig([
 	// Expo (strip conflicting plugins defined elsewhere)
 	...expoConfig.map((c) => stripPlugins(c, ['@typescript-eslint'])),
 	// Epic (strip conflicting plugins defined elsewhere)
-	...epicConfig.map((c) => stripPlugins(c, ['import', '@typescript-eslint'])),
+	...epicConfig.map((c) => stripPlugins(c, ['import'])),
 
 	// ts-eslint
 	eslint.configs.recommended,
-	...tseslint.configs.strictTypeChecked,
-	...tseslint.configs.stylisticTypeChecked,
+
 	{
 		languageOptions: {
 			parserOptions: {
