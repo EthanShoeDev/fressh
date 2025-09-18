@@ -68,6 +68,13 @@ const signedBuildCommand = command({
 		{
 			if (ghRelease && format !== 'apk')
 				throw new Error('ghRelease is only supported for apk builds');
+
+			console.log(
+				'Making signed build. Format:',
+				format,
+				'GH Release:',
+				ghRelease,
+			);
 			const secrets = await getSecrets();
 			await cmd(`pnpm run prebuild:clean`);
 
