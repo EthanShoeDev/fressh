@@ -79,7 +79,7 @@ function makeBetterSecureStore<
 		log(
 			`Root manifest for ${rootManifestKey} is ${rawRootManifestString?.length ?? 0} bytes`,
 		);
-		const unsafedRootManifest = rawRootManifestString
+		const unsafedRootManifest: unknown = rawRootManifestString
 			? JSON.parse(rawRootManifestString)
 			: {
 					manifestVersion: rootManifestVersion,
@@ -95,9 +95,11 @@ function makeBetterSecureStore<
 				if (!rawManifestChunkString)
 					throw new Error('Manifest chunk not found');
 				log(
-					`Manifest chunk for ${manifestChunkKeyString} is ${rawManifestChunkString?.length} bytes`,
+					`Manifest chunk for ${manifestChunkKeyString} is ${rawManifestChunkString.length} bytes`,
 				);
-				const unsafedManifestChunk = JSON.parse(rawManifestChunkString);
+				const unsafedManifestChunk: unknown = JSON.parse(
+					rawManifestChunkString,
+				);
 				return {
 					manifestChunk: manifestChunkSchema.parse(unsafedManifestChunk),
 					manifestChunkId,
@@ -316,7 +318,7 @@ const keyMetadataSchema = z.object({
 });
 export type KeyMetadata = z.infer<typeof keyMetadataSchema>;
 
-const betterKeyStorage = makeBetterSecureStore<KeyMetadata, string>({
+const betterKeyStorage = makeBetterSecureStore<KeyMetadata>({
 	storagePrefix: 'privateKey',
 	extraManifestFieldsSchema: keyMetadataSchema,
 	parseValue: (value) => value,

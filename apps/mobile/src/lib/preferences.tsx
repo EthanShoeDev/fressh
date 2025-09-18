@@ -12,7 +12,9 @@ export const preferences = {
 			rawTheme === 'light' ? 'light' : 'dark',
 		get: (): ThemeName =>
 			preferences.theme._resolve(storage.getString(preferences.theme._key)),
-		set: (name: ThemeName) => storage.set(preferences.theme._key, name),
+		set: (name: ThemeName) => {
+			storage.set(preferences.theme._key, name);
+		},
 		useThemePref: (): [ThemeName, (name: ThemeName) => void] => {
 			const [theme, setTheme] = useMMKVString(preferences.theme._key);
 			return [
@@ -31,8 +33,9 @@ export const preferences = {
 			preferences.shellListViewMode._resolve(
 				storage.getString(preferences.shellListViewMode._key),
 			),
-		set: (mode: ShellListViewMode) =>
-			storage.set(preferences.shellListViewMode._key, mode),
+		set: (mode: ShellListViewMode) => {
+			storage.set(preferences.shellListViewMode._key, mode);
+		},
 
 		useShellListViewModePref: (): [
 			ShellListViewMode,

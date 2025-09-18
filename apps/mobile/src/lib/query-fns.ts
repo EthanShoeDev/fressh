@@ -7,11 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { secretsManager, type InputConnectionDetails } from './secrets-manager';
-import {
-	listConnectionsWithShells as registryList,
-	registerSession,
-	type ShellWithConnection,
-} from './ssh-registry';
+import { useSshStore, toSessionStatus, type SessionKey } from './ssh-store';
 import { AbortSignalTimeout } from './utils';
 
 export const useSshConnMutation = () => {
@@ -44,22 +40,26 @@ export const useSshConnMutation = () => {
 					details: connectionDetails,
 					priority: 0,
 				});
+				// Capture status events to Zustand after session is known.
+				let keyRef: SessionKey | null = null;
 				const shellInterface = await sshConnection.startShell({
 					pty: 'Xterm',
 					onStatusChange: (status) => {
+						if (keyRef)
+							useSshStore.getState().setStatus(keyRef, toSessionStatus(status));
 						console.log('SSH shell status', status);
 					},
 					abortSignal: AbortSignalTimeout(5_000),
 				});
 
-				const channelId = shellInterface.channelId as number;
-				const connectionId =
-					sshConnection.connectionId ??
-					`${sshConnection.connectionDetails.username}@${sshConnection.connectionDetails.host}:${sshConnection.connectionDetails.port}|${Math.floor(sshConnection.createdAtMs)}`;
+				const channelId = shellInterface.channelId;
+				const connectionId = `${sshConnection.connectionDetails.username}@${sshConnection.connectionDetails.host}:${sshConnection.connectionDetails.port}|${Math.floor(sshConnection.createdAtMs)}`;
 				console.log('Connected to SSH server', connectionId, channelId);
 
-				// Track in registry for app use
-				registerSession(sshConnection, shellInterface);
+				// Track in Zustand store
+				keyRef = useSshStore
+					.getState()
+					.addSession(sshConnection, shellInterface);
 
 				await queryClient.invalidateQueries({
 					queryKey: listSshShellsQueryOptions.queryKey,
@@ -81,17 +81,29 @@ export const useSshConnMutation = () => {
 
 export const listSshShellsQueryOptions = queryOptions({
 	queryKey: ['ssh-shells'],
-	queryFn: () => registryList(),
+	queryFn: () => useSshStore.getState().listConnectionsWithShells(),
 });
 
-export type { ShellWithConnection };
+export type ShellWithConnection = (ReturnType<
+	typeof useSshStore.getState
+>['listConnectionsWithShells'] extends () => infer R
+	? R
+	: never)[number]['shells'][number] & {
+	connection: (ReturnType<
+		typeof useSshStore.getState
+	>['listConnectionsWithShells'] extends () => infer R
+		? R
+		: never)[number];
+};
 
 export const closeSshShellAndInvalidateQuery = async (params: {
 	channelId: number;
 	connectionId: string;
 	queryClient: QueryClient;
 }) => {
-	const currentActiveShells = registryList();
+	const currentActiveShells = useSshStore
+		.getState()
+		.listConnectionsWithShells();
 	const connection = currentActiveShells.find(
 		(c) => c.connectionId === params.connectionId,
 	);
@@ -108,7 +120,9 @@ export const disconnectSshConnectionAndInvalidateQuery = async (params: {
 	connectionId: string;
 	queryClient: QueryClient;
 }) => {
-	const currentActiveShells = registryList();
+	const currentActiveShells = useSshStore
+		.getState()
+		.listConnectionsWithShells();
 	const connection = currentActiveShells.find(
 		(c) => c.connectionId === params.connectionId,
 	);

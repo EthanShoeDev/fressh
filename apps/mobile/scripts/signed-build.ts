@@ -19,7 +19,6 @@ async function getSecrets(): Promise<{
 			stdio: 'pipe',
 		},
 	);
-	const rawBwItem = JSON.parse(rawBwItemString);
 	const bwItemSchema = z.looseObject({
 		login: z.looseObject({
 			username: z.string(),
@@ -32,7 +31,7 @@ async function getSecrets(): Promise<{
 			}),
 		),
 	});
-	const bwItem = bwItemSchema.parse(rawBwItem, {
+	const bwItem = bwItemSchema.parse(JSON.parse(rawBwItemString) as unknown, {
 		reportInput: true,
 	});
 	const keystoreBase64 = bwItem.fields.find(
@@ -138,7 +137,7 @@ const signedBuildCommand = command({
 					.replace(
 						/signingConfigs \{([\s\S]*?)\}/, // Modify existing signingConfigs without removing debug
 						(match) => {
-							if (/release \{/.test(match)) {
+							if (match.includes('release {')) {
 								return match.replace(
 									/release \{([\s\S]*?)\}/,
 									releaseSigningConfig,

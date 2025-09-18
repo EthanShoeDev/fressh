@@ -1,7 +1,7 @@
 import React from 'react';
 import { preferences } from './preferences';
 
-export type AppTheme = {
+export interface AppTheme {
 	colors: {
 		background: string;
 		surface: string;
@@ -20,7 +20,7 @@ export type AppTheme = {
 		shadow: string;
 		primaryDisabled: string;
 	};
-};
+}
 
 export const darkTheme: AppTheme = {
 	colors: {
@@ -70,11 +70,11 @@ export const themes: Record<ThemeName, AppTheme> = {
 	light: lightTheme,
 };
 
-type ThemeContextValue = {
+interface ThemeContextValue {
 	theme: AppTheme;
 	themeName: ThemeName;
 	setThemeName: (name: ThemeName) => void;
-};
+}
 
 const ThemeContext = React.createContext<ThemeContextValue | undefined>(
 	undefined,
@@ -93,21 +93,17 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
 		[theme, themeName, setThemeName],
 	);
 
-	return (
-		<ThemeContext.Provider value={value}>
-			{props.children}
-		</ThemeContext.Provider>
-	);
+	return <ThemeContext value={value}>{props.children}</ThemeContext>;
 }
 
 export function useTheme() {
-	const ctx = React.useContext(ThemeContext);
+	const ctx = React.use(ThemeContext);
 	if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
 	return ctx.theme;
 }
 
 export function useThemeControls() {
-	const ctx = React.useContext(ThemeContext);
+	const ctx = React.use(ThemeContext);
 	if (!ctx)
 		throw new Error('useThemeControls must be used within ThemeProvider');
 	const { themeName, setThemeName } = ctx;

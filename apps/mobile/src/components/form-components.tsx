@@ -14,15 +14,14 @@ import {
 
 function FieldInfo() {
 	const field = useFieldContext();
-	const meta = field.state.meta;
-	const errorMessage = meta?.errors?.[0]; // TODO: typesafe errors
+	const meta = field.state.meta as { errors?: unknown[] };
+	const errs = meta.errors;
+	const errorMessage = errs && errs.length > 0 ? String(errs[0]) : null;
 
 	return (
 		<View style={{ marginTop: 6 }}>
 			{errorMessage ? (
-				<Text style={{ color: '#FCA5A5', fontSize: 12 }}>
-					{String(errorMessage)}
-				</Text>
+				<Text style={{ color: '#FCA5A5', fontSize: 12 }}>{errorMessage}</Text>
 			) : null}
 		</View>
 	);
@@ -103,7 +102,9 @@ export function NumberField(
 				]}
 				placeholderTextColor="#9AA0A6"
 				value={field.state.value.toString()}
-				onChangeText={(text) => field.handleChange(Number(text))}
+				onChangeText={(text) => {
+					field.handleChange(Number(text));
+				}}
 				onBlur={field.handleBlur}
 				{...rest}
 			/>
@@ -145,7 +146,9 @@ export function SwitchField(
 					style,
 				]}
 				value={field.state.value}
-				onChange={(event) => field.handleChange(event.nativeEvent.value)}
+				onChange={(event) => {
+					field.handleChange(event.nativeEvent.value);
+				}}
 				onBlur={field.handleBlur}
 				{...rest}
 			/>
@@ -179,7 +182,7 @@ export function SubmitButton(
 				disabled ? { backgroundColor: '#3B82F6', opacity: 0.6 } : undefined,
 			]}
 			onPress={onPress}
-			disabled={disabled || isSubmitting}
+			disabled={disabled === true ? true : isSubmitting}
 		>
 			<Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>
 				{isSubmitting ? 'Connecting...' : title}

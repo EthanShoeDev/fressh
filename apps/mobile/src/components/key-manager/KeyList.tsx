@@ -41,7 +41,9 @@ export function KeyList(props: {
 					generateMutation.isPending && { opacity: 0.7 },
 				]}
 				disabled={generateMutation.isPending}
-				onPress={() => generateMutation.mutate()}
+				onPress={() => {
+					generateMutation.mutate();
+				}}
 			>
 				<Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
 					{generateMutation.isPending
@@ -80,7 +82,7 @@ function KeyRow(props: {
 	const entryQuery = useQuery(secretsManager.keys.query.get(props.entryId));
 	const entry = entryQuery.data;
 	const [label, setLabel] = React.useState(
-		entry?.manifestEntry.metadata?.label ?? '',
+		entry?.manifestEntry.metadata.label ?? '',
 	);
 
 	const renameMutation = useMutation({
@@ -150,8 +152,8 @@ function KeyRow(props: {
 		>
 			<View style={{ flex: 1, marginRight: 8 }}>
 				<Text style={{ color: '#E5E7EB', fontSize: 15, fontWeight: '600' }}>
-					{entry.manifestEntry.metadata?.label ?? entry.manifestEntry.id}
-					{entry.manifestEntry.metadata?.isDefault ? '  • Default' : ''}
+					{entry.manifestEntry.metadata.label ?? entry.manifestEntry.id}
+					{entry.manifestEntry.metadata.isDefault ? '  • Default' : ''}
 				</Text>
 				<Text style={{ color: '#9AA0A6', fontSize: 12, marginTop: 2 }}>
 					ID: {entry.manifestEntry.id}
@@ -179,7 +181,9 @@ function KeyRow(props: {
 			<View style={{ gap: 6, alignItems: 'flex-end' }}>
 				{props.mode === 'select' ? (
 					<Pressable
-						onPress={() => setDefaultMutation.mutate()}
+						onPress={() => {
+							setDefaultMutation.mutate();
+						}}
 						style={{
 							backgroundColor: '#2563EB',
 							borderRadius: 10,
@@ -207,7 +211,9 @@ function KeyRow(props: {
 							},
 							renameMutation.isPending && { opacity: 0.6 },
 						]}
-						onPress={() => renameMutation.mutate(label)}
+						onPress={() => {
+							renameMutation.mutate(label);
+						}}
 						disabled={renameMutation.isPending}
 					>
 						<Text style={{ color: '#C6CBD3', fontWeight: '600', fontSize: 12 }}>
@@ -215,7 +221,7 @@ function KeyRow(props: {
 						</Text>
 					</Pressable>
 				) : null}
-				{!entry.manifestEntry.metadata?.isDefault ? (
+				{!entry.manifestEntry.metadata.isDefault ? (
 					<Pressable
 						style={{
 							backgroundColor: 'transparent',
@@ -226,7 +232,9 @@ function KeyRow(props: {
 							paddingHorizontal: 10,
 							alignItems: 'center',
 						}}
-						onPress={() => setDefaultMutation.mutate()}
+						onPress={() => {
+							setDefaultMutation.mutate();
+						}}
 					>
 						<Text style={{ color: '#C6CBD3', fontWeight: '600', fontSize: 12 }}>
 							Set Default
@@ -243,7 +251,9 @@ function KeyRow(props: {
 						paddingHorizontal: 10,
 						alignItems: 'center',
 					}}
-					onPress={() => deleteMutation.mutate()}
+					onPress={() => {
+						deleteMutation.mutate();
+					}}
 				>
 					<Text style={{ color: '#FCA5A5', fontWeight: '700', fontSize: 12 }}>
 						Delete

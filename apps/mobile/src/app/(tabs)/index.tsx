@@ -237,7 +237,7 @@ function KeyIdPickerField() {
 	const listPrivateKeysQuery = useQuery(secretsManager.keys.query.list);
 	const defaultPick = React.useMemo(() => {
 		const keys = listPrivateKeysQuery.data ?? [];
-		const def = keys.find((k) => k.metadata?.isDefault);
+		const def = keys.find((k) => k.metadata.isDefault);
 		return def ?? keys[0];
 	}, [listPrivateKeysQuery.data]);
 	const keys = listPrivateKeysQuery.data ?? [];
@@ -252,9 +252,9 @@ function KeyIdPickerField() {
 		}
 	}, [fieldValue, defaultPickId, fieldHandleChange]);
 
-	const computedSelectedId = field.state.value ?? defaultPick?.id;
+	const computedSelectedId = field.state.value;
 	const selected = keys.find((k) => k.id === computedSelectedId);
-	const display = selected ? (selected.metadata?.label ?? selected.id) : 'None';
+	const display = selected ? (selected.metadata.label ?? selected.id) : 'None';
 
 	return (
 		<>
@@ -298,7 +298,9 @@ function KeyIdPickerField() {
 				visible={open}
 				transparent
 				animationType="slide"
-				onRequestClose={() => setOpen(false)}
+				onRequestClose={() => {
+					setOpen(false);
+				}}
 			>
 				<View
 					style={{
@@ -343,7 +345,9 @@ function KeyIdPickerField() {
 									borderWidth: 1,
 									borderColor: theme.colors.border,
 								}}
-								onPress={() => setOpen(false)}
+								onPress={() => {
+									setOpen(false);
+								}}
 							>
 								<Text
 									style={{
@@ -357,7 +361,7 @@ function KeyIdPickerField() {
 						</View>
 						<KeyList
 							mode="select"
-							onSelect={async (id) => {
+							onSelect={(id) => {
 								field.handleChange(id);
 								setOpen(false);
 							}}
@@ -399,7 +403,7 @@ function PreviousConnectionsSection(props: {
 				</Text>
 			) : listConnectionsQuery.data?.length ? (
 				<View>
-					{listConnectionsQuery.data?.map((conn) => (
+					{listConnectionsQuery.data.map((conn) => (
 						<ConnectionRow
 							key={conn.id}
 							id={conn.id}

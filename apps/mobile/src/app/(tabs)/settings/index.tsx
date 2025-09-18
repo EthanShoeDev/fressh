@@ -25,12 +25,16 @@ export default function Tab() {
 					<Row
 						label="Dark"
 						selected={themeName === 'dark'}
-						onPress={() => setThemeName('dark')}
+						onPress={() => {
+							setThemeName('dark');
+						}}
 					/>
 					<Row
 						label="Light"
 						selected={themeName === 'light'}
-						onPress={() => setThemeName('light')}
+						onPress={() => {
+							setThemeName('light');
+						}}
 					/>
 				</View>
 			</View>

@@ -15,7 +15,11 @@ export default function KeyManagerModalRoute() {
 				options={{
 					title: selectMode ? 'Select Key' : 'Manage Keys',
 					headerRight: () => (
-						<Pressable onPress={() => router.back()}>
+						<Pressable
+							onPress={() => {
+								router.back();
+							}}
+						>
 							<Text style={{ color: '#E5E7EB', fontWeight: '700' }}>Close</Text>
 						</Pressable>
 					),
@@ -23,7 +27,9 @@ export default function KeyManagerModalRoute() {
 			/>
 			<KeyList
 				mode={selectMode ? 'select' : 'manage'}
-				onSelect={async () => router.back()}
+				onSelect={() => {
+					router.back();
+				}}
 			/>
 		</SafeAreaView>
 	);

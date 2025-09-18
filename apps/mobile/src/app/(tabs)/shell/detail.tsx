@@ -1,8 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import {
-	type ListenerEvent,
-	type TerminalChunk,
-} from '@fressh/react-native-uniffi-russh';
+import { type ListenerEvent } from '@fressh/react-native-uniffi-russh';
 import {
 	XtermJsWebView,
 	type XtermWebViewHandle,
@@ -16,11 +13,14 @@ import {
 	useFocusEffect,
 } from 'expo-router';
 import React, { startTransition, useEffect, useRef, useState } from 'react';
-import { Pressable, View, Text } from 'react-native';
+import { Dimensions, Platform, Pressable, Text, View } from 'react-native';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+	SafeAreaView,
+	useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { disconnectSshConnectionAndInvalidateQuery } from '@/lib/query-fns';
-import { getSession } from '@/lib/ssh-registry';
+import { useSshStore, makeSessionKey } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
 
 export default function TabsShellDetail() {
@@ -28,9 +28,13 @@ export default function TabsShellDetail() {
 
 	useFocusEffect(
 		React.useCallback(() => {
-			startTransition(() => setReady(true)); // React 19: non-urgent
+			startTransition(() => {
+				setReady(true);
+			}); // React 19: non-urgent
 
-			return () => setReady(false);
+			return () => {
+				setReady(false);
+			};
 		}, []),
 	);
 
@@ -60,10 +64,11 @@ function ShellDetail() {
 	const theme = useTheme();
 
 	const channelIdNum = Number(channelId);
-	const sess =
+	const sess = useSshStore((s) =>
 		connectionId && channelId
-			? getSession(String(connectionId), channelIdNum)
-			: undefined;
+			? s.getByKey(makeSessionKey(connectionId, channelIdNum))
+			: undefined,
+	);
 	const connection = sess?.connection;
 	const shell = sess?.shell;
 
@@ -74,14 +79,41 @@ function ShellDetail() {
 			if (shell && listenerIdRef.current != null)
 				shell.removeListener(listenerIdRef.current);
 			listenerIdRef.current = null;
-			xterm?.flush?.();
+			if (xterm) xterm.flush();
 		};
 	}, [shell]);
 
 	const queryClient = useQueryClient();
+	const insets = useSafeAreaInsets();
+	const estimatedTabBarHeight = Platform.select({
+		ios: 49,
+		android: 80,
+		default: 56,
+	});
+	const windowH = Dimensions.get('window').height;
+	const computeBottomExtra = (y: number, height: number) => {
+		const extra = windowH - (y + height);
+		return extra > 0 ? extra : 0;
+	};
+
+	// Measure any bottom overlap (e.g., native tab bar) and add padding to avoid it
+	const [bottomExtra, setBottomExtra] = useState(0);
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+		<SafeAreaView
+			onLayout={(e) => {
+				const { y, height } = e.nativeEvent.layout;
+				const extra = computeBottomExtra(y, height);
+				if (extra !== bottomExtra) setBottomExtra(extra);
+			}}
+			style={{
+				flex: 1,
+				backgroundColor: theme.colors.background,
+				padding: 12,
+				paddingBottom:
+					12 + insets.bottom + (bottomExtra || estimatedTabBarHeight),
+			}}
+		>
 			<Stack.Screen
 				options={{
 					headerBackVisible: true,
@@ -107,98 +139,101 @@ function ShellDetail() {
 					),
 				}}
 			/>
-			<View
-				style={[
-					{ flex: 1, backgroundColor: '#0B1324', padding: 12 },
-					{ backgroundColor: theme.colors.background },
-				]}
-			>
-				<XtermJsWebView
-					ref={xtermRef}
-					style={{ flex: 1 }}
-					// WebView behavior that suits terminals
-					keyboardDisplayRequiresUserAction={false}
-					setSupportMultipleWindows={false}
-					overScrollMode="never"
-					pullToRefreshEnabled={false}
-					bounces={false}
-					setBuiltInZoomControls={false}
-					setDisplayZoomControls={false}
-					textZoom={100}
-					allowsLinkPreview={false}
-					textInteractionEnabled={false}
-					// xterm-ish props (applied via setOptions inside the page)
-					fontFamily="Menlo, ui-monospace, monospace"
-					fontSize={18} // bump if it still feels small
-					cursorBlink
-					scrollback={10000}
-					themeBackground={theme.colors.background}
-					themeForeground={theme.colors.textPrimary}
-					onRenderProcessGone={() => {
-						console.log('WebView render process gone -> clear()');
-						xtermRef.current?.clear?.();
-					}}
-					onContentProcessDidTerminate={() => {
-						console.log('WKWebView content process terminated -> clear()');
-						xtermRef.current?.clear?.();
-					}}
-					onLoadEnd={() => {
-						console.log('WebView onLoadEnd');
-					}}
-					onMessage={(m) => {
-						console.log('received msg', m);
-						if (m.type === 'initialized') {
-							if (terminalReadyRef.current) return;
-							terminalReadyRef.current = true;
+			<XtermJsWebView
+				ref={xtermRef}
+				style={{ flex: 1 }}
+				// WebView behavior that suits terminals
+				keyboardDisplayRequiresUserAction={false}
+				setSupportMultipleWindows={false}
+				overScrollMode="never"
+				pullToRefreshEnabled={false}
+				bounces={false}
+				setBuiltInZoomControls={false}
+				setDisplayZoomControls={false}
+				textZoom={100}
+				allowsLinkPreview={false}
+				textInteractionEnabled={false}
+				// xterm-ish props (applied via setOptions inside the page)
+				fontFamily="Menlo, ui-monospace, monospace"
+				fontSize={18} // bump if it still feels small
+				cursorBlink
+				scrollback={10000}
+				themeBackground={theme.colors.background}
+				themeForeground={theme.colors.textPrimary}
+				onRenderProcessGone={() => {
+					console.log('WebView render process gone -> clear()');
+					const xr = xtermRef.current;
+					if (xr) xr.clear();
+				}}
+				onContentProcessDidTerminate={() => {
+					console.log('WKWebView content process terminated -> clear()');
+					const xr = xtermRef.current;
+					if (xr) xr.clear();
+				}}
+				onLoadEnd={() => {
+					console.log('WebView onLoadEnd');
+				}}
+				onMessage={(m) => {
+					console.log('received msg', m);
+					if (m.type === 'initialized') {
+						if (terminalReadyRef.current) return;
+						terminalReadyRef.current = true;
 
-							// Replay from head, then attach live listener
-							if (shell) {
-								void (async () => {
-									const res = await shell.readBuffer({ mode: 'head' });
-									console.log('readBuffer(head)', {
-										chunks: res.chunks.length,
-										nextSeq: res.nextSeq,
-										dropped: res.dropped,
-									});
-									if (res.chunks.length) {
-										const chunks = res.chunks.map((c) => c.bytes);
-										xtermRef.current?.writeMany?.(chunks);
-										xtermRef.current?.flush?.();
+						// Replay from head, then attach live listener
+						if (shell) {
+							void (async () => {
+								const res = await shell.readBuffer({ mode: 'head' });
+								console.log('readBuffer(head)', {
+									chunks: res.chunks.length,
+									nextSeq: res.nextSeq,
+									dropped: res.dropped,
+								});
+								if (res.chunks.length) {
+									const chunks = res.chunks.map((c) => c.bytes);
+									const xr = xtermRef.current;
+									if (xr) {
+										xr.writeMany(chunks);
+										xr.flush();
 									}
-									const id = shell.addListener(
-										(ev: ListenerEvent) => {
-											if ('kind' in ev && ev.kind === 'dropped') {
-												console.log('listener.dropped', ev);
-												return;
-											}
-											const chunk = ev as TerminalChunk;
-											xtermRef.current?.write(chunk.bytes);
-										},
-										{ cursor: { mode: 'seq', seq: res.nextSeq } },
-									);
-									console.log('shell listener attached', id.toString());
-									listenerIdRef.current = id;
-								})();
-							}
+								}
+								const id = shell.addListener(
+									(ev: ListenerEvent) => {
+										if ('kind' in ev) {
+											console.log('listener.dropped', ev);
+											return;
+										}
+										const chunk = ev;
+										const xr3 = xtermRef.current;
+										if (xr3) xr3.write(chunk.bytes);
+									},
+									{ cursor: { mode: 'seq', seq: res.nextSeq } },
+								);
+								console.log('shell listener attached', id.toString());
+								listenerIdRef.current = id;
+							})();
+						}
 
-							// Focus to pop the keyboard (iOS needs the prop we set)
-							xtermRef.current?.focus?.();
-							return;
+						// Focus to pop the keyboard (iOS needs the prop we set)
+						const xr2 = xtermRef.current;
+						if (xr2) xr2.focus();
+						return;
+					}
+					if (m.type === 'data') {
+						console.log('xterm->SSH', { len: m.data.length });
+						const { buffer, byteOffset, byteLength } = m.data;
+						const ab = buffer.slice(byteOffset, byteOffset + byteLength);
+						if (shell) {
+							shell.sendData(ab as ArrayBuffer).catch((e: unknown) => {
+								console.warn('sendData failed', e);
+								router.back();
+							});
 						}
-						if (m.type === 'data') {
-							console.log('xterm->SSH', { len: m.data.length });
-							// Ensure we send the exact slice; send CR only for Enter.
-							const { buffer, byteOffset, byteLength } = m.data;
-							const ab = buffer.slice(byteOffset, byteOffset + byteLength);
-							void shell?.sendData(ab as ArrayBuffer);
-							return;
-						}
-						if (m.type === 'debug') {
-							console.log('xterm.debug', m.message);
-						}
-					}}
-				/>
-			</View>
+						return;
+					} else {
+						console.log('xterm.debug', m.message);
+					}
+				}}
+			/>
 		</SafeAreaView>
 	);
 }

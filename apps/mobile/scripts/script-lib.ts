@@ -19,11 +19,11 @@ export const cmd = (
 			let stdout = '';
 			let stderr = '';
 
-			proc.stdout?.on('data', (data) => {
-				stdout += data;
+			proc.stdout?.on('data', (data: unknown) => {
+				stdout += String(data);
 			});
-			proc.stderr?.on('data', (data) => {
-				stderr += data;
+			proc.stderr?.on('data', (data: unknown) => {
+				stderr += String(data);
 			});
 
 			process.once('SIGTERM', () => {

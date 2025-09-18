@@ -1,5 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { type SshConnection } from '@fressh/react-native-uniffi-russh';
+import {
+	type SshShell,
+	type SshConnection,
+} from '@fressh/react-native-uniffi-russh';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
@@ -21,7 +24,6 @@ import {
 	listSshShellsQueryOptions,
 	type ShellWithConnection,
 } from '@/lib/query-fns';
-import { type listConnectionsWithShells as registryList } from '@/lib/ssh-registry';
 import { useTheme } from '@/lib/theme';
 
 export default function TabsShellList() {
@@ -78,7 +80,7 @@ type ActionTarget =
 			connection: SshConnection;
 	  };
 
-type ConnectionsList = ReturnType<typeof registryList>;
+type ConnectionsList = (SshConnection & { shells: SshShell[] })[];
 
 function LoadedState({ connections }: { connections: ConnectionsList }) {
 	const [actionTarget, setActionTarget] = React.useState<null | ActionTarget>(
@@ -103,7 +105,9 @@ function LoadedState({ connections }: { connections: ConnectionsList }) {
 			)}
 			<ActionsSheet
 				target={actionTarget}
-				onClose={() => setActionTarget(null)}
+				onClose={() => {
+					setActionTarget(null);
+				}}
 				onCloseShell={() => {
 					if (!actionTarget) return;
 					if (!('shell' in actionTarget)) return;
@@ -138,7 +142,12 @@ function FlatView({
 }) {
 	const flatShells = React.useMemo(() => {
 		return connectionsWithShells.reduce<ShellWithConnection[]>((acc, curr) => {
-			acc.push(...curr.shells.map((shell) => ({ ...shell, connection: curr })));
+			acc.push(
+				...curr.shells.map((shell) => ({
+					...shell,
+					connection: curr,
+				})),
+			);
 			return acc;
 		}, []);
 	}, [connectionsWithShells]);
@@ -149,11 +158,11 @@ function FlatView({
 			renderItem={({ item }) => (
 				<ShellCard
 					shell={item}
-					onLongPress={() =>
+					onLongPress={() => {
 						setActionTarget({
 							shell: item,
-						})
-					}
+						});
+					}}
 				/>
 			)}
 			ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
@@ -194,12 +203,12 @@ function GroupedView({
 							alignItems: 'center',
 							justifyContent: 'space-between',
 						}}
-						onPress={() =>
+						onPress={() => {
 							setExpanded((prev) => ({
 								...prev,
 								[item.connectionId]: !prev[item.connectionId],
-							}))
-						}
+							}));
+						}}
 					>
 						<View>
 							<Text
@@ -234,11 +243,11 @@ function GroupedView({
 									<ShellCard
 										key={`${sh.connectionId}:${sh.channelId}`}
 										shell={shellWithConnection}
-										onLongPress={() =>
+										onLongPress={() => {
 											setActionTarget({
 												shell: shellWithConnection,
-											})
-										}
+											});
+										}}
 									/>
 								);
 							})}
@@ -299,15 +308,15 @@ function ShellCard({
 				paddingHorizontal: 12,
 				paddingVertical: 12,
 			}}
-			onPress={() =>
+			onPress={() => {
 				router.push({
 					pathname: '/shell/detail',
 					params: {
-						connectionId: String(shell.connectionId),
+						connectionId: shell.connectionId,
 						channelId: String(shell.channelId),
 					},
-				})
-			}
+				});
+			}}
 			onLongPress={onLongPress}
 		>
 			<View style={{ flex: 1 }}>
