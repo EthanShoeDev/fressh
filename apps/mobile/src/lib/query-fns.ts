@@ -18,17 +18,25 @@ export const useSshConnMutation = () => {
 		mutationFn: async (connectionDetails: InputConnectionDetails) => {
 			try {
 				console.log('Connecting to SSH server...');
+				// Resolve security into the RN bridge shape
+				const security =
+					connectionDetails.security.type === 'password'
+						? {
+								type: 'password' as const,
+								password: connectionDetails.security.password,
+							}
+						: {
+								type: 'key' as const,
+								privateKey: await secretsManager.keys.utils
+									.getPrivateKey(connectionDetails.security.keyId)
+									.then((e) => e.value),
+							};
+
 				const sshConnection = await RnRussh.connect({
 					host: connectionDetails.host,
 					port: connectionDetails.port,
 					username: connectionDetails.username,
-					security:
-						connectionDetails.security.type === 'password'
-							? {
-									type: 'password',
-									password: connectionDetails.security.password,
-								}
-							: { type: 'key', privateKey: 'TODO' },
+					security,
 					onStatusChange: (status) => {
 						console.log('SSH connection status', status);
 					},

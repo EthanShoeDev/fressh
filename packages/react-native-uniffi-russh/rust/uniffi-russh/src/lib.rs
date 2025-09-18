@@ -16,7 +16,8 @@ use tokio::sync::{broadcast, Mutex as AsyncMutex};
 
 use russh::{self, client, ChannelMsg, Disconnect};
 use russh::client::{Config as ClientConfig, Handle as ClientHandle};
-use russh_keys::{Algorithm as KeyAlgorithm, EcdsaCurve, PrivateKey};
+use russh_keys::{Algorithm as KeyAlgorithm, EcdsaCurve, PrivateKey as RusshKeysPrivateKey};
+use russh::keys::{PrivateKey as RusshPrivateKey, PrivateKeyWithHashAlg};
 use russh_keys::ssh_key::{self, LineEnding};
 use bytes::Bytes;
 
@@ -698,10 +699,20 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SSHConnection>, SshE
     // Auth
     let auth = match &details.security {
         Security::Password { password } => {
-            handle.authenticate_password(details.username.clone(), password.clone()).await?
+            handle
+                .authenticate_password(details.username.clone(), password.clone())
+                .await?
         }
-        Security::Key { .. } => {
-            return Err(SshError::UnsupportedKeyType);
+        // Treat key_id as the OpenSSH PEM-encoded private key content
+        Security::Key { key_id } => {
+            // Parse OpenSSH private key text into a russh::keys::PrivateKey
+            let parsed: RusshPrivateKey = RusshPrivateKey::from_openssh(key_id.as_str())
+                .map_err(|e| SshError::RusshKeys(e.to_string()))?;
+            // Wrap; omit hash preference (server selects or default applies)
+            let pk_with_hash = PrivateKeyWithHashAlg::new(Arc::new(parsed), None);
+            handle
+                .authenticate_publickey(details.username.clone(), pk_with_hash)
+                .await?
         }
     };
     match auth {
@@ -729,12 +740,12 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SSHConnection>, SshE
 pub async fn generate_key_pair(key_type: KeyType) -> Result<String, SshError> {
     let mut rng = OsRng;
     let key = match key_type {
-        KeyType::Rsa => PrivateKey::random(&mut rng, KeyAlgorithm::Rsa { hash: None })?,
-        KeyType::Ecdsa => PrivateKey::random(
+        KeyType::Rsa => RusshKeysPrivateKey::random(&mut rng, KeyAlgorithm::Rsa { hash: None })?,
+        KeyType::Ecdsa => RusshKeysPrivateKey::random(
             &mut rng,
             KeyAlgorithm::Ecdsa { curve: EcdsaCurve::NistP256 },
         )?,
-        KeyType::Ed25519 => PrivateKey::random(&mut rng, KeyAlgorithm::Ed25519)?,
+        KeyType::Ed25519 => RusshKeysPrivateKey::random(&mut rng, KeyAlgorithm::Ed25519)?,
         KeyType::Ed448 => return Err(SshError::UnsupportedKeyType),
     };
     let pem = key.to_openssh(LineEnding::LF)?; // Zeroizing<String>
