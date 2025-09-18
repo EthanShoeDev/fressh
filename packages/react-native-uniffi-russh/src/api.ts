@@ -1,13 +1,24 @@
 /**
  * We cannot make the generated code match this API exactly because uniffi
  * - Doesn't support ts literals for rust enums
- * - Doesn't support passing a js object with methods and properties to rust
+ * - Doesn't support passing a js object with methods and properties to or from rust.
+ * 
+ * The second issue is much harder to get around than the first.
+ * In practice it means that if you want to pass an object with callbacks and props to rust, it need to be in seperate args.
+ * If you want to pass an object with callbacks and props from rust to js (like ssh handles), you need to instead only pass an object with callbacks
+ * just make one of the callbacks a sync info() callback.
+ * 
+ * Then in this api wrapper we can smooth over those rough edges.
  * See: - https://jhugman.github.io/uniffi-bindgen-react-native/idioms/callback-interfaces.html
  */
 import * as GeneratedRussh from './index';
 
 
 // #region Ideal API
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Core types
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type ConnectionDetails = {
   host: string;
@@ -18,6 +29,17 @@ export type ConnectionDetails = {
   | { type: 'key'; privateKey: string };
 };
 
+export type SshConnectionStatus =
+  | 'tcpConnecting'
+  | 'tcpConnected'
+  | 'tcpDisconnected'
+  | 'shellConnecting'
+  | 'shellConnected'
+  | 'shellDisconnected';
+
+export type PtyType =
+  | 'Vanilla' | 'Vt100' | 'Vt102' | 'Vt220' | 'Ansi' | 'Xterm' | 'Xterm256';
+
 export type ConnectOptions = ConnectionDetails & {
   onStatusChange?: (status: SshConnectionStatus) => void;
   abortSignal?: AbortSignal;
@@ -27,56 +49,97 @@ export type StartShellOptions = {
   pty: PtyType;
   onStatusChange?: (status: SshConnectionStatus) => void;
   abortSignal?: AbortSignal;
-}
+};
+
+export type StreamKind = 'stdout' | 'stderr';
+
+export type TerminalChunk = {
+  /** Monotonic sequence number from the shell start (Rust u64; JS uses number). */
+  seq: number;
+  /** Milliseconds since UNIX epoch (double). */
+  tMs: number;
+  stream: StreamKind;
+  bytes: Uint8Array;
+};
+
+export type DropNotice = { kind: 'dropped'; fromSeq: number; toSeq: number };
+export type ListenerEvent = TerminalChunk | DropNotice;
+
+export type Cursor =
+  | { mode: 'head' }                      // earliest available in ring
+  | { mode: 'tailBytes'; bytes: number }  // last N bytes (best-effort)
+  | { mode: 'seq'; seq: number }          // from a given sequence
+  | { mode: 'time'; tMs: number }         // from timestamp
+  | { mode: 'live' };                     // no replay, live only
+
+export type ListenerOptions = {
+  cursor: Cursor;
+  /** Optional per-listener coalescing window in ms (e.g., 10–25). */
+  coalesceMs?: number;
+};
+
+export type BufferStats = {
+  ringBytes: number;         // configured capacity
+  usedBytes: number;         // current usage
+  chunks: number;            // chunks kept
+  headSeq: number;           // oldest seq retained
+  tailSeq: number;           // newest seq retained
+  droppedBytesTotal: number; // cumulative eviction
+};
+
+export type BufferReadResult = {
+  chunks: TerminalChunk[];
+  nextSeq: number;
+  dropped?: { fromSeq: number; toSeq: number };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Handles
+// ─────────────────────────────────────────────────────────────────────────────
+
 export type SshConnection = {
-  connectionId: string;
+  readonly connectionId: string;
   readonly createdAtMs: number;
   readonly tcpEstablishedAtMs: number;
   readonly connectionDetails: ConnectionDetails;
-  startShell: (params: StartShellOptions) => Promise<SshShellSession>;
-  addChannelListener: (listener: (data: ArrayBuffer) => void) => bigint;
-  removeChannelListener: (id: bigint) => void;
-  disconnect: (params?: { signal: AbortSignal }) => Promise<void>;
+
+  startShell: (opts: StartShellOptions) => Promise<SshShell>;
+  disconnect: (opts?: { signal?: AbortSignal }) => Promise<void>;
 };
 
-export type SshShellSession = {
+export type SshShell = {
   readonly channelId: number;
   readonly createdAtMs: number;
-  readonly pty: GeneratedRussh.PtyType;
+  readonly pty: PtyType;
   readonly connectionId: string;
-  sendData: (
-    data: ArrayBuffer,
-    options?: { signal: AbortSignal }
-  ) => Promise<void>;
-  close: (params?: { signal: AbortSignal }) => Promise<void>;
+
+  // I/O
+  sendData: (data: ArrayBuffer, opts?: { signal?: AbortSignal }) => Promise<void>;
+  close: (opts?: { signal?: AbortSignal }) => Promise<void>;
+
+  // Buffer policy & stats
+  setBufferPolicy: (policy: { ringBytes?: number; coalesceMs?: number }) => Promise<void>;
+  bufferStats: () => Promise<BufferStats>;
+  currentSeq: () => Promise<number>;
+
+  // Replay + live
+  readBuffer: (cursor: Cursor, maxBytes?: number) => Promise<BufferReadResult>;
+  addListener: (
+    cb: (ev: ListenerEvent) => void,
+    opts: ListenerOptions
+  ) => bigint;
+  removeListener: (id: bigint) => void;
 };
 
-
 type RusshApi = {
-  connect: (options: ConnectOptions) => Promise<SshConnection>;
-
-  getSshConnection: (id: string) => SshConnection | undefined;
-  getSshShell: (connectionId: string, channelId: number) => SshShellSession | undefined;
-  listSshConnections: () => SshConnection[];
-  listSshShells: () => SshShellSession[];
-  listSshConnectionsWithShells: () => (SshConnection & { shells: SshShellSession[] })[];
-
-  generateKeyPair: (type: PrivateKeyType) => Promise<string>;
-
   uniffiInitAsync: () => Promise<void>;
-}
+  connect: (opts: ConnectOptions) => Promise<SshConnection>;
+  generateKeyPair: (type: 'rsa' | 'ecdsa' | 'ed25519') => Promise<string>;
+};
 
 // #endregion
 
-// #region Weird stuff we have to do to get uniffi to have that ideal API
-
-const privateKeyTypeLiteralToEnum = {
-  rsa: GeneratedRussh.KeyType.Rsa,
-  ecdsa: GeneratedRussh.KeyType.Ecdsa,
-  ed25519: GeneratedRussh.KeyType.Ed25519,
-} as const satisfies Record<string, GeneratedRussh.KeyType>;
-export type PrivateKeyType = keyof typeof privateKeyTypeLiteralToEnum;
-
+// #region Wrapper to match the ideal API
 
 const ptyTypeLiteralToEnum = {
   Vanilla: GeneratedRussh.PtyType.Vanilla,
@@ -87,8 +150,16 @@ const ptyTypeLiteralToEnum = {
   Xterm: GeneratedRussh.PtyType.Xterm,
   Xterm256: GeneratedRussh.PtyType.Xterm256,
 } as const satisfies Record<string, GeneratedRussh.PtyType>;
-export type PtyType = keyof typeof ptyTypeLiteralToEnum;
 
+const ptyEnumToLiteral: Record<GeneratedRussh.PtyType, PtyType> = {
+  [GeneratedRussh.PtyType.Vanilla]: 'Vanilla',
+  [GeneratedRussh.PtyType.Vt100]: 'Vt100',
+  [GeneratedRussh.PtyType.Vt102]: 'Vt102',
+  [GeneratedRussh.PtyType.Vt220]: 'Vt220',
+  [GeneratedRussh.PtyType.Ansi]: 'Ansi',
+  [GeneratedRussh.PtyType.Xterm]: 'Xterm',
+  [GeneratedRussh.PtyType.Xterm256]: 'Xterm256',
+};
 
 const sshConnStatusEnumToLiteral = {
   [GeneratedRussh.SshConnectionStatus.TcpConnecting]: 'tcpConnecting',
@@ -97,160 +168,158 @@ const sshConnStatusEnumToLiteral = {
   [GeneratedRussh.SshConnectionStatus.ShellConnecting]: 'shellConnecting',
   [GeneratedRussh.SshConnectionStatus.ShellConnected]: 'shellConnected',
   [GeneratedRussh.SshConnectionStatus.ShellDisconnected]: 'shellDisconnected',
-} as const satisfies Record<GeneratedRussh.SshConnectionStatus, string>;
-export type SshConnectionStatus = (typeof sshConnStatusEnumToLiteral)[keyof typeof sshConnStatusEnumToLiteral];
+} as const satisfies Record<GeneratedRussh.SshConnectionStatus, SshConnectionStatus>;
 
+const streamEnumToLiteral = {
+  [GeneratedRussh.StreamKind.Stdout]: 'stdout',
+  [GeneratedRussh.StreamKind.Stderr]: 'stderr',
+} as const satisfies Record<GeneratedRussh.StreamKind, StreamKind>;
 
 function generatedConnDetailsToIdeal(details: GeneratedRussh.ConnectionDetails): ConnectionDetails {
+  const security: ConnectionDetails['security'] = details.security instanceof GeneratedRussh.Security.Password
+    ? { type: 'password', password: details.security.inner.password }
+    : { type: 'key', privateKey: details.security.inner.keyId };
+  return { host: details.host, port: details.port, username: details.username, security };
+}
+
+function cursorToGenerated(cursor: Cursor): GeneratedRussh.Cursor {
+  switch (cursor.mode) {
+    case 'head':
+      return new GeneratedRussh.Cursor.Head();
+    case 'tailBytes':
+      return new GeneratedRussh.Cursor.TailBytes({ bytes: BigInt(cursor.bytes) });
+    case 'seq':
+      return new GeneratedRussh.Cursor.Seq({ seq: BigInt(cursor.seq) });
+    case 'time':
+      return new GeneratedRussh.Cursor.TimeMs({ tMs: cursor.tMs });
+    case 'live':
+      return new GeneratedRussh.Cursor.Live();
+  }
+}
+
+function toTerminalChunk(ch: GeneratedRussh.TerminalChunk): TerminalChunk {
   return {
-    host: details.host,
-    port: details.port,
-    username: details.username,
-    security: details.security instanceof GeneratedRussh.Security.Password ? { type: 'password', password: details.security.inner.password } : { type: 'key', privateKey: details.security.inner.keyId },
+    seq: Number(ch.seq),
+    tMs: ch.tMs,
+    stream: streamEnumToLiteral[ch.stream],
+    bytes: new Uint8Array(ch.bytes as any),
   };
 }
 
-function wrapConnection(conn: GeneratedRussh.SshConnectionInterface): SshConnection {
-  // Wrap startShell in-place to preserve the UniFFI object's internal pointer.
-  const originalStartShell = conn.startShell.bind(conn);
-  const betterStartShell = async (params: StartShellOptions) => {
-    const shell = await originalStartShell(
-      {
-        pty: ptyTypeLiteralToEnum[params.pty],
-        onStatusChange: params.onStatusChange
-          ? { onChange: (statusEnum) => params.onStatusChange?.(sshConnStatusEnumToLiteral[statusEnum]!) }
-          : undefined,
-      },
-      params.abortSignal ? { signal: params.abortSignal } : undefined,
-    );
-    return wrapShellSession(shell);
-  };
-
-  // Accept a function for onData and adapt to the generated listener object.
-  const originalAddChannelListener = conn.addChannelListener.bind(conn);
-  const betterAddChannelListener = (listener: (data: ArrayBuffer) => void) =>
-    originalAddChannelListener({ onData: listener });
-
-  const connInfo = conn.info();
-  return {
-    connectionId: connInfo.connectionId,
-    connectionDetails: generatedConnDetailsToIdeal(connInfo.connectionDetails),
-    createdAtMs: connInfo.createdAtMs,
-    tcpEstablishedAtMs: connInfo.tcpEstablishedAtMs,
-    startShell: betterStartShell,
-    addChannelListener: betterAddChannelListener,
-    removeChannelListener: conn.removeChannelListener.bind(conn),
-    disconnect: conn.disconnect.bind(conn),
-  };
-}
-
-function wrapShellSession(shell: GeneratedRussh.ShellSessionInterface): SshShellSession {
+function wrapShellSession(shell: GeneratedRussh.ShellSessionInterface): SshShell {
   const info = shell.info();
+
+  const setBufferPolicy: SshShell['setBufferPolicy'] = async (policy) => {
+    await shell.setBufferPolicy(policy.ringBytes != null ? BigInt(policy.ringBytes) : undefined, policy.coalesceMs);
+  };
+
+  const bufferStats: SshShell['bufferStats'] = async () => {
+    const s = shell.bufferStats();
+    return {
+      ringBytes: Number(s.ringBytes),
+      usedBytes: Number(s.usedBytes),
+      chunks: Number(s.chunks),
+      headSeq: Number(s.headSeq),
+      tailSeq: Number(s.tailSeq),
+      droppedBytesTotal: Number(s.droppedBytesTotal),
+    };
+  };
+
+  const readBuffer: SshShell['readBuffer'] = async (cursor, maxBytes) => {
+    const res = shell.readBuffer(cursorToGenerated(cursor), maxBytes != null ? BigInt(maxBytes) : undefined);
+    return {
+      chunks: res.chunks.map(toTerminalChunk),
+      nextSeq: Number(res.nextSeq),
+      dropped: res.dropped ? { fromSeq: Number(res.dropped.fromSeq), toSeq: Number(res.dropped.toSeq) } : undefined,
+    } satisfies BufferReadResult;
+  };
+
+  const addListener: SshShell['addListener'] = (cb, opts) => {
+    const listener = {
+      onEvent: (ev: GeneratedRussh.ShellEvent) => {
+        if (ev instanceof GeneratedRussh.ShellEvent.Chunk) {
+          cb(toTerminalChunk(ev.inner[0]!));
+        } else if (ev instanceof GeneratedRussh.ShellEvent.Dropped) {
+          cb({ kind: 'dropped', fromSeq: Number(ev.inner.fromSeq), toSeq: Number(ev.inner.toSeq) });
+        }
+      }
+    } satisfies GeneratedRussh.ShellListener;
+
+    try {
+      const id = shell.addListener(listener, { cursor: cursorToGenerated(opts.cursor), coalesceMs: opts.coalesceMs });
+      if (id === 0n) {
+        throw new Error('Failed to attach shell listener (id=0)');
+      }
+      return BigInt(id);
+    } catch (e) {
+      throw new Error(`addListener failed: ${String((e as any)?.message ?? e)}`);
+    }
+  };
 
   return {
     channelId: info.channelId,
     createdAtMs: info.createdAtMs,
-    pty: info.pty,
+    pty: ptyEnumToLiteral[info.pty],
     connectionId: info.connectionId,
-    sendData: shell.sendData.bind(shell),
-    close: shell.close.bind(shell)
+    sendData: (data, o) => shell.sendData(data, o?.signal ? { signal: o.signal } : undefined),
+    close: (o) => shell.close(o?.signal ? { signal: o.signal } : undefined),
+    setBufferPolicy,
+    bufferStats,
+    currentSeq: async () => Number(shell.currentSeq()),
+    readBuffer,
+    addListener,
+    removeListener: (id) => shell.removeListener(id),
+  };
+}
+
+function wrapConnection(conn: GeneratedRussh.SshConnectionInterface): SshConnection {
+  const inf = conn.info();
+  return {
+    connectionId: inf.connectionId,
+    connectionDetails: generatedConnDetailsToIdeal(inf.connectionDetails),
+    createdAtMs: inf.createdAtMs,
+    tcpEstablishedAtMs: inf.tcpEstablishedAtMs,
+    startShell: async (params) => {
+      const shell = await conn.startShell(
+        {
+          pty: ptyTypeLiteralToEnum[params.pty],
+          onStatusChange: params.onStatusChange
+            ? { onChange: (statusEnum) => params.onStatusChange!(sshConnStatusEnumToLiteral[statusEnum]) }
+            : undefined,
+        },
+        params.abortSignal ? { signal: params.abortSignal } : undefined,
+      );
+      return wrapShellSession(shell);
+    },
+    disconnect: (opts) => conn.disconnect(opts?.signal ? { signal: opts.signal } : undefined),
   };
 }
 
 async function connect(options: ConnectOptions): Promise<SshConnection> {
   const security =
     options.security.type === 'password'
-      ? new GeneratedRussh.Security.Password({
-        password: options.security.password,
-      })
+      ? new GeneratedRussh.Security.Password({ password: options.security.password })
       : new GeneratedRussh.Security.Key({ keyId: options.security.privateKey });
-  const sshConnectionInterface = await GeneratedRussh.connect(
+  const sshConnection = await GeneratedRussh.connect(
     {
       host: options.host,
       port: options.port,
       username: options.username,
       security,
       onStatusChange: options.onStatusChange ? {
-        onChange: (statusEnum) => {
-          const tsLiteral = sshConnStatusEnumToLiteral[statusEnum];
-          if (!tsLiteral) throw new Error(`Invalid status enum: ${statusEnum}`);
-          options.onStatusChange?.(tsLiteral);
-        },
+        onChange: (statusEnum) => options.onStatusChange!(sshConnStatusEnumToLiteral[statusEnum])
       } : undefined,
     },
-    options.abortSignal
-      ? {
-        signal: options.abortSignal,
-      }
-      : undefined
+    options.abortSignal ? { signal: options.abortSignal } : undefined,
   );
-  return wrapConnection(sshConnectionInterface);
+  return wrapConnection(sshConnection);
 }
 
-// Optional registry lookups: return undefined if not found/disconnected
-function getSshConnection(id: string): SshConnection | undefined {
-  try {
-    const conn = GeneratedRussh.getSshConnection(id);
-    return wrapConnection(conn);
-  } catch {
-    return undefined;
-  }
+async function generateKeyPair(type: 'rsa' | 'ecdsa' | 'ed25519') {
+  const map = { rsa: GeneratedRussh.KeyType.Rsa, ecdsa: GeneratedRussh.KeyType.Ecdsa, ed25519: GeneratedRussh.KeyType.Ed25519 } as const;
+  return GeneratedRussh.generateKeyPair(map[type]);
 }
 
-function getSshShell(connectionId: string, channelId: number): SshShellSession | undefined {
-  try {
-    const shell = GeneratedRussh.getSshShell(connectionId, channelId);
-    return wrapShellSession(shell);
-  } catch {
-    return undefined;
-  }
-}
-
-function listSshConnections(): SshConnection[] {
-  const infos = GeneratedRussh.listSshConnections();
-  const out: SshConnection[] = [];
-  for (const info of infos) {
-    try {
-      const conn = GeneratedRussh.getSshConnection(info.connectionId);
-      out.push(wrapConnection(conn));
-    } catch {
-      // ignore entries that no longer exist between snapshot and lookup
-    }
-  }
-  return out;
-}
-
-function listSshShells(): SshShellSession[] {
-  const infos = GeneratedRussh.listSshShells();
-  const out: SshShellSession[] = [];
-  for (const info of infos) {
-    try {
-      const shell = GeneratedRussh.getSshShell(info.connectionId, info.channelId);
-      out.push(wrapShellSession(shell));
-    } catch {
-      // ignore entries that no longer exist between snapshot and lookup
-    }
-  }
-  return out;
-}
-
-/**
- * TODO: This feels a bit hacky. It is probably more effecient to do this join in rust and send 
- * the joined result to the app.
- */
-function listSshConnectionsWithShells(): (SshConnection & { shells: SshShellSession[] })[] {
-  const connections = listSshConnections();
-  const shells = listSshShells();
-  return connections.map(connection => ({
-    ...connection,
-    shells: shells.filter(shell => shell.connectionId === connection.connectionId),
-  }));
-}
-
-
-async function generateKeyPair(type: PrivateKeyType) {
-  return GeneratedRussh.generateKeyPair(privateKeyTypeLiteralToEnum[type]);
-}
 
 // #endregion
 
@@ -258,9 +327,4 @@ export const RnRussh = {
   uniffiInitAsync: GeneratedRussh.uniffiInitAsync,
   connect,
   generateKeyPair,
-  getSshConnection,
-  listSshConnections,
-  listSshShells,
-  listSshConnectionsWithShells,
-  getSshShell,
 } satisfies RusshApi;

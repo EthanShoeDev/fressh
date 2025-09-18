@@ -1,23 +1,57 @@
 import { Ionicons } from '@expo/vector-icons';
-import { RnRussh } from '@fressh/react-native-uniffi-russh';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
 import {
-	Platform,
-	Pressable,
-	ScrollView,
-	Text,
-	TextInput,
-	View,
-} from 'react-native';
+	type ListenerEvent,
+	type TerminalChunk,
+} from '@fressh/react-native-uniffi-russh';
+import {
+	XtermJsWebView,
+	type XtermWebViewHandle,
+} from '@fressh/react-native-xtermjs-webview';
+
+import { useQueryClient } from '@tanstack/react-query';
+import {
+	Stack,
+	useLocalSearchParams,
+	useRouter,
+	useFocusEffect,
+} from 'expo-router';
+import React, { startTransition, useEffect, useRef, useState } from 'react';
+import { Pressable, View, Text } from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { disconnectSshConnectionAndInvalidateQuery } from '@/lib/query-fns';
+import { getSession } from '@/lib/ssh-registry';
 import { useTheme } from '@/lib/theme';
 
 export default function TabsShellDetail() {
+	const [ready, setReady] = useState(false);
+
+	useFocusEffect(
+		React.useCallback(() => {
+			startTransition(() => setReady(true)); // React 19: non-urgent
+
+			return () => setReady(false);
+		}, []),
+	);
+
+	if (!ready) return <RouteSkeleton />;
 	return <ShellDetail />;
 }
 
+function RouteSkeleton() {
+	return (
+		<View>
+			<Text>Loading</Text>
+		</View>
+	);
+}
+
 function ShellDetail() {
+	const xtermRef = useRef<XtermWebViewHandle>(null);
+	const terminalReadyRef = useRef(false);
+	// Legacy buffer no longer used; relying on Rust ring for replay
+	const listenerIdRef = useRef<bigint | null>(null);
+
 	const { connectionId, channelId } = useLocalSearchParams<{
 		connectionId?: string;
 		channelId?: string;
@@ -26,37 +60,25 @@ function ShellDetail() {
 	const theme = useTheme();
 
 	const channelIdNum = Number(channelId);
-	const connection = connectionId
-		? RnRussh.getSshConnection(String(connectionId))
-		: undefined;
-	const shell =
+	const sess =
 		connectionId && channelId
-			? RnRussh.getSshShell(String(connectionId), channelIdNum)
+			? getSession(String(connectionId), channelIdNum)
 			: undefined;
+	const connection = sess?.connection;
+	const shell = sess?.shell;
 
-	const [shellData, setShellData] = useState('');
-
+	// SSH -> xterm: on initialized, replay ring head then attach live listener
 	useEffect(() => {
-		if (!connection) return;
-		const decoder = new TextDecoder('utf-8');
-		const listenerId = connection.addChannelListener((data: ArrayBuffer) => {
-			try {
-				const bytes = new Uint8Array(data);
-				const chunk = decoder.decode(bytes);
-				setShellData((prev) => prev + chunk);
-			} catch (e) {
-				console.warn('Failed to decode shell data', e);
-			}
-		});
+		const xterm = xtermRef.current;
 		return () => {
-			connection.removeChannelListener(listenerId);
+			if (shell && listenerIdRef.current != null)
+				shell.removeListener(listenerIdRef.current);
+			listenerIdRef.current = null;
+			xterm?.flush?.();
 		};
-	}, [connection]);
+	}, [shell]);
 
-	const scrollViewRef = useRef<ScrollView | null>(null);
-	useEffect(() => {
-		scrollViewRef.current?.scrollToEnd({ animated: true });
-	}, [shellData]);
+	const queryClient = useQueryClient();
 
 	return (
 		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -68,9 +90,15 @@ function ShellDetail() {
 							accessibilityLabel="Disconnect"
 							hitSlop={10}
 							onPress={async () => {
+								if (!connection) return;
 								try {
-									await connection?.disconnect();
-								} catch {}
+									await disconnectSshConnectionAndInvalidateQuery({
+										connectionId: connection.connectionId,
+										queryClient,
+									});
+								} catch (e) {
+									console.warn('Failed to disconnect', e);
+								}
 								router.replace('/shell');
 							}}
 						>
@@ -85,115 +113,92 @@ function ShellDetail() {
 					{ backgroundColor: theme.colors.background },
 				]}
 			>
-				<View
-					style={{
-						flex: 1,
-						backgroundColor: '#0E172B',
-						borderRadius: 12,
-						height: 400,
-						borderWidth: 1,
-						borderColor: '#2A3655',
-						overflow: 'hidden',
-						marginBottom: 12,
+				<XtermJsWebView
+					ref={xtermRef}
+					style={{ flex: 1 }}
+					// WebView behavior that suits terminals
+					keyboardDisplayRequiresUserAction={false}
+					setSupportMultipleWindows={false}
+					overScrollMode="never"
+					pullToRefreshEnabled={false}
+					bounces={false}
+					setBuiltInZoomControls={false}
+					setDisplayZoomControls={false}
+					textZoom={100}
+					allowsLinkPreview={false}
+					textInteractionEnabled={false}
+					// xterm-ish props (applied via setOptions inside the page)
+					fontFamily="Menlo, ui-monospace, monospace"
+					fontSize={18} // bump if it still feels small
+					cursorBlink
+					scrollback={10000}
+					themeBackground={theme.colors.background}
+					themeForeground={theme.colors.textPrimary}
+					onRenderProcessGone={() => {
+						console.log('WebView render process gone -> clear()');
+						xtermRef.current?.clear?.();
 					}}
-				>
-					<ScrollView
-						ref={scrollViewRef}
-						contentContainerStyle={{
-							paddingHorizontal: 12,
-							paddingTop: 4,
-							paddingBottom: 12,
-						}}
-						keyboardShouldPersistTaps="handled"
-					>
-						<Text
-							selectable
-							style={{
-								color: '#D1D5DB',
-								fontSize: 14,
-								lineHeight: 18,
-								fontFamily: Platform.select({
-									ios: 'Menlo',
-									android: 'monospace',
-									default: 'monospace',
-								}),
-							}}
-						>
-							{shellData || 'Connected. Output will appear here...'}
-						</Text>
-					</ScrollView>
-				</View>
-				<CommandInput
-					executeCommand={async (command) => {
-						await shell?.sendData(
-							Uint8Array.from(new TextEncoder().encode(command + '\n')).buffer,
-						);
+					onContentProcessDidTerminate={() => {
+						console.log('WKWebView content process terminated -> clear()');
+						xtermRef.current?.clear?.();
+					}}
+					onLoadEnd={() => {
+						console.log('WebView onLoadEnd');
+					}}
+					onMessage={(m) => {
+						console.log('received msg', m);
+						if (m.type === 'initialized') {
+							if (terminalReadyRef.current) return;
+							terminalReadyRef.current = true;
+
+							// Replay from head, then attach live listener
+							if (shell) {
+								void (async () => {
+									const res = await shell.readBuffer({ mode: 'head' });
+									console.log('readBuffer(head)', {
+										chunks: res.chunks.length,
+										nextSeq: res.nextSeq,
+										dropped: res.dropped,
+									});
+									if (res.chunks.length) {
+										const chunks = res.chunks.map((c) => c.bytes);
+										xtermRef.current?.writeMany?.(chunks);
+										xtermRef.current?.flush?.();
+									}
+									const id = shell.addListener(
+										(ev: ListenerEvent) => {
+											if ('kind' in ev && ev.kind === 'dropped') {
+												console.log('listener.dropped', ev);
+												return;
+											}
+											const chunk = ev as TerminalChunk;
+											xtermRef.current?.write(chunk.bytes);
+										},
+										{ cursor: { mode: 'seq', seq: res.nextSeq } },
+									);
+									console.log('shell listener attached', id.toString());
+									listenerIdRef.current = id;
+								})();
+							}
+
+							// Focus to pop the keyboard (iOS needs the prop we set)
+							xtermRef.current?.focus?.();
+							return;
+						}
+						if (m.type === 'data') {
+							console.log('xterm->SSH', { len: m.data.length });
+							// Ensure we send the exact slice; send CR only for Enter.
+							const { buffer, byteOffset, byteLength } = m.data;
+							const ab = buffer.slice(byteOffset, byteOffset + byteLength);
+							void shell?.sendData(ab as ArrayBuffer);
+							return;
+						}
+						if (m.type === 'debug') {
+							console.log('xterm.debug', m.message);
+						}
 					}}
 				/>
 			</View>
 		</SafeAreaView>
-	);
-}
-
-function CommandInput(props: {
-	executeCommand: (command: string) => Promise<void>;
-}) {
-	const [command, setCommand] = useState('');
-
-	async function handleExecute() {
-		if (!command.trim()) return;
-		await props.executeCommand(command);
-		setCommand('');
-	}
-
-	return (
-		<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-			<TextInput
-				testID="command-input"
-				style={{
-					flex: 1,
-					backgroundColor: '#0E172B',
-					borderWidth: 1,
-					borderColor: '#2A3655',
-					borderRadius: 10,
-					paddingHorizontal: 12,
-					paddingVertical: 12,
-					color: '#E5E7EB',
-					fontSize: 16,
-					fontFamily: Platform.select({
-						ios: 'Menlo',
-						android: 'monospace',
-						default: 'monospace',
-					}),
-				}}
-				value={command}
-				onChangeText={setCommand}
-				placeholder="Type a command and press Enter or Execute"
-				placeholderTextColor="#9AA0A6"
-				autoCapitalize="none"
-				autoCorrect={false}
-				returnKeyType="send"
-				onSubmitEditing={handleExecute}
-			/>
-			<Pressable
-				style={[
-					{
-						backgroundColor: '#2563EB',
-						borderRadius: 10,
-						paddingHorizontal: 16,
-						paddingVertical: 12,
-						alignItems: 'center',
-						justifyContent: 'center',
-					},
-					{ marginTop: 8 },
-				]}
-				onPress={handleExecute}
-				testID="execute-button"
-			>
-				<Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
-					Execute
-				</Text>
-			</Pressable>
-		</View>
 	);
 }

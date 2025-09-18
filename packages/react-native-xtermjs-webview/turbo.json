@@ -1,0 +1,19 @@
+{
+	"extends": ["//"],
+	"tasks": {
+		"build": {
+			"dependsOn": ["build:internal", "build:main"]
+		},
+		"build:main": {
+			"inputs": ["src/**"],
+			"dependsOn": ["build:internal"],
+			"outputs": ["dist/**"]
+		},
+		"build:internal": {
+			"inputs": ["src-internal/**"],
+			"outputs": ["dist-internal/**"]
+		},
+		"lint": {},
+		"lint:check": {}
+	}
+}

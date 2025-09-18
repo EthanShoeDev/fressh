@@ -10,6 +10,7 @@ export default function TabsShellStack() {
 				headerBlurEffect: undefined,
 				headerTransparent: false,
 				headerStyle: { backgroundColor: theme.colors.surface },
+				headerTintColor: theme.colors.textPrimary,
 				headerTitleStyle: {
 					color: theme.colors.textPrimary,
 				},

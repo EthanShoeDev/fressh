@@ -1,8 +1,4 @@
-import {
-	RnRussh,
-	type SshConnection,
-	type SshShellSession,
-} from '@fressh/react-native-uniffi-russh';
+import { RnRussh } from '@fressh/react-native-uniffi-russh';
 import {
 	queryOptions,
 	useMutation,
@@ -11,6 +7,11 @@ import {
 } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { secretsManager, type InputConnectionDetails } from './secrets-manager';
+import {
+	listConnectionsWithShells as registryList,
+	registerSession,
+	type ShellWithConnection,
+} from './ssh-registry';
 import { AbortSignalTimeout } from './utils';
 
 export const useSshConnMutation = () => {
@@ -57,6 +58,9 @@ export const useSshConnMutation = () => {
 					`${sshConnection.connectionDetails.username}@${sshConnection.connectionDetails.host}:${sshConnection.connectionDetails.port}|${Math.floor(sshConnection.createdAtMs)}`;
 				console.log('Connected to SSH server', connectionId, channelId);
 
+				// Track in registry for app use
+				registerSession(sshConnection, shellInterface);
+
 				await queryClient.invalidateQueries({
 					queryKey: listSshShellsQueryOptions.queryKey,
 				});
@@ -77,19 +81,17 @@ export const useSshConnMutation = () => {
 
 export const listSshShellsQueryOptions = queryOptions({
 	queryKey: ['ssh-shells'],
-	queryFn: () => RnRussh.listSshConnectionsWithShells(),
+	queryFn: () => registryList(),
 });
 
-export type ShellWithConnection = SshShellSession & {
-	connection: SshConnection;
-};
+export type { ShellWithConnection };
 
 export const closeSshShellAndInvalidateQuery = async (params: {
 	channelId: number;
 	connectionId: string;
 	queryClient: QueryClient;
 }) => {
-	const currentActiveShells = RnRussh.listSshConnectionsWithShells();
+	const currentActiveShells = registryList();
 	const connection = currentActiveShells.find(
 		(c) => c.connectionId === params.connectionId,
 	);
@@ -97,7 +99,6 @@ export const closeSshShellAndInvalidateQuery = async (params: {
 	const shell = connection.shells.find((s) => s.channelId === params.channelId);
 	if (!shell) throw new Error('Shell not found');
 	await shell.close();
-	if (connection.shells.length <= 1) await connection.disconnect();
 	await params.queryClient.invalidateQueries({
 		queryKey: listSshShellsQueryOptions.queryKey,
 	});
@@ -107,7 +108,10 @@ export const disconnectSshConnectionAndInvalidateQuery = async (params: {
 	connectionId: string;
 	queryClient: QueryClient;
 }) => {
-	const connection = RnRussh.getSshConnection(params.connectionId);
+	const currentActiveShells = registryList();
+	const connection = currentActiveShells.find(
+		(c) => c.connectionId === params.connectionId,
+	);
 	if (!connection) throw new Error('Connection not found');
 	await connection.disconnect();
 	await params.queryClient.invalidateQueries({
