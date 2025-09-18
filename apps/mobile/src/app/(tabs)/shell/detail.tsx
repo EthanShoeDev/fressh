@@ -46,7 +46,8 @@ function ShellDetail() {
 
 		const listenerId = connection.addChannelListener((data: ArrayBuffer) => {
 			// Forward bytes to terminal (no string conversion)
-			xterm?.write(new Uint8Array(data));
+			const uInt8 = new Uint8Array(data);
+			xterm?.write(uInt8);
 		});
 
 		return () => {
@@ -118,7 +119,7 @@ function ShellDetail() {
 							theme.colors.background,
 							theme.colors.textPrimary,
 						);
-						xtermRef.current?.setFont?.('Menlo, ui-monospace, monospace', 14);
+						xtermRef.current?.setFont?.('Menlo, ui-monospace, monospace', 50);
 					}}
 					onMessage={(message) => {
 						if (message.type === 'initialized') {

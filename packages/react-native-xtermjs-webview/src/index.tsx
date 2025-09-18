@@ -66,6 +66,7 @@ export function XtermJsWebView({
 	// ---- RN -> WebView message sender via injectJavaScript + window MessageEvent
 	const send = (obj: OutboundMessage) => {
 		const payload = JSON.stringify(obj);
+		console.log('sending msg', payload);
 		const js = `window.dispatchEvent(new MessageEvent('message',{data:${JSON.stringify(
 			payload,
 		)}})); true;`;
@@ -148,6 +149,7 @@ export function XtermJsWebView({
 			onMessage={(event) => {
 				try {
 					const msg: InboundMessage = JSON.parse(event.nativeEvent.data);
+					console.log('received msg', msg);
 					if (msg.type === 'initialized') {
 						onMessage?.({ type: 'initialized' });
 						return;
