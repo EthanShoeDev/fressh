@@ -17,7 +17,19 @@ function FieldInfo() {
 	const field = useFieldContext();
 	const meta = field.state.meta as { errors?: unknown[] };
 	const errs = meta.errors;
-	const errorMessage = errs && errs.length > 0 ? String(errs[0]) : null;
+	let errorMessage: string | null = null;
+	if (errs && errs.length > 0) {
+		const first = errs[0] as { message: string };
+		if (
+			first &&
+			typeof first === 'object' &&
+			typeof first.message === 'string'
+		) {
+			errorMessage = first.message as string;
+		} else {
+			errorMessage = String(first);
+		}
+	}
 
 	return (
 		<View style={{ marginTop: 6 }}>
@@ -161,10 +173,17 @@ export function SubmitButton(
 	props: {
 		onPress?: () => void;
 		title?: string;
+		submittingTitle?: string;
 		disabled?: boolean;
 	} & React.ComponentProps<typeof Pressable>,
 ) {
-	const { onPress, title = 'Connect', disabled, ...rest } = props;
+	const {
+		onPress,
+		title = 'Connect',
+		submittingTitle,
+		disabled,
+		...rest
+	} = props;
 	const formContext = useFormContext();
 	const isSubmitting = useStore(
 		formContext.store,
@@ -186,7 +205,7 @@ export function SubmitButton(
 			disabled={disabled === true ? true : isSubmitting}
 		>
 			<Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>
-				{isSubmitting ? 'Connecting...' : title}
+				{isSubmitting ? (submittingTitle ?? 'Connecting...') : title}
 			</Text>
 		</Pressable>
 	);

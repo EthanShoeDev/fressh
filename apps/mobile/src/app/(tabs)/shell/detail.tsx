@@ -118,9 +118,9 @@ function ShellDetail() {
 			style={{
 				flex: 1,
 				backgroundColor: theme.colors.background,
-				padding: 12,
+				padding: 0,
 				paddingBottom:
-					12 + insets.bottom + (bottomExtra || estimatedTabBarHeight),
+					4 + insets.bottom + (bottomExtra || estimatedTabBarHeight),
 			}}
 		>
 			<Stack.Screen
@@ -165,7 +165,7 @@ function ShellDetail() {
 				// xterm options
 				options={{
 					fontFamily: 'Menlo, ui-monospace, monospace',
-					fontSize: 18,
+					fontSize: 80,
 					cursorBlink: true,
 					scrollback: 10000,
 					theme: {

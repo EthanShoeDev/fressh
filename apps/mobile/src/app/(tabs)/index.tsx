@@ -1,8 +1,15 @@
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
 import { useStore } from '@tanstack/react-form';
 import { useQuery } from '@tanstack/react-query';
-import React from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useEffect } from 'react';
+import {
+	Modal,
+	Pressable,
+	ScrollView,
+	Text,
+	TextInput,
+	View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppForm, useFieldContext } from '@/components/form-components';
 import { KeyList } from '@/components/key-manager/KeyList';
@@ -13,25 +20,43 @@ import {
 	type InputConnectionDetails,
 } from '@/lib/secrets-manager';
 import { useTheme } from '@/lib/theme';
+import { useBottomTabPadding } from '@/lib/useBottomTabPadding';
+// Map connection status literals to human-friendly labels
+const SSH_STATUS_LABELS: Record<string, string> = {
+	tcpConnecting: 'Connecting to host…',
+	tcpConnected: 'Network connected',
+	tcpDisconnected: 'Network disconnected',
+	shellConnecting: 'Starting shell…',
+	shellConnected: 'Connected',
+	shellDisconnected: 'Shell disconnected',
+} as const;
 
 export default function TabsIndex() {
 	return <Host />;
 }
 
 const defaultValues: InputConnectionDetails = {
-	host: 'test.rebex.net',
+	host: '',
 	port: 22,
-	username: 'demo',
+	username: '',
 	security: {
 		type: 'password',
-		password: 'password',
+		password: '',
 	},
 };
 
 function Host() {
 	const theme = useTheme();
 	// const insets = useSafeAreaInsets();
-	const sshConnMutation = useSshConnMutation();
+	const [status, setStatus] = React.useState<string | null>(null);
+	const sshConnMutation = useSshConnMutation({
+		onStatusChange: (s) => {
+			// Hide banner immediately after shell connects
+			if (s === 'shellConnected') setStatus(null);
+			else setStatus(s);
+		},
+	});
+	const { paddingBottom, onLayout } = useBottomTabPadding(12);
 	const connectionForm = useAppForm({
 		// https://tanstack.com/form/latest/docs/framework/react/guides/async-initial-values
 		defaultValues,
@@ -45,6 +70,11 @@ function Host() {
 		connectionForm.store,
 		(state) => state.values.security.type,
 	);
+	const formErrors = useStore(connectionForm.store, (state) => state.errorMap);
+	useEffect(() => {
+		if (!formErrors || Object.keys(formErrors).length === 0) return;
+		console.log('formErrors', JSON.stringify(formErrors, null, 2));
+	}, [formErrors]);
 
 	const isSubmitting = useStore(
 		connectionForm.store,
@@ -54,9 +84,10 @@ function Host() {
 	return (
 		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
 			<ScrollView
-				contentContainerStyle={[{ paddingBottom: 32 }]}
+				contentContainerStyle={[{ paddingBottom }]}
 				keyboardShouldPersistTaps="handled"
 				style={{ backgroundColor: theme.colors.background }}
+				onLayout={onLayout}
 			>
 				<View
 					style={[
@@ -101,27 +132,7 @@ function Host() {
 							borderColor: theme.colors.borderStrong,
 						}}
 					>
-						<Text
-							style={{
-								fontSize: 24,
-								fontWeight: '700',
-								color: theme.colors.textPrimary,
-								marginBottom: 6,
-								letterSpacing: 0.5,
-							}}
-						>
-							Connect to SSH Server
-						</Text>
-						<Text
-							style={{
-								fontSize: 15,
-								color: theme.colors.muted,
-								marginBottom: 24,
-								lineHeight: 20,
-							}}
-						>
-							Enter your server credentials
-						</Text>
+						{/* Status lives inside the Connect button via submittingTitle */}
 
 						<connectionForm.AppForm>
 							<connectionForm.AppField name="host">
@@ -192,34 +203,44 @@ function Host() {
 							<View style={{ marginTop: 20 }}>
 								<connectionForm.SubmitButton
 									title="Connect"
+									submittingTitle={
+										SSH_STATUS_LABELS[status ?? ''] ?? 'Connecting…'
+									}
 									testID="connect"
 									onPress={() => {
+										console.log('Connect button pressed', { isSubmitting });
 										if (isSubmitting) return;
 										void connectionForm.handleSubmit();
 									}}
 								/>
 							</View>
+							{sshConnMutation.isError ? (
+								<Text style={{ color: theme.colors.danger, marginTop: 8 }}>
+									{String(
+										(sshConnMutation.error as Error)?.message ??
+											'Failed to connect',
+									)}
+								</Text>
+							) : null}
 						</connectionForm.AppForm>
 					</View>
 					<PreviousConnectionsSection
-						onSelect={(connection) => {
+						onFillForm={(connection) => {
 							connectionForm.setFieldValue('host', connection.host);
 							connectionForm.setFieldValue('port', connection.port);
 							connectionForm.setFieldValue('username', connection.username);
-							connectionForm.setFieldValue(
-								'security.type',
-								connection.security.type,
-							);
 							if (connection.security.type === 'password') {
 								connectionForm.setFieldValue(
 									'security.password',
 									connection.security.password,
 								);
+								connectionForm.setFieldValue('security.type', 'password');
 							} else {
 								connectionForm.setFieldValue(
 									'security.keyId',
 									connection.security.keyId,
 								);
+								connectionForm.setFieldValue('security.type', 'key');
 							}
 						}}
 					/>
@@ -255,6 +276,14 @@ function KeyIdPickerField() {
 	const computedSelectedId = field.state.value;
 	const selected = keys.find((k) => k.id === computedSelectedId);
 	const display = selected ? (selected.metadata.label ?? selected.id) : 'None';
+	const meta = field.state.meta as { errors?: unknown[] };
+	const firstErr = meta?.errors?.[0] as { message: string } | undefined;
+	const fieldError =
+		firstErr &&
+		typeof firstErr === 'object' &&
+		typeof firstErr.message === 'string'
+			? firstErr.message
+			: null;
 
 	return (
 		<>
@@ -294,6 +323,13 @@ function KeyIdPickerField() {
 					</Text>
 				)}
 			</View>
+			{fieldError ? (
+				<Text
+					style={{ color: theme.colors.danger, fontSize: 12, marginTop: 6 }}
+				>
+					{fieldError}
+				</Text>
+			) : null}
 			<Modal
 				visible={open}
 				transparent
@@ -374,7 +410,7 @@ function KeyIdPickerField() {
 }
 
 function PreviousConnectionsSection(props: {
-	onSelect: (connection: InputConnectionDetails) => void;
+	onFillForm: (connection: InputConnectionDetails) => void;
 }) {
 	const theme = useTheme();
 	const listConnectionsQuery = useQuery(secretsManager.connections.query.list);
@@ -407,7 +443,7 @@ function PreviousConnectionsSection(props: {
 						<ConnectionRow
 							key={conn.id}
 							id={conn.id}
-							onSelect={props.onSelect}
+							onFillForm={props.onFillForm}
 						/>
 					))}
 				</View>
@@ -422,11 +458,15 @@ function PreviousConnectionsSection(props: {
 
 function ConnectionRow(props: {
 	id: string;
-	onSelect: (connection: InputConnectionDetails) => void;
+	onFillForm: (connection: InputConnectionDetails) => void;
 }) {
 	const theme = useTheme();
 	const detailsQuery = useQuery(secretsManager.connections.query.get(props.id));
 	const details = detailsQuery.data?.value;
+	const [open, setOpen] = React.useState(false);
+	const [renameOpen, setRenameOpen] = React.useState(false);
+	const [newId, setNewId] = React.useState(props.id);
+	const listQuery = useQuery(secretsManager.connections.query.list);
 
 	return (
 		<Pressable
@@ -443,7 +483,7 @@ function ConnectionRow(props: {
 				marginBottom: 8,
 			}}
 			onPress={() => {
-				if (details) props.onSelect(details);
+				if (details) props.onFillForm(details);
 			}}
 			disabled={!details}
 		>
@@ -461,15 +501,244 @@ function ConnectionRow(props: {
 					{details ? `Port ${details.port} • ${details.security.type}` : ''}
 				</Text>
 			</View>
-			<Text
-				style={{
-					color: theme.colors.muted,
-					fontSize: 22,
-					paddingHorizontal: 4,
-				}}
+			<Pressable onPress={() => setOpen(true)} hitSlop={8}>
+				<Text
+					style={{
+						color: theme.colors.muted,
+						fontSize: 22,
+						paddingHorizontal: 4,
+					}}
+				>
+					⋯
+				</Text>
+			</Pressable>
+
+			{/* Actions Modal */}
+			<Modal
+				transparent
+				visible={open}
+				animationType="fade"
+				onRequestClose={() => setOpen(false)}
 			>
-				›
-			</Text>
+				<Pressable
+					style={{ flex: 1, backgroundColor: theme.colors.overlay }}
+					onPress={() => setOpen(false)}
+				>
+					<View
+						style={{
+							marginTop: 'auto',
+							backgroundColor: theme.colors.background,
+							padding: 16,
+							borderTopLeftRadius: 16,
+							borderTopRightRadius: 16,
+							borderWidth: 1,
+							borderColor: theme.colors.borderStrong,
+						}}
+					>
+						<Text
+							style={{
+								color: theme.colors.textPrimary,
+								fontWeight: '700',
+								fontSize: 16,
+								marginBottom: 12,
+							}}
+						>
+							Connection Actions
+						</Text>
+						<View style={{ gap: 8 }}>
+							{/* Keep only rename/delete/cancel. Tap row fills the form */}
+							<Pressable
+								onPress={() => {
+									setOpen(false);
+									setRenameOpen(true);
+									setNewId(props.id);
+								}}
+								style={{
+									backgroundColor: theme.colors.transparent,
+									borderWidth: 1,
+									borderColor: theme.colors.border,
+									borderRadius: 10,
+									paddingVertical: 12,
+									alignItems: 'center',
+								}}
+							>
+								<Text
+									style={{
+										color: theme.colors.textSecondary,
+										fontWeight: '600',
+									}}
+								>
+									Rename
+								</Text>
+							</Pressable>
+							<Pressable
+								onPress={async () => {
+									setOpen(false);
+									await secretsManager.connections.utils.deleteConnection(
+										props.id,
+									);
+									await listQuery.refetch();
+								}}
+								style={{
+									backgroundColor: theme.colors.transparent,
+									borderWidth: 1,
+									borderColor: theme.colors.danger,
+									borderRadius: 10,
+									paddingVertical: 12,
+									alignItems: 'center',
+								}}
+							>
+								<Text style={{ color: theme.colors.danger, fontWeight: '700' }}>
+									Delete
+								</Text>
+							</Pressable>
+							<Pressable
+								onPress={() => setOpen(false)}
+								style={{
+									backgroundColor: theme.colors.transparent,
+									borderWidth: 1,
+									borderColor: theme.colors.border,
+									borderRadius: 10,
+									paddingVertical: 12,
+									alignItems: 'center',
+								}}
+							>
+								<Text
+									style={{
+										color: theme.colors.textSecondary,
+										fontWeight: '600',
+									}}
+								>
+									Cancel
+								</Text>
+							</Pressable>
+						</View>
+					</View>
+				</Pressable>
+			</Modal>
+
+			{/* Rename Modal */}
+			<Modal
+				transparent
+				visible={renameOpen}
+				animationType="fade"
+				onRequestClose={() => setRenameOpen(false)}
+			>
+				<Pressable
+					style={{ flex: 1, backgroundColor: theme.colors.overlay }}
+					onPress={() => setRenameOpen(false)}
+				>
+					<View
+						style={{
+							marginTop: 'auto',
+							backgroundColor: theme.colors.background,
+							padding: 16,
+							borderTopLeftRadius: 16,
+							borderTopRightRadius: 16,
+							borderWidth: 1,
+							borderColor: theme.colors.borderStrong,
+						}}
+					>
+						<Text
+							style={{
+								color: theme.colors.textPrimary,
+								fontWeight: '700',
+								fontSize: 16,
+								marginBottom: 8,
+							}}
+						>
+							Rename Connection
+						</Text>
+						<Text
+							style={{
+								color: theme.colors.muted,
+								fontSize: 12,
+								marginBottom: 8,
+							}}
+						>
+							Enter a new identifier for this saved connection
+						</Text>
+						<TextInput
+							value={newId}
+							onChangeText={setNewId}
+							autoCapitalize="none"
+							style={{
+								backgroundColor: theme.colors.inputBackground,
+								color: theme.colors.textPrimary,
+								borderWidth: 1,
+								borderColor: theme.colors.border,
+								borderRadius: 10,
+								paddingHorizontal: 12,
+								paddingVertical: 10,
+								marginBottom: 12,
+							}}
+						/>
+						<View style={{ flexDirection: 'row', gap: 8 }}>
+							<Pressable
+								onPress={async () => {
+									if (!details) return;
+									if (!newId || newId === props.id) {
+										setRenameOpen(false);
+										return;
+									}
+									// Recreate under new id then delete old
+									await secretsManager.connections.utils.upsertConnection({
+										id: newId,
+										details,
+										priority: 0,
+									});
+									await secretsManager.connections.utils.deleteConnection(
+										props.id,
+									);
+									await listQuery.refetch();
+									setRenameOpen(false);
+								}}
+								style={{
+									backgroundColor: theme.colors.primary,
+									borderRadius: 10,
+									paddingVertical: 12,
+									paddingHorizontal: 16,
+									alignItems: 'center',
+									flex: 1,
+								}}
+							>
+								<Text
+									style={{
+										color: theme.colors.buttonTextOnPrimary,
+										fontWeight: '700',
+										textAlign: 'center',
+									}}
+								>
+									Save
+								</Text>
+							</Pressable>
+							<Pressable
+								onPress={() => setRenameOpen(false)}
+								style={{
+									backgroundColor: theme.colors.transparent,
+									borderWidth: 1,
+									borderColor: theme.colors.border,
+									borderRadius: 10,
+									paddingVertical: 12,
+									paddingHorizontal: 16,
+									alignItems: 'center',
+									flex: 1,
+								}}
+							>
+								<Text
+									style={{
+										color: theme.colors.textSecondary,
+										fontWeight: '600',
+										textAlign: 'center',
+									}}
+								>
+									Cancel
+								</Text>
+							</Pressable>
+						</View>
+					</View>
+				</Pressable>
+			</Modal>
 		</Pressable>
 	);
 }

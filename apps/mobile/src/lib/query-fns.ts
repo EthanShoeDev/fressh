@@ -10,7 +10,9 @@ import { secretsManager, type InputConnectionDetails } from './secrets-manager';
 import { useSshStore, toSessionStatus, type SessionKey } from './ssh-store';
 import { AbortSignalTimeout } from './utils';
 
-export const useSshConnMutation = () => {
+export const useSshConnMutation = (opts?: {
+	onStatusChange?: (status: string) => void;
+}) => {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 
@@ -39,6 +41,7 @@ export const useSshConnMutation = () => {
 					security,
 					onStatusChange: (status) => {
 						console.log('SSH connection status', status);
+						opts?.onStatusChange?.(status);
 					},
 					abortSignal: AbortSignalTimeout(5_000),
 				});
@@ -56,6 +59,7 @@ export const useSshConnMutation = () => {
 						if (keyRef)
 							useSshStore.getState().setStatus(keyRef, toSessionStatus(status));
 						console.log('SSH shell status', status);
+						opts?.onStatusChange?.(status);
 					},
 					abortSignal: AbortSignalTimeout(5_000),
 				});
