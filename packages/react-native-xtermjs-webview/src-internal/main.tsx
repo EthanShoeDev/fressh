@@ -1,5 +1,5 @@
 import { FitAddon } from '@xterm/addon-fit';
-import { Terminal } from '@xterm/xterm';
+import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import {
 	bStrToBinary,
@@ -53,13 +53,7 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 	window.terminal = term;
 	window.fitAddon = fitAddon;
 
-	// Encode helper
-	// const enc = new TextEncoder();
-
-	// User input from xterm -> RN (SSH) as UTF-8 bytes (Base64)
 	term.onData((data) => {
-		// const bytes = enc.encode(data);
-		// const bStr = binaryToBStr(bytes);
 		sendToRn({ type: 'input', str: data });
 	});
 
@@ -100,7 +94,14 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 					break;
 				}
 				case 'setOptions': {
-					const newOpts = msg.opts;
+					const newOpts: ITerminalOptions = {
+						...term.options,
+						...msg.opts,
+						theme: {
+							...term.options.theme,
+							...msg.opts.theme,
+						},
+					};
 					term.options = newOpts;
 					if (
 						'theme' in newOpts &&
@@ -108,7 +109,7 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 						'background' in newOpts.theme &&
 						newOpts.theme.background
 					) {
-						document.body.style.backgroundColor = newOpts.theme.background;
+						document.body.style.backgroundColor = 'blue'; // TODO: Just for debugging
 					}
 					break;
 				}

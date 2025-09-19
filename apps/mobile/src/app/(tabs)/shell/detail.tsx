@@ -29,7 +29,10 @@ export default function TabsShellDetail() {
 	useFocusEffect(
 		React.useCallback(() => {
 			startTransition(() => {
-				setReady(true);
+				setTimeout(() => {
+					// TODO: This is gross
+					setReady(true);
+				}, 50);
 			}); // React 19: non-urgent
 
 			return () => {
@@ -78,6 +81,7 @@ function ShellDetail() {
 	useEffect(() => {
 		if (!sess) return;
 		if (sess.status === 'disconnected') {
+			console.log('shell disconnected, replacing route with /shell');
 			// Replace so the detail screen isn't on the stack anymore
 			router.replace('/shell');
 		}
@@ -119,6 +123,7 @@ function ShellDetail() {
 			}}
 			style={{
 				flex: 1,
+				justifyContent: 'flex-start',
 				backgroundColor: theme.colors.background,
 				padding: 0,
 				paddingBottom:
@@ -142,7 +147,6 @@ function ShellDetail() {
 								} catch (e) {
 									console.warn('Failed to disconnect', e);
 								}
-								router.replace('/shell');
 							}}
 						>
 							<Ionicons name="power" size={20} color={theme.colors.primary} />
@@ -162,7 +166,7 @@ function ShellDetail() {
 				// xterm options
 				xtermOptions={{
 					theme: {
-						background: theme.colors.background,
+						background: 'red',
 						foreground: theme.colors.textPrimary,
 					},
 				}}

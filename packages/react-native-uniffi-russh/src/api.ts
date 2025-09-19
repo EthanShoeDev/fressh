@@ -20,6 +20,9 @@ import * as GeneratedRussh from './index';
 // Core types
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type PtyType =
+  | 'Vanilla' | 'Vt100' | 'Vt102' | 'Vt220' | 'Ansi' | 'Xterm' | 'Xterm256';
+
 export type ConnectionDetails = {
   host: string;
   port: number;
@@ -29,25 +32,27 @@ export type ConnectionDetails = {
   | { type: 'key'; privateKey: string };
 };
 
-export type SshConnectionStatus =
-  | 'tcpConnecting'
-  | 'tcpConnected'
-  | 'tcpDisconnected'
-  | 'shellConnecting'
-  | 'shellConnected'
-  | 'shellDisconnected';
+/**
+ * This status is only to provide updates for discrete events
+ * during the connect() promise.
+ * 
+ * It is no longer relevant after the connect() promise is resolved.
+ */
+export type SshConnectionProgress =
+  | 'tcpConnected'        // TCP established, starting SSH handshake
+  | 'sshHandshake'        // SSH protocol negotiation complete
 
-export type PtyType =
-  | 'Vanilla' | 'Vt100' | 'Vt102' | 'Vt220' | 'Ansi' | 'Xterm' | 'Xterm256';
+
 
 export type ConnectOptions = ConnectionDetails & {
-  onStatusChange?: (status: SshConnectionStatus) => void;
+  onConnectionProgress?: (status: SshConnectionProgress) => void;
+  onDisconnected?: (connectionId: string) => void;
   abortSignal?: AbortSignal;
 };
 
 export type StartShellOptions = {
   pty: PtyType;
-  onStatusChange?: (status: SshConnectionStatus) => void;
+  onClosed?: (shellId: string) => void;
   abortSignal?: AbortSignal;
 };
 
@@ -162,13 +167,9 @@ const ptyEnumToLiteral: Record<GeneratedRussh.PtyType, PtyType> = {
 };
 
 const sshConnStatusEnumToLiteral = {
-  [GeneratedRussh.SshConnectionStatus.TcpConnecting]: 'tcpConnecting',
   [GeneratedRussh.SshConnectionStatus.TcpConnected]: 'tcpConnected',
-  [GeneratedRussh.SshConnectionStatus.TcpDisconnected]: 'tcpDisconnected',
-  [GeneratedRussh.SshConnectionStatus.ShellConnecting]: 'shellConnecting',
-  [GeneratedRussh.SshConnectionStatus.ShellConnected]: 'shellConnected',
-  [GeneratedRussh.SshConnectionStatus.ShellDisconnected]: 'shellDisconnected',
-} as const satisfies Record<GeneratedRussh.SshConnectionStatus, SshConnectionStatus>;
+  [GeneratedRussh.SshConnectionStatus.SshHandshake]: 'sshHandshake',
+} as const satisfies Record<GeneratedRussh.SshConnectionStatus, SshConnectionProgress>;
 
 const streamEnumToLiteral = {
   [GeneratedRussh.StreamKind.Stdout]: 'stdout',
