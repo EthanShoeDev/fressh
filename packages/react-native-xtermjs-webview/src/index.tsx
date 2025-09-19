@@ -1,27 +1,26 @@
-type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
-import { Base64 } from 'js-base64';
-import React, { useEffect, useImperativeHandle, useRef } from 'react';
-import { WebView } from 'react-native-webview';
+import React, {
+	useEffect,
+	useImperativeHandle,
+	useMemo,
+	useRef,
+	useCallback,
+} from 'react';
+import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import htmlString from '../dist-internal/index.html?raw';
 import {
+	binaryToBStr,
+	bStrToBinary,
 	type BridgeInboundMessage,
 	type BridgeOutboundMessage,
-	type TerminalOptionsPatch,
 } from './bridge';
-// Re-exported shared types live in src/bridge.ts for library build
-// Internal page imports the same file via ../src/bridge
+
+export { bStrToBinary, binaryToBStr };
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
+type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
+type WebViewOptions = React.ComponentProps<typeof WebView>;
 
-/**
- * Message from the webview to RN
- */
-type InboundMessage = BridgeInboundMessage;
-
-/**
- * Message from RN to the webview
- */
-type OutboundMessage = BridgeOutboundMessage;
+const defaultCoalescingThreshold = 8 * 1024;
 
 /**
  * Message from this pkg to calling RN
@@ -36,105 +35,160 @@ export type XtermWebViewHandle = {
 	// Efficiently write many chunks in one postMessage (for initial replay)
 	writeMany: (chunks: Uint8Array[]) => void;
 	flush: () => void; // force-flush outgoing writes
-	resize: (cols?: number, rows?: number) => void;
-	setFont: (family?: string, size?: number) => void;
-	setTheme: (background?: string, foreground?: string) => void;
-	setOptions: (opts: TerminalOptionsPatch) => void;
 	clear: () => void;
 	focus: () => void;
+	resize: (size: { cols: number; rows: number }) => void;
+	fit: () => void;
 };
 
-export interface XtermJsWebViewProps
-	extends StrictOmit<
-		React.ComponentProps<typeof WebView>,
-		'source' | 'originWhitelist' | 'onMessage'
-	> {
-	ref: React.RefObject<XtermWebViewHandle | null>;
-	onMessage?: (msg: XtermInbound) => void;
+const defaultWebViewProps: WebViewOptions = {
+	// WebView behavior that suits terminals
+	// ios
+	keyboardDisplayRequiresUserAction: false,
+	pullToRefreshEnabled: false,
+	bounces: false,
+	textInteractionEnabled: false,
+	allowsLinkPreview: false,
+	// android
+	setSupportMultipleWindows: false,
+	overScrollMode: 'never',
+	setBuiltInZoomControls: false,
+	setDisplayZoomControls: false,
+	textZoom: 100,
+	// both
+	originWhitelist: ['*'],
+	scalesPageToFit: false,
+	contentMode: 'mobile',
+};
 
-	// xterm Terminal.setOptions props (typed from @xterm/xterm)
-	options?: Partial<ITerminalOptions>;
+const defaultXtermOptions: Partial<ITerminalOptions> = {
+	fontFamily: 'Menlo, ui-monospace, monospace',
+	fontSize: 80,
+	cursorBlink: true,
+	scrollback: 10000,
+};
+
+type UserControllableWebViewProps = StrictOmit<
+	WebViewOptions,
+	'source' | 'style'
+>;
+
+export type XtermJsWebViewProps = {
+	ref: React.RefObject<XtermWebViewHandle | null>;
+	style?: WebViewOptions['style'];
+	webViewOptions?: UserControllableWebViewProps;
+	xtermOptions?: Partial<ITerminalOptions>;
+	onInitialized?: () => void;
+	onData?: (data: string) => void;
+	logger?: {
+		debug?: (...args: unknown[]) => void;
+		log?: (...args: unknown[]) => void;
+		warn?: (...args: unknown[]) => void;
+		error?: (...args: unknown[]) => void;
+	};
+	coalescingThreshold?: number;
+	size?: {
+		cols: number;
+		rows: number;
+	};
+	autoFit?: boolean;
+};
+
+function xTermOptionsEquals(
+	a: Partial<ITerminalOptions> | null,
+	b: Partial<ITerminalOptions> | null,
+): boolean {
+	if (a == b) return true;
+	if (a == null && b == null) return true;
+	if (a == null || b == null) return false;
+	const keys = new Set<string>([
+		...Object.keys(a as object),
+		...Object.keys(b as object),
+	]);
+	for (const k of keys) {
+		const key = k as keyof ITerminalOptions;
+		if (a[key] !== b[key]) return false;
+	}
+	return true;
 }
 
 export function XtermJsWebView({
 	ref,
-	onMessage,
-	options,
-	...props
+	style,
+	webViewOptions = defaultWebViewProps,
+	xtermOptions = defaultXtermOptions,
+	onInitialized,
+	onData,
+	coalescingThreshold = defaultCoalescingThreshold,
+	logger,
+	size,
+	autoFit = true,
 }: XtermJsWebViewProps) {
 	const webRef = useRef<WebView>(null);
 
 	// ---- RN -> WebView message sender
-	const send = (obj: OutboundMessage) => {
-		const payload = JSON.stringify(obj);
-		console.log('sending msg', payload);
-		const js = `window.dispatchEvent(new MessageEvent('message',{data:${JSON.stringify(
-			payload,
-		)}})); true;`;
-		webRef.current?.injectJavaScript(js);
-	};
+	const sendToWebView = useCallback(
+		(obj: BridgeOutboundMessage) => {
+			const webViewRef = webRef.current;
+			if (!webViewRef) return;
+			const payload = JSON.stringify(obj);
+			logger?.log?.(`sending msg to webview: ${payload}`);
+			const js = `window.dispatchEvent(new MessageEvent('message',{data:${payload}})); true;`;
+			webViewRef.injectJavaScript(js);
+		},
+		[logger],
+	);
 
 	// ---- rAF + 8KB coalescer for writes
 	const bufRef = useRef<Uint8Array | null>(null);
 	const rafRef = useRef<number | null>(null);
-	const THRESHOLD = 8 * 1024;
 
-	const flush = () => {
+	const flush = useCallback(() => {
 		if (!bufRef.current) return;
-		const b64 = Base64.fromUint8Array(bufRef.current);
+		const bStr = binaryToBStr(bufRef.current);
 		bufRef.current = null;
 		if (rafRef.current != null) {
 			cancelAnimationFrame(rafRef.current);
 			rafRef.current = null;
 		}
-		send({ type: 'write', b64 });
-	};
+		sendToWebView({ type: 'write', bStr });
+	}, [sendToWebView]);
 
-	const schedule = () => {
+	const schedule = useCallback(() => {
 		if (rafRef.current != null) return;
 		rafRef.current = requestAnimationFrame(() => {
 			rafRef.current = null;
 			flush();
 		});
-	};
+	}, [flush]);
 
-	const write = (data: Uint8Array) => {
-		if (!data || data.length === 0) return;
-		if (!bufRef.current) {
-			bufRef.current = data;
-		} else {
-			const a = bufRef.current;
-			const merged = new Uint8Array(a.length + data.length);
-			merged.set(a, 0);
-			merged.set(data, a.length);
-			bufRef.current = merged;
-		}
-		if ((bufRef.current?.length ?? 0) >= THRESHOLD) flush();
-		else schedule();
-	};
+	const write = useCallback(
+		(data: Uint8Array) => {
+			if (!data || data.length === 0) return;
+			if (!bufRef.current) {
+				bufRef.current = data;
+			} else {
+				const a = bufRef.current;
+				const merged = new Uint8Array(a.length + data.length);
+				merged.set(a, 0);
+				merged.set(data, a.length);
+				bufRef.current = merged;
+			}
+			if ((bufRef.current?.length ?? 0) >= coalescingThreshold) flush();
+			else schedule();
+		},
+		[coalescingThreshold, flush, schedule],
+	);
 
-	const writeMany = (chunks: Uint8Array[]) => {
-		if (!chunks || chunks.length === 0) return;
-		// Ensure any pending small buffered write is flushed before bulk write
-		flush();
-		const b64s = chunks.map((c) => Base64.fromUint8Array(c));
-		send({ type: 'write', chunks: b64s });
-	};
-
-	useImperativeHandle(ref, () => ({
-		write,
-		writeMany,
-		flush,
-		resize: (cols?: number, rows?: number) =>
-			send({ type: 'resize', cols, rows }),
-		setFont: (family?: string, size?: number) =>
-			send({ type: 'setFont', family, size }),
-		setTheme: (background?: string, foreground?: string) =>
-			send({ type: 'setTheme', background, foreground }),
-		setOptions: (opts) => send({ type: 'setOptions', opts }),
-		clear: () => send({ type: 'clear' }),
-		focus: () => send({ type: 'focus' }),
-	}));
+	const writeMany = useCallback(
+		(chunks: Uint8Array[]) => {
+			if (!chunks || chunks.length === 0) return;
+			flush(); // Ensure any pending small buffered write is flushed before bulk write
+			const bStrs = chunks.map(binaryToBStr);
+			sendToWebView({ type: 'writeMany', chunks: bStrs });
+		},
+		[flush, sendToWebView],
+	);
 
 	// Cleanup pending rAF on unmount
 	useEffect(() => {
@@ -145,69 +199,149 @@ export function XtermJsWebView({
 		};
 	}, []);
 
-	// Apply options changes via setOptions without remounting
-	const prevOptsRef = useRef<Partial<ITerminalOptions> | null>(null);
-	useEffect(() => {
-		const merged: Partial<ITerminalOptions> = {
-			...(options ?? {}),
-		};
+	const fit = useCallback(() => {
+		sendToWebView({ type: 'fit' });
+	}, [sendToWebView]);
 
-		// Compute shallow patch of changed keys to reduce noise
-		const prev: Partial<ITerminalOptions> = (prevOptsRef.current ??
-			{}) as Partial<ITerminalOptions>;
-		type PatchRecord = Partial<
-			Record<keyof ITerminalOptions, ITerminalOptions[keyof ITerminalOptions]>
-		>;
-		const patch: PatchRecord = {};
-		const keys = new Set<string>([
-			...Object.keys(prev as object),
-			...Object.keys(merged as object),
-		]);
-		let changed = false;
-		for (const k of keys) {
-			const key = k as keyof ITerminalOptions;
-			const prevVal = prev[key];
-			const nextVal = merged[key];
-			if (prevVal !== nextVal) {
-				patch[key] = nextVal as ITerminalOptions[keyof ITerminalOptions];
-				changed = true;
+	const autoFitFn = useCallback(() => {
+		if (!autoFit) return;
+		fit();
+	}, [autoFit, fit]);
+
+	const appliedSizeRef = useRef<{ cols: number; rows: number } | null>(null);
+
+	useEffect(() => {
+		const appliedSize = appliedSizeRef.current;
+		if (!size) return;
+		if (appliedSize?.cols === size.cols && appliedSize?.rows === size.rows)
+			return;
+
+		logger?.log?.(`calling resize`, size);
+		sendToWebView({ type: 'resize', cols: size.cols, rows: size.rows });
+		autoFitFn();
+
+		appliedSizeRef.current = size;
+	}, [size, sendToWebView, logger, autoFitFn]);
+
+	useImperativeHandle(ref, () => ({
+		write,
+		writeMany,
+		flush,
+		clear: () => sendToWebView({ type: 'clear' }),
+		focus: () => {
+			sendToWebView({ type: 'focus' });
+			webRef.current?.requestFocus();
+		},
+		resize: (size: { cols: number; rows: number }) => {
+			sendToWebView({ type: 'resize', cols: size.cols, rows: size.rows });
+			autoFitFn();
+			appliedSizeRef.current = size;
+		},
+		fit,
+	}));
+
+	const mergedXTermOptions = useMemo(
+		() => ({
+			...defaultXtermOptions,
+			...xtermOptions,
+		}),
+		[xtermOptions],
+	);
+
+	const appliedXtermOptionsRef = useRef<Partial<ITerminalOptions> | null>(null);
+
+	useEffect(() => {
+		const appliedXtermOptions = appliedXtermOptionsRef.current;
+		if (xTermOptionsEquals(appliedXtermOptions, mergedXTermOptions)) return;
+		logger?.log?.(`setting options: `, mergedXTermOptions);
+		sendToWebView({ type: 'setOptions', opts: mergedXTermOptions });
+
+		appliedXtermOptionsRef.current = mergedXTermOptions;
+	}, [mergedXTermOptions, sendToWebView, logger]);
+
+	const onMessage = useCallback(
+		(e: WebViewMessageEvent) => {
+			try {
+				const msg: BridgeInboundMessage = JSON.parse(e.nativeEvent.data);
+				logger?.log?.(`received msg from webview: `, msg);
+				if (msg.type === 'initialized') {
+					onInitialized?.();
+					autoFitFn();
+					return;
+				}
+				if (msg.type === 'input') {
+					// const bytes = bStrToBinary(msg.bStr);
+					// onData?.(bytes);
+					onData?.(msg.str);
+					return;
+				}
+				if (msg.type === 'debug') {
+					logger?.log?.(`received debug msg from webview: `, msg.message);
+					return;
+				}
+				webViewOptions?.onMessage?.(e);
+			} catch (error) {
+				logger?.warn?.(
+					`received unknown msg from webview: `,
+					e.nativeEvent.data,
+					error,
+				);
 			}
-		}
-		if (changed) {
-			send({ type: 'setOptions', opts: patch });
-			prevOptsRef.current = merged;
-		}
-	}, [options]);
+		},
+		[logger, webViewOptions, onInitialized, autoFitFn, onData],
+	);
+
+	const onContentProcessDidTerminate = useCallback<
+		NonNullable<WebViewOptions['onContentProcessDidTerminate']>
+	>(
+		(e) => {
+			logger?.warn?.('WebView Crashed on iOS! onContentProcessDidTerminate');
+			webViewOptions?.onContentProcessDidTerminate?.(e);
+		},
+		[logger, webViewOptions],
+	);
+
+	const onRenderProcessGone = useCallback<
+		NonNullable<WebViewOptions['onRenderProcessGone']>
+	>(
+		(e) => {
+			logger?.warn?.('WebView Crashed on Android! onRenderProcessGone');
+			webViewOptions?.onRenderProcessGone?.(e);
+		},
+		[logger, webViewOptions],
+	);
+
+	const onLoadEnd = useCallback<NonNullable<WebViewOptions['onLoadEnd']>>(
+		(e) => {
+			logger?.log?.('WebView onLoadEnd');
+			webViewOptions?.onLoadEnd?.(e);
+		},
+		[logger, webViewOptions],
+	);
+
+	const mergedWebViewOptions = useMemo(
+		() => ({
+			...defaultWebViewProps,
+			...webViewOptions,
+			onContentProcessDidTerminate,
+			onRenderProcessGone,
+			onLoadEnd,
+		}),
+		[
+			webViewOptions,
+			onContentProcessDidTerminate,
+			onRenderProcessGone,
+			onLoadEnd,
+		],
+	);
 
 	return (
 		<WebView
 			ref={webRef}
-			originWhitelist={['*']}
-			scalesPageToFit={false}
-			contentMode="mobile"
 			source={{ html: htmlString }}
-			onMessage={(e) => {
-				try {
-					const msg: InboundMessage = JSON.parse(e.nativeEvent.data);
-					console.log('received msg', msg);
-					if (msg.type === 'initialized') {
-						onMessage?.({ type: 'initialized' });
-						return;
-					}
-					if (msg.type === 'input') {
-						const bytes = Base64.toUint8Array(msg.b64);
-						onMessage?.({ type: 'data', data: bytes });
-						return;
-					}
-					if (msg.type === 'debug') {
-						onMessage?.({ type: 'debug', message: msg.message });
-						return;
-					}
-				} catch {
-					// ignore unknown payloads
-				}
-			}}
-			{...props}
+			onMessage={onMessage}
+			style={style}
+			{...mergedWebViewOptions}
 		/>
 	);
 }

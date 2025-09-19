@@ -50,6 +50,8 @@ function RouteSkeleton() {
 	);
 }
 
+const encoder = new TextEncoder();
+
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
 	const terminalReadyRef = useRef(false);
@@ -151,100 +153,72 @@ function ShellDetail() {
 			<XtermJsWebView
 				ref={xtermRef}
 				style={{ flex: 1 }}
-				// WebView behavior that suits terminals
-				keyboardDisplayRequiresUserAction={false}
-				setSupportMultipleWindows={false}
-				overScrollMode="never"
-				pullToRefreshEnabled={false}
-				bounces={false}
-				setBuiltInZoomControls={false}
-				setDisplayZoomControls={false}
-				textZoom={100}
-				allowsLinkPreview={false}
-				textInteractionEnabled={false}
+				logger={{
+					log: console.log,
+					debug: console.log,
+					warn: console.warn,
+					error: console.error,
+				}}
 				// xterm options
-				options={{
-					fontFamily: 'Menlo, ui-monospace, monospace',
-					fontSize: 80,
-					cursorBlink: true,
-					scrollback: 10000,
+				xtermOptions={{
 					theme: {
 						background: theme.colors.background,
 						foreground: theme.colors.textPrimary,
 					},
 				}}
-				onRenderProcessGone={() => {
-					console.log('WebView render process gone -> clear()');
-					const xr = xtermRef.current;
-					if (xr) xr.clear();
-				}}
-				onContentProcessDidTerminate={() => {
-					console.log('WKWebView content process terminated -> clear()');
-					const xr = xtermRef.current;
-					if (xr) xr.clear();
-				}}
-				onLoadEnd={() => {
-					console.log('WebView onLoadEnd');
-				}}
-				onMessage={(m) => {
-					console.log('received msg', m);
-					if (m.type === 'initialized') {
-						if (terminalReadyRef.current) return;
-						terminalReadyRef.current = true;
+				onInitialized={() => {
+					if (terminalReadyRef.current) return;
+					terminalReadyRef.current = true;
 
-						// Replay from head, then attach live listener
-						if (shell) {
-							void (async () => {
-								const res = await shell.readBuffer({ mode: 'head' });
-								console.log('readBuffer(head)', {
-									chunks: res.chunks.length,
-									nextSeq: res.nextSeq,
-									dropped: res.dropped,
-								});
-								if (res.chunks.length) {
-									const chunks = res.chunks.map((c) => c.bytes);
-									const xr = xtermRef.current;
-									if (xr) {
-										xr.writeMany(chunks);
-										xr.flush();
-									}
-								}
-								const id = shell.addListener(
-									(ev: ListenerEvent) => {
-										if ('kind' in ev) {
-											console.log('listener.dropped', ev);
-											return;
-										}
-										const chunk = ev;
-										const xr3 = xtermRef.current;
-										if (xr3) xr3.write(chunk.bytes);
-									},
-									{ cursor: { mode: 'seq', seq: res.nextSeq } },
-								);
-								console.log('shell listener attached', id.toString());
-								listenerIdRef.current = id;
-							})();
-						}
-
-						// Focus to pop the keyboard (iOS needs the prop we set)
-						const xr2 = xtermRef.current;
-						if (xr2) xr2.focus();
-						return;
-					}
-					if (m.type === 'data') {
-						console.log('xterm->SSH', { len: m.data.length });
-						const { buffer, byteOffset, byteLength } = m.data;
-						const ab = buffer.slice(byteOffset, byteOffset + byteLength);
-						if (shell) {
-							shell.sendData(ab as ArrayBuffer).catch((e: unknown) => {
-								console.warn('sendData failed', e);
-								router.back();
+					// Replay from head, then attach live listener
+					if (shell) {
+						void (async () => {
+							const res = await shell.readBuffer({ mode: 'head' });
+							console.log('readBuffer(head)', {
+								chunks: res.chunks.length,
+								nextSeq: res.nextSeq,
+								dropped: res.dropped,
 							});
-						}
-						return;
-					} else {
-						console.log('xterm.debug', m.message);
+							if (res.chunks.length) {
+								const chunks = res.chunks.map((c) => c.bytes);
+								const xr = xtermRef.current;
+								if (xr) {
+									xr.writeMany(chunks);
+									xr.flush();
+								}
+							}
+							const id = shell.addListener(
+								(ev: ListenerEvent) => {
+									if ('kind' in ev) {
+										console.log('listener.dropped', ev);
+										return;
+									}
+									const chunk = ev;
+									const xr3 = xtermRef.current;
+									if (xr3) xr3.write(chunk.bytes);
+								},
+								{ cursor: { mode: 'seq', seq: res.nextSeq } },
+							);
+							console.log('shell listener attached', id.toString());
+							listenerIdRef.current = id;
+						})();
 					}
+
+					// Focus to pop the keyboard (iOS needs the prop we set)
+					const xr2 = xtermRef.current;
+					if (xr2) xr2.focus();
+					return;
+				}}
+				onData={(terminalMessage) => {
+					if (!shell) return;
+					const bytes = encoder.encode(terminalMessage);
+					if (shell) {
+						shell.sendData(bytes.buffer).catch((e: unknown) => {
+							console.warn('sendData failed', e);
+							router.back();
+						});
+					}
+					return;
 				}}
 			/>
 		</SafeAreaView>
