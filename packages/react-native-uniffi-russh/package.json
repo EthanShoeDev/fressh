@@ -32,17 +32,18 @@
     "!**/.*"
   ],
   "scripts": {
-    "build": "if [ \"$(uname)\" = \"Darwin\" ]; then npm run build:ios; else npm run build:android; fi",
-    "build:ios": "ubrn build ios --and-generate --release && bob build",
-    "build:android": "ubrn build android --and-generate --release && bob build",
-    "ubrn:web": "ubrn build web",
-    "ubrn:clean": "rm -rfv cpp/ android/CMakeLists.txt android/src/main/java android/*.cpp ios/ src/Native* src/index.*ts* src/generated/",
-    "test": "jest",
+    "fmt": "cross-env SORT_IMPORTS=true prettier --write .",
+    "fmt:check": "cross-env SORT_IMPORTS=true prettier --check .",
+    "lint": "eslint --fix --max-warnings 0 --report-unused-disable-directives .",
+    "lint:check": "eslint --max-warnings 0 --report-unused-disable-directives .",
     "typecheck": "tsc",
-    "lint": "eslint \"**/*.{js,ts,tsx}\"",
-    "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
-    "release": "release-it --only-version",
-    "lint:rust": "cd rust/uniffi-russh && just lint"
+    "build:ios": "ubrn build ios --and-generate --release",
+    "build:android": "ubrn build android --and-generate --release",
+    "build:bob": "bob build",
+    "build": "if [ \"$(uname)\" = \"Darwin\" ]; then turbo build:ios; else turbo build:android; fi",
+    "lint:rust": "cd rust/uniffi-russh && just lint",
+    "test": "jest",
+    "release": "release-it --only-version"
   },
   "keywords": [
     "react-native",
@@ -67,7 +68,6 @@
     "@release-it/conventional-changelog": "^10.0.1",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.1.12",
-    "del-cli": "^6.0.0",
     "eslint": "^9.35.0",
     "jest": "^30.1.3",
     "prettier": "^3.6.2",
@@ -77,6 +77,9 @@
     "release-it": "^19.0.4",
     "turbo": "^2.5.6",
     "typescript": "~5.9.2"
+  },
+  "dependencies": {
+    "uniffi-bindgen-react-native": "github:EthanShoeDev/uniffi-bindgen-react-native#build-ts"
   },
   "peerDependencies": {
     "react": "19.1.0",
@@ -126,8 +129,5 @@
     "languages": "kotlin-objc",
     "type": "turbo-module",
     "version": "0.54.3"
-  },
-  "dependencies": {
-    "uniffi-bindgen-react-native": "github:EthanShoeDev/uniffi-bindgen-react-native#build-ts"
   }
 }

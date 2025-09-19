@@ -7,14 +7,14 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "dev": "vite --config vite.config.internal.ts",
+    "fmt": "cross-env SORT_IMPORTS=true prettier --write .",
+    "fmt:check": "cross-env SORT_IMPORTS=true prettier --check .",
+    "lint": "eslint --fix --max-warnings 0 --report-unused-disable-directives .",
+    "lint:check": "eslint --max-warnings 0 --report-unused-disable-directives .",
+    "typecheck": "tsc --noEmit",
     "build:main": "tsc -b && vite build",
     "build:internal": "tsc -b && vite build --config vite.config.internal.ts",
-    "fmt:check": "cross-env SORT_IMPORTS=true prettier --check .",
-    "fmt": "cross-env SORT_IMPORTS=true prettier --write .",
-    "eslint:check": "eslint . --report-unused-disable-directives --max-warnings 0",
-    "lint:fix": "eslint --fix --report-unused-disable-directives --max-warnings 0 .",
-    "typecheck": "tsc --noEmit",
+    "dev": "vite --config vite.config.internal.ts",
     "preview": "vite preview"
   },
   "dependencies": {

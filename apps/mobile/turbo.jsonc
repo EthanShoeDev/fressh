@@ -1,0 +1,32 @@
+{
+	"extends": ["//"],
+	"tasks": {
+		// Default overrides
+		"lint": {
+			"dependsOn": ["fmt", "^build"],
+			"with": ["typecheck", "//#lint:root", "expo:doctor"],
+		},
+		"lint:check": {
+			"dependsOn": ["^build"],
+			"with": ["fmt:check", "typecheck", "//#lint:check:root", "expo:doctor"],
+		},
+		"test": {
+			"dependsOn": ["^build"],
+			"with": ["test:e2e"],
+		},
+		"dev:android": {
+			"dependsOn": ["^build", "^build:android"],
+			"cache": false,
+			"persistent": true,
+		},
+		"dev:ios": {
+			"dependsOn": ["^build", "^build:ios"],
+			"cache": false,
+			"persistent": true,
+		},
+
+		// Special tasks
+		"expo:doctor": {},
+		"test:e2e": {},
+	},
+}

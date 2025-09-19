@@ -1,0 +1,64 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"ui": "tui",
+	"tasks": {
+		// Defaults
+		"fmt": { "with": ["//#fmt:root"] },
+		"fmt:check": { "with": ["//#fmt:check:root"] },
+		"lint": {
+			"dependsOn": ["fmt", "^build"],
+			"with": ["typecheck", "//#lint:root"],
+		},
+		"lint:check": {
+			"dependsOn": ["^build"],
+			"with": ["fmt:check", "typecheck", "//#lint:check:root"],
+		},
+		"typecheck": {
+			"dependsOn": ["^build"],
+		},
+		"build": {
+			"dependsOn": ["^build"],
+		},
+		"build:ios": {
+			"dependsOn": ["^build"],
+		},
+		"build:android": {
+			"dependsOn": ["^build"],
+		},
+		"test": {
+			"dependsOn": ["^build"],
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true,
+			"dependsOn": ["^build"],
+		},
+		"clean": { "cache": false, "dependsOn": ["^clean"] },
+		// Root tasks overrides
+		"//#fmt:root": {},
+		"//#fmt:check:root": {},
+		"//#lint:root": {
+			"dependsOn": ["fmt:root"],
+			"with": [
+				"syncpack:fix",
+				"jscpd:check",
+				// "knip:fix:danger",
+			],
+		},
+		"//#lint:check:root": {
+			"with": [
+				"fmt:check:root",
+				"syncpack:check",
+				"jscpd:check",
+				//"knip:check",
+			],
+		},
+
+		// Special root tasks
+		"//#jscpd:check": {},
+		"//#syncpack:fix": {},
+		"//#syncpack:check": {},
+		"//#knip:check": {},
+		"//#knip:fix:danger": {},
+	},
+}

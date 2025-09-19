@@ -1,0 +1,27 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // Default overrides
+    "lint": {
+      "dependsOn": ["fmt", "^build"],
+      "with": ["typecheck", "//#lint:root", "lint:rust"],
+    },
+    "lint:check": {
+      "dependsOn": ["^build"],
+      "with": ["fmt:check", "typecheck", "//#lint:check:root", "lint:rust"],
+    },
+    "build:android": {
+      "outputs": ["dist/**"],
+      "dependsOn": ["^build", "build:bob"],
+    },
+    "build:ios": {
+      "outputs": ["dist/**"],
+      "dependsOn": ["^build", "build:bob"],
+    },
+
+    // Special tasks
+    "lint:rust": {},
+    "build:bob": {},
+  },
+}

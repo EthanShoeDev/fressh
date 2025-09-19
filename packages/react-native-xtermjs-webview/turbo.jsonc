@@ -1,19 +1,20 @@
 {
 	"extends": ["//"],
 	"tasks": {
+		// Default overrides
 		"build": {
-			"dependsOn": ["build:internal", "build:main"]
+			"dependsOn": ["build:internal", "build:main"],
 		},
+
+		// Special tasks
 		"build:main": {
 			"inputs": ["src/**"],
 			"dependsOn": ["build:internal"],
-			"outputs": ["dist/**"]
+			"outputs": ["dist/**"],
 		},
 		"build:internal": {
 			"inputs": ["src-internal/**"],
-			"outputs": ["dist-internal/**"]
+			"outputs": ["dist-internal/**"],
 		},
-		"lint": {},
-		"lint:check": {}
-	}
+	},
 }

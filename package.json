@@ -2,32 +2,31 @@
   "name": "fressh",
   "private": true,
   "version": "workspace:*",
-  "packageManager": "pnpm@10.16.1",
+  "packageManager": "pnpm@10.17.0",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "test": "turbo test",
-    "lint:all": "turbo lint",
-    "lint:check:all": "turbo lint:check",
-    "lint:root": "pnpm run fmt:root && syncpack list-mismatches || (syncpack fix-mismatches && pnpm i)",
-    "lint:check:root": "syncpack list-mismatches",
     "fmt:root": "prettier --cache --write .",
     "fmt:check:root": "prettier --check .",
-    "update:all": "syncpack update",
-    "update:all:alt": "pnpm dlx npm-check-updates --interactive --format group -ws --root",
+    "syncpack:fix": "syncpack list-mismatches || (syncpack fix-mismatches && pnpm i)",
+    "syncpack:check": "syncpack list-mismatches",
+    "jscpd:check": "cross-env NODE_OPTIONS=--max-old-space-size=8192 jscpd --config .jscpd.json",
     "knip:check": "knip",
     "knip:fix:danger": "knip --fix",
-    "jscpd:check": "cross-env NODE_OPTIONS=--max-old-space-size=8192 jscpd --config .jscpd.json"
+    "update:all": "syncpack update",
+    "update:all:alt": "pnpm dlx npm-check-updates --interactive --format group -ws --root"
   },
   "devDependencies": {
-    "knip": "^5.63.1",
-    "cross-env": "^10.0.0",
     "@epic-web/config": "^1.21.3",
-    "prettier": "^3.6.2",
+    "cross-env": "^10.0.0",
+    "globby": "^14.1.0",
     "jscpd": "^4.0.5",
+    "knip": "^5.63.1",
+    "prettier": "^3.6.2",
     "syncpack": "^13.0.4",
+    "tsx": "^4.20.5",
     "turbo": "^2.5.6",
     "typescript": "~5.9.2"
   }
