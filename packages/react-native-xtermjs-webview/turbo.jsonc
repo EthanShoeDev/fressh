@@ -8,12 +8,12 @@
 
 		// Special tasks
 		"build:main": {
-			"inputs": ["src/**"],
+			"inputs": ["src/**", "vite.config.ts"],
 			"dependsOn": ["build:internal"],
 			"outputs": ["dist/**"],
 		},
 		"build:internal": {
-			"inputs": ["src-internal/**"],
+			"inputs": ["src-internal/**", "index.html", "vite.config.internal.ts"],
 			"outputs": ["dist-internal/**"],
 		},
 	},

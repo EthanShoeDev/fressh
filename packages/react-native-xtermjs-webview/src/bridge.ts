@@ -1,5 +1,6 @@
 import { Base64 } from 'js-base64';
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
+type ITerminalInitOnlyOptions = import('@xterm/xterm').ITerminalInitOnlyOptions;
 // Messages posted from the WebView (xterm page) to React Native
 export type BridgeInboundMessage =
 	| { type: 'initialized' }
@@ -12,7 +13,11 @@ export type BridgeOutboundMessage =
 	| { type: 'writeMany'; chunks: string[] }
 	| { type: 'resize'; cols: number; rows: number }
 	| { type: 'fit' }
-	| { type: 'setOptions'; opts: Partial<ITerminalOptions> }
+	| {
+		type: 'setOptions'; opts: Partial<
+			Omit<ITerminalOptions, keyof ITerminalInitOnlyOptions>
+		>
+	}
 	| { type: 'clear' }
 	| { type: 'focus' };
 

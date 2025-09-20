@@ -82,9 +82,9 @@ function makeBetterSecureStore<
 		const unsafedRootManifest: unknown = rawRootManifestString
 			? JSON.parse(rawRootManifestString)
 			: {
-				manifestVersion: rootManifestVersion,
-				manifestChunksIds: [],
-			};
+					manifestVersion: rootManifestVersion,
+					manifestChunksIds: [],
+				};
 		const rootManifest = rootManifestSchema.parse(unsafedRootManifest);
 		const manifestChunks = await Promise.all(
 			rootManifest.manifestChunksIds.map(async (manifestChunkId) => {
@@ -409,7 +409,11 @@ async function upsertConnection(params: {
 	priority: number;
 	label?: string;
 }) {
-	const id = `${params.details.username}-${params.details.host}-${params.details.port}`.replaceAll('.', '_');
+	const id =
+		`${params.details.username}-${params.details.host}-${params.details.port}`.replaceAll(
+			'.',
+			'_',
+		);
 	await betterConnectionStorage.upsertEntry({
 		id,
 		metadata: {

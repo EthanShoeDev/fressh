@@ -151,14 +151,14 @@ function ShellDetail() {
 				style={{ flex: 1 }}
 				logger={{
 					log: console.log,
-					debug: console.log,
+					// debug: console.log,
 					warn: console.warn,
 					error: console.error,
 				}}
 				// xterm options
 				xtermOptions={{
 					theme: {
-						background: 'red',
+						background: theme.colors.background,
 						foreground: theme.colors.textPrimary,
 					},
 				}}

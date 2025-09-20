@@ -4,6 +4,7 @@ import React, {
 	useMemo,
 	useRef,
 	useCallback,
+	useState,
 } from 'react';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import htmlString from '../dist-internal/index.html?raw';
@@ -63,7 +64,7 @@ const defaultWebViewProps: WebViewOptions = {
 
 const defaultXtermOptions: Partial<ITerminalOptions> = {
 	fontFamily: 'Menlo, ui-monospace, monospace',
-	fontSize: 80,
+	fontSize: 20,
 	cursorBlink: true,
 	scrollback: 10000,
 };
@@ -125,6 +126,7 @@ export function XtermJsWebView({
 	autoFit = true,
 }: XtermJsWebViewProps) {
 	const webRef = useRef<WebView>(null);
+	const [initialized, setInitialized] = useState(false);
 
 	// ---- RN -> WebView message sender
 	const sendToWebView = useCallback(
@@ -132,7 +134,7 @@ export function XtermJsWebView({
 			const webViewRef = webRef.current;
 			if (!webViewRef) return;
 			const payload = JSON.stringify(obj);
-			logger?.log?.(`sending msg to webview: ${payload}`);
+			logger?.debug?.(`sending msg to webview: ${payload}`);
 			const js = `window.dispatchEvent(new MessageEvent('message',{data:${payload}})); true;`;
 			webViewRef.injectJavaScript(js);
 		},
@@ -211,6 +213,7 @@ export function XtermJsWebView({
 	const appliedSizeRef = useRef<{ cols: number; rows: number } | null>(null);
 
 	useEffect(() => {
+		if (!initialized) return;
 		const appliedSize = appliedSizeRef.current;
 		if (!size) return;
 		if (appliedSize?.cols === size.cols && appliedSize?.rows === size.rows)
@@ -221,7 +224,7 @@ export function XtermJsWebView({
 		autoFitFn();
 
 		appliedSizeRef.current = size;
-	}, [size, sendToWebView, logger, autoFitFn]);
+	}, [size, sendToWebView, logger, autoFitFn, initialized]);
 
 	useImperativeHandle(ref, () => ({
 		write,
@@ -251,13 +254,14 @@ export function XtermJsWebView({
 	const appliedXtermOptionsRef = useRef<Partial<ITerminalOptions> | null>(null);
 
 	useEffect(() => {
+		if (!initialized) return;
 		const appliedXtermOptions = appliedXtermOptionsRef.current;
 		if (xTermOptionsEquals(appliedXtermOptions, mergedXTermOptions)) return;
 		logger?.log?.(`setting options: `, mergedXTermOptions);
 		sendToWebView({ type: 'setOptions', opts: mergedXTermOptions });
 
 		appliedXtermOptionsRef.current = mergedXTermOptions;
-	}, [mergedXTermOptions, sendToWebView, logger]);
+	}, [mergedXTermOptions, sendToWebView, logger, initialized]);
 
 	const onMessage = useCallback(
 		(e: WebViewMessageEvent) => {
@@ -267,6 +271,7 @@ export function XtermJsWebView({
 				if (msg.type === 'initialized') {
 					onInitialized?.();
 					autoFitFn();
+					setInitialized(true);
 					return;
 				}
 				if (msg.type === 'input') {

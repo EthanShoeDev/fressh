@@ -94,7 +94,7 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 					break;
 				}
 				case 'setOptions': {
-					const newOpts: ITerminalOptions = {
+					const newOpts: ITerminalOptions & { cols?: never; rows?: never } = {
 						...term.options,
 						...msg.opts,
 						theme: {
@@ -102,6 +102,8 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 							...msg.opts.theme,
 						},
 					};
+					delete newOpts.cols;
+					delete newOpts.rows;
 					term.options = newOpts;
 					if (
 						'theme' in newOpts &&
@@ -109,7 +111,7 @@ if (window.__FRESSH_XTERM_BRIDGE__) {
 						'background' in newOpts.theme &&
 						newOpts.theme.background
 					) {
-						document.body.style.backgroundColor = 'blue'; // TODO: Just for debugging
+						document.body.style.backgroundColor = newOpts.theme.background;
 					}
 					break;
 				}
