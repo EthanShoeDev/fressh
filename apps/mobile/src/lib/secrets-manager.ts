@@ -82,9 +82,9 @@ function makeBetterSecureStore<
 		const unsafedRootManifest: unknown = rawRootManifestString
 			? JSON.parse(rawRootManifestString)
 			: {
-					manifestVersion: rootManifestVersion,
-					manifestChunksIds: [],
-				};
+				manifestVersion: rootManifestVersion,
+				manifestChunksIds: [],
+			};
 		const rootManifest = rootManifestSchema.parse(unsafedRootManifest);
 		const manifestChunks = await Promise.all(
 			rootManifest.manifestChunksIds.map(async (manifestChunkId) => {
@@ -290,6 +290,7 @@ function makeBetterSecureStore<
 			}),
 			...valueChunks.map(async (vChunk, chunkIdx) => {
 				const entryKeyString = entryKey(newManifestEntry.id, chunkIdx);
+				console.log('DEBUG: setting entry chunk', entryKeyString);
 				await SecureStore.setItemAsync(entryKeyString, vChunk);
 				log(
 					`Set entry chunk for ${entryKeyString} ${chunkIdx} to ${vChunk.length} bytes`,
@@ -325,20 +326,23 @@ const betterKeyStorage = makeBetterSecureStore<KeyMetadata>({
 });
 
 async function upsertPrivateKey(params: {
-	keyId: string;
+	keyId?: string;
 	metadata: StrictOmit<KeyMetadata, 'createdAtMs'>;
 	value: string;
 }) {
-	log(`Upserting private key ${params.keyId}`);
+	const validKey = RnRussh.validatePrivateKey(params.value);
+	if (!validKey) throw new Error('Invalid private key');
+	const keyId = params.keyId ?? `key_${Crypto.randomUUID()}`;
+	log(`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`);
 	// Preserve createdAtMs if the entry already exists
 	const existing = await betterKeyStorage
-		.getEntry(params.keyId)
+		.getEntry(keyId)
 		.catch(() => undefined);
 	const createdAtMs =
 		existing?.manifestEntry.metadata.createdAtMs ?? Date.now();
 
 	await betterKeyStorage.upsertEntry({
-		id: params.keyId,
+		id: keyId,
 		metadata: {
 			...params.metadata,
 			createdAtMs,
@@ -393,6 +397,7 @@ const betterConnectionStorage = makeBetterSecureStore({
 		priority: z.number(),
 		createdAtMs: z.int(),
 		modifiedAtMs: z.int(),
+		label: z.string().optional(),
 	}),
 	parseValue: (value) => connectionDetailsSchema.parse(JSON.parse(value)),
 });
@@ -400,16 +405,18 @@ const betterConnectionStorage = makeBetterSecureStore({
 export type InputConnectionDetails = z.infer<typeof connectionDetailsSchema>;
 
 async function upsertConnection(params: {
-	id: string;
 	details: InputConnectionDetails;
 	priority: number;
+	label?: string;
 }) {
+	const id = `${params.details.username}-${params.details.host}-${params.details.port}`.replaceAll('.', '_');
 	await betterConnectionStorage.upsertEntry({
-		id: params.id,
+		id,
 		metadata: {
 			priority: params.priority,
-			createdAtMs: Date.now(),
 			modifiedAtMs: Date.now(),
+			createdAtMs: Date.now(),
+			label: params.label,
 		},
 		value: JSON.stringify(params.details),
 	});
@@ -436,32 +443,13 @@ const getConnectionQueryOptions = (id: string) =>
 		queryFn: () => betterConnectionStorage.getEntry(id),
 	});
 
-// https://github.com/dylankenneally/react-native-ssh-sftp/blob/ea55436d8d40378a8f9dabb95b463739ffb219fa/android/src/main/java/me/keeex/rnssh/RNSshClientModule.java#L101-L119
-export type SshPrivateKeyType = 'dsa' | 'rsa' | 'ecdsa' | 'ed25519' | 'ed448';
-async function generateKeyPair(params: {
-	type: SshPrivateKeyType;
-	passphrase?: string;
-	keySize?: number;
-	comment?: string;
-}) {
-	log('DEBUG: generating key pair', params);
-	const keyPair = await RnRussh.generateKeyPair(
-		'ed25519',
-		// params.keySize,
-		// params.comment ?? '',
-	);
-	return keyPair;
-}
-
 export const secretsManager = {
 	keys: {
 		utils: {
 			upsertPrivateKey,
 			deletePrivateKey,
-			generateKeyPair,
 			listEntriesWithValues: betterKeyStorage.listEntriesWithValues,
 			getPrivateKey: (keyId: string) => betterKeyStorage.getEntry(keyId),
-			// Intentionally no specialized setters; use upsertPrivateKey instead.
 		},
 		query: {
 			list: listKeysQueryOptions,

@@ -1,5 +1,5 @@
+import { RnRussh } from '@fressh/react-native-uniffi-russh';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import * as Crypto from 'expo-crypto';
 import * as DocumentPicker from 'expo-document-picker';
 import React from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -17,13 +17,8 @@ export function KeyList(props: {
 
 	const generateMutation = useMutation({
 		mutationFn: async () => {
-			const id = `key_${Date.now()}`;
-			const pair = await secretsManager.keys.utils.generateKeyPair({
-				type: 'rsa',
-				keySize: 4096,
-			});
+			const pair = await RnRussh.generateKeyPair('ed25519');
 			await secretsManager.keys.utils.upsertPrivateKey({
-				keyId: id,
 				metadata: { priority: 0, label: 'New Key', isDefault: false },
 				value: pair,
 			});
@@ -98,9 +93,7 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 		mutationFn: async () => {
 			const trimmed = content.trim();
 			if (!trimmed) throw new Error('No key content provided');
-			const keyId = `key_${Crypto.randomUUID()}`;
 			await secretsManager.keys.utils.upsertPrivateKey({
-				keyId,
 				metadata: {
 					priority: 0,
 					label: label || 'Imported Key',

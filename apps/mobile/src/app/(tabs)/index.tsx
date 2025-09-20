@@ -683,13 +683,10 @@ function ConnectionRow(props: {
 									}
 									// Recreate under new id then delete old
 									await secretsManager.connections.utils.upsertConnection({
-										id: newId,
 										details,
 										priority: 0,
+										label: newId,
 									});
-									await secretsManager.connections.utils.deleteConnection(
-										props.id,
-									);
 									await listQuery.refetch();
 									setRenameOpen(false);
 								}}

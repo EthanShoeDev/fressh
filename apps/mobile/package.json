@@ -21,7 +21,9 @@
     "expo:dep:check": "expo install --fix",
     "expo:doctor": "pnpm dlx expo-doctor@latest",
     "test:e2e": "maestro test test/e2e/",
-    "adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done"
+    "adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

@@ -33,8 +33,8 @@ export type ConnectionDetails = {
   port: number;
   username: string;
   security:
-    | { type: 'password'; password: string }
-    | { type: 'key'; privateKey: string };
+  | { type: 'password'; password: string }
+  | { type: 'key'; privateKey: string };
 };
 
 /**
@@ -147,7 +147,13 @@ export type SshShell = {
 type RusshApi = {
   uniffiInitAsync: () => Promise<void>;
   connect: (opts: ConnectOptions) => Promise<SshConnection>;
-  generateKeyPair: (type: 'rsa' | 'ecdsa' | 'ed25519') => Promise<string>;
+  generateKeyPair: (type: 'rsa' | 'ecdsa' | 'ed25519',
+    // TODO: Add these
+    // passphrase?: string;
+    // keySize?: number;
+    // comment?: string;
+  ) => Promise<string>;
+  validatePrivateKey: (key: string) => boolean;
 };
 
 // #endregion
@@ -312,8 +318,8 @@ function wrapConnection(
           term: terminalTypeLiteralToEnum[params.term],
           onClosedCallback: params.onClosed
             ? {
-                onChange: (channelId) => params.onClosed!(channelId),
-              }
+              onChange: (channelId) => params.onClosed!(channelId),
+            }
             : undefined,
           terminalMode: params.terminalMode,
           terminalPixelSize: params.terminalPixelSize,
@@ -332,11 +338,11 @@ async function connect(options: ConnectOptions): Promise<SshConnection> {
   const security =
     options.security.type === 'password'
       ? new GeneratedRussh.Security.Password({
-          password: options.security.password,
-        })
+        password: options.security.password,
+      })
       : new GeneratedRussh.Security.Key({
-          privateKeyContent: options.security.privateKey,
-        });
+        privateKeyContent: options.security.privateKey,
+      });
   const sshConnection = await GeneratedRussh.connect(
     {
       connectionDetails: {
@@ -347,16 +353,16 @@ async function connect(options: ConnectOptions): Promise<SshConnection> {
       },
       onConnectionProgressCallback: options.onConnectionProgress
         ? {
-            onChange: (statusEnum) =>
-              options.onConnectionProgress!(
-                sshConnProgressEnumToLiteral[statusEnum]
-              ),
-          }
+          onChange: (statusEnum) =>
+            options.onConnectionProgress!(
+              sshConnProgressEnumToLiteral[statusEnum]
+            ),
+        }
         : undefined,
       onDisconnectedCallback: options.onDisconnected
         ? {
-            onChange: (connectionId) => options.onDisconnected!(connectionId),
-          }
+          onChange: (connectionId) => options.onDisconnected!(connectionId),
+        }
         : undefined,
     },
     options.abortSignal ? { signal: options.abortSignal } : undefined
@@ -373,10 +379,20 @@ async function generateKeyPair(type: 'rsa' | 'ecdsa' | 'ed25519') {
   return GeneratedRussh.generateKeyPair(map[type]);
 }
 
+function validatePrivateKey(key: string) {
+  try {
+    GeneratedRussh.validatePrivateKey(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // #endregion
 
 export const RnRussh = {
   uniffiInitAsync: GeneratedRussh.uniffiInitAsync,
   connect,
   generateKeyPair,
+  validatePrivateKey,
 } satisfies RusshApi;

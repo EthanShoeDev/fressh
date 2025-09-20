@@ -16,6 +16,7 @@ import {
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useShallow } from 'zustand/react/shallow';
 import { preferences } from '@/lib/preferences';
 import {} from '@/lib/query-fns';
 import { useSshStore } from '@/lib/ssh-store';
@@ -31,7 +32,9 @@ export default function TabsShellList() {
 }
 
 function ShellContent() {
-	const connections = useSshStore((s) => Object.values(s.connections));
+	const connections = useSshStore(
+		useShallow((s) => Object.values(s.connections)),
+	);
 
 	return (
 		<View style={{ flex: 1 }}>
@@ -92,7 +95,7 @@ function FlatView({
 }: {
 	setActionTarget: (target: ActionTarget) => void;
 }) {
-	const shells = useSshStore((s) => Object.values(s.shells));
+	const shells = useSshStore(useShallow((s) => Object.values(s.shells)));
 
 	return (
 		<FlashList<SshShell>
@@ -125,8 +128,10 @@ function GroupedView({
 }) {
 	const theme = useTheme();
 	const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
-	const connections = useSshStore((s) => Object.values(s.connections));
-	const shells = useSshStore((s) => Object.values(s.shells));
+	const connections = useSshStore(
+		useShallow((s) => Object.values(s.connections)),
+	);
+	const shells = useSshStore(useShallow((s) => Object.values(s.shells)));
 	return (
 		<FlashList<SshConnection>
 			data={connections}
