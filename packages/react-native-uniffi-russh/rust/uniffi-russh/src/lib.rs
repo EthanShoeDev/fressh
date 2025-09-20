@@ -897,3 +897,71 @@ impl From<russh::client::AuthResult> for SshError {
         SshError::Auth(format!("{a:?}"))
     }
 }
+
+
+// ---------- Unit Tests ----------
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_private_key_rejects_invalid_constant() {
+        let invalid_key = "this is not a private key".to_string();
+        let result = validate_private_key(invalid_key);
+        assert!(result.is_err(), "Expected Err for invalid key content");
+    }
+
+
+    #[test]
+    fn validate_private_key_accepts_1() {
+        // Generated with: ssh-keygen -t ed25519 -C "test-ed25519@fressh.com" -f ./ed25519-with-comment
+        let valid_key = "-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACC7PhmC0yS0Q8LcUkRnoYCxpb4gkCjJhadvvf+TDlRBJwAAAKCX5GEsl+Rh
+LAAAAAtzc2gtZWQyNTUxOQAAACC7PhmC0yS0Q8LcUkRnoYCxpb4gkCjJhadvvf+TDlRBJw
+AAAEBmrg8TL0+2xypHjVpFeuQmgQf3Qn/A45Jz+zCwVgoBt7s+GYLTJLRDwtxSRGehgLGl
+viCQKMmFp2+9/5MOVEEnAAAAF3Rlc3QtZWQyNTUxOUBmcmVzc2guY29tAQIDBAUG
+-----END OPENSSH PRIVATE KEY-----
+".to_string();
+        let result = validate_private_key(valid_key);
+        assert!(result.is_ok(), "Expected Ok for valid key content");
+    }
+    #[test]
+    fn validate_private_key_accepts_2() {
+        // Generated with: ssh-keygen -t ed25519 -f ./ed25519-wo-comment
+        let valid_key = "-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACD/icJYduvcR9JPKw9g/bPWpsgS0IAaJxlYL5yeuOaNMgAAAJjDAt7NwwLe
+zQAAAAtzc2gtZWQyNTUxOQAAACD/icJYduvcR9JPKw9g/bPWpsgS0IAaJxlYL5yeuOaNMg
+AAAEDYE6BYf7QlpAaJCfaxA/HN487NM9iIF7VGue/iefZIyP+Jwlh269xH0k8rD2D9s9am
+yBLQgBonGVgvnJ645o0yAAAADmV0aGFuQEV0aGFuLVBDAQIDBAUGBw==
+-----END OPENSSH PRIVATE KEY-----
+".to_string();
+        let result = validate_private_key(valid_key);
+        assert!(result.is_ok(), "Expected Ok for valid key content");
+    }
+    #[test]
+    fn validate_private_key_accepts_3() {
+        // Generated with: ssh-keygen -t ed25519 -C "" -N "" -f ./ed25519-wo-comment-and-hostname
+        let valid_key = "-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACDt2ZcFrEhB8/B4uu30mPIi3BWWEa/wE//IUXLeL9YevAAAAIg90nGHPdJx
+hwAAAAtzc2gtZWQyNTUxOQAAACDt2ZcFrEhB8/B4uu30mPIi3BWWEa/wE//IUXLeL9YevA
+AAAEBMtZWpjpVnzDhYKR3V09SLohGqkW7HgMXoF8f0zf+/Pu3ZlwWsSEHz8Hi67fSY8iLc
+FZYRr/AT/8hRct4v1h68AAAAAAECAwQF
+-----END OPENSSH PRIVATE KEY-----
+".to_string();
+        let result = validate_private_key(valid_key);
+        assert!(result.is_ok(), "Expected Ok for valid key content");
+    }
+    #[test]
+    fn validate_private_key_accepts_4() {
+        // Generated with juicessh 
+        let valid_key = "-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZWQyNTUxOQAAACCh5IbLI9ypdFzNW8WvezgBrzJT/2mT9BKSdZScB4EYoQAAAJB8YyoafGMqGgAAAAtzc2gtZWQyNTUxOQAAACCh5IbLI9ypdFzNW8WvezgBrzJT/2mT9BKSdZScB4EYoQAAAECpYzHTSiKC2iehjck1n8GAp5mdGuB2J5vV+9U3MAvthKHkhssj3Kl0XM1bxa97OAGvMlP/aZP0EpJ1lJwHgRihAAAAAAECAwQFBgcICQoLDA0=
+-----END OPENSSH PRIVATE KEY-----
+".to_string();
+        let result = validate_private_key(valid_key);
+        assert!(result.is_ok(), "Expected Ok for valid key content");
+    }
+}
