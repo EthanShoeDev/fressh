@@ -19,6 +19,7 @@ export const useSshStore = create<SshRegistryStore>((set) => ({
 			...args,
 			onDisconnected: (connectionId) => {
 				args.onDisconnected?.(connectionId);
+				console.log('DEBUG connection disconnected', connectionId);
 				set((s) => {
 					const { [connectionId]: _omit, ...rest } = s.connections;
 					return { connections: rest };
@@ -32,6 +33,7 @@ export const useSshStore = create<SshRegistryStore>((set) => ({
 				onClosed: (channelId) => {
 					args.onClosed?.(channelId);
 					const storeKey = `${connection.connectionId}-${channelId}` as const;
+					console.log('DEBUG shell closed', storeKey);
 					set((s) => {
 						const { [storeKey]: _omit, ...rest } = s.shells;
 						return { shells: rest };

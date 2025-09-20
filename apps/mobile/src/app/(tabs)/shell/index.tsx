@@ -35,6 +35,7 @@ function ShellContent() {
 	const connections = useSshStore(
 		useShallow((s) => Object.values(s.connections)),
 	);
+	console.log('DEBUG list view connections', connections.length);
 
 	return (
 		<View style={{ flex: 1 }}>

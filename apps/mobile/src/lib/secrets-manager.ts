@@ -1,4 +1,4 @@
-import { RnRussh } from '@fressh/react-native-uniffi-russh';
+import { RnRussh, SshError_Tags } from '@fressh/react-native-uniffi-russh';
 import { queryOptions } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
@@ -82,9 +82,9 @@ function makeBetterSecureStore<
 		const unsafedRootManifest: unknown = rawRootManifestString
 			? JSON.parse(rawRootManifestString)
 			: {
-					manifestVersion: rootManifestVersion,
-					manifestChunksIds: [],
-				};
+				manifestVersion: rootManifestVersion,
+				manifestChunksIds: [],
+			};
 		const rootManifest = rootManifestSchema.parse(unsafedRootManifest);
 		const manifestChunks = await Promise.all(
 			rootManifest.manifestChunksIds.map(async (manifestChunkId) => {
@@ -330,8 +330,15 @@ async function upsertPrivateKey(params: {
 	metadata: StrictOmit<KeyMetadata, 'createdAtMs'>;
 	value: string;
 }) {
-	const validKey = RnRussh.validatePrivateKey(params.value);
-	if (!validKey) throw new Error('Invalid private key');
+	const validateKeyResult = RnRussh.validatePrivateKey(params.value);
+	if (!validateKeyResult.valid) {
+		console.log('Invalid private key', validateKeyResult.error);
+		if (validateKeyResult.error.tag === SshError_Tags.RusshKeys) {
+			console.log('Invalid private key inner', validateKeyResult.error.inner);
+			console.log('Invalid private key content', params.value);
+		}
+		throw new Error('Invalid private key', { cause: validateKeyResult.error });
+	}
 	const keyId = params.keyId ?? `key_${Crypto.randomUUID()}`;
 	log(`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`);
 	// Preserve createdAtMs if the entry already exists

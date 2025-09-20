@@ -153,7 +153,7 @@ type RusshApi = {
     // keySize?: number;
     // comment?: string;
   ) => Promise<string>;
-  validatePrivateKey: (key: string) => boolean;
+  validatePrivateKey: (key: string) => { valid: true; error?: never } | { valid: false; error: GeneratedRussh.SshError };
 };
 
 // #endregion
@@ -195,6 +195,8 @@ const streamEnumToLiteral = {
   [GeneratedRussh.StreamKind.Stdout]: 'stdout',
   [GeneratedRussh.StreamKind.Stderr]: 'stderr',
 } as const satisfies Record<GeneratedRussh.StreamKind, StreamKind>;
+
+
 
 function generatedConnDetailsToIdeal(
   details: GeneratedRussh.ConnectionDetails
@@ -379,16 +381,18 @@ async function generateKeyPair(type: 'rsa' | 'ecdsa' | 'ed25519') {
   return GeneratedRussh.generateKeyPair(map[type]);
 }
 
-function validatePrivateKey(key: string) {
+function validatePrivateKey(key: string): { valid: true; error?: never } | { valid: false; error: GeneratedRussh.SshError } {
   try {
     GeneratedRussh.validatePrivateKey(key);
-    return true;
-  } catch {
-    return false;
+    return { valid: true };
+  } catch (e) {
+    return { valid: false, error: e as GeneratedRussh.SshError };
   }
 }
 
 // #endregion
+
+export { SshError, SshError_Tags } from './generated/uniffi_russh';
 
 export const RnRussh = {
   uniffiInitAsync: GeneratedRussh.uniffiInitAsync,

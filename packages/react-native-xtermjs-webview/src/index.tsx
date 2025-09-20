@@ -63,15 +63,17 @@ const defaultWebViewProps: WebViewOptions = {
 };
 
 const defaultXtermOptions: Partial<ITerminalOptions> = {
-	fontFamily: 'Menlo, ui-monospace, monospace',
-	fontSize: 20,
-	cursorBlink: true,
+	allowProposedApi: true,
+	convertEol: true,
 	scrollback: 10000,
+	cursorBlink: true,
+	fontFamily: 'Menlo, ui-monospace, monospace',
+	fontSize: 10,
 };
 
 type UserControllableWebViewProps = StrictOmit<
 	WebViewOptions,
-	'source' | 'style'
+	'source' | 'style' | 'injectedJavaScriptBeforeContentLoaded'
 >;
 
 export type XtermJsWebViewProps = {
@@ -259,9 +261,10 @@ export function XtermJsWebView({
 		if (xTermOptionsEquals(appliedXtermOptions, mergedXTermOptions)) return;
 		logger?.log?.(`setting options: `, mergedXTermOptions);
 		sendToWebView({ type: 'setOptions', opts: mergedXTermOptions });
+		autoFitFn();
 
 		appliedXtermOptionsRef.current = mergedXTermOptions;
-	}, [mergedXTermOptions, sendToWebView, logger, initialized]);
+	}, [mergedXTermOptions, sendToWebView, logger, initialized, autoFitFn]);
 
 	const onMessage = useCallback(
 		(e: WebViewMessageEvent) => {
@@ -346,6 +349,15 @@ export function XtermJsWebView({
 			source={{ html: htmlString }}
 			onMessage={onMessage}
 			style={style}
+			injectedJavaScriptObject={mergedXTermOptions}
+			injectedJavaScriptBeforeContentLoaded={
+				mergedXTermOptions.theme?.background
+					? `
+					document.body.style.backgroundColor = '${mergedXTermOptions.theme.background}';
+					true;
+					`
+					: undefined
+			}
 			{...mergedWebViewOptions}
 		/>
 	);

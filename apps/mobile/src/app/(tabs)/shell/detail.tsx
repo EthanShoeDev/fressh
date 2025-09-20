@@ -31,7 +31,7 @@ export default function TabsShellDetail() {
 					// TODO: This is gross. It would be much better to switch
 					// after the navigation animation completes.
 					setReady(true);
-				}, 50);
+				}, 16);
 			});
 
 			return () => {
@@ -45,9 +45,19 @@ export default function TabsShellDetail() {
 }
 
 function RouteSkeleton() {
+	const theme = useTheme();
 	return (
-		<View>
-			<Text>Loading</Text>
+		<View
+			style={{
+				flex: 1,
+				justifyContent: 'center',
+				alignItems: 'center',
+				backgroundColor: theme.colors.background,
+			}}
+		>
+			<Text style={{ color: theme.colors.textPrimary, fontSize: 20 }}>
+				Loading
+			</Text>
 		</View>
 	);
 }
@@ -81,7 +91,7 @@ function ShellDetail() {
 	useEffect(() => {
 		if (shell && connection) return;
 		console.log('shell or connection not found, replacing route with /shell');
-		router.replace('/shell');
+		router.back();
 	}, [connection, router, shell]);
 
 	useEffect(() => {
@@ -111,6 +121,7 @@ function ShellDetail() {
 
 	return (
 		<SafeAreaView
+			edges={['left', 'right']}
 			onLayout={(e) => {
 				const { y, height } = e.nativeEvent.layout;
 				const extra = computeBottomExtra(y, height);
@@ -120,9 +131,10 @@ function ShellDetail() {
 				flex: 1,
 				justifyContent: 'flex-start',
 				backgroundColor: theme.colors.background,
-				padding: 0,
-				paddingBottom:
-					4 + insets.bottom + (bottomExtra || estimatedTabBarHeight),
+				paddingTop: 2,
+				paddingLeft: 8,
+				paddingRight: 8,
+				paddingBottom: insets.bottom + (bottomExtra || estimatedTabBarHeight),
 			}}
 		>
 			<Stack.Screen
@@ -149,6 +161,10 @@ function ShellDetail() {
 			<XtermJsWebView
 				ref={xtermRef}
 				style={{ flex: 1 }}
+				webViewOptions={{
+					// Prevent iOS from adding automatic top inset inside WebView
+					contentInsetAdjustmentBehavior: 'never',
+				}}
 				logger={{
 					log: console.log,
 					// debug: console.log,

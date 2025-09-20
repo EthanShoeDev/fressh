@@ -186,6 +186,7 @@ pub struct ShellSessionInfo {
 #[derive(uniffi::Object)]
 pub struct SshConnection {
     info: SshConnectionInfo,
+    on_disconnected_callback: Option<Arc<dyn ConnectionDisconnectedCallback>>,
     client_handle: AsyncMutex<ClientHandle<NoopHandler>>,
 
     shells: AsyncMutex<HashMap<u32, Arc<ShellSession>>>,
@@ -490,6 +491,11 @@ impl SshConnection {
 
         let h = self.client_handle.lock().await;
         h.disconnect(Disconnect::ByApplication, "bye", "").await?;
+
+        if let Some(on_disconnected_callback) = self.on_disconnected_callback.as_ref() {
+            on_disconnected_callback.on_change(self.info.connection_id.clone());
+        }
+
         Ok(())
     }
 }
@@ -775,6 +781,7 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
         client_handle: AsyncMutex::new(handle),
         shells: AsyncMutex::new(HashMap::new()),
         self_weak: AsyncMutex::new(Weak::new()),
+        on_disconnected_callback: options.on_disconnected_callback.clone(),
     });
     // Initialize weak self reference.
     *conn.self_weak.lock().await = Arc::downgrade(&conn);

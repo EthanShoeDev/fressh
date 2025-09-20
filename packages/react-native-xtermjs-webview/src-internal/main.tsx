@@ -12,7 +12,10 @@ declare global {
 		terminal?: Terminal;
 		fitAddon?: FitAddon;
 		terminalWriteBase64?: (data: string) => void;
-		ReactNativeWebView?: { postMessage?: (data: string) => void };
+		ReactNativeWebView?: {
+			postMessage?: (data: string) => void;
+			injectedObjectJson?: () => string | undefined;
+		};
 		__FRESSH_XTERM_BRIDGE__?: boolean;
 		__FRESSH_XTERM_MSG_HANDLER__?: (
 			e: MessageEvent<BridgeOutboundMessage>,
@@ -27,114 +30,134 @@ const sendToRn = (msg: BridgeInboundMessage) =>
  * Idempotent boot guard: ensure we only install once.
  * If the script happens to run twice (dev reloads, double-mounts), we bail out early.
  */
-if (window.__FRESSH_XTERM_BRIDGE__) {
-	sendToRn({
-		type: 'debug',
-		message: 'bridge already installed; ignoring duplicate boot',
-	});
-} else {
-	window.__FRESSH_XTERM_BRIDGE__ = true;
-
-	// ---- Xterm setup
-	const term = new Terminal({
-		allowProposedApi: true,
-		convertEol: true,
-		scrollback: 10000,
-		cursorBlink: true,
-	});
-	const fitAddon = new FitAddon();
-	term.loadAddon(fitAddon);
-
-	const root = document.getElementById('terminal')!;
-	term.open(root);
-	fitAddon.fit();
-
-	// Expose for debugging (typed)
-	window.terminal = term;
-	window.fitAddon = fitAddon;
-
-	term.onData((data) => {
-		sendToRn({ type: 'input', str: data });
-	});
-
-	// Remove old handler if any (just in case)
-	if (window.__FRESSH_XTERM_MSG_HANDLER__)
-		window.removeEventListener('message', window.__FRESSH_XTERM_MSG_HANDLER__!);
-
-	// RN -> WebView handler (write, resize, setFont, setTheme, setOptions, clear, focus)
-	const handler = (e: MessageEvent<BridgeOutboundMessage>) => {
-		try {
-			const msg = e.data;
-
-			if (!msg || typeof msg.type !== 'string') return;
-
-			// TODO: https://xtermjs.org/docs/guides/flowcontrol/#ideas-for-a-better-mechanism
-			const termWrite = (bStr: string) => {
-				const bytes = bStrToBinary(bStr);
-				term.write(bytes);
-			};
-
-			switch (msg.type) {
-				case 'write': {
-					termWrite(msg.bStr);
-					break;
-				}
-				case 'writeMany': {
-					for (const bStr of msg.chunks) {
-						termWrite(bStr);
-					}
-					break;
-				}
-				case 'resize': {
-					term.resize(msg.cols, msg.rows);
-					break;
-				}
-				case 'fit': {
-					fitAddon.fit();
-					break;
-				}
-				case 'setOptions': {
-					const newOpts: ITerminalOptions & { cols?: never; rows?: never } = {
-						...term.options,
-						...msg.opts,
-						theme: {
-							...term.options.theme,
-							...msg.opts.theme,
-						},
-					};
-					delete newOpts.cols;
-					delete newOpts.rows;
-					term.options = newOpts;
-					if (
-						'theme' in newOpts &&
-						newOpts.theme &&
-						'background' in newOpts.theme &&
-						newOpts.theme.background
-					) {
-						document.body.style.backgroundColor = newOpts.theme.background;
-					}
-					break;
-				}
-				case 'clear': {
-					term.clear();
-					break;
-				}
-				case 'focus': {
-					term.focus();
-					break;
-				}
-			}
-		} catch (err) {
+window.onload = () => {
+	try {
+		if (window.__FRESSH_XTERM_BRIDGE__) {
 			sendToRn({
 				type: 'debug',
-				message: `message handler error: ${String(err)}`,
+				message: 'bridge already installed; ignoring duplicate boot',
 			});
+			return;
 		}
-	};
 
-	window.__FRESSH_XTERM_MSG_HANDLER__ = handler;
-	window.addEventListener('message', handler);
+		const injectedObjectJson =
+			window.ReactNativeWebView?.injectedObjectJson?.();
+		if (!injectedObjectJson) {
+			sendToRn({
+				type: 'debug',
+				message: 'injectedObjectJson not found; ignoring duplicate boot',
+			});
+			return;
+		}
 
-	// Initial handshake (send once)
-	setTimeout(() => sendToRn({ type: 'initialized' }), 50);
-}
+		window.__FRESSH_XTERM_BRIDGE__ = true;
+
+		const injectedObject = JSON.parse(injectedObjectJson) as ITerminalOptions;
+
+		// ---- Xterm setup
+		const term = new Terminal(injectedObject);
+		const fitAddon = new FitAddon();
+		term.loadAddon(fitAddon);
+
+		const root = document.getElementById('terminal')!;
+		term.open(root);
+		fitAddon.fit();
+
+		// Expose for debugging (typed)
+		window.terminal = term;
+		window.fitAddon = fitAddon;
+
+		term.onData((data) => {
+			sendToRn({ type: 'input', str: data });
+		});
+
+		// Remove old handler if any (just in case)
+		if (window.__FRESSH_XTERM_MSG_HANDLER__)
+			window.removeEventListener(
+				'message',
+				window.__FRESSH_XTERM_MSG_HANDLER__!,
+			);
+
+		// RN -> WebView handler (write, resize, setFont, setTheme, setOptions, clear, focus)
+		const handler = (e: MessageEvent<BridgeOutboundMessage>) => {
+			try {
+				const msg = e.data;
+
+				if (!msg || typeof msg.type !== 'string') return;
+
+				// TODO: https://xtermjs.org/docs/guides/flowcontrol/#ideas-for-a-better-mechanism
+				const termWrite = (bStr: string) => {
+					const bytes = bStrToBinary(bStr);
+					term.write(bytes);
+				};
+
+				switch (msg.type) {
+					case 'write': {
+						termWrite(msg.bStr);
+						break;
+					}
+					case 'writeMany': {
+						for (const bStr of msg.chunks) {
+							termWrite(bStr);
+						}
+						break;
+					}
+					case 'resize': {
+						term.resize(msg.cols, msg.rows);
+						break;
+					}
+					case 'fit': {
+						fitAddon.fit();
+						break;
+					}
+					case 'setOptions': {
+						const newOpts: ITerminalOptions & { cols?: never; rows?: never } = {
+							...term.options,
+							...msg.opts,
+							theme: {
+								...term.options.theme,
+								...msg.opts.theme,
+							},
+						};
+						delete newOpts.cols;
+						delete newOpts.rows;
+						term.options = newOpts;
+						if (
+							'theme' in newOpts &&
+							newOpts.theme &&
+							'background' in newOpts.theme &&
+							newOpts.theme.background
+						) {
+							document.body.style.backgroundColor = newOpts.theme.background;
+						}
+						break;
+					}
+					case 'clear': {
+						term.clear();
+						break;
+					}
+					case 'focus': {
+						term.focus();
+						break;
+					}
+				}
+			} catch (err) {
+				sendToRn({
+					type: 'debug',
+					message: `message handler error: ${String(err)}`,
+				});
+			}
+		};
+
+		window.__FRESSH_XTERM_MSG_HANDLER__ = handler;
+		window.addEventListener('message', handler);
+
+		// Initial handshake (send once)
+		setTimeout(() => sendToRn({ type: 'initialized' }), 50);
+	} catch (e) {
+		sendToRn({
+			type: 'debug',
+			message: `error in xtermjs-webview: ${String(e)}`,
+		});
+	}
+};
