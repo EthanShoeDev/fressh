@@ -4,7 +4,6 @@ import {
 	type SshConnection,
 } from '@fressh/react-native-uniffi-russh';
 import { FlashList } from '@shopify/flash-list';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Link, Stack, useRouter } from 'expo-router';
 import React from 'react';
@@ -18,12 +17,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { preferences } from '@/lib/preferences';
-import {
-	closeSshShellAndInvalidateQuery,
-	disconnectSshConnectionAndInvalidateQuery,
-	listSshShellsQueryOptions,
-	type ShellWithConnection,
-} from '@/lib/query-fns';
+import {} from '@/lib/query-fns';
+import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
 
 export default function TabsShellList() {
@@ -36,7 +31,7 @@ export default function TabsShellList() {
 }
 
 function ShellContent() {
-	const connectionsQuery = useQuery(listSshShellsQueryOptions);
+	const connections = useSshStore((s) => Object.values(s.connections));
 
 	return (
 		<View style={{ flex: 1 }}>
@@ -45,63 +40,32 @@ function ShellContent() {
 					headerRight: () => <HeaderViewModeButton />,
 				}}
 			/>
-			{!connectionsQuery.data ? (
-				<LoadingState />
-			) : connectionsQuery.data.length === 0 ? (
-				<EmptyState />
-			) : (
-				<LoadedState connections={connectionsQuery.data} />
-			)}
-		</View>
-	);
-}
-
-function LoadingState() {
-	const theme = useTheme();
-	return (
-		<View
-			style={{
-				flex: 1,
-				alignItems: 'center',
-				justifyContent: 'center',
-				gap: 12,
-			}}
-		>
-			<Text style={{ color: theme.colors.muted }}>Loading...</Text>
+			{connections.length === 0 ? <EmptyState /> : <LoadedState />}
 		</View>
 	);
 }
 
 type ActionTarget =
 	| {
-			shell: ShellWithConnection;
+			shell: SshShell;
 	  }
 	| {
 			connection: SshConnection;
 	  };
 
-type ConnectionsList = (SshConnection & { shells: SshShell[] })[];
-
-function LoadedState({ connections }: { connections: ConnectionsList }) {
+function LoadedState() {
 	const [actionTarget, setActionTarget] = React.useState<null | ActionTarget>(
 		null,
 	);
-	const queryClient = useQueryClient();
 	const [shellListViewMode] =
 		preferences.shellListViewMode.useShellListViewModePref();
 
 	return (
 		<View style={{ flex: 1 }}>
 			{shellListViewMode === 'flat' ? (
-				<FlatView
-					connectionsWithShells={connections}
-					setActionTarget={setActionTarget}
-				/>
+				<FlatView setActionTarget={setActionTarget} />
 			) : (
-				<GroupedView
-					connectionsWithShells={connections}
-					setActionTarget={setActionTarget}
-				/>
+				<GroupedView setActionTarget={setActionTarget} />
 			)}
 			<ActionsSheet
 				target={actionTarget}
@@ -111,22 +75,12 @@ function LoadedState({ connections }: { connections: ConnectionsList }) {
 				onCloseShell={() => {
 					if (!actionTarget) return;
 					if (!('shell' in actionTarget)) return;
-					void closeSshShellAndInvalidateQuery({
-						channelId: actionTarget.shell.channelId,
-						connectionId: actionTarget.shell.connectionId,
-						queryClient: queryClient,
-					});
+					void actionTarget.shell.close();
 				}}
 				onDisconnect={() => {
 					if (!actionTarget) return;
-					const connectionId =
-						'connection' in actionTarget
-							? actionTarget.connection.connectionId
-							: actionTarget.shell.connectionId;
-					void disconnectSshConnectionAndInvalidateQuery({
-						connectionId: connectionId,
-						queryClient: queryClient,
-					});
+					if (!('connection' in actionTarget)) return;
+					void actionTarget.connection.disconnect();
 				}}
 			/>
 		</View>
@@ -134,26 +88,15 @@ function LoadedState({ connections }: { connections: ConnectionsList }) {
 }
 
 function FlatView({
-	connectionsWithShells,
 	setActionTarget,
 }: {
-	connectionsWithShells: ConnectionsList;
 	setActionTarget: (target: ActionTarget) => void;
 }) {
-	const flatShells = React.useMemo(() => {
-		return connectionsWithShells.reduce<ShellWithConnection[]>((acc, curr) => {
-			acc.push(
-				...curr.shells.map((shell) => ({
-					...shell,
-					connection: curr,
-				})),
-			);
-			return acc;
-		}, []);
-	}, [connectionsWithShells]);
+	const shells = useSshStore((s) => Object.values(s.shells));
+
 	return (
-		<FlashList<ShellWithConnection>
-			data={flatShells}
+		<FlashList<SshShell>
+			data={shells}
 			keyExtractor={(item) => `${item.connectionId}:${item.channelId}`}
 			renderItem={({ item }) => (
 				<ShellCard
@@ -176,85 +119,92 @@ function FlatView({
 }
 
 function GroupedView({
-	connectionsWithShells,
 	setActionTarget,
 }: {
-	connectionsWithShells: ConnectionsList;
 	setActionTarget: (target: ActionTarget) => void;
 }) {
 	const theme = useTheme();
 	const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+	const connections = useSshStore((s) => Object.values(s.connections));
+	const shells = useSshStore((s) => Object.values(s.shells));
 	return (
-		<FlashList<ConnectionsList[number]>
-			data={connectionsWithShells}
+		<FlashList<SshConnection>
+			data={connections}
 			// estimatedItemSize={80}
 			keyExtractor={(item) => item.connectionId}
-			renderItem={({ item }) => (
-				<View style={{ gap: 12 }}>
-					<Pressable
-						style={{
-							backgroundColor: theme.colors.surface,
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							borderRadius: 12,
-							paddingHorizontal: 12,
-							paddingVertical: 12,
-							flexDirection: 'row',
-							alignItems: 'center',
-							justifyContent: 'space-between',
-						}}
-						onPress={() => {
-							setExpanded((prev) => ({
-								...prev,
-								[item.connectionId]: !prev[item.connectionId],
-							}));
-						}}
-					>
-						<View>
-							<Text
-								style={{
-									color: theme.colors.textPrimary,
-									fontSize: 16,
-									fontWeight: '700',
-								}}
-							>
-								{item.connectionDetails.username}@{item.connectionDetails.host}
+			renderItem={({ item }) => {
+				const connectionShells = shells.filter(
+					(s) => s.connectionId === item.connectionId,
+				);
+				return (
+					<View style={{ gap: 12 }}>
+						<Pressable
+							style={{
+								backgroundColor: theme.colors.surface,
+								borderWidth: 1,
+								borderColor: theme.colors.border,
+								borderRadius: 12,
+								paddingHorizontal: 12,
+								paddingVertical: 12,
+								flexDirection: 'row',
+								alignItems: 'center',
+								justifyContent: 'space-between',
+							}}
+							onPress={() => {
+								setExpanded((prev) => ({
+									...prev,
+									[item.connectionId]: !prev[item.connectionId],
+								}));
+							}}
+						>
+							<View>
+								<Text
+									style={{
+										color: theme.colors.textPrimary,
+										fontSize: 16,
+										fontWeight: '700',
+									}}
+								>
+									{item.connectionDetails.username}@
+									{item.connectionDetails.host}
+								</Text>
+								<Text
+									style={{
+										color: theme.colors.muted,
+										fontSize: 12,
+										marginTop: 2,
+									}}
+								>
+									Port {item.connectionDetails.port} • {connectionShells.length}{' '}
+									shell
+									{connectionShells.length === 1 ? '' : 's'}
+								</Text>
+							</View>
+							<Text style={{ color: theme.colors.muted, fontSize: 18 }}>
+								{expanded[item.connectionId] ? '▾' : '▸'}
 							</Text>
-							<Text
-								style={{
-									color: theme.colors.muted,
-									fontSize: 12,
-									marginTop: 2,
-								}}
-							>
-								Port {item.connectionDetails.port} • {item.shells.length} shell
-								{item.shells.length === 1 ? '' : 's'}
-							</Text>
-						</View>
-						<Text style={{ color: theme.colors.muted, fontSize: 18 }}>
-							{expanded[item.connectionId] ? '▾' : '▸'}
-						</Text>
-					</Pressable>
-					{expanded[item.connectionId] && (
-						<View style={{ gap: 12 }}>
-							{item.shells.map((sh) => {
-								const shellWithConnection = { ...sh, connection: item };
-								return (
-									<ShellCard
-										key={`${sh.connectionId}:${sh.channelId}`}
-										shell={shellWithConnection}
-										onLongPress={() => {
-											setActionTarget({
-												shell: shellWithConnection,
-											});
-										}}
-									/>
-								);
-							})}
-						</View>
-					)}
-				</View>
-			)}
+						</Pressable>
+						{expanded[item.connectionId] && (
+							<View style={{ gap: 12 }}>
+								{connectionShells.map((sh) => {
+									const shellWithConnection = { ...sh, connection: item };
+									return (
+										<ShellCard
+											key={`${sh.connectionId}:${sh.channelId}`}
+											shell={shellWithConnection}
+											onLongPress={() => {
+												setActionTarget({
+													shell: shellWithConnection,
+												});
+											}}
+										/>
+									);
+								})}
+							</View>
+						)}
+					</View>
+				);
+			}}
 			ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
 			contentContainerStyle={{ paddingVertical: 16, paddingHorizontal: 16 }}
 			style={{ flex: 1 }}
@@ -287,7 +237,7 @@ function ShellCard({
 	shell,
 	onLongPress,
 }: {
-	shell: ShellWithConnection;
+	shell: SshShell;
 	onLongPress?: () => void;
 }) {
 	const theme = useTheme();
@@ -295,6 +245,8 @@ function ShellCard({
 	const since = formatDistanceToNow(new Date(shell.createdAtMs), {
 		addSuffix: true,
 	});
+	const connection = useSshStore((s) => s.connections[shell.connectionId]);
+	if (!connection) return null;
 	return (
 		<Pressable
 			style={{
@@ -328,8 +280,8 @@ function ShellCard({
 					}}
 					numberOfLines={1}
 				>
-					{shell.connection.connectionDetails.username}@
-					{shell.connection.connectionDetails.host}
+					{connection.connectionDetails.username}@
+					{connection.connectionDetails.host}
 				</Text>
 				<Text
 					style={{
@@ -339,7 +291,7 @@ function ShellCard({
 					}}
 					numberOfLines={1}
 				>
-					Port {shell.connection.connectionDetails.port} • {shell.pty}
+					Port {connection.connectionDetails.port} • {shell.pty}
 				</Text>
 				<Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 6 }}>
 					Started {since}

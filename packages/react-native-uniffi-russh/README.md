@@ -4,14 +4,11 @@ Uniffi bindings for russh
 
 ## Installation
 
-
 ```sh
 npm install react-native-uniffi-russh
 ```
 
-
 ## Usage
-
 
 ```js
 import { multiply } from 'react-native-uniffi-russh';
@@ -20,7 +17,6 @@ import { multiply } from 'react-native-uniffi-russh';
 
 const result = multiply(3, 7);
 ```
-
 
 ## Contributing
 

@@ -4,24 +4,47 @@
   "tasks": {
     // Default overrides
     "lint": {
-      "dependsOn": ["fmt", "^build"],
+      "dependsOn": ["fmt", "^build", "build:bob"],
       "with": ["typecheck", "//#lint:root", "lint:rust"],
     },
     "lint:check": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "build:bob"],
       "with": ["fmt:check", "typecheck", "//#lint:check:root", "lint:rust"],
     },
-    "build:android": {
-      "outputs": ["dist/**"],
-      "dependsOn": ["^build", "build:bob"],
+    "build": {
+      "dependsOn": ["build:bob"],
     },
-    "build:ios": {
-      "outputs": ["dist/**"],
-      "dependsOn": ["^build", "build:bob"],
+    "typecheck": {
+      "dependsOn": ["build:native"],
     },
 
     // Special tasks
     "lint:rust": {},
-    "build:bob": {},
+    "build:bob": {
+      "dependsOn": ["build:native"],
+      "inputs": ["src/**"],
+      "outputs": ["lib/**"],
+    },
+    "build:native": {},
+    "build:android": {
+      "inputs": ["rust/**", "!rust/target"],
+      "outputs": [
+        "android/**",
+        "cpp/**",
+        "src/generated/**",
+        "src/index.ts",
+        "src/NativeReactNativeUniffi*.ts",
+      ],
+    },
+    "build:ios": {
+      "inputs": ["rust/**", "!rust/target"],
+      "outputs": [
+        "ios/**",
+        "cpp/**",
+        "src/generated/**",
+        "src/index.ts",
+        "src/NativeReactNativeUniffi*.ts",
+      ],
+    },
   },
 }

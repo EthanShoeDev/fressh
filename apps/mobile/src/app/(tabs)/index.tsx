@@ -1,3 +1,4 @@
+import { type SshConnectionProgress } from '@fressh/react-native-uniffi-russh';
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
 import { useStore } from '@tanstack/react-form';
 import { useQuery } from '@tanstack/react-query';
@@ -21,15 +22,6 @@ import {
 } from '@/lib/secrets-manager';
 import { useTheme } from '@/lib/theme';
 import { useBottomTabPadding } from '@/lib/useBottomTabPadding';
-// Map connection status literals to human-friendly labels
-const SSH_STATUS_LABELS: Record<string, string> = {
-	tcpConnecting: 'Connecting to host…',
-	tcpConnected: 'Network connected',
-	tcpDisconnected: 'Network disconnected',
-	shellConnecting: 'Starting shell…',
-	shellConnected: 'Connected',
-	shellDisconnected: 'Shell disconnected',
-} as const;
 
 export default function TabsIndex() {
 	return <Host />;
@@ -47,14 +39,11 @@ const defaultValues: InputConnectionDetails = {
 
 function Host() {
 	const theme = useTheme();
-	// const insets = useSafeAreaInsets();
-	const [status, setStatus] = React.useState<string | null>(null);
+	const [lastConnectionProgressEvent, setLastConnectionProgressEvent] =
+		React.useState<SshConnectionProgress | null>(null);
+
 	const sshConnMutation = useSshConnMutation({
-		onStatusChange: (s) => {
-			// Hide banner immediately after shell connects
-			if (s === 'shellConnected') setStatus(null);
-			else setStatus(s);
-		},
+		onConnectionProgress: (s) => setLastConnectionProgressEvent(s),
 	});
 	const { paddingBottom, onLayout } = useBottomTabPadding(12);
 	const connectionForm = useAppForm({
@@ -62,7 +51,10 @@ function Host() {
 		defaultValues,
 		validators: {
 			onChange: connectionDetailsSchema,
-			onSubmitAsync: async ({ value }) => sshConnMutation.mutateAsync(value),
+			onSubmitAsync: async ({ value }) =>
+				sshConnMutation.mutateAsync(value).then(() => {
+					setLastConnectionProgressEvent(null);
+				}),
 		},
 	});
 
@@ -80,6 +72,16 @@ function Host() {
 		connectionForm.store,
 		(state) => state.isSubmitting,
 	);
+
+	const buttonLabel = (() => {
+		if (!sshConnMutation.isPending) return 'Connect';
+		if (lastConnectionProgressEvent === null) return 'TCP Connecting...';
+		if (lastConnectionProgressEvent === 'tcpConnected')
+			return 'SSH Handshake...';
+		if (lastConnectionProgressEvent === 'sshHandshake')
+			return 'Authenticating...';
+		return 'Connected!';
+	})();
 
 	return (
 		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -203,9 +205,7 @@ function Host() {
 							<View style={{ marginTop: 20 }}>
 								<connectionForm.SubmitButton
 									title="Connect"
-									submittingTitle={
-										SSH_STATUS_LABELS[status ?? ''] ?? 'Connecting…'
-									}
+									submittingTitle={buttonLabel}
 									testID="connect"
 									onPress={() => {
 										console.log('Connect button pressed', { isSubmitting });

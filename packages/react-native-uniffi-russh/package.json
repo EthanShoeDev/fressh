@@ -39,8 +39,8 @@
     "typecheck": "tsc",
     "build:ios": "ubrn build ios --and-generate --release",
     "build:android": "ubrn build android --and-generate --release",
+    "build:native": "tsx scripts/native-build.ts",
     "build:bob": "bob build",
-    "build": "if [ \"$(uname)\" = \"Darwin\" ]; then turbo build:ios; else turbo build:android; fi",
     "lint:rust": "cd rust/uniffi-russh && just lint",
     "test": "jest",
     "release": "release-it --only-version"

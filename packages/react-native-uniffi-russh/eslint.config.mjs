@@ -21,6 +21,6 @@ export default defineConfig([
     },
   },
   {
-    ignores: ['node_modules/', 'lib/', 'src/generated/'],
+    ignores: ['node_modules/', 'lib/', 'src/generated/', 'eslint.config.mjs'],
   },
 ]);

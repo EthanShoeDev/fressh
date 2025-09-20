@@ -2,124 +2,58 @@ import {
 	RnRussh,
 	type SshConnection,
 	type SshShell,
-	type SshConnectionStatus,
 } from '@fressh/react-native-uniffi-russh';
 import { create } from 'zustand';
 
-// export type SessionKey = string;
-// export const makeSessionKey = (connectionId: string, channelId: number) =>
-// 	`${connectionId}:${channelId}` as const;
-
-// export type SessionStatus = 'connecting' | 'connected' | 'disconnected';
-
-// export interface StoredSession {
-// 	connection: SshConnection;
-// 	shell: SshShell;
-// 	status: SessionStatus;
-// }
-
-// interface SshStoreState {
-// 	sessions: Record<SessionKey, StoredSession>;
-// 	addSession: (conn: SshConnection, shell: SshShell) => SessionKey;
-// 	removeSession: (key: SessionKey) => void;
-// 	setStatus: (key: SessionKey, status: SessionStatus) => void;
-// 	getByKey: (key: SessionKey) => StoredSession | undefined;
-// 	listConnectionsWithShells: () => (SshConnection & { shells: SshShell[] })[];
-// }
-
-// export const useSshStore = create<SshStoreState>((set, get) => ({
-// 	sessions: {},
-// 	addSession: (conn, shell) => {
-// 		const key = makeSessionKey(conn.connectionId, shell.channelId);
-// 		set((s) => ({
-// 			sessions: {
-// 				...s.sessions,
-// 				[key]: { connection: conn, shell, status: 'connected' },
-// 			},
-// 		}));
-// 		return key;
-// 	},
-// 	removeSession: (key) => {
-// 		set((s) => {
-// 			const { [key]: _omit, ...rest } = s.sessions;
-// 			return { sessions: rest };
-// 		});
-// 	},
-// 	setStatus: (key, status) => {
-// 		set((s) =>
-// 			s.sessions[key]
-// 				? { sessions: { ...s.sessions, [key]: { ...s.sessions[key], status } } }
-// 				: s,
-// 		);
-// 	},
-// 	getByKey: (key) => get().sessions[key],
-// 	listConnectionsWithShells: () => {
-// 		const byConn = new Map<
-// 			string,
-// 			{ conn: SshConnection; shells: SshShell[] }
-// 		>();
-// 		for (const { connection, shell } of Object.values(get().sessions)) {
-// 			const g = byConn.get(connection.connectionId) ?? {
-// 				conn: connection,
-// 				shells: [],
-// 			};
-// 			g.shells.push(shell);
-// 			byConn.set(connection.connectionId, g);
-// 		}
-// 		return Array.from(byConn.values()).map(({ conn, shells }) => ({
-// 			...conn,
-// 			shells,
-// 		}));
-// 	},
-// }));
-
-// export function toSessionStatus(status: SshConnectionStatus): SessionStatus {
-// 	switch (status) {
-// 		case 'shellConnecting':
-// 			return 'connecting';
-// 		case 'shellConnected':
-// 			return 'connected';
-// 		case 'shellDisconnected':
-// 			return 'disconnected';
-// 		default:
-// 			return 'connected';
-// 	}
-// }
-
-
-
 type SshRegistryStore = {
-	connections: Record<string, {
-		connection: SshConnection,
-		shells: Record<number, SshShell>,
-		status: 
-	}>,
-	shells: Record<`${string}-${number}`, SshShell>,
-	addConnection: typeof RnRussh.connect,
-}
+	connections: Record<string, SshConnection>;
+	shells: Record<`${string}-${number}`, SshShell>;
+	connect: typeof RnRussh.connect;
+};
 
-type SshRegistryService = {
-	connect: typeof RnRussh.connect,
-}
-
-const useSshRegistryStore = create<SshRegistryStore>((set) => ({
+export const useSshStore = create<SshRegistryStore>((set) => ({
 	connections: {},
 	shells: {},
-	addConnection: async (args) => {
+	connect: async (args) => {
 		const connection = await RnRussh.connect({
 			...args,
-			onStatusChange: (status) => {
-				args.onStatusChange?.(status);
-				if (status === 'tcpDisconnected') {
-					// remove all shell
-				}
-			}
+			onDisconnected: (connectionId) => {
+				args.onDisconnected?.(connectionId);
+				set((s) => {
+					const { [connectionId]: _omit, ...rest } = s.connections;
+					return { connections: rest };
+				});
+			},
 		});
-
-	}
-}))
-
-
-const sshRegistryService = {
-	connect
-}
+		const originalStartShellFn = connection.startShell;
+		const startShell: typeof connection.startShell = async (args) => {
+			const shell = await originalStartShellFn({
+				...args,
+				onClosed: (channelId) => {
+					args.onClosed?.(channelId);
+					const storeKey = `${connection.connectionId}-${channelId}` as const;
+					set((s) => {
+						const { [storeKey]: _omit, ...rest } = s.shells;
+						return { shells: rest };
+					});
+				},
+			});
+			const storeKey = `${connection.connectionId}-${shell.channelId}`;
+			set((s) => ({
+				shells: {
+					...s.shells,
+					[storeKey]: shell,
+				},
+			}));
+			return shell;
+		};
+		connection.startShell = startShell;
+		set((s) => ({
+			connections: {
+				...s.connections,
+				[connection.connectionId]: connection,
+			},
+		}));
+		return connection;
+	},
+}));

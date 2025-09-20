@@ -17,12 +17,7 @@
 			"dependsOn": ["^build"],
 		},
 		"build": {
-			"dependsOn": ["^build"],
-		},
-		"build:ios": {
-			"dependsOn": ["^build"],
-		},
-		"build:android": {
+			"outputs": ["dist/**"],
 			"dependsOn": ["^build"],
 		},
 		"test": {
