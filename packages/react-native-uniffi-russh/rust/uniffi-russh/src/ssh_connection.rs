@@ -1,8 +1,27 @@
+use std::fmt;
+use std::sync::{Arc, Weak};
 
+use tokio::sync::{broadcast, Mutex as AsyncMutex};
 
+use russh::client::{Config, Handle as ClientHandle};
+use russh::keys::PrivateKeyWithHashAlg;
+use russh::{self, ChannelMsg, Disconnect};
 
+use crate::private_key::normalize_openssh_ed25519_seed_key;
+use crate::ssh_shell::{
+    append_and_broadcast, Chunk, NoopHandler, ShellSession, ShellSessionInfo, StartShellOptions,
+    StreamKind, DEFAULT_BROADCAST_CHUNK_CAPACITY, DEFAULT_MAX_CHUNK_SIZE,
+    DEFAULT_SHELL_RING_BUFFER_CAPACITY, DEFAULT_TERMINAL_MODES, DEFAULT_TERM_COALESCE_MS,
+    DEFAULT_TERM_COL_WIDTH, DEFAULT_TERM_PIXEL_HEIGHT, DEFAULT_TERM_PIXEL_WIDTH,
+    DEFAULT_TERM_ROW_HEIGHT,
+};
+use crate::utils::{now_ms, SshError};
+use std::sync::atomic::AtomicUsize;
 
-
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicU64, Mutex},
+};
 
 #[derive(Debug, Clone, PartialEq, uniffi::Enum)]
 pub enum Security {
@@ -34,6 +53,13 @@ pub enum SshConnectionProgressEvent {
     // After promise resolves, assume: Connected
 }
 
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct SshConnectionInfoProgressTimings {
+    // TODO: We should have a field for each SshConnectionProgressEvent. Would be great if this were enforced by the compiler.
+    pub tcp_established_at_ms: f64,
+    pub ssh_handshake_at_ms: f64,
+}
+
 #[uniffi::export(with_foreign)]
 pub trait ConnectProgressCallback: Send + Sync {
     fn on_change(&self, status: SshConnectionProgressEvent);
@@ -44,23 +70,27 @@ pub trait ConnectionDisconnectedCallback: Send + Sync {
     fn on_change(&self, connection_id: String);
 }
 
-
+/// Snapshot of current connection info for property-like access in TS.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct SshConnectionInfo {
+    pub connection_id: String,
+    pub connection_details: ConnectionDetails,
+    pub created_at_ms: f64,
+    pub connected_at_ms: f64,
+    pub progress_timings: SshConnectionInfoProgressTimings,
+}
 
 #[derive(uniffi::Object)]
 pub struct SshConnection {
-    info: SshConnectionInfo,
-    on_disconnected_callback: Option<Arc<dyn ConnectionDisconnectedCallback>>,
-    client_handle: AsyncMutex<ClientHandle<NoopHandler>>,
+    pub(crate) info: SshConnectionInfo,
+    pub(crate) on_disconnected_callback: Option<Arc<dyn ConnectionDisconnectedCallback>>,
+    pub(crate) client_handle: AsyncMutex<ClientHandle<NoopHandler>>,
 
-    shells: AsyncMutex<HashMap<u32, Arc<ShellSession>>>,
+    pub(crate) shells: AsyncMutex<HashMap<u32, Arc<ShellSession>>>,
 
     // Weak self for child sessions to refer back without cycles.
-    self_weak: AsyncMutex<Weak<SshConnection>>,
+    pub(crate) self_weak: AsyncMutex<Weak<SshConnection>>,
 }
-
-
-
-
 
 impl fmt::Debug for SshConnection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -72,9 +102,6 @@ impl fmt::Debug for SshConnection {
     }
 }
 
-
-
-
 #[uniffi::export(async_runtime = "tokio")]
 impl SshConnection {
     /// Convenience snapshot for property-like access in TS.
@@ -82,8 +109,10 @@ impl SshConnection {
         self.info.clone()
     }
 
-    pub async fn start_shell(&self, opts: StartShellOptions) -> Result<Arc<ShellSession>, SshError> {
-
+    pub async fn start_shell(
+        &self,
+        opts: StartShellOptions,
+    ) -> Result<Arc<ShellSession>, SshError> {
         let started_at_ms = now_ms();
 
         let term = opts.term;
@@ -107,12 +136,37 @@ impl SshConnection {
             }
         }
 
-        let row_height  = opts.terminal_size.as_ref().and_then(|s| s.row_height).unwrap_or(DEFAULT_TERM_ROW_HEIGHT);
-        let col_width   = opts.terminal_size.as_ref().and_then(|s| s.col_width).unwrap_or(DEFAULT_TERM_COL_WIDTH);
-        let pixel_width = opts.terminal_pixel_size.as_ref().and_then(|s| s.pixel_width).unwrap_or(DEFAULT_TERM_PIXEL_WIDTH);
-        let pixel_height= opts.terminal_pixel_size.as_ref().and_then(|s| s.pixel_height).unwrap_or(DEFAULT_TERM_PIXEL_HEIGHT);
+        let row_height = opts
+            .terminal_size
+            .as_ref()
+            .and_then(|s| s.row_height)
+            .unwrap_or(DEFAULT_TERM_ROW_HEIGHT);
+        let col_width = opts
+            .terminal_size
+            .as_ref()
+            .and_then(|s| s.col_width)
+            .unwrap_or(DEFAULT_TERM_COL_WIDTH);
+        let pixel_width = opts
+            .terminal_pixel_size
+            .as_ref()
+            .and_then(|s| s.pixel_width)
+            .unwrap_or(DEFAULT_TERM_PIXEL_WIDTH);
+        let pixel_height = opts
+            .terminal_pixel_size
+            .as_ref()
+            .and_then(|s| s.pixel_height)
+            .unwrap_or(DEFAULT_TERM_PIXEL_HEIGHT);
 
-        ch.request_pty(true, term.as_ssh_name(), col_width, row_height, pixel_width, pixel_height, &modes).await?;
+        ch.request_pty(
+            true,
+            term.as_ssh_name(),
+            col_width,
+            row_height,
+            pixel_width,
+            pixel_height,
+            &modes,
+        )
+        .await?;
         ch.request_shell(true).await?;
 
         // Split for read/write; spawn reader.
@@ -195,10 +249,10 @@ impl SshConnection {
             },
             on_closed_callback,
             parent: self.self_weak.lock().await.clone(),
-        
+
             writer: AsyncMutex::new(writer),
             reader_task,
-           
+
             // Ring buffer
             ring,
             ring_bytes_capacity,
@@ -206,7 +260,7 @@ impl SshConnection {
             dropped_bytes_total,
             head_seq,
             tail_seq,
-        
+
             // Listener tasks management
             sender: tx,
             listener_tasks: Arc::new(Mutex::new(HashMap::new())),
@@ -217,10 +271,8 @@ impl SshConnection {
 
         self.shells.lock().await.insert(channel_id, session.clone());
 
-
         Ok(session)
     }
-
 
     pub async fn disconnect(&self) -> Result<(), SshError> {
         // TODO: Check if we need to close all these if we are about to disconnect?
@@ -243,7 +295,6 @@ impl SshConnection {
     }
 }
 
-
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshError> {
     let started_at_ms = now_ms();
@@ -253,7 +304,6 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
         username: options.connection_details.username.clone(),
         security: options.connection_details.security.clone(),
     };
-    
 
     // TCP
     let addr = format!("{}:{}", details.host, details.port);
@@ -265,32 +315,47 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
         sl.on_change(SshConnectionProgressEvent::TcpConnected);
     }
     let cfg = Arc::new(Config::default());
-    let mut handle: ClientHandle<NoopHandler> = russh::client::connect_stream(cfg, socket, NoopHandler).await?;
+    let mut handle: ClientHandle<NoopHandler> =
+        russh::client::connect_stream(cfg, socket, NoopHandler).await?;
     let ssh_handshake_at_ms = now_ms();
     if let Some(sl) = options.on_connection_progress_callback.as_ref() {
         sl.on_change(SshConnectionProgressEvent::SshHandshake);
     }
-    let auth_result  = match &details.security {
+    let auth_result = match &details.security {
         Security::Password { password } => {
-            handle.authenticate_password(details.username.clone(), password.clone()).await?
+            handle
+                .authenticate_password(details.username.clone(), password.clone())
+                .await?
         }
-        Security::Key { private_key_content } => {
+        Security::Key {
+            private_key_content,
+        } => {
             // Normalize and parse using shared helper so RN-validated keys match runtime parsing.
             let (_canonical, parsed) = normalize_openssh_ed25519_seed_key(private_key_content)?;
             let pk_with_hash = PrivateKeyWithHashAlg::new(Arc::new(parsed), None);
-            handle.authenticate_publickey(details.username.clone(), pk_with_hash).await?
+            handle
+                .authenticate_publickey(details.username.clone(), pk_with_hash)
+                .await?
         }
     };
-    if !matches!(auth_result, russh::client::AuthResult::Success) { return Err(auth_result.into()); }
+    if !matches!(auth_result, russh::client::AuthResult::Success) {
+        return Err(auth_result.into());
+    }
 
-    let connection_id = format!("{}@{}:{}:{}", details.username, details.host, details.port, local_port);
+    let connection_id = format!(
+        "{}@{}:{}:{}",
+        details.username, details.host, details.port, local_port
+    );
     let conn = Arc::new(SshConnection {
         info: SshConnectionInfo {
             connection_id,
             connection_details: details,
             created_at_ms: started_at_ms,
             connected_at_ms: now_ms(),
-            progress_timings: SshConnectionInfoProgressTimings { tcp_established_at_ms, ssh_handshake_at_ms },
+            progress_timings: SshConnectionInfoProgressTimings {
+                tcp_established_at_ms,
+                ssh_handshake_at_ms,
+            },
         },
         client_handle: AsyncMutex::new(handle),
         shells: AsyncMutex::new(HashMap::new()),

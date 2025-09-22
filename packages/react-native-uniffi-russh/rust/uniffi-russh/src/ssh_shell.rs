@@ -1,6 +1,20 @@
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
+    time::Duration,
+};
 
+use bytes::Bytes;
 
-
+use crate::{
+    ssh_connection::SshConnection,
+    utils::{now_ms, SshError},
+};
+use russh::{self, client};
+use tokio::sync::{broadcast, Mutex as AsyncMutex};
 
 // Note: russh accepts an untyped string for the terminal type
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Enum)]
@@ -14,7 +28,7 @@ pub enum TerminalType {
     Xterm256,
 }
 impl TerminalType {
-    fn as_ssh_name(self) -> &'static str {
+    pub(crate) fn as_ssh_name(self) -> &'static str {
         match self {
             TerminalType::Vanilla => "vanilla",
             TerminalType::Vt100 => "vt100",
@@ -27,10 +41,11 @@ impl TerminalType {
     }
 }
 
-
-
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Enum)]
-pub enum StreamKind { Stdout, Stderr }
+pub enum StreamKind {
+    Stdout,
+    Stderr,
+}
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct TerminalChunk {
@@ -41,7 +56,10 @@ pub struct TerminalChunk {
 }
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
-pub struct DroppedRange { pub from_seq: u64, pub to_seq: u64 }
+pub struct DroppedRange {
+    pub from_seq: u64,
+    pub to_seq: u64,
+}
 
 #[derive(Debug, Clone, PartialEq, uniffi::Enum)]
 pub enum ShellEvent {
@@ -54,16 +72,11 @@ pub trait ShellListener: Send + Sync {
     fn on_event(&self, ev: ShellEvent);
 }
 
-
-
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
 pub struct TerminalMode {
-    pub opcode: u8,   // PTY opcode (matches russh::Pty discriminants)
+    pub opcode: u8, // PTY opcode (matches russh::Pty discriminants)
     pub value: u32,
 }
-
-
-
 
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
 pub struct TerminalSize {
@@ -91,23 +104,6 @@ pub trait ShellClosedCallback: Send + Sync {
     fn on_change(&self, channel_id: u32);
 }
 
-#[derive(Debug, Clone, PartialEq, uniffi::Record)]
-pub struct SshConnectionInfoProgressTimings {
-    // TODO: We should have a field for each SshConnectionProgressEvent. Would be great if this were enforced by the compiler.
-    pub tcp_established_at_ms: f64,
-    pub ssh_handshake_at_ms: f64,
-}
-
-/// Snapshot of current connection info for property-like access in TS.
-#[derive(Debug, Clone, PartialEq, uniffi::Record)]
-pub struct SshConnectionInfo {
-    pub connection_id: String,
-    pub connection_details: ConnectionDetails,
-    pub created_at_ms: f64,
-    pub connected_at_ms: f64,
-    pub progress_timings: SshConnectionInfoProgressTimings,
-}
-
 /// Snapshot of shell session info for property-like access in TS.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct ShellSessionInfo {
@@ -118,45 +114,43 @@ pub struct ShellSessionInfo {
     pub connection_id: String,
 }
 
-
 #[derive(uniffi::Object)]
 pub struct ShellSession {
-    info: ShellSessionInfo,
-    on_closed_callback: Option<Arc<dyn ShellClosedCallback>>,
+    pub(crate) info: ShellSessionInfo,
+    pub(crate) on_closed_callback: Option<Arc<dyn ShellClosedCallback>>,
 
     // Weak backref; avoid retain cycle.
-    parent: std::sync::Weak<SshConnection>,
+    pub(crate) parent: std::sync::Weak<SshConnection>,
 
-    writer: AsyncMutex<russh::ChannelWriteHalf<client::Msg>>,
+    pub(crate) writer: AsyncMutex<russh::ChannelWriteHalf<client::Msg>>,
     // We keep the reader task to allow cancellation on close.
-    reader_task: tokio::task::JoinHandle<()>,
-   
+    pub(crate) reader_task: tokio::task::JoinHandle<()>,
+
     // Ring buffer
-    ring: Arc<Mutex<std::collections::VecDeque<Arc<Chunk>>>>,
-    ring_bytes_capacity: Arc<AtomicUsize>,
-    used_bytes: Arc<Mutex<usize>>,
-    dropped_bytes_total: Arc<AtomicU64>,
-    head_seq: Arc<AtomicU64>,
-    tail_seq: Arc<AtomicU64>,
+    pub(crate) ring: Arc<Mutex<std::collections::VecDeque<Arc<Chunk>>>>,
+    pub(crate) ring_bytes_capacity: Arc<AtomicUsize>,
+    pub(crate) used_bytes: Arc<Mutex<usize>>,
+    pub(crate) dropped_bytes_total: Arc<AtomicU64>,
+    pub(crate) head_seq: Arc<AtomicU64>,
+    pub(crate) tail_seq: Arc<AtomicU64>,
 
     // Live broadcast
-    sender: broadcast::Sender<Arc<Chunk>>,
+    pub(crate) sender: broadcast::Sender<Arc<Chunk>>,
 
     // Listener tasks management
-    listener_tasks: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
-    next_listener_id: AtomicU64,
-    default_coalesce_ms: AtomicU64,
-    rt_handle: tokio::runtime::Handle,
+    pub(crate) listener_tasks: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
+    pub(crate) next_listener_id: AtomicU64,
+    pub(crate) default_coalesce_ms: AtomicU64,
+    pub(crate) rt_handle: tokio::runtime::Handle,
 }
-
 
 #[derive(Debug, Clone, PartialEq, uniffi::Enum)]
 pub enum Cursor {
-    Head, // start from the beginning
+    Head,                     // start from the beginning
     TailBytes { bytes: u64 }, // start from the end of the last N bytes
-    Seq { seq: u64 }, // start from the given sequence number
-    TimeMs { t_ms: f64 }, // start from the given time in milliseconds
-    Live, // start from the live stream
+    Seq { seq: u64 },         // start from the given sequence number
+    TimeMs { t_ms: f64 },     // start from the given time in milliseconds
+    Live,                     // start from the live stream
 }
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
@@ -183,20 +177,18 @@ pub struct BufferStats {
     pub chunks_count: u64,
 }
 
-
-
 // Internal chunk type kept in ring/broadcast
 #[derive(Debug)]
-struct Chunk { // TODO: This is very similar to TerminalChunk. The only difference is the bytes field
+pub(crate) struct Chunk {
+    // TODO: This is very similar to TerminalChunk. The only difference is the bytes field
     seq: u64,
     t_ms: f64,
     stream: StreamKind,
     bytes: Bytes,
 }
 
-
 /// Minimal client::Handler.
-struct NoopHandler;
+pub(crate) struct NoopHandler;
 impl client::Handler for NoopHandler {
     type Error = SshError;
     // Accept any server key for now so dev UX isn't blocked.
@@ -205,17 +197,18 @@ impl client::Handler for NoopHandler {
     fn check_server_key(
         &mut self,
         _server_public_key: &russh::keys::PublicKey,
-    ) -> impl std::future::Future<Output = std::result::Result<bool, <Self as russh::client::Handler>::Error>> + std::marker::Send {
+    ) -> impl std::future::Future<
+        Output = std::result::Result<bool, <Self as russh::client::Handler>::Error>,
+    > + std::marker::Send {
         std::future::ready(Ok(true))
     }
 }
 
-
 /// ---------- Methods ----------
-static DEFAULT_TERMINAL_MODES: &[(russh::Pty, u32)] = &[
+pub(crate) static DEFAULT_TERMINAL_MODES: &[(russh::Pty, u32)] = &[
     (russh::Pty::ECHO, 1), // This will cause the terminal to echo the characters back to the client.
     (russh::Pty::ECHOK, 1), // After the line-kill character (often Ctrl+U), echo a newline.
-    (russh::Pty::ECHOE, 1), // Visually erase on backspace (erase using BS-SP-BS sequence). 
+    (russh::Pty::ECHOE, 1), // Visually erase on backspace (erase using BS-SP-BS sequence).
     (russh::Pty::ICANON, 1), // Canonical (cooked) mode: line editing; input delivered line-by-line.
     (russh::Pty::ISIG, 1), // Generate signals on special chars (e.g., Ctrl+C -> SIGINT, Ctrl+Z -> SIGTSTP).
     (russh::Pty::ICRNL, 1), // Convert carriage return (CR, \r) to newline (NL, \n) on input.
@@ -224,30 +217,28 @@ static DEFAULT_TERMINAL_MODES: &[(russh::Pty, u32)] = &[
     (russh::Pty::TTY_OP_OSPEED, 38400), // Set output baud rate (here 38400). The baud rate is the number of characters per second.
 ];
 
-static DEFAULT_TERM_ROW_HEIGHT: u32 = 24;
-static DEFAULT_TERM_COL_WIDTH: u32 = 80;
-static DEFAULT_TERM_PIXEL_WIDTH: u32 = 0;
-static DEFAULT_TERM_PIXEL_HEIGHT: u32 = 0;
-static DEFAULT_TERM_COALESCE_MS: u64 = 16;
+pub(crate) static DEFAULT_TERM_ROW_HEIGHT: u32 = 24;
+pub(crate) static DEFAULT_TERM_COL_WIDTH: u32 = 80;
+pub(crate) static DEFAULT_TERM_PIXEL_WIDTH: u32 = 0;
+pub(crate) static DEFAULT_TERM_PIXEL_HEIGHT: u32 = 0;
+pub(crate) static DEFAULT_TERM_COALESCE_MS: u64 = 16;
 
 // Number of recent live chunks retained by the broadcast channel for each
 // subscriber. If a subscriber falls behind this many messages, they will get a
 // Lagged error and skip to the latest. Tune to: peak_chunks_per_sec × max_pause_sec.
-static DEFAULT_BROADCAST_CHUNK_CAPACITY: usize = 1024;
+pub(crate) static DEFAULT_BROADCAST_CHUNK_CAPACITY: usize = 1024;
 
 // Byte budget for the on-heap replay/history ring buffer. When the total bytes
 // of stored chunks exceed this, oldest chunks are evicted. Increase for a
 // longer replay window at the cost of memory.
-static DEFAULT_SHELL_RING_BUFFER_CAPACITY: usize = 2 * 1024 * 1024; // default 2MiB
+pub(crate) static DEFAULT_SHELL_RING_BUFFER_CAPACITY: usize = 2 * 1024 * 1024; // default 2MiB
 
 // Upper bound for the size of a single appended/broadcast chunk. Incoming data
 // is split into slices no larger than this. Smaller values reduce latency and
 // loss impact; larger values reduce per-message overhead.
-static DEFAULT_MAX_CHUNK_SIZE: usize = 16 * 1024; // 16KB
+pub(crate) static DEFAULT_MAX_CHUNK_SIZE: usize = 16 * 1024; // 16KB
 
-static DEFAULT_READ_BUFFER_MAX_BYTES: u64 = 512 * 1024; // 512KB
-
-
+pub(crate) static DEFAULT_READ_BUFFER_MAX_BYTES: u64 = 512 * 1024; // 512KB
 
 #[uniffi::export(async_runtime = "tokio")]
 impl ShellSession {
@@ -263,12 +254,17 @@ impl ShellSession {
     }
 
     /// Close the associated shell channel and stop its reader task.
-    pub async fn close(&self) -> Result<(), SshError> { self.close_internal().await }
+    pub async fn close(&self) -> Result<(), SshError> {
+        self.close_internal().await
+    }
 
     /// Buffer statistics snapshot.
     pub fn buffer_stats(&self) -> BufferStats {
         let used = *self.used_bytes.lock().unwrap_or_else(|p| p.into_inner()) as u64;
-        let chunks_count = match self.ring.lock() { Ok(q) => q.len() as u64, Err(p) => p.into_inner().len() as u64 };
+        let chunks_count = match self.ring.lock() {
+            Ok(q) => q.len() as u64,
+            Err(p) => p.into_inner().len() as u64,
+        };
         BufferStats {
             ring_bytes_count: self.ring_bytes_capacity.load(Ordering::Relaxed) as u64,
             used_bytes: used,
@@ -280,7 +276,9 @@ impl ShellSession {
     }
 
     /// Current next sequence number.
-    pub fn current_seq(&self) -> u64 { self.tail_seq.load(Ordering::Relaxed).saturating_add(1) }
+    pub fn current_seq(&self) -> u64 {
+        self.tail_seq.load(Ordering::Relaxed).saturating_add(1)
+    }
 
     /// Read the ring buffer from a cursor.
     pub fn read_buffer(&self, cursor: Cursor, max_bytes: Option<u64>) -> BufferReadResult {
@@ -292,29 +290,54 @@ impl ShellSession {
 
         // Lock ring to determine start and collect arcs, then drop lock.
         let (_start_idx_unused, _start_seq, arcs): (usize, u64, Vec<Arc<Chunk>>) = {
-            let ring = match self.ring.lock() { Ok(g) => g, Err(p) => p.into_inner() };
+            let ring = match self.ring.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
             let (start_seq, idx) = match cursor {
                 Cursor::Head => (head_seq_now, 0usize),
                 Cursor::Seq { seq: mut s } => {
-                    if s < head_seq_now { dropped = Some(DroppedRange { from_seq: s, to_seq: head_seq_now - 1 }); s = head_seq_now; }
+                    if s < head_seq_now {
+                        dropped = Some(DroppedRange {
+                            from_seq: s,
+                            to_seq: head_seq_now - 1,
+                        });
+                        s = head_seq_now;
+                    }
                     let idx = s.saturating_sub(head_seq_now) as usize;
                     (s, idx.min(ring.len()))
                 }
                 Cursor::TimeMs { t_ms: t } => {
                     // linear scan to find first chunk with t_ms >= t
-                    let mut idx = 0usize; let mut s = head_seq_now;
-                    for (i, ch) in ring.iter().enumerate() { if ch.t_ms >= t { idx = i; s = ch.seq; break; } }
+                    let mut idx = 0usize;
+                    let mut s = head_seq_now;
+                    for (i, ch) in ring.iter().enumerate() {
+                        if ch.t_ms >= t {
+                            idx = i;
+                            s = ch.seq;
+                            break;
+                        }
+                    }
                     (s, idx)
                 }
                 Cursor::TailBytes { bytes: n } => {
                     // Walk from tail backwards until approx n bytes, then forward.
-                    let mut bytes = 0usize; let mut idx = ring.len();
+                    let mut bytes = 0usize;
+                    let mut idx = ring.len();
                     for i in (0..ring.len()).rev() {
                         let b = ring[i].bytes.len();
-                        if bytes >= n as usize { idx = i + 1; break; }
-                        bytes += b; idx = i;
+                        if bytes >= n as usize {
+                            idx = i + 1;
+                            break;
+                        }
+                        bytes += b;
+                        idx = i;
                     }
-                    let s = if idx < ring.len() { ring[idx].seq } else { tail_seq_now.saturating_add(1) };
+                    let s = if idx < ring.len() {
+                        ring[idx].seq
+                    } else {
+                        tail_seq_now.saturating_add(1)
+                    };
                     (s, idx)
                 }
                 Cursor::Live => (tail_seq_now.saturating_add(1), ring.len()),
@@ -327,16 +350,35 @@ impl ShellSession {
         let mut total = 0usize;
         for ch in arcs {
             let len = ch.bytes.len();
-            if total + len > max_total { break; }
-            out_chunks.push(TerminalChunk { seq: ch.seq, t_ms: ch.t_ms, stream: ch.stream, bytes: ch.bytes.clone().to_vec() });
+            if total + len > max_total {
+                break;
+            }
+            out_chunks.push(TerminalChunk {
+                seq: ch.seq,
+                t_ms: ch.t_ms,
+                stream: ch.stream,
+                bytes: ch.bytes.clone().to_vec(),
+            });
             total += len;
         }
-        let next_seq = if let Some(last) = out_chunks.last() { last.seq + 1 } else { tail_seq_now.saturating_add(1) };
-        BufferReadResult { chunks: out_chunks, next_seq, dropped }
+        let next_seq = if let Some(last) = out_chunks.last() {
+            last.seq + 1
+        } else {
+            tail_seq_now.saturating_add(1)
+        };
+        BufferReadResult {
+            chunks: out_chunks,
+            next_seq,
+            dropped,
+        }
     }
 
     /// Add a listener with optional replay and live follow.
-    pub fn add_listener(&self, listener: Arc<dyn ShellListener>, opts: ListenerOptions) -> Result<u64, SshError> {
+    pub fn add_listener(
+        &self,
+        listener: Arc<dyn ShellListener>,
+        opts: ListenerOptions,
+    ) -> Result<u64, SshError> {
         // Snapshot for replay; emit from task to avoid re-entrant callbacks during FFI.
         let replay = self.read_buffer(opts.cursor.clone(), None);
         let mut rx = self.sender.subscribe();
@@ -408,17 +450,20 @@ impl ShellSession {
                 }
             }
         });
-        if let Ok(mut map) = self.listener_tasks.lock() { map.insert(id, handle); }
+        if let Ok(mut map) = self.listener_tasks.lock() {
+            map.insert(id, handle);
+        }
         Ok(id)
     }
 
     pub fn remove_listener(&self, id: u64) {
         if let Ok(mut map) = self.listener_tasks.lock() {
-            if let Some(h) = map.remove(&id) { h.abort(); }
+            if let Some(h) = map.remove(&id) {
+                h.abort();
+            }
         }
     }
 }
-
 
 // Internal lifecycle helpers (not exported via UniFFI)
 impl ShellSession {
@@ -456,9 +501,8 @@ impl ShellSession {
     // }
 }
 
-
 #[allow(clippy::too_many_arguments)]
-fn append_and_broadcast(
+pub(crate) fn append_and_broadcast(
     data: &[u8],
     stream: StreamKind,
     ring: &Arc<Mutex<std::collections::VecDeque<Arc<Chunk>>>>,
@@ -477,10 +521,18 @@ fn append_and_broadcast(
         let slice = &data[offset..end];
         let seq = next_seq.fetch_add(1, Ordering::Relaxed);
         let t_ms = now_ms();
-        let chunk = Arc::new(Chunk { seq, t_ms, stream, bytes: Bytes::copy_from_slice(slice) });
+        let chunk = Arc::new(Chunk {
+            seq,
+            t_ms,
+            stream,
+            bytes: Bytes::copy_from_slice(slice),
+        });
         // push to ring
         {
-            let mut q = match ring.lock() { Ok(g) => g, Err(p) => p.into_inner() };
+            let mut q = match ring.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
             q.push_back(chunk.clone());
         }
         {
@@ -490,13 +542,18 @@ fn append_and_broadcast(
             // evict if needed
             let cap = ring_bytes_capacity.load(Ordering::Relaxed);
             if *used > cap {
-                let mut q = match ring.lock() { Ok(g) => g, Err(p) => p.into_inner() };
+                let mut q = match ring.lock() {
+                    Ok(g) => g,
+                    Err(p) => p.into_inner(),
+                };
                 while *used > cap {
                     if let Some(front) = q.pop_front() {
                         *used -= front.bytes.len();
                         dropped_bytes_total.fetch_add(front.bytes.len() as u64, Ordering::Relaxed);
                         head_seq.store(front.seq.saturating_add(1), Ordering::Relaxed);
-                    } else { break; }
+                    } else {
+                        break;
+                    }
                 }
             }
         }

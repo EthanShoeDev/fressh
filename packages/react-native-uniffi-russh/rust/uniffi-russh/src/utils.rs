@@ -1,15 +1,12 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+use thiserror::Error;
 
-
-
-fn now_ms() -> f64 {
+pub(crate) fn now_ms() -> f64 {
     let d = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     d.as_millis() as f64
 }
-
-
-
 
 // TODO: Split this into different errors for each public function
 #[derive(Debug, Error, uniffi::Error)]
@@ -28,19 +25,29 @@ pub enum SshError {
     RusshKeys(String),
 }
 impl From<russh::Error> for SshError {
-    fn from(e: russh::Error) -> Self { SshError::Russh(e.to_string()) }
+    fn from(e: russh::Error) -> Self {
+        SshError::Russh(e.to_string())
+    }
 }
 impl From<russh_keys::Error> for SshError {
-    fn from(e: russh_keys::Error) -> Self { SshError::RusshKeys(e.to_string()) }
+    fn from(e: russh_keys::Error) -> Self {
+        SshError::RusshKeys(e.to_string())
+    }
 }
-impl From<ssh_key::Error> for SshError {
-    fn from(e: ssh_key::Error) -> Self { SshError::RusshKeys(e.to_string()) }
+impl From<russh_keys::ssh_key::Error> for SshError {
+    fn from(e: russh_keys::ssh_key::Error) -> Self {
+        SshError::RusshKeys(e.to_string())
+    }
 }
-impl From<russh_ssh_key::Error> for SshError {
-    fn from(e: russh_ssh_key::Error) -> Self { SshError::RusshKeys(e.to_string()) }
+impl From<russh::keys::ssh_key::Error> for SshError {
+    fn from(e: russh::keys::ssh_key::Error) -> Self {
+        SshError::RusshKeys(e.to_string())
+    }
 }
 impl From<std::io::Error> for SshError {
-    fn from(e: std::io::Error) -> Self { SshError::Russh(e.to_string()) }
+    fn from(e: std::io::Error) -> Self {
+        SshError::Russh(e.to_string())
+    }
 }
 impl From<russh::client::AuthResult> for SshError {
     fn from(a: russh::client::AuthResult) -> Self {

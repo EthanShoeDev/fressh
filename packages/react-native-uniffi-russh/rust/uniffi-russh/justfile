@@ -13,3 +13,7 @@ update-deps:
 # Run crate tests
 test:
     cargo test
+
+
+fmt:
+    cargo fmt
