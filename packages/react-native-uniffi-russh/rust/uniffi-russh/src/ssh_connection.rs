@@ -5,23 +5,48 @@ use tokio::sync::{broadcast, Mutex as AsyncMutex};
 
 use russh::client::{Config, Handle as ClientHandle};
 use russh::keys::PrivateKeyWithHashAlg;
-use russh::{self, ChannelMsg, Disconnect};
+use russh::{self, client, ChannelMsg, Disconnect};
 
 use crate::private_key::normalize_openssh_ed25519_seed_key;
 use crate::ssh_shell::{
-    append_and_broadcast, Chunk, NoopHandler, ShellSession, ShellSessionInfo, StartShellOptions,
-    StreamKind, DEFAULT_BROADCAST_CHUNK_CAPACITY, DEFAULT_MAX_CHUNK_SIZE,
-    DEFAULT_SHELL_RING_BUFFER_CAPACITY, DEFAULT_TERMINAL_MODES, DEFAULT_TERM_COALESCE_MS,
-    DEFAULT_TERM_COL_WIDTH, DEFAULT_TERM_PIXEL_HEIGHT, DEFAULT_TERM_PIXEL_WIDTH,
-    DEFAULT_TERM_ROW_HEIGHT,
+    append_and_broadcast, Chunk, ShellSession, ShellSessionInfo, StartShellOptions, StreamKind,
+    DEFAULT_BROADCAST_CHUNK_CAPACITY, DEFAULT_MAX_CHUNK_SIZE, DEFAULT_SHELL_RING_BUFFER_CAPACITY,
+    DEFAULT_TERMINAL_MODES, DEFAULT_TERM_COALESCE_MS, DEFAULT_TERM_COL_WIDTH,
+    DEFAULT_TERM_PIXEL_HEIGHT, DEFAULT_TERM_PIXEL_WIDTH, DEFAULT_TERM_ROW_HEIGHT,
 };
 use crate::utils::{now_ms, SshError};
+use russh::keys::PublicKeyBase64;
 use std::sync::atomic::AtomicUsize;
 
 use std::{
     collections::HashMap,
     sync::{atomic::AtomicU64, Mutex},
 };
+
+fn server_public_key_to_info(
+    host: &str,
+    port: u16,
+    remote_ip: Option<String>,
+    pk: &russh::keys::PublicKey,
+) -> ServerPublicKeyInfo {
+    // Algorithm identifier (e.g., "ssh-ed25519", "rsa-sha2-512")
+    let algorithm = pk.algorithm().to_string();
+
+    // Key blob (base64)
+    let key_base64 = pk.public_key_base64();
+
+    // Fingerprints via russh-keys/ssh-key helpers
+    let fingerprint_sha256 = format!("{}", pk.fingerprint(russh::keys::ssh_key::HashAlg::Sha256));
+
+    ServerPublicKeyInfo {
+        host: host.to_string(),
+        port,
+        remote_ip,
+        algorithm,
+        fingerprint_sha256,
+        key_base64,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, uniffi::Enum)]
 pub enum Security {
@@ -42,6 +67,7 @@ pub struct ConnectOptions {
     pub connection_details: ConnectionDetails,
     pub on_connection_progress_callback: Option<Arc<dyn ConnectProgressCallback>>,
     pub on_disconnected_callback: Option<Arc<dyn ConnectionDisconnectedCallback>>,
+    pub on_server_key_callback: Arc<dyn ServerKeyCallback>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Enum)]
@@ -71,12 +97,57 @@ pub trait ConnectionDisconnectedCallback: Send + Sync {
 }
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct ServerPublicKeyInfo {
+    pub host: String,
+    pub port: u16,
+    pub remote_ip: Option<String>,
+    pub algorithm: String,
+    pub fingerprint_sha256: String, // e.g., "SHA256:..." (no padding)
+    pub key_base64: String,         // raw key blob (base64)
+}
+
+#[uniffi::export(with_foreign)]
+#[async_trait::async_trait]
+pub trait ServerKeyCallback: Send + Sync {
+    async fn on_change(&self, server_key_info: ServerPublicKeyInfo) -> bool;
+}
+
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct SshConnectionInfo {
     pub connection_id: String,
     pub connection_details: ConnectionDetails,
     pub created_at_ms: f64,
     pub connected_at_ms: f64,
     pub progress_timings: SshConnectionInfoProgressTimings,
+}
+
+/// Minimal client::Handler with optional server key callback.
+pub(crate) struct NoopHandler {
+    pub on_server_key_callback: Arc<dyn ServerKeyCallback>,
+    pub host: String,
+    pub port: u16,
+    pub remote_ip: Option<String>,
+}
+impl client::Handler for NoopHandler {
+    type Error = SshError;
+    fn check_server_key(
+        &mut self,
+        server_public_key: &russh::keys::PublicKey,
+    ) -> impl std::future::Future<
+        Output = std::result::Result<bool, <Self as russh::client::Handler>::Error>,
+    > + std::marker::Send {
+        let cb = self.on_server_key_callback.clone();
+        let host = self.host.clone();
+        let port = self.port;
+        let remote_ip = self.remote_ip.clone();
+        // Build structured info for UI/decision.
+        let info = server_public_key_to_info(&host, port, remote_ip, server_public_key);
+        async move {
+            // Delegate decision to user callback (async via UniFFI).
+            let accept = cb.on_change(info).await;
+            Ok(accept)
+        }
+    }
 }
 
 #[derive(uniffi::Object)]
@@ -315,8 +386,18 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
         sl.on_change(SshConnectionProgressEvent::TcpConnected);
     }
     let cfg = Arc::new(Config::default());
-    let mut handle: ClientHandle<NoopHandler> =
-        russh::client::connect_stream(cfg, socket, NoopHandler).await?;
+    let remote_ip = socket.peer_addr().ok().map(|a| a.ip().to_string());
+    let mut handle: ClientHandle<NoopHandler> = russh::client::connect_stream(
+        cfg,
+        socket,
+        NoopHandler {
+            on_server_key_callback: options.on_server_key_callback.clone(),
+            host: options.connection_details.host.clone(),
+            port: options.connection_details.port,
+            remote_ip,
+        },
+    )
+    .await?;
     let ssh_handshake_at_ms = now_ms();
     if let Some(sl) = options.on_connection_progress_callback.as_ref() {
         sl.on_change(SshConnectionProgressEvent::SshHandshake);

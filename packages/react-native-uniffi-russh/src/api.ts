@@ -50,6 +50,10 @@ export type SshConnectionProgress =
 export type ConnectOptions = ConnectionDetails & {
   onConnectionProgress?: (status: SshConnectionProgress) => void;
   onDisconnected?: (connectionId: string) => void;
+  onServerKey: (
+    serverKeyInfo: GeneratedRussh.ServerPublicKeyInfo,
+    signal?: AbortSignal
+  ) => Promise<boolean>;
   abortSignal?: AbortSignal;
 };
 
@@ -339,7 +343,12 @@ function wrapConnection(
   };
 }
 
-async function connect(options: ConnectOptions): Promise<SshConnection> {
+async function connect({
+  onServerKey,
+  onConnectionProgress,
+  onDisconnected,
+  ...options
+}: ConnectOptions): Promise<SshConnection> {
   const security =
     options.security.type === 'password'
       ? new GeneratedRussh.Security.Password({
@@ -356,19 +365,21 @@ async function connect(options: ConnectOptions): Promise<SshConnection> {
         username: options.username,
         security,
       },
-      onConnectionProgressCallback: options.onConnectionProgress
+      onConnectionProgressCallback: onConnectionProgress
         ? {
             onChange: (statusEnum) =>
-              options.onConnectionProgress!(
-                sshConnProgressEnumToLiteral[statusEnum]
-              ),
+              onConnectionProgress(sshConnProgressEnumToLiteral[statusEnum]),
           }
         : undefined,
-      onDisconnectedCallback: options.onDisconnected
+      onDisconnectedCallback: onDisconnected
         ? {
-            onChange: (connectionId) => options.onDisconnected!(connectionId),
+            onChange: (connectionId) => onDisconnected(connectionId),
           }
         : undefined,
+      onServerKeyCallback: {
+        onChange: (serverKeyInfo) =>
+          onServerKey(serverKeyInfo, options.abortSignal),
+      },
     },
     options.abortSignal ? { signal: options.abortSignal } : undefined
   );

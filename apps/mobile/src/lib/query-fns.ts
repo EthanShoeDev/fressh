@@ -38,6 +38,10 @@ export const useSshConnMutation = (opts?: {
 						console.log('SSH connect progress event', progressEvent);
 						opts?.onConnectionProgress?.(progressEvent);
 					},
+					onServerKey: async (serverKeyInfo) => {
+						console.log('SSH server key', serverKeyInfo);
+						return true;
+					},
 					abortSignal: AbortSignalTimeout(5_000),
 				});
 

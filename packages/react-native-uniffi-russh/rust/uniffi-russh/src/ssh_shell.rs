@@ -187,23 +187,6 @@ pub(crate) struct Chunk {
     bytes: Bytes,
 }
 
-/// Minimal client::Handler.
-pub(crate) struct NoopHandler;
-impl client::Handler for NoopHandler {
-    type Error = SshError;
-    // Accept any server key for now so dev UX isn't blocked.
-    // TODO: Add known-hosts verification and surface API to control this.
-    #[allow(unused_variables)]
-    fn check_server_key(
-        &mut self,
-        _server_public_key: &russh::keys::PublicKey,
-    ) -> impl std::future::Future<
-        Output = std::result::Result<bool, <Self as russh::client::Handler>::Error>,
-    > + std::marker::Send {
-        std::future::ready(Ok(true))
-    }
-}
-
 /// ---------- Methods ----------
 pub(crate) static DEFAULT_TERMINAL_MODES: &[(russh::Pty, u32)] = &[
     (russh::Pty::ECHO, 1), // This will cause the terminal to echo the characters back to the client.
