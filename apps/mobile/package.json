@@ -10,8 +10,8 @@
     "lint": "eslint --fix --max-warnings 0 --report-unused-disable-directives .",
     "lint:check": "eslint --max-warnings 0 --report-unused-disable-directives .",
     "typecheck": "tsc",
-    "dev:android": "expo run:android --port 8082",
-    "dev:ios": "expo run:ios --port 8081",
+    "android": "expo run:android --port 8082",
+    "ios": "expo run:ios --port 8081",
     "dev:android:release": "expo run:android --port 8082 --variant release",
     "dev:ios:release": "expo run:ios --port 8081 --variant release",
     "build:signed:aab": "tsx scripts/signed-build.ts",
@@ -21,9 +21,7 @@
     "expo:dep:check": "expo install --fix",
     "expo:doctor": "pnpm dlx expo-doctor@latest",
     "test:e2e": "maestro test test/e2e/",
-    "adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done",
-    "android": "expo run:android",
-    "ios": "expo run:ios"
+    "adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -38,7 +36,7 @@
     "@tanstack/react-form": "^1.20.0",
     "@tanstack/react-query": "^5.89.0",
     "date-fns": "^4.1.0",
-    "expo": "54.0.8",
+    "expo": "54.0.9",
     "expo-clipboard": "~8.0.7",
     "expo-constants": "~18.0.9",
     "expo-crypto": "~15.0.7",
