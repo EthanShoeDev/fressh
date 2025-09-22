@@ -19,6 +19,7 @@ export default function TabsLayout() {
 			// rippleColor={theme.colors.transparent}
 			// ios
 			// blurEffect="systemChromeMaterial"
+			// disableTransparentOnScrollEdge={true}
 		>
 			<NativeTabs.Trigger name="index">
 				<Label selectedStyle={{ color: theme.colors.textPrimary }}>Hosts</Label>
