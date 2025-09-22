@@ -9,6 +9,7 @@ import { useTheme } from '@/lib/theme';
 
 export default function TabsLayout() {
 	const theme = useTheme();
+
 	return (
 		<NativeTabs
 			// common

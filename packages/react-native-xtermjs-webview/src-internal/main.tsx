@@ -153,7 +153,7 @@ window.onload = () => {
 		window.addEventListener('message', handler);
 
 		// Initial handshake (send once)
-		setTimeout(() => sendToRn({ type: 'initialized' }), 50);
+		setTimeout(() => sendToRn({ type: 'initialized' }), 100);
 	} catch (e) {
 		sendToRn({
 			type: 'debug',

@@ -26,7 +26,7 @@ export default function ToolbarExample() {
 			>
 				<KeyboardAvoidingView
 					behavior="height"
-					keyboardVerticalOffset={150}
+					keyboardVerticalOffset={250}
 					style={{
 						flex: 1,
 						paddingHorizontal: 16,
@@ -49,7 +49,11 @@ export default function ToolbarExample() {
 					</View>
 				</KeyboardAvoidingView>
 			</View>
-			<KeyboardToolbar />
+			<KeyboardToolbar
+				offset={{
+					opened: -80,
+				}}
+			/>
 		</>
 	);
 }
@@ -62,15 +66,21 @@ const TextInputAndLabel = (props: CustomTextInputProps) => {
 	const { title, ...rest } = props;
 	const [isFocused, setFocused] = useState(false);
 
-	const onFocus = useCallback<NonNullable<TextInputProps['onFocus']>>((e) => {
-		setFocused(true);
-		props.onFocus?.(e);
-	}, []);
+	const onFocus = useCallback<NonNullable<TextInputProps['onFocus']>>(
+		(e) => {
+			setFocused(true);
+			props.onFocus?.(e);
+		},
+		[props],
+	);
 
-	const onBlur = useCallback<NonNullable<TextInputProps['onBlur']>>((e) => {
-		setFocused(false);
-		props.onBlur?.(e);
-	}, []);
+	const onBlur = useCallback<NonNullable<TextInputProps['onBlur']>>(
+		(e) => {
+			setFocused(false);
+			props.onBlur?.(e);
+		},
+		[props],
+	);
 
 	return (
 		<>

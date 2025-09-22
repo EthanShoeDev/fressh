@@ -21,7 +21,7 @@ import {
 	type InputConnectionDetails,
 } from '@/lib/secrets-manager';
 import { useTheme } from '@/lib/theme';
-import { useBottomTabPadding } from '@/lib/useBottomTabPadding';
+import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 
 export default function TabsIndex() {
 	return <Host />;
@@ -45,7 +45,7 @@ function Host() {
 	const sshConnMutation = useSshConnMutation({
 		onConnectionProgress: (s) => setLastConnectionProgressEvent(s),
 	});
-	const { paddingBottom, onLayout } = useBottomTabPadding(12);
+	const marginBottom = useBottomTabSpacing();
 	const connectionForm = useAppForm({
 		// https://tanstack.com/form/latest/docs/framework/react/guides/async-initial-values
 		defaultValues,
@@ -86,10 +86,9 @@ function Host() {
 	return (
 		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
 			<ScrollView
-				contentContainerStyle={[{ paddingBottom }]}
+				contentContainerStyle={[{ marginBottom }]}
 				keyboardShouldPersistTaps="handled"
 				style={{ backgroundColor: theme.colors.background }}
-				onLayout={onLayout}
 			>
 				<View
 					style={[

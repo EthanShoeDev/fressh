@@ -12,14 +12,15 @@ import {
 	useFocusEffect,
 } from 'expo-router';
 import React, { startTransition, useEffect, useRef, useState } from 'react';
-import { Dimensions, Platform, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import {
-	SafeAreaView,
-	useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+	KeyboardAvoidingView,
+	KeyboardToolbar,
+} from 'react-native-keyboard-controller';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
+import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 
 export default function TabsShellDetail() {
 	const [ready, setReady] = useState(false);
@@ -104,130 +105,125 @@ function ShellDetail() {
 		};
 	}, [shell]);
 
-	const insets = useSafeAreaInsets();
-	const estimatedTabBarHeight = Platform.select({
-		ios: 49,
-		android: 80,
-		default: 56,
-	});
-	const windowH = Dimensions.get('window').height;
-	const computeBottomExtra = (y: number, height: number) => {
-		const extra = windowH - (y + height);
-		return extra > 0 ? extra : 0;
-	};
-
-	// Measure any bottom overlap (e.g., native tab bar) and add padding to avoid it
-	const [bottomExtra, setBottomExtra] = useState(0);
+	const marginBottom = useBottomTabSpacing();
 
 	return (
-		<SafeAreaView
-			edges={['left', 'right']}
-			onLayout={(e) => {
-				const { y, height } = e.nativeEvent.layout;
-				const extra = computeBottomExtra(y, height);
-				if (extra !== bottomExtra) setBottomExtra(extra);
-			}}
-			style={{
-				flex: 1,
-				justifyContent: 'flex-start',
-				backgroundColor: theme.colors.background,
-				paddingTop: 2,
-				paddingLeft: 8,
-				paddingRight: 8,
-				paddingBottom: insets.bottom + (bottomExtra || estimatedTabBarHeight),
-			}}
-		>
-			<Stack.Screen
-				options={{
-					headerBackVisible: true,
-					headerRight: () => (
-						<Pressable
-							accessibilityLabel="Disconnect"
-							hitSlop={10}
-							onPress={async () => {
-								if (!connection) return;
-								try {
-									await connection.disconnect();
-								} catch (e) {
-									console.warn('Failed to disconnect', e);
-								}
-							}}
-						>
-							<Ionicons name="power" size={20} color={theme.colors.primary} />
-						</Pressable>
-					),
+		<>
+			<View
+				style={{
+					justifyContent: 'flex-start',
+					backgroundColor: theme.colors.background,
+					paddingTop: 2,
+					paddingLeft: 8,
+					paddingRight: 8,
+					paddingBottom: 0,
+					marginBottom,
+					flex: 1,
 				}}
-			/>
-			<XtermJsWebView
-				ref={xtermRef}
-				style={{ flex: 1 }}
-				webViewOptions={{
-					// Prevent iOS from adding automatic top inset inside WebView
-					contentInsetAdjustmentBehavior: 'never',
-				}}
-				logger={{
-					log: console.log,
-					// debug: console.log,
-					warn: console.warn,
-					error: console.error,
-				}}
-				// xterm options
-				xtermOptions={{
-					theme: {
-						background: theme.colors.background,
-						foreground: theme.colors.textPrimary,
-					},
-				}}
-				onInitialized={() => {
-					if (terminalReadyRef.current) return;
-					terminalReadyRef.current = true;
-
-					if (!shell) throw new Error('Shell not found');
-
-					// Replay from head, then attach live listener
-					void (async () => {
-						const res = shell.readBuffer({ mode: 'head' });
-						console.log('readBuffer(head)', {
-							chunks: res.chunks.length,
-							nextSeq: res.nextSeq,
-							dropped: res.dropped,
-						});
-						if (res.chunks.length) {
-							const chunks = res.chunks.map((c) => c.bytes);
-							const xr = xtermRef.current;
-							if (xr) {
-								xr.writeMany(chunks.map((c) => new Uint8Array(c)));
-								xr.flush();
-							}
-						}
-						const id = shell.addListener(
-							(ev: ListenerEvent) => {
-								if ('kind' in ev) {
-									console.log('listener.dropped', ev);
-									return;
-								}
-								const chunk = ev;
-								const xr3 = xtermRef.current;
-								if (xr3) xr3.write(new Uint8Array(chunk.bytes));
+			>
+				<Stack.Screen
+					options={{
+						headerBackVisible: true,
+						headerRight: () => (
+							<Pressable
+								accessibilityLabel="Disconnect"
+								hitSlop={10}
+								onPress={async () => {
+									if (!connection) return;
+									try {
+										await connection.disconnect();
+									} catch (e) {
+										console.warn('Failed to disconnect', e);
+									}
+								}}
+							>
+								<Ionicons name="power" size={20} color={theme.colors.primary} />
+							</Pressable>
+						),
+					}}
+				/>
+				<KeyboardAvoidingView
+					behavior="height"
+					keyboardVerticalOffset={210}
+					style={{ flex: 1 }}
+				>
+					<XtermJsWebView
+						ref={xtermRef}
+						style={{ flex: 1 }}
+						webViewOptions={{
+							// Prevent iOS from adding automatic top inset inside WebView
+							contentInsetAdjustmentBehavior: 'never',
+						}}
+						logger={{
+							log: console.log,
+							// debug: console.log,
+							warn: console.warn,
+							error: console.error,
+						}}
+						// xterm options
+						xtermOptions={{
+							theme: {
+								background: theme.colors.background,
+								foreground: theme.colors.textPrimary,
 							},
-							{ cursor: { mode: 'seq', seq: res.nextSeq } },
-						);
-						console.log('shell listener attached', id.toString());
-						listenerIdRef.current = id;
-					})();
-					// Focus to pop the keyboard (iOS needs the prop we set)
-					const xr2 = xtermRef.current;
-					if (xr2) xr2.focus();
-				}}
-				onData={(terminalMessage) => {
-					if (!shell) return;
-					const bytes = encoder.encode(terminalMessage);
-					shell.sendData(bytes.buffer).catch((e: unknown) => {
-						console.warn('sendData failed', e);
-						router.back();
-					});
+						}}
+						onInitialized={() => {
+							if (terminalReadyRef.current) return;
+							terminalReadyRef.current = true;
+
+							if (!shell) throw new Error('Shell not found');
+
+							// Replay from head, then attach live listener
+							void (async () => {
+								const res = shell.readBuffer({ mode: 'head' });
+								console.log('readBuffer(head)', {
+									chunks: res.chunks.length,
+									nextSeq: res.nextSeq,
+									dropped: res.dropped,
+								});
+								if (res.chunks.length) {
+									const chunks = res.chunks.map((c) => c.bytes);
+									const xr = xtermRef.current;
+									if (xr) {
+										xr.writeMany(chunks.map((c) => new Uint8Array(c)));
+										xr.flush();
+									}
+								}
+								const id = shell.addListener(
+									(ev: ListenerEvent) => {
+										if ('kind' in ev) {
+											console.log('listener.dropped', ev);
+											return;
+										}
+										const chunk = ev;
+										const xr3 = xtermRef.current;
+										if (xr3) xr3.write(new Uint8Array(chunk.bytes));
+									},
+									{ cursor: { mode: 'seq', seq: res.nextSeq } },
+								);
+								console.log('shell listener attached', id.toString());
+								listenerIdRef.current = id;
+							})();
+							// Focus to pop the keyboard (iOS needs the prop we set)
+							const xr2 = xtermRef.current;
+							if (xr2) xr2.focus();
+						}}
+						onData={(terminalMessage) => {
+							if (!shell) return;
+							const bytes = encoder.encode(terminalMessage);
+							shell.sendData(bytes.buffer).catch((e: unknown) => {
+								console.warn('sendData failed', e);
+								router.back();
+							});
+						}}
+					/>
+				</KeyboardAvoidingView>
+			</View>
+			<KeyboardToolbar
+				offset={{
+					opened: -80,
 				}}
 			/>
-		</SafeAreaView>
+		</>
 	);
 }
