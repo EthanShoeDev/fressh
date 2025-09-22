@@ -29,6 +29,7 @@ tokio = { version = "1.47.1", features = ["rt-multi-thread", "macros", "time", "
 bytes = "1.10.1"
 futures = "0.3.31"
 base64 = "0.22"
+ed25519-dalek = "2"
 
 # SSH client and keys. `russh` is the client; `russh-keys` handles key types,
 # generation, and OpenSSH (PEM) encoding/decoding.

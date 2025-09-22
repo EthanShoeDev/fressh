@@ -17,10 +17,14 @@ use tokio::sync::{broadcast, Mutex as AsyncMutex};
 use russh::{self, client, ChannelMsg, Disconnect};
 use russh::client::{Config, Handle as ClientHandle};
 use russh_keys::{Algorithm, EcdsaCurve};
-use russh::keys::{PrivateKey, PrivateKeyWithHashAlg};
+use russh::keys::PrivateKeyWithHashAlg;
 use russh_keys::ssh_key::{self, LineEnding};
+// Alias the internal ssh_key re-export used by russh for type compatibility
+use russh::keys::ssh_key as russh_ssh_key;
+use russh_keys::ssh_key::{private::{Ed25519Keypair, KeypairData}};
 use bytes::Bytes;
 use base64::Engine as _;
+use ed25519_dalek::SigningKey;
 
 uniffi::setup_scaffolding!();
 
@@ -712,63 +716,41 @@ impl ShellSession {
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshError> {
     let started_at_ms = now_ms();
-
     let details = ConnectionDetails {
         host: options.connection_details.host.clone(),
         port: options.connection_details.port,
         username: options.connection_details.username.clone(),
         security: options.connection_details.security.clone(),
     };
-
+    
 
     // TCP
     let addr = format!("{}:{}", details.host, details.port);
-    
-    
     let socket = tokio::net::TcpStream::connect(&addr).await?;
-    let local_port = socket.local_addr()?.port(); // ephemeral local port
-    
-    
+    let local_port = socket.local_addr()?.port();
+
     let tcp_established_at_ms = now_ms();
     if let Some(sl) = options.on_connection_progress_callback.as_ref() {
         sl.on_change(SshConnectionProgressEvent::TcpConnected);
     }
-
-    
     let cfg = Arc::new(Config::default());
-    let mut handle: ClientHandle<NoopHandler> =
-    russh::client::connect_stream(cfg, socket, NoopHandler).await?;
-
-
+    let mut handle: ClientHandle<NoopHandler> = russh::client::connect_stream(cfg, socket, NoopHandler).await?;
     let ssh_handshake_at_ms = now_ms();
     if let Some(sl) = options.on_connection_progress_callback.as_ref() {
         sl.on_change(SshConnectionProgressEvent::SshHandshake);
     }
-
-
-    // Auth
     let auth_result  = match &details.security {
         Security::Password { password } => {
-            handle
-                .authenticate_password(details.username.clone(), password.clone())
-                .await?
+            handle.authenticate_password(details.username.clone(), password.clone()).await?
         }
-        // Treat key_id as the OpenSSH PEM-encoded private key content
         Security::Key { private_key_content } => {
-            // Parse OpenSSH private key text into a russh::keys::PrivateKey
-            let parsed: PrivateKey = PrivateKey::from_openssh(private_key_content.as_str())
-                .map_err(|e| SshError::RusshKeys(e.to_string()))?;
-            // Wrap; omit hash preference (server selects or default applies)
+            // Normalize and parse using shared helper so RN-validated keys match runtime parsing.
+            let (_canonical, parsed) = normalize_openssh_ed25519_seed_key(private_key_content)?;
             let pk_with_hash = PrivateKeyWithHashAlg::new(Arc::new(parsed), None);
-            handle
-                .authenticate_publickey(details.username.clone(), pk_with_hash)
-                .await?
+            handle.authenticate_publickey(details.username.clone(), pk_with_hash).await?
         }
     };
-    if !matches!(auth_result, russh::client::AuthResult::Success) {
-        return Err(auth_result.into());
-    }
-
+    if !matches!(auth_result, russh::client::AuthResult::Success) { return Err(auth_result.into()); }
 
     let connection_id = format!("{}@{}:{}:{}", details.username, details.host, details.port, local_port);
     let conn = Arc::new(SshConnection {
@@ -791,10 +773,9 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
 
 #[uniffi::export]
 pub fn validate_private_key(private_key_content: String) -> Result<String, SshError> {
-    // Normalize seed-only ed25519 keys (no-op for already-normal keys), then validate.
-    let normalized = normalize_openssh_ed25519_seed_key(&private_key_content);
-    let parsed: russh_keys::PrivateKey = russh_keys::PrivateKey::from_openssh(&normalized)?;
-    Ok(parsed.to_openssh(LineEnding::LF)?.to_string())
+    // Normalize and parse once; return canonical OpenSSH string.
+    let (canonical, _parsed) = normalize_openssh_ed25519_seed_key(&private_key_content)?;
+    Ok(canonical)
 }
 
 #[uniffi::export]
@@ -892,6 +873,9 @@ impl From<russh_keys::Error> for SshError {
 impl From<ssh_key::Error> for SshError {
     fn from(e: ssh_key::Error) -> Self { SshError::RusshKeys(e.to_string()) }
 }
+impl From<russh_ssh_key::Error> for SshError {
+    fn from(e: russh_ssh_key::Error) -> Self { SshError::RusshKeys(e.to_string()) }
+}
 impl From<std::io::Error> for SshError {
     fn from(e: std::io::Error) -> Self { SshError::Russh(e.to_string()) }
 }
@@ -907,140 +891,103 @@ impl From<russh::client::AuthResult> for SshError {
 // If the input matches an unencrypted OpenSSH ed25519 key with a 32-byte
 // private field, this function returns a normalized PEM string with the
 // correct 64-byte private field (seed || public). Otherwise, returns None.
-fn normalize_openssh_ed25519_seed_key(input: &str) -> String {
-    // If it already parses, return as-is (already normal)
-    if russh_keys::PrivateKey::from_openssh(input).is_ok() {
-        return input.to_string();
-    }
-    const HEADER: &str = "-----BEGIN OPENSSH PRIVATE KEY-----";
-    const FOOTER: &str = "-----END OPENSSH PRIVATE KEY-----";
-    // Extract base64 payload between header and footer
-    let (start, end) = match (input.find(HEADER), input.find(FOOTER)) {
-        (Some(h), Some(f)) => (h + HEADER.len(), f),
-        _ => return input.to_string(),
-    };
-    let body = &input[start..end];
-    let b64: String = body
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .collect::<Vec<_>>()
-        .join("");
-
-    let raw = match base64::engine::general_purpose::STANDARD.decode(b64.as_bytes()) {
-        Ok(v) => v,
-        Err(_) => return input.to_string(),
-    };
-
-    // Parse OpenSSH binary format: "openssh-key-v1\0" then strings
-    let mut idx = 0usize;
-    let magic = b"openssh-key-v1\0";
-    if raw.len() < magic.len() || &raw[..magic.len()] != magic { return input.to_string(); }
-    idx += magic.len();
-
-    fn read_u32(buf: &[u8], idx: &mut usize) -> Option<u32> {
-        if *idx + 4 > buf.len() { return None; }
-        let v = u32::from_be_bytes([buf[*idx], buf[*idx + 1], buf[*idx + 2], buf[*idx + 3]]);
-        *idx += 4;
-        Some(v)
-    }
-    fn read_string<'a>(buf: &'a [u8], idx: &mut usize) -> Option<&'a [u8]> {
-        let n = read_u32(buf, idx)? as usize;
-        if *idx + n > buf.len() { return None; }
-        let s = &buf[*idx..*idx + n];
-        *idx += n;
-        Some(s)
-    }
-    fn write_u32(out: &mut Vec<u8>, v: u32) { out.extend_from_slice(&v.to_be_bytes()); }
-    fn write_string(out: &mut Vec<u8>, s: &[u8]) {
-        write_u32(out, s.len() as u32);
-        out.extend_from_slice(s);
+fn normalize_openssh_ed25519_seed_key(
+    input: &str,
+) -> Result<(String, russh::keys::PrivateKey), russh_ssh_key::Error> {
+    // If it already parses, return canonical string and parsed key.
+    if let Ok(parsed) = russh::keys::PrivateKey::from_openssh(input) {
+        let canonical = parsed.to_openssh(russh_ssh_key::LineEnding::LF)?.to_string();
+        return Ok((canonical, parsed));
     }
 
-    let ciphername = match read_string(&raw, &mut idx) { Some(v) => v, None => return input.to_string() };
-    let kdfname = match read_string(&raw, &mut idx) { Some(v) => v, None => return input.to_string() };
-    let kdfopts = match read_string(&raw, &mut idx) { Some(v) => v, None => return input.to_string() };
-    // Only handle unencrypted keys
-    if ciphername != b"none" || kdfname != b"none" { return input.to_string(); }
-    // kdfopts should be empty for "none", but if not, proceed and preserve it.
+    // Try to fix seed-only Ed25519 keys and re-parse.
+    fn try_fix_seed_only_ed25519(input: &str) -> Option<String> {
+        // Minimal OpenSSH container parse to detect seed-only Ed25519
+        const HEADER: &str = "-----BEGIN OPENSSH PRIVATE KEY-----";
+        const FOOTER: &str = "-----END OPENSSH PRIVATE KEY-----";
+        let (start, end) = match (input.find(HEADER), input.find(FOOTER)) {
+            (Some(h), Some(f)) => (h + HEADER.len(), f),
+            _ => return None,
+        };
+        let body = &input[start..end];
+        let b64: String = body
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .join("");
 
-    let nkeys = match read_u32(&raw, &mut idx) { Some(v) => v as usize, None => return input.to_string() };
-    let mut pubkeys: Vec<&[u8]> = Vec::with_capacity(nkeys);
-    for _ in 0..nkeys {
-        let pk = match read_string(&raw, &mut idx) { Some(v) => v, None => return input.to_string() };
-        pubkeys.push(pk);
+        let raw = match base64::engine::general_purpose::STANDARD.decode(b64.as_bytes()) {
+            Ok(v) => v,
+            Err(_) => return None,
+        };
+
+        let mut idx = 0usize;
+        let magic = b"openssh-key-v1\0";
+        if raw.len() < magic.len() || &raw[..magic.len()] != magic { return None; }
+        idx += magic.len();
+
+        fn read_u32(buf: &[u8], idx: &mut usize) -> Option<u32> {
+            if *idx + 4 > buf.len() { return None; }
+            let v = u32::from_be_bytes([buf[*idx], buf[*idx + 1], buf[*idx + 2], buf[*idx + 3]]);
+            *idx += 4;
+            Some(v)
+        }
+        fn read_string<'a>(buf: &'a [u8], idx: &mut usize) -> Option<&'a [u8]> {
+            let n = read_u32(buf, idx)? as usize;
+            if *idx + n > buf.len() { return None; }
+            let s = &buf[*idx..*idx + n];
+            *idx += n;
+            Some(s)
+        }
+
+        let ciphername = read_string(&raw, &mut idx)?;
+        let kdfname = read_string(&raw, &mut idx)?;
+        let _kdfopts = read_string(&raw, &mut idx)?;
+        if ciphername != b"none" || kdfname != b"none" { return None; }
+
+        let nkeys = read_u32(&raw, &mut idx)? as usize;
+        for _ in 0..nkeys {
+            let _ = read_string(&raw, &mut idx)?;
+        }
+        let private_block = read_string(&raw, &mut idx)?;
+
+        let mut pidx = 0usize;
+        let check1 = read_u32(private_block, &mut pidx)?;
+        let check2 = read_u32(private_block, &mut pidx)?;
+        if check1 != check2 { return None; }
+
+        let alg = read_string(private_block, &mut pidx)?;
+        if alg != b"ssh-ed25519" { return None; }
+        let _pubkey = read_string(private_block, &mut pidx)?;
+        let privkey = read_string(private_block, &mut pidx)?;
+        let comment_bytes = read_string(private_block, &mut pidx)?;
+
+        // Build canonical keypair bytes
+        let mut keypair_bytes = [0u8; 64];
+        if privkey.len() == 32 {
+            let seed: [u8; 32] = match privkey.try_into() { Ok(a) => a, Err(_) => return None };
+            let sk = SigningKey::from_bytes(&seed);
+            let vk = sk.verifying_key();
+            let pub_bytes = vk.to_bytes();
+            keypair_bytes[..32].copy_from_slice(&seed);
+            keypair_bytes[32..].copy_from_slice(pub_bytes.as_ref());
+        } else if privkey.len() == 64 {
+            keypair_bytes.copy_from_slice(privkey);
+        } else {
+            return None;
+        }
+        let ed_kp = match Ed25519Keypair::from_bytes(&keypair_bytes) { Ok(k) => k, Err(_) => return None };
+        let comment = String::from_utf8(comment_bytes.to_vec()).unwrap_or_default();
+        let key_data = KeypairData::from(ed_kp);
+        let private = match ssh_key::PrivateKey::new(key_data, comment) { Ok(p) => p, Err(_) => return None };
+        match private.to_openssh(LineEnding::LF) { Ok(s) => Some(s.to_string()), Err(_) => None }
     }
-    let private_block = match read_string(&raw, &mut idx) { Some(v) => v, None => return input.to_string() };
 
-    // Parse private block
-    let mut pidx = 0usize;
-    let check1 = match read_u32(private_block, &mut pidx) { Some(v) => v, None => return input.to_string() };
-    let check2 = match read_u32(private_block, &mut pidx) { Some(v) => v, None => return input.to_string() };
-    if check1 != check2 { return input.to_string(); }
-
-    let alg = match read_string(private_block, &mut pidx) { Some(v) => v, None => return input.to_string() };
-    if alg != b"ssh-ed25519" { return input.to_string(); }
-    let pubkey = match read_string(private_block, &mut pidx) { Some(v) => v, None => return input.to_string() };
-    let privkey = match read_string(private_block, &mut pidx) { Some(v) => v, None => return input.to_string() };
-    let comment = match read_string(private_block, &mut pidx) { Some(v) => v, None => return input.to_string() };
-    // Remaining bytes are padding; we will recompute
-    let _padding = &private_block[pidx..];
-
-    // Only fix the specific case where privkey is 32-byte seed and pubkey is 32 bytes
-    let fixed_priv: Vec<u8> = if privkey.len() == 32 && pubkey.len() == 32 {
-        let mut v = Vec::with_capacity(64);
-        v.extend_from_slice(privkey);
-        v.extend_from_slice(pubkey);
-        v
-    } else {
-        // Keep original private if already 64 or any other length, but re-encode
-        privkey.to_vec()
-    };
-
-    // Rebuild private block with proper padding to 8-byte boundary
-    let mut new_priv_block = Vec::new();
-    write_u32(&mut new_priv_block, check1);
-    write_u32(&mut new_priv_block, check2);
-    write_string(&mut new_priv_block, alg);
-    write_string(&mut new_priv_block, pubkey);
-    write_string(&mut new_priv_block, &fixed_priv);
-    write_string(&mut new_priv_block, comment);
-    // padding bytes 1..n to reach 8-byte alignment
-    let block_size = 8usize;
-    let rem = new_priv_block.len() % block_size;
-    let mut pad_len = if rem == 0 { 0 } else { block_size - rem };
-    // Ensure there is at least one byte of padding, mirroring OpenSSH behavior
-    if pad_len == 0 { pad_len = block_size; }
-    for i in 1..=pad_len { new_priv_block.push(i as u8); }
-
-    // Rebuild outer container
-    let mut out = Vec::new();
-    out.extend_from_slice(magic);
-    write_string(&mut out, ciphername);
-    write_string(&mut out, kdfname);
-    write_string(&mut out, kdfopts);
-    write_u32(&mut out, nkeys as u32);
-    for pk in pubkeys { write_string(&mut out, pk); }
-    write_string(&mut out, &new_priv_block);
-
-    // Base64 encode and wrap with header/footer
-    let b64 = base64::engine::general_purpose::STANDARD.encode(out);
-    // Wrap lines at 70 chars (OpenSSH uses 70)
-    let mut wrapped = String::new();
-    let mut i = 0usize;
-    while i < b64.len() {
-        let end = (i + 70).min(b64.len());
-        wrapped.push_str(&b64[i..end]);
-        wrapped.push('\n');
-        i = end;
-    }
-    let mut pem = String::new();
-    pem.push_str(HEADER);
-    pem.push('\n');
-    pem.push_str(&wrapped);
-    pem.push_str(FOOTER);
-    pem.push('\n');
-    pem
+    let candidate = try_fix_seed_only_ed25519(input).unwrap_or_else(|| input.to_string());
+    let parsed = russh::keys::PrivateKey::from_openssh(&candidate)?;
+    let canonical = parsed.to_openssh(russh_ssh_key::LineEnding::LF)?.to_string();
+    Ok((canonical, parsed))
 }
 
 // ---------- Unit Tests ----------

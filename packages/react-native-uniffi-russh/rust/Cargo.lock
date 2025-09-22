@@ -2024,6 +2024,7 @@ dependencies = [
  "async-trait",
  "base64",
  "bytes",
+ "ed25519-dalek",
  "futures",
  "once_cell",
  "rand",
