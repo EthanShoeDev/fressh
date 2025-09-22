@@ -20,13 +20,13 @@ export default function ToolbarExample() {
 					borderWidth: 10,
 					borderColor: 'green',
 					// paddingBottom: 100,
-					// marginBottom: 100,
+					marginBottom: 100,
 					justifyContent: 'flex-start',
 				}}
 			>
 				<KeyboardAvoidingView
 					behavior="height"
-					keyboardVerticalOffset={160}
+					keyboardVerticalOffset={150}
 					style={{
 						flex: 1,
 						paddingHorizontal: 16,

@@ -1,6 +1,11 @@
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import React from 'react';
 import { useTheme } from '@/lib/theme';
+// import { Stack } from 'expo-router';
+
+// export default function Layout() {
+// 	return <Stack />;
+// }
 
 export default function TabsLayout() {
 	const theme = useTheme();
@@ -21,8 +26,10 @@ export default function TabsLayout() {
 			// blurEffect="systemChromeMaterial"
 			// disableTransparentOnScrollEdge={true}
 		>
-			<NativeTabs.Trigger name="index">
-				<Label selectedStyle={{ color: theme.colors.textPrimary }}>Hosts</Label>
+			<NativeTabs.Trigger name="toolbar-example">
+				<Label selectedStyle={{ color: theme.colors.textPrimary }}>
+					Toolbar Example
+				</Label>
 				<Icon
 					selectedColor={theme.colors.textPrimary}
 					sf="house.fill"
