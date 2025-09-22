@@ -33,8 +33,8 @@ export type ConnectionDetails = {
   port: number;
   username: string;
   security:
-  | { type: 'password'; password: string }
-  | { type: 'key'; privateKey: string };
+    | { type: 'password'; password: string }
+    | { type: 'key'; privateKey: string };
 };
 
 /**
@@ -323,8 +323,8 @@ function wrapConnection(
           term: terminalTypeLiteralToEnum[params.term],
           onClosedCallback: onClosed
             ? {
-              onChange: (channelId) => onClosed(channelId),
-            }
+                onChange: (channelId) => onClosed(channelId),
+              }
             : undefined,
           terminalMode: params.terminalMode,
           terminalPixelSize: params.terminalPixelSize,
@@ -343,11 +343,11 @@ async function connect(options: ConnectOptions): Promise<SshConnection> {
   const security =
     options.security.type === 'password'
       ? new GeneratedRussh.Security.Password({
-        password: options.security.password,
-      })
+          password: options.security.password,
+        })
       : new GeneratedRussh.Security.Key({
-        privateKeyContent: options.security.privateKey,
-      });
+          privateKeyContent: options.security.privateKey,
+        });
   const sshConnection = await GeneratedRussh.connect(
     {
       connectionDetails: {
@@ -358,16 +358,16 @@ async function connect(options: ConnectOptions): Promise<SshConnection> {
       },
       onConnectionProgressCallback: options.onConnectionProgress
         ? {
-          onChange: (statusEnum) =>
-            options.onConnectionProgress!(
-              sshConnProgressEnumToLiteral[statusEnum]
-            ),
-        }
+            onChange: (statusEnum) =>
+              options.onConnectionProgress!(
+                sshConnProgressEnumToLiteral[statusEnum]
+              ),
+          }
         : undefined,
       onDisconnectedCallback: options.onDisconnected
         ? {
-          onChange: (connectionId) => options.onDisconnected!(connectionId),
-        }
+            onChange: (connectionId) => options.onDisconnected!(connectionId),
+          }
         : undefined,
     },
     options.abortSignal ? { signal: options.abortSignal } : undefined
