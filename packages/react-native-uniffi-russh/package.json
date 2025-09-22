@@ -42,6 +42,9 @@
     "build:native": "tsx scripts/native-build.ts",
     "build:bob": "bob build",
     "lint:rust": "cd rust/uniffi-russh && just lint",
+    "lint:rust:check": "cd rust/uniffi-russh && just lint-check",
+    "fmt:rust": "cd rust/uniffi-russh && just fmt",
+    "fmt:rust:check": "cd rust/uniffi-russh && just fmt-check",
     "update-rust": "cd rust/uniffi-russh && just update-deps",
     "test": "jest",
     "release": "release-it --only-version"

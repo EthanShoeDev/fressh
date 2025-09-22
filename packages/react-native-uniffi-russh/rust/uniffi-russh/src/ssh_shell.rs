@@ -116,8 +116,8 @@ pub struct ShellSessionInfo {
 
 #[derive(uniffi::Object)]
 pub struct ShellSession {
-    pub(crate) info: ShellSessionInfo,
-    pub(crate) on_closed_callback: Option<Arc<dyn ShellClosedCallback>>,
+    pub info: ShellSessionInfo,
+    pub on_closed_callback: Option<Arc<dyn ShellClosedCallback>>,
 
     // Weak backref; avoid retain cycle.
     pub(crate) parent: std::sync::Weak<SshConnection>,
@@ -140,7 +140,7 @@ pub struct ShellSession {
     // Listener tasks management
     pub(crate) listener_tasks: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
     pub(crate) next_listener_id: AtomicU64,
-    pub(crate) default_coalesce_ms: AtomicU64,
+    pub(crate) coalesce_ms: AtomicU64,
     pub(crate) rt_handle: tokio::runtime::Handle,
 }
 
@@ -383,7 +383,7 @@ impl ShellSession {
         let replay = self.read_buffer(opts.cursor.clone(), None);
         let mut rx = self.sender.subscribe();
         let id = self.next_listener_id.fetch_add(1, Ordering::Relaxed);
-        let default_coalesce_ms = self.default_coalesce_ms.load(Ordering::Relaxed) as u32;
+        let default_coalesce_ms = self.coalesce_ms.load(Ordering::Relaxed) as u32;
         let coalesce_ms = opts.coalesce_ms.unwrap_or(default_coalesce_ms);
 
         let rt = self.rt_handle.clone();

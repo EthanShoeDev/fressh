@@ -70,7 +70,6 @@ pub trait ConnectionDisconnectedCallback: Send + Sync {
     fn on_change(&self, connection_id: String);
 }
 
-/// Snapshot of current connection info for property-like access in TS.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct SshConnectionInfo {
     pub connection_id: String,
@@ -82,8 +81,9 @@ pub struct SshConnectionInfo {
 
 #[derive(uniffi::Object)]
 pub struct SshConnection {
-    pub(crate) info: SshConnectionInfo,
-    pub(crate) on_disconnected_callback: Option<Arc<dyn ConnectionDisconnectedCallback>>,
+    pub info: SshConnectionInfo,
+    pub on_disconnected_callback: Option<Arc<dyn ConnectionDisconnectedCallback>>,
+
     pub(crate) client_handle: AsyncMutex<ClientHandle<NoopHandler>>,
 
     pub(crate) shells: AsyncMutex<HashMap<u32, Arc<ShellSession>>>,
@@ -265,7 +265,7 @@ impl SshConnection {
             sender: tx,
             listener_tasks: Arc::new(Mutex::new(HashMap::new())),
             next_listener_id: AtomicU64::new(1),
-            default_coalesce_ms,
+            coalesce_ms: default_coalesce_ms,
             rt_handle: tokio::runtime::Handle::current(),
         });
 

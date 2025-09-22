@@ -3,13 +3,22 @@
   "extends": ["//"],
   "tasks": {
     // Default overrides
+    "fmt": { "with": ["//#fmt:root", "fmt:rust"] },
+    "fmt:check": { "with": ["//#fmt:check:root", "fmt:rust:check"] },
     "lint": {
-      "dependsOn": ["fmt", "^build", "build:bob"],
+      "dependsOn": ["fmt", "^build", "build:bob", "fmt:rust"],
       "with": ["typecheck", "//#lint:root", "lint:rust"],
     },
     "lint:check": {
       "dependsOn": ["^build", "build:bob"],
-      "with": ["fmt:check", "typecheck", "//#lint:check:root", "lint:rust"],
+      "with": [
+        "fmt:check",
+        "typecheck",
+        "//#lint:check:root",
+        "lint:rust",
+        "lint:rust:check",
+        "fmt:rust:check",
+      ],
     },
     "build": {
       "dependsOn": ["build:bob"],
@@ -20,6 +29,9 @@
 
     // Special tasks
     "lint:rust": {},
+    "lint:rust:check": {},
+    "fmt:rust": {},
+    "fmt:rust:check": {},
     "build:bob": {
       "dependsOn": ["build:native"],
       "inputs": ["src/**"],
