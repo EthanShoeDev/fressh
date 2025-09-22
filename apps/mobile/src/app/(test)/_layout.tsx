@@ -29,26 +29,6 @@ export default function TabsLayout() {
 					drawable="ic_menu_myplaces"
 				/>
 			</NativeTabs.Trigger>
-			<NativeTabs.Trigger name="shell">
-				<Icon
-					selectedColor={theme.colors.textPrimary}
-					sf="gear"
-					drawable="ic_menu_compass"
-				/>
-				<Label selectedStyle={{ color: theme.colors.textPrimary }}>
-					Shells
-				</Label>
-			</NativeTabs.Trigger>
-			<NativeTabs.Trigger name="settings">
-				<Icon
-					selectedColor={theme.colors.textPrimary}
-					sf="gear"
-					drawable="ic_menu_preferences"
-				/>
-				<Label selectedStyle={{ color: theme.colors.textPrimary }}>
-					Settings
-				</Label>
-			</NativeTabs.Trigger>
 		</NativeTabs>
 	);
 }
