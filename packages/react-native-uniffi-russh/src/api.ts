@@ -147,13 +147,18 @@ export type SshShell = {
 type RusshApi = {
   uniffiInitAsync: () => Promise<void>;
   connect: (opts: ConnectOptions) => Promise<SshConnection>;
-  generateKeyPair: (type: 'rsa' | 'ecdsa' | 'ed25519',
+  generateKeyPair: (
+    type: 'rsa' | 'ecdsa' | 'ed25519'
     // TODO: Add these
     // passphrase?: string;
     // keySize?: number;
     // comment?: string;
   ) => Promise<string>;
-  validatePrivateKey: (key: string) => { valid: true; error?: never } | { valid: false; error: GeneratedRussh.SshError };
+  validatePrivateKey: (
+    key: string
+  ) =>
+    | { valid: true; error?: never }
+    | { valid: false; error: GeneratedRussh.SshError };
 };
 
 // #endregion
@@ -195,8 +200,6 @@ const streamEnumToLiteral = {
   [GeneratedRussh.StreamKind.Stdout]: 'stdout',
   [GeneratedRussh.StreamKind.Stderr]: 'stderr',
 } as const satisfies Record<GeneratedRussh.StreamKind, StreamKind>;
-
-
 
 function generatedConnDetailsToIdeal(
   details: GeneratedRussh.ConnectionDetails
@@ -314,13 +317,13 @@ function wrapConnection(
       tcpEstablishedAtMs: info.progressTimings.tcpEstablishedAtMs,
       sshHandshakeAtMs: info.progressTimings.sshHandshakeAtMs,
     },
-    startShell: async (params) => {
+    startShell: async ({ onClosed, ...params }) => {
       const shell = await conn.startShell(
         {
           term: terminalTypeLiteralToEnum[params.term],
-          onClosedCallback: params.onClosed
+          onClosedCallback: onClosed
             ? {
-              onChange: (channelId) => params.onClosed!(channelId),
+              onChange: (channelId) => onClosed(channelId),
             }
             : undefined,
           terminalMode: params.terminalMode,
@@ -381,7 +384,11 @@ async function generateKeyPair(type: 'rsa' | 'ecdsa' | 'ed25519') {
   return GeneratedRussh.generateKeyPair(map[type]);
 }
 
-function validatePrivateKey(key: string): { valid: true; error?: never } | { valid: false; error: GeneratedRussh.SshError } {
+function validatePrivateKey(
+  key: string
+):
+  | { valid: true; error?: never }
+  | { valid: false; error: GeneratedRussh.SshError } {
   try {
     GeneratedRussh.validatePrivateKey(key);
     return { valid: true };

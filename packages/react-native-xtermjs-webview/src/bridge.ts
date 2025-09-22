@@ -14,10 +14,9 @@ export type BridgeOutboundMessage =
 	| { type: 'resize'; cols: number; rows: number }
 	| { type: 'fit' }
 	| {
-		type: 'setOptions'; opts: Partial<
-			Omit<ITerminalOptions, keyof ITerminalInitOnlyOptions>
-		>
-	}
+			type: 'setOptions';
+			opts: Partial<Omit<ITerminalOptions, keyof ITerminalInitOnlyOptions>>;
+	  }
 	| { type: 'clear' }
 	| { type: 'focus' };
 

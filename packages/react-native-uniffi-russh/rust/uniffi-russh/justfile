@@ -6,6 +6,10 @@ default:
 lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
+# Update all Cargo dependencies to the latest allowed by Cargo.toml
+update-deps:
+    cargo update
+
 # Run crate tests
 test:
     cargo test

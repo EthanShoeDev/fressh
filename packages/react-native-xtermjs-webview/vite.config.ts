@@ -8,9 +8,7 @@ const logExternal: boolean = false;
 
 export default defineConfig({
 	plugins: [
-		react({
-
-		}),
+		react({}),
 		dts({
 			tsconfigPath: './tsconfig.app.json',
 			// This makes dist/ look nice but breaks Cmd + Click
