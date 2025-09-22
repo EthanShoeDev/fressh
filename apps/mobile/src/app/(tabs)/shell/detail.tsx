@@ -144,7 +144,7 @@ function ShellDetail() {
 				/>
 				<KeyboardAvoidingView
 					behavior="height"
-					keyboardVerticalOffset={210}
+					keyboardVerticalOffset={240}
 					style={{ flex: 1 }}
 				>
 					<XtermJsWebView
