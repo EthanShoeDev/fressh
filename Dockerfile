@@ -1,20 +1,33 @@
+# syntax=docker/dockerfile:1.4
 FROM nixos/nix:latest
 
-# Enable flakes and nix-command
 RUN mkdir -p /etc/nix && \
     echo 'experimental-features = nix-command flakes' > /etc/nix/nix.conf && \
     echo 'accept-flake-config = true' >> /etc/nix/nix.conf
 
 WORKDIR /workspace
 
-COPY flake.nix flake.lock .
-RUN nix develop .#android-remote
+ENV PNPM_STORE_PATH=/pnpm/store
 
-# Pre-populate pnpm store from lockfile only (fast, cacheable)
+COPY flake.nix flake.lock ./
+RUN nix develop -c true
+
 COPY pnpm-lock.yaml ./
 COPY patches/* ./patches/
-RUN nix develop .#android-remote -c pnpm fetch
+RUN --mount=type=cache,target=/pnpm/store,id=fressh-pnpm,sharing=locked \
+    nix develop -c pnpm fetch
 
-# Now copy full source and link from the store (no network)
+COPY package.json pnpm-workspace.yaml ./
+COPY apps/mobile/package.json ./apps/mobile/
+COPY apps/web/package.json ./apps/web/
+COPY packages/react-native-uniffi-russh/package.json ./packages/react-native-uniffi-russh/
+COPY packages/react-native-xtermjs-webview/package.json ./packages/react-native-xtermjs-webview/
+COPY packages/assets/package.json ./packages/assets/
+RUN --mount=type=cache,target=/pnpm/store,id=fressh-pnpm,sharing=locked \
+    nix develop -c pnpm install --frozen-lockfile --offline
+
 COPY . .
-RUN nix develop .#android-remote -c pnpm install --offline --frozen-lockfile
+RUN --mount=type=cache,target=/pnpm/store,id=fressh-pnpm,sharing=locked \
+    nix develop -c pnpm install --frozen-lockfile
+
+CMD ["nix", "develop"]

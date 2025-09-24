@@ -1,11 +1,13 @@
-# nix flake update
 {
   description = "Expo RN devshells (local emulator / remote AVD)";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    # Android SDK as packages
     android-nixpkgs = {
       url = "github:tadfisher/android-nixpkgs";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    fenix = {
+      url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -13,9 +15,11 @@
   nixConfig = {
     extra-substituters = [
       "https://android-nixpkgs.cachix.org"
+      "https://nix-community.cachix.org"
     ];
     extra-trusted-public-keys = [
       "android-nixpkgs.cachix.org-1:2lZoPmwoyTVGaNDHqa6A32tdn8Gc0aMWBRrfXN1H3dQ="
+      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
     ];
   };
 
@@ -23,152 +27,140 @@
     self,
     nixpkgs,
     android-nixpkgs,
+    fenix,
     ...
   }: let
     systems = ["x86_64-linux" "aarch64-darwin" "x86_64-darwin"];
+
+    overlays = [
+      android-nixpkgs.overlays.default
+    ];
+
     forAllSystems = f:
       nixpkgs.lib.genAttrs systems (
         system:
           f {
             pkgs = import nixpkgs {
-              inherit system;
-              overlays = [android-nixpkgs.overlays.default];
+              inherit system overlays;
               config.allowUnfree = true; # emulator is unfree
             };
           }
       );
   in {
-    devShells = forAllSystems ({pkgs}: let
-      defaultPkgs = with pkgs; [
-        # System
-        bash
-        git
-        pkg-config
-        jq
-        # JS
-        nodejs_22
-        turbo
-        nodePackages.pnpm
-        yarn
-        watchman
-        # Rust
-        rustc
-        clippy
-        rustfmt
-        cargo
-        cargo-ndk
-        # Android
-        jdk17
-        gradle_8
-        # Misc
-        cmake
-        ninja
-        just
-        alejandra
-      ];
+    devShells = forAllSystems (
+      {pkgs}: let
+        fen = fenix.packages.${pkgs.system};
+        rustToolchain = fen.combine [
+          (fen.stable.withComponents [
+            "cargo"
+            "clippy"
+            "rust-src"
+            "rustc"
+            "rustfmt"
+          ])
 
-      defaultAndroidPkgs = sdk:
-        with sdk; [
-          cmdline-tools-latest
-          platform-tools # adb/fastboot
-          platforms-android-36
-          build-tools-36-0-0
-          ndk-27-1-12297006
+          fen.targets.aarch64-linux-android.stable.rust-std
+          fen.targets.armv7-linux-androideabi.stable.rust-std
+          fen.targets.x86_64-linux-android.stable.rust-std
+          fen.targets.i686-linux-android.stable.rust-std
         ];
 
-      makeAndroidSdk = mode: let
-        androidSdk = pkgs.androidSdk (
-          sdk:
-            if mode == "full"
-            then
-              (with sdk;
-                [
-                  emulator
-                  system-images-android-36-0-Baklava-google-apis-playstore-x86-64
-                ]
-                ++ (defaultAndroidPkgs sdk))
-            else if mode == "remote"
-            then (with sdk; (defaultAndroidPkgs sdk))
-            else throw "makeAndroidSdk: unknown mode '${mode}'. Use \"full\" or \"remote\"."
-        );
+        defaultPkgs = with pkgs; [
+          # System
+          bash
+          git
+          pkg-config
+          jq
+          # JS
+          nodejs_22
+          turbo
+          nodePackages.pnpm
+          yarn
+          watchman
+          # Rust
+          rustToolchain
+          cargo-ndk
+          # Android build helpers
+          jdk17
+          gradle_8
+          scrcpy
+          # Misc
+          cmake
+          ninja
+          just
+          alejandra
+          clang-tools
+        ];
 
-        # Standard path from nixpkgs' androidSdk wrapper
-        # https://ryantm.github.io/nixpkgs/languages-frameworks/android/#notes-on-environment-variables-in-android-projects
-        sdkRoot = "${androidSdk}/libexec/android-sdk";
-      in {
-        inherit androidSdk sdkRoot;
-      };
+        ndkId = "27-1-12297006"; # nix flake show github:tadfisher/android-nixpkgs | grep ndk
+        ndkAttr = "ndk-${ndkId}";
+        ndkVer = builtins.replaceStrings ["-"] ["."] ndkId;
 
-      fullAndroidSdk = makeAndroidSdk "full";
-      remoteAndroidSdk = makeAndroidSdk "remote";
-    in {
-      # Minimal: only universal dev tools you always want
-      default = pkgs.mkShell {
-        packages = defaultPkgs;
-      };
+        defaultAndroidPkgs = sdk: let
+          ndkPkg = builtins.getAttr ndkAttr sdk;
+        in
+          with sdk; [
+            cmdline-tools-latest
+            platform-tools
+            platforms-android-36
+            build-tools-35-0-0
+            cmake-3-22-1
+            ndkPkg
+          ];
 
-      # Local emulator: full SDK + AVD bits for API 36
-      android-local = pkgs.mkShell {
-        packages = defaultPkgs ++ [fullAndroidSdk.androidSdk];
-        shellHook = ''
-          # Resolve SDK root robustly (libexec first, then share)
-          _CANDS=(
-            "${fullAndroidSdk.sdkRoot}"
-            "${fullAndroidSdk.androidSdk}/libexec/android-sdk"
-            "${fullAndroidSdk.androidSdk}/share/android-sdk"
-          )
-          for p in "''${_CANDS[@]}"; do
-            if [ -d "$p" ]; then
-              export ANDROID_SDK_ROOT="$p"
-              export ANDROID_HOME="$p"
-              break
-            fi
-          done
+        makeAndroidSdk = mode: let
+          androidSdk = pkgs.androidSdk (
+            sdk:
+              if mode == "full"
+              then
+                (with sdk;
+                  [
+                    emulator
+                    system-images-android-36-1-google-apis-x86-64 # nix flake show github:tadfisher/android-nixpkgs | grep system-images-android-36
+                  ]
+                  ++ (defaultAndroidPkgs sdk))
+              else if mode == "remote"
+              then (defaultAndroidPkgs sdk)
+              else throw "makeAndroidSdk: unknown mode '${mode}'. Use \"full\" or \"remote\"."
+          );
+          sdkRoot = "${androidSdk}/share/android-sdk";
+        in {inherit androidSdk sdkRoot;};
 
-          if [ -z "$ANDROID_SDK_ROOT" ]; then
-            echo "❌ Could not locate ANDROID_SDK_ROOT in Nix store. Check androidSdk composition."
-            return 1
-          fi
+        fullAndroidSdk = makeAndroidSdk "full";
+        remoteAndroidSdk = makeAndroidSdk "remote";
 
-          # Ensure Nix adb/emulator/cmdline-tools win over system tools
+        commonAndroidInit = sdkRoot: ''
+          export ANDROID_SDK_ROOT="${sdkRoot}"
+          export ANDROID_HOME="${sdkRoot}"
           export PATH="$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          hash -r
-
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/27.1.12297006"
+          export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/${ndkVer}"
           export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
           export ANDROID_NDK="$ANDROID_NDK_ROOT"
-          which -a adb || true
-          which -a emulator || true
-          which -a avdmanager || true
-
-          # quick sanity
-          adb version || true
-          emulator -version || true
-          avdmanager --help >/dev/null || true
         '';
-      };
+      in {
+        default = pkgs.mkShell {
+          packages = defaultPkgs ++ [remoteAndroidSdk.androidSdk];
+          shellHook =
+            commonAndroidInit remoteAndroidSdk.sdkRoot
+            + ''
+              echo "You are using the defaul nix dev shell. Noice."
+            '';
+        };
 
-      # Remote AVD workflow: no emulator/image; add scrcpy + adb only
-      android-remote = pkgs.mkShell {
-        packages =
-          defaultPkgs
-          ++ [
-            (pkgs.androidSdk (sdk: (defaultAndroidPkgs sdk)))
-            pkgs.scrcpy
-          ];
-        shellHook = ''
-          export ANDROID_SDK_ROOT="${remoteAndroidSdk.sdkRoot}"
-          export ANDROID_HOME="${remoteAndroidSdk.sdkRoot}"
-          export PATH="${remoteAndroidSdk.sdkRoot}/platform-tools:$PATH"
-          hash -r
-          echo "Using Nix adb from: $ANDROID_SDK_ROOT"
-          which -a adb
-          adb version || true
-          echo "Tip: ssh -N -L 5037:127.0.0.1:5037 user@remote && scrcpy"
-        '';
-      };
-    });
-    formatter = forAllSystems ({pkgs}: pkgs.alejandra);
+        android-emulator = pkgs.mkShell {
+          packages = defaultPkgs ++ [fullAndroidSdk.androidSdk];
+          shellHook =
+            commonAndroidInit fullAndroidSdk.sdkRoot
+            + ''
+              echo "You are using the android-emulator nix dev shell. Noice."
+            '';
+        };
+      }
+    );
+
+    formatter = forAllSystems (
+      {pkgs}:
+        pkgs.alejandra
+    );
   };
 }
