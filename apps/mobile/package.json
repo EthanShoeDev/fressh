@@ -16,6 +16,8 @@
     "dev:ios:release": "expo run:ios --port 8081 --variant release",
     "build:signed:aab": "tsx scripts/signed-build.ts",
     "build:signed:apk": "tsx scripts/signed-build.ts --format apk",
+    "build:aab": "cd android && ./gradlew bundleRelease",
+    "build:apk": "cd android && ./gradlew assembleRelease",
     "prebuild": "expo prebuild",
     "prebuild:clean": "expo prebuild --clean",
     "expo:dep:check": "expo install --fix",
