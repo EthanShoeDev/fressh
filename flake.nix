@@ -1,5 +1,5 @@
+# nix flake update
 {
-  # nix run nixpkgs#alejandra -- format ./flake.nix
   description = "Expo RN devshells (local emulator / remote AVD)";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -8,6 +8,15 @@
       url = "github:tadfisher/android-nixpkgs";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+  };
+
+  nixConfig = {
+    extra-substituters = [
+      "https://android-nixpkgs.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "android-nixpkgs.cachix.org-1:2lZoPmwoyTVGaNDHqa6A32tdn8Gc0aMWBRrfXN1H3dQ="
+    ];
   };
 
   outputs = {
@@ -30,28 +39,56 @@
       );
   in {
     devShells = forAllSystems ({pkgs}: let
+      defaultPkgs = with pkgs; [
+        # System
+        bash
+        git
+        pkg-config
+        jq
+        # JS
+        nodejs_22
+        turbo
+        nodePackages.pnpm
+        yarn
+        watchman
+        # Rust
+        rustc
+        clippy
+        rustfmt
+        cargo
+        cargo-ndk
+        # Android
+        jdk17
+        gradle_8
+        # Misc
+        cmake
+        ninja
+        just
+        alejandra
+      ];
+
+      defaultAndroidPkgs = sdk:
+        with sdk; [
+          cmdline-tools-latest
+          platform-tools # adb/fastboot
+          platforms-android-36
+          build-tools-36-0-0
+          ndk-27-1-12297006
+        ];
+
       makeAndroidSdk = mode: let
         androidSdk = pkgs.androidSdk (
           sdk:
             if mode == "full"
             then
-              (with sdk; [
-                cmdline-tools-latest
-                platform-tools
-                emulator
-                build-tools-36-0-0
-                platforms-android-36
-                system-images-android-36-0-Baklava-google-apis-playstore-x86-64
-                # Add NDK + CMake for native builds
-                ndk-26-1-10909125
-                cmake-3-22-1
-              ])
+              (with sdk;
+                [
+                  emulator
+                  system-images-android-36-0-Baklava-google-apis-playstore-x86-64
+                ]
+                ++ (defaultAndroidPkgs sdk))
             else if mode == "remote"
-            then
-              (with sdk; [
-                cmdline-tools-latest # ← required for a valid SDK
-                platform-tools # adb/fastboot
-              ])
+            then (with sdk; (defaultAndroidPkgs sdk))
             else throw "makeAndroidSdk: unknown mode '${mode}'. Use \"full\" or \"remote\"."
         );
 
@@ -64,20 +101,6 @@
 
       fullAndroidSdk = makeAndroidSdk "full";
       remoteAndroidSdk = makeAndroidSdk "remote";
-
-      defaultPkgs = with pkgs; [
-        nodejs_22
-        nodePackages.pnpm
-        git
-        just
-        jq
-        watchman
-        jdk17
-        gradle_8
-        cmake
-        ninja
-        pkg-config
-      ];
     in {
       # Minimal: only universal dev tools you always want
       default = pkgs.mkShell {
@@ -112,6 +135,9 @@
           hash -r
 
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/27.1.12297006"
+          export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
+          export ANDROID_NDK="$ANDROID_NDK_ROOT"
           which -a adb || true
           which -a emulator || true
           which -a avdmanager || true
@@ -128,7 +154,7 @@
         packages =
           defaultPkgs
           ++ [
-            remoteAndroidSdk.androidSdk # provides adb/fastboot only
+            (pkgs.androidSdk (sdk: (defaultAndroidPkgs sdk)))
             pkgs.scrcpy
           ];
         shellHook = ''
@@ -143,5 +169,6 @@
         '';
       };
     });
+    formatter = forAllSystems ({pkgs}: pkgs.alejandra);
   };
 }

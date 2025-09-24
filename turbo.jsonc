@@ -30,8 +30,14 @@
 		},
 		"clean": { "cache": false, "dependsOn": ["^clean"] },
 		// Root tasks overrides
-		"//#fmt:root": {},
-		"//#fmt:check:root": {},
+		"//#fmt:root": {
+		  "with": ["fmt:root:nix"],
+		},
+		"//#fmt:root:nix": {},
+		"//#fmt:check:root:nix": {},
+		"//#fmt:check:root": {
+			"with": ["fmt:check:root:nix"],
+		},
 		"//#lint:root": {
 			"dependsOn": ["fmt:root"],
 			"with": [
