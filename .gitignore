@@ -37,3 +37,4 @@ dep-log.json
 mnt/*
 *.log
 .turbo/
+.direnv/

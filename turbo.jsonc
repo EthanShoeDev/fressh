@@ -1,6 +1,7 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"ui": "tui",
+	"globalPassThroughEnv": ["NIX_*", "ANDROID_*", "SSL_CERT_FILE"],
 	"tasks": {
 		// Defaults
 		"fmt": { "with": ["//#fmt:root"] },
@@ -30,8 +31,14 @@
 		},
 		"clean": { "cache": false, "dependsOn": ["^clean"] },
 		// Root tasks overrides
-		"//#fmt:root": {},
-		"//#fmt:check:root": {},
+		"//#fmt:root": {
+			"with": ["fmt:root:nix"],
+		},
+		"//#fmt:root:nix": {},
+		"//#fmt:check:root:nix": {},
+		"//#fmt:check:root": {
+			"with": ["fmt:check:root:nix"],
+		},
 		"//#lint:root": {
 			"dependsOn": ["fmt:root"],
 			"with": [

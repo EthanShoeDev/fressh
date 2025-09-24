@@ -8,6 +8,7 @@
 		"esbenp.prettier-vscode",
 		"yoavbls.pretty-ts-errors",
 		"ctf0.duplicated-code-new",
-		"github.vscode-github-actions"
+		"github.vscode-github-actions",
+		"mkhl.direnv"
 	]
 }
