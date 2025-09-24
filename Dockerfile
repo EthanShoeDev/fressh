@@ -23,8 +23,8 @@ COPY apps/web/package.json ./apps/web/
 COPY packages/react-native-uniffi-russh/package.json ./packages/react-native-uniffi-russh/
 COPY packages/react-native-xtermjs-webview/package.json ./packages/react-native-xtermjs-webview/
 COPY packages/assets/package.json ./packages/assets/
-RUN --mount=type=cache,target=/pnpm/store,id=fressh-pnpm,sharing=locked \
-    nix develop -c pnpm install --frozen-lockfile --offline
+# RUN --mount=type=cache,target=/pnpm/store,id=fressh-pnpm,sharing=locked \
+#     nix develop -c pnpm install --frozen-lockfile --offline
 
 COPY . .
 RUN --mount=type=cache,target=/pnpm/store,id=fressh-pnpm,sharing=locked \

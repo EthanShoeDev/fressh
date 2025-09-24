@@ -11,7 +11,7 @@
     "fmt:root": "prettier --cache --write .",
     "fmt:check:root": "prettier --check .",
     "fmt:root:nix": "nix fmt flake.nix",
-    "fmt:check:root:nix": "nix fmt flake.nix -- --c",
+    "fmt:check:root:nix": "nix fmt flake.nix -- -c",
     "syncpack:fix": "syncpack list-mismatches || (syncpack fix-mismatches && pnpm i)",
     "syncpack:check": "syncpack list-mismatches",
     "jscpd:check": "cross-env NODE_OPTIONS=--max-old-space-size=8192 jscpd --config .jscpd.json",
