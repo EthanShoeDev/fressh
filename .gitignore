@@ -38,3 +38,4 @@ mnt/*
 *.log
 .turbo/
 .direnv/
+.cache/

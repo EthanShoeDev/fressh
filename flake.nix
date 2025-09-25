@@ -71,6 +71,7 @@
           git
           pkg-config
           jq
+          starship
           # JS
           nodejs_22
           turbo
@@ -103,7 +104,7 @@
             cmdline-tools-latest
             platform-tools
             platforms-android-36
-            build-tools-35-0-0
+            build-tools-36-0-0
             cmake-3-22-1
             ndkPkg
           ];
@@ -129,6 +130,72 @@
         fullAndroidSdk = makeAndroidSdk "full";
         remoteAndroidSdk = makeAndroidSdk "remote";
 
+        starshipToml = pkgs.writeText "starship.toml" ''
+          # project-scoped Starship config (no files under ~/.config)
+          add_newline = false
+          format = "$nix_shell$directory$rust$python$cmd_duration$character"
+
+          [nix_shell]
+          disabled = false
+          format = "[$symbol]($style) "
+          symbol = "nix-fressh "
+          pure_msg = ""
+          impure_msg = "(impure) "
+          style = "bold cyan"
+
+          [directory]
+          format = "[$path]($style) "
+          truncation_length = 0
+          truncate_to_repo = false
+          home_symbol = "~"
+
+          [character]
+          success_symbol = "[➜](bold green) "
+          error_symbol   = "[✗](bold red) "
+
+        '';
+
+        starshipBootstrap = pkgs.writeText "fressh-starship-bootstrap.sh" ''
+          if [[ -n ''${__FRESSH_STARSHIP_INIT-} ]]; then
+            if [[ -n ''${FRESSH_OLD_PROMPT_COMMAND:-} ]]; then
+              PROMPT_COMMAND=''${FRESSH_OLD_PROMPT_COMMAND}
+            else
+              unset PROMPT_COMMAND
+            fi
+            unset FRESSH_OLD_PROMPT_COMMAND
+            return
+          fi
+
+          __FRESSH_STARSHIP_INIT=1
+
+          if [[ -n ''${FRESSH_OLD_PROMPT_COMMAND:-} ]]; then
+            PROMPT_COMMAND=''${FRESSH_OLD_PROMPT_COMMAND}
+          else
+            unset PROMPT_COMMAND
+          fi
+
+          if [[ ''${TERM_PROGRAM:-} == "vscode" ]] && command -v code >/dev/null; then
+            if ! declare -F __vsc_prompt_cmd_original >/dev/null; then
+              . "$(code --locate-shell-integration-path bash)"
+            fi
+          fi
+
+          unset FRESSH_OLD_PROMPT_COMMAND
+
+          if command -v starship >/dev/null; then
+            eval "$(starship init bash)"
+
+            if [[ -t 1 ]]; then
+              local __fressh_first_prompt
+              __fressh_first_prompt="$(STARSHIP_SHELL=bash starship prompt 2>/dev/null)"
+              if [[ -n "''${__fressh_first_prompt}" ]]; then
+                PS1="''${__fressh_first_prompt}"
+              fi
+              unset __fressh_first_prompt
+            fi
+          fi
+        '';
+
         commonAndroidInit = sdkRoot: ''
           export ANDROID_SDK_ROOT="${sdkRoot}"
           export ANDROID_HOME="${sdkRoot}"
@@ -136,24 +203,27 @@
           export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/${ndkVer}"
           export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
           export ANDROID_NDK="$ANDROID_NDK_ROOT"
+          export GRADLE_OPTS="$GRADLE_OPTS -Dorg.gradle.project.android.aapt2FromMavenOverride=$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2"
+          export STARSHIP_CONFIG=${starshipToml}
+          export STARSHIP_CACHE="$PWD/.starship-cache"
+          mkdir -p "$STARSHIP_CACHE"
+
+          export FRESSH_DEVENV=1
+          export FRESSH_STARSHIP_PREINIT=${starshipBootstrap}
+          export FRESSH_OLD_PROMPT_COMMAND=''${PROMPT_COMMAND:-}
+          export PROMPT_COMMAND=". \"$FRESSH_STARSHIP_PREINIT\""
         '';
       in {
         default = pkgs.mkShell {
           packages = defaultPkgs ++ [remoteAndroidSdk.androidSdk];
           shellHook =
-            commonAndroidInit remoteAndroidSdk.sdkRoot
-            + ''
-              echo "You are using the defaul nix dev shell. Noice."
-            '';
+            commonAndroidInit remoteAndroidSdk.sdkRoot;
         };
 
         android-emulator = pkgs.mkShell {
           packages = defaultPkgs ++ [fullAndroidSdk.androidSdk];
           shellHook =
-            commonAndroidInit fullAndroidSdk.sdkRoot
-            + ''
-              echo "You are using the android-emulator nix dev shell. Noice."
-            '';
+            commonAndroidInit fullAndroidSdk.sdkRoot;
         };
       }
     );

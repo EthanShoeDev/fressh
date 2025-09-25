@@ -55,5 +55,13 @@
 	],
 	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features"
-	}
+	},
+	"json.schemas": [
+		{
+			"fileMatch": ["**/*.jsonc"],
+			"schema": {
+				"allowTrailingCommas": true
+			}
+		}
+	]
 }

@@ -1,7 +1,12 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"ui": "tui",
-	"globalPassThroughEnv": ["NIX_*", "ANDROID_*", "SSL_CERT_FILE"],
+	"globalPassThroughEnv": [
+		"NIX_*",
+		"ANDROID_*",
+		"SSL_CERT_FILE",
+		"ORG_GRADLE_PROJECT_*",
+	],
 	"tasks": {
 		// Defaults
 		"fmt": { "with": ["//#fmt:root"] },
