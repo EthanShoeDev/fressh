@@ -103,8 +103,10 @@
           with sdk; [
             cmdline-tools-latest
             platform-tools
+            platforms-android-36
             platforms-android-35
             build-tools-35-0-0
+            build-tools-36-0-0
             cmake-3-22-1
             ndkPkg
           ];
@@ -203,7 +205,7 @@
           export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/${ndkVer}"
           export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
           export ANDROID_NDK="$ANDROID_NDK_ROOT"
-          export GRADLE_OPTS="$GRADLE_OPTS -Dorg.gradle.project.android.aapt2FromMavenOverride=$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2"
+          export GRADLE_OPTS="$GRADLE_OPTS -Dorg.gradle.project.android.aapt2FromMavenOverride=${sdkRoot}/build-tools/36.0.0/aapt2 -Dorg.gradle.project.android.builder.sdkDownload=false"
           export STARSHIP_CONFIG=${starshipToml}
           export STARSHIP_CACHE="$PWD/.starship-cache"
           mkdir -p "$STARSHIP_CACHE"
