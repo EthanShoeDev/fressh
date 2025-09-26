@@ -205,7 +205,7 @@
           export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/${ndkVer}"
           export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
           export ANDROID_NDK="$ANDROID_NDK_ROOT"
-          export GRADLE_OPTS="$GRADLE_OPTS -Dorg.gradle.project.android.aapt2FromMavenOverride=${sdkRoot}/build-tools/36.0.0/aapt2 -Dorg.gradle.project.android.builder.sdkDownload=false"
+          export GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=${sdkRoot}/build-tools/36.0.0/aapt2 -Dorg.gradle.project.android.builder.sdkDownload=false"
           export STARSHIP_CONFIG=${starshipToml}
           export STARSHIP_CACHE="$PWD/.starship-cache"
           mkdir -p "$STARSHIP_CACHE"
