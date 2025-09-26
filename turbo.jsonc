@@ -5,7 +5,7 @@
 		"NIX_*",
 		"ANDROID_*",
 		"SSL_CERT_FILE",
-		"ORG_GRADLE_PROJECT_*",
+		"GRADLE_OPTS",
 	],
 	"tasks": {
 		// Defaults
