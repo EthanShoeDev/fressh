@@ -199,6 +199,8 @@
         '';
 
         commonAndroidInit = sdkRoot: ''
+          unset ANDROID_SDK_ROOT
+          unset ANDROID_HOME
           export ANDROID_SDK_ROOT="${sdkRoot}"
           export ANDROID_HOME="${sdkRoot}"
           export PATH="$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
