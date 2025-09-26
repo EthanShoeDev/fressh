@@ -120,7 +120,7 @@ importers:
         version: 8.0.8(expo@54.0.10)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       expo-router:
         specifier: 6.0.8
-        version: 6.0.8(d99bdd4c9a621570fefc333ee402cc8d)
+        version: 6.0.8(7019d6a7b0970b6f0093754a79229f7b)
       expo-secure-store:
         specifier: ~15.0.7
         version: 15.0.7(expo@54.0.10)
@@ -150,13 +150,13 @@ importers:
         version: 2.28.0(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       react-native-keyboard-controller:
         specifier: 1.18.5
-        version: 1.18.5(react-native-reanimated@4.1.0(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
+        version: 1.18.5(react-native-reanimated@4.1.2(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       react-native-mmkv:
         specifier: ^3.3.1
         version: 3.3.1(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       react-native-reanimated:
-        specifier: ~4.1.0
-        version: 4.1.0(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
+        specifier: ~4.1.2
+        version: 4.1.2(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       react-native-safe-area-context:
         specifier: ~5.6.1
         version: 5.6.1(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
@@ -7695,8 +7695,8 @@ packages:
   react-native-monorepo-config@0.1.10:
     resolution: {integrity: sha512-v0rlaLZiCUg95Mpw6xNRQce5k9yio0qscKjNQaPtFYMNL75YugS2UPUItIPLIRbZubK+s2/LRzBjX+mdyUgh4g==}
 
-  react-native-reanimated@4.1.0:
-    resolution: {integrity: sha512-L8FqZn8VjZyBaCUMYFyx1Y+T+ZTbblaudpxReOXJ66RnOf52g6UM4Pa/IjwLD1XAw1FUxLRQrtpdjbkEc74FiQ==}
+  react-native-reanimated@4.1.2:
+    resolution: {integrity: sha512-qzmQiFrvjm62pRBcj97QI9Xckc3EjgHQoY1F2yjktd0kpjhoyePeuTEXjYRCAVIy7IV/1cfeSup34+zFThFoHQ==}
     peerDependencies:
       '@babel/core': ^7.0.0-0
       react: '*'
@@ -10681,7 +10681,7 @@ snapshots:
       wrap-ansi: 7.0.0
       ws: 8.18.3
     optionalDependencies:
-      expo-router: 6.0.8(d99bdd4c9a621570fefc333ee402cc8d)
+      expo-router: 6.0.8(7019d6a7b0970b6f0093754a79229f7b)
       react-native: 0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0)
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
@@ -15348,7 +15348,7 @@ snapshots:
       react: 19.1.0
       react-native: 0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0)
 
-  expo-router@6.0.8(d99bdd4c9a621570fefc333ee402cc8d):
+  expo-router@6.0.8(7019d6a7b0970b6f0093754a79229f7b):
     dependencies:
       '@expo/metro-runtime': 6.1.1(expo@54.0.10)(react-dom@19.1.0(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       '@expo/schema-utils': 0.1.7
@@ -15383,7 +15383,7 @@ snapshots:
     optionalDependencies:
       react-dom: 19.1.0(react@19.1.0)
       react-native-gesture-handler: 2.28.0(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
-      react-native-reanimated: 4.1.0(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
+      react-native-reanimated: 4.1.2(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       react-native-web: 0.21.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
     transitivePeerDependencies:
       - '@react-native-masked-view/masked-view'
@@ -18429,12 +18429,12 @@ snapshots:
       react: 19.1.0
       react-native: 0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0)
 
-  react-native-keyboard-controller@1.18.5(react-native-reanimated@4.1.0(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0):
+  react-native-keyboard-controller@1.18.5(react-native-reanimated@4.1.2(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0):
     dependencies:
       react: 19.1.0
       react-native: 0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0)
       react-native-is-edge-to-edge: 1.2.1(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
-      react-native-reanimated: 4.1.0(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
+      react-native-reanimated: 4.1.2(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
 
   react-native-mmkv@3.3.1(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0):
     dependencies:
@@ -18446,7 +18446,7 @@ snapshots:
       escape-string-regexp: 5.0.0
       fast-glob: 3.3.3
 
-  react-native-reanimated@4.1.0(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0):
+  react-native-reanimated@4.1.2(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0):
     dependencies:
       '@babel/core': 7.28.3
       react: 19.1.0
