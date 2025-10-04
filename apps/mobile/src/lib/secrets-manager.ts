@@ -78,9 +78,9 @@ function makeBetterSecureStore<
 		const unsafedRootManifest: unknown = rawRootManifestString
 			? JSON.parse(rawRootManifestString)
 			: {
-				manifestVersion: rootManifestVersion,
-				manifestChunksIds: [],
-			};
+					manifestVersion: rootManifestVersion,
+					manifestChunksIds: [],
+				};
 		const rootManifest = rootManifestSchema.parse(unsafedRootManifest);
 		const manifestChunks = await Promise.all(
 			rootManifest.manifestChunksIds.map(async (manifestChunkId) => {
@@ -202,7 +202,10 @@ function makeBetterSecureStore<
 			(mChunk) => mChunk.manifestChunk.entries.length === 0,
 		);
 		if (emptyManifestChunks.length > 0) {
-			logger.debug('removing empty manifest chunks', emptyManifestChunks.length);
+			logger.debug(
+				'removing empty manifest chunks',
+				emptyManifestChunks.length,
+			);
 			manifest.rootManifest.manifestChunksIds =
 				manifest.rootManifest.manifestChunksIds.filter(
 					(mChunkId) =>
@@ -247,7 +250,10 @@ function makeBetterSecureStore<
 		const existingManifestChunkWithRoom = manifest.manifestChunks.find(
 			(mChunk) => sizeLimit > mChunk.manifestChunkSize + newManifestEntrySize,
 		);
-		logger.debug('existingManifestChunkWithRoom', existingManifestChunkWithRoom);
+		logger.debug(
+			'existingManifestChunkWithRoom',
+			existingManifestChunkWithRoom,
+		);
 		const manifestChunkWithRoom =
 			existingManifestChunkWithRoom ??
 			(await (async () => {
@@ -259,7 +265,9 @@ function makeBetterSecureStore<
 					manifestChunkId: Crypto.randomUUID(),
 					manifestChunkSize: 0,
 				} satisfies NonNullable<(typeof manifest.manifestChunks)[number]>;
-				logger.info(`Adding new manifest chunk ${newManifestChunk.manifestChunkId}`);
+				logger.info(
+					`Adding new manifest chunk ${newManifestChunk.manifestChunkId}`,
+				);
 				manifest.rootManifest.manifestChunksIds.push(
 					newManifestChunk.manifestChunkId,
 				);
@@ -336,7 +344,9 @@ async function upsertPrivateKey(params: {
 		throw new Error('Invalid private key', { cause: validateKeyResult.error });
 	}
 	const keyId = params.keyId ?? `key_${Crypto.randomUUID()}`;
-	logger.info(`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`);
+	logger.info(
+		`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`,
+	);
 	// Preserve createdAtMs if the entry already exists
 	const existing = await betterKeyStorage
 		.getEntry(keyId)

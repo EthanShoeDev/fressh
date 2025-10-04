@@ -15,7 +15,6 @@ export const AbortSignalTimeout = (timeout: number) => {
 	return controller.signal;
 };
 
-
 export const useContextSafe = <T>(context: Context<T>) => {
 	const contextValue = use(context);
 	if (!contextValue) {

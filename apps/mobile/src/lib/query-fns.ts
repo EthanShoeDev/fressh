@@ -22,15 +22,15 @@ export const useSshConnMutation = (opts?: {
 				const security =
 					connectionDetails.security.type === 'password'
 						? {
-							type: 'password' as const,
-							password: connectionDetails.security.password,
-						}
+								type: 'password' as const,
+								password: connectionDetails.security.password,
+							}
 						: {
-							type: 'key' as const,
-							privateKey: await secretsManager.keys.utils
-								.getPrivateKey(connectionDetails.security.keyId)
-								.then((e) => e.value),
-						};
+								type: 'key' as const,
+								privateKey: await secretsManager.keys.utils
+									.getPrivateKey(connectionDetails.security.keyId)
+									.then((e) => e.value),
+							};
 
 				const sshConnection = await connect({
 					host: connectionDetails.host,
