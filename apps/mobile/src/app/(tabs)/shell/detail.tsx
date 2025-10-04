@@ -11,16 +11,20 @@ import {
 	useRouter,
 	useFocusEffect,
 } from 'expo-router';
-import React, { startTransition, useEffect, useRef, useState } from 'react';
+import React, {
+	createContext,
+	startTransition,
+	useEffect,
+	useRef,
+	useState,
+} from 'react';
 import { KeyboardAvoidingView, Pressable, Text, View } from 'react-native';
-
-// import {
-// 	// KeyboardAvoidingView,
-// 	KeyboardToolbar,
-// } from 'react-native-keyboard-controller';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
 import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
+import { useContextSafe } from '@/lib/utils';
+
+type IconName = keyof typeof Ionicons.glyphMap;
 
 export default function TabsShellDetail() {
 	const [ready, setReady] = useState(false);
@@ -145,72 +149,89 @@ function ShellDetail() {
 				<KeyboardAvoidingView
 					behavior="height"
 					keyboardVerticalOffset={120}
-					style={{ flex: 1, borderWidth: 2, borderColor: theme.colors.border }}
+					style={{ flex: 1, gap: 4 }}
 				>
-					<XtermJsWebView
-						ref={xtermRef}
-						style={{ flex: 1 }}
-						webViewOptions={{
-							// Prevent iOS from adding automatic top inset inside WebView
-							contentInsetAdjustmentBehavior: 'never',
+					<View
+						style={{
+							flex: 1,
+							borderWidth: 2,
+							borderColor: theme.colors.border,
 						}}
-						logger={{
-							log: console.log,
-							// debug: console.log,
-							warn: console.warn,
-							error: console.error,
-						}}
-						// xterm options
-						xtermOptions={{
-							theme: {
-								background: theme.colors.background,
-								foreground: theme.colors.textPrimary,
-							},
-						}}
-						onInitialized={() => {
-							if (terminalReadyRef.current) return;
-							terminalReadyRef.current = true;
+					>
+						<XtermJsWebView
+							ref={xtermRef}
+							style={{ flex: 1 }}
+							webViewOptions={{
+								// Prevent iOS from adding automatic top inset inside WebView
+								contentInsetAdjustmentBehavior: 'never',
+							}}
+							logger={{
+								log: console.log,
+								// debug: console.log,
+								warn: console.warn,
+								error: console.error,
+							}}
+							// xterm options
+							xtermOptions={{
+								theme: {
+									background: theme.colors.background,
+									foreground: theme.colors.textPrimary,
+								},
+							}}
+							onInitialized={() => {
+								if (terminalReadyRef.current) return;
+								terminalReadyRef.current = true;
 
-							if (!shell) throw new Error('Shell not found');
+								if (!shell) throw new Error('Shell not found');
 
-							// Replay from head, then attach live listener
-							void (async () => {
-								const res = shell.readBuffer({ mode: 'head' });
-								console.log('readBuffer(head)', {
-									chunks: res.chunks.length,
-									nextSeq: res.nextSeq,
-									dropped: res.dropped,
-								});
-								if (res.chunks.length) {
-									const chunks = res.chunks.map((c) => c.bytes);
-									const xr = xtermRef.current;
-									if (xr) {
-										xr.writeMany(chunks.map((c) => new Uint8Array(c)));
-										xr.flush();
-									}
-								}
-								const id = shell.addListener(
-									(ev: ListenerEvent) => {
-										if ('kind' in ev) {
-											console.log('listener.dropped', ev);
-											return;
+								// Replay from head, then attach live listener
+								void (async () => {
+									const res = shell.readBuffer({ mode: 'head' });
+									console.log('readBuffer(head)', {
+										chunks: res.chunks.length,
+										nextSeq: res.nextSeq,
+										dropped: res.dropped,
+									});
+									if (res.chunks.length) {
+										const chunks = res.chunks.map((c) => c.bytes);
+										const xr = xtermRef.current;
+										if (xr) {
+											xr.writeMany(chunks.map((c) => new Uint8Array(c)));
+											xr.flush();
 										}
-										const chunk = ev;
-										const xr3 = xtermRef.current;
-										if (xr3) xr3.write(new Uint8Array(chunk.bytes));
-									},
-									{ cursor: { mode: 'seq', seq: res.nextSeq } },
-								);
-								console.log('shell listener attached', id.toString());
-								listenerIdRef.current = id;
-							})();
-							// Focus to pop the keyboard (iOS needs the prop we set)
-							const xr2 = xtermRef.current;
-							if (xr2) xr2.focus();
-						}}
-						onData={(terminalMessage) => {
+									}
+									const id = shell.addListener(
+										(ev: ListenerEvent) => {
+											if ('kind' in ev) {
+												console.log('listener.dropped', ev);
+												return;
+											}
+											const chunk = ev;
+											const xr3 = xtermRef.current;
+											if (xr3) xr3.write(new Uint8Array(chunk.bytes));
+										},
+										{ cursor: { mode: 'seq', seq: res.nextSeq } },
+									);
+									console.log('shell listener attached', id.toString());
+									listenerIdRef.current = id;
+								})();
+								// Focus to pop the keyboard (iOS needs the prop we set)
+								const xr2 = xtermRef.current;
+								if (xr2) xr2.focus();
+							}}
+							onData={(terminalMessage) => {
+								if (!shell) return;
+								const bytes = encoder.encode(terminalMessage);
+								shell.sendData(bytes.buffer).catch((e: unknown) => {
+									console.warn('sendData failed', e);
+									router.back();
+								});
+							}}
+						/>
+					</View>
+					<KeyboardToolbar
+						sendBytes={(bytes) => {
 							if (!shell) return;
-							const bytes = encoder.encode(terminalMessage);
 							shell.sendData(bytes.buffer).catch((e: unknown) => {
 								console.warn('sendData failed', e);
 								router.back();
@@ -225,5 +246,165 @@ function ShellDetail() {
 				}}
 			/> */}
 		</>
+	);
+}
+
+type KeyboardToolbarProps = {
+	sendBytes: (bytes: Uint8Array<ArrayBuffer>) => void;
+};
+const KeyboardToolBarContext = createContext<KeyboardToolbarProps | null>(null);
+
+function KeyboardToolbar(props: KeyboardToolbarProps) {
+	return (
+		<KeyboardToolBarContext value={props}>
+			<View
+				style={{
+					height: 100,
+				}}
+			>
+				<KeyboardToolbarRow>
+					<KeyboardToolbarButtonPreset preset="esc" />
+					<KeyboardToolbarButtonPreset preset="/" />
+					<KeyboardToolbarButtonPreset preset="|" />
+					<KeyboardToolbarButtonPreset preset="home" />
+					<KeyboardToolbarButtonPreset preset="up" />
+					<KeyboardToolbarButtonPreset preset="end" />
+					<KeyboardToolbarButtonPreset preset="pgup" />
+				</KeyboardToolbarRow>
+				<KeyboardToolbarRow>
+					<KeyboardToolbarButtonPreset preset="tab" />
+					<KeyboardToolbarButtonPreset preset="ctrl" />
+					<KeyboardToolbarButtonPreset preset="alt" />
+					<KeyboardToolbarButtonPreset preset="left" />
+					<KeyboardToolbarButtonPreset preset="down" />
+					<KeyboardToolbarButtonPreset preset="right" />
+					<KeyboardToolbarButtonPreset preset="pgdn" />
+				</KeyboardToolbarRow>
+			</View>
+		</KeyboardToolBarContext>
+	);
+}
+
+function KeyboardToolbarRow({ children }: { children?: React.ReactNode }) {
+	return <View style={{ flexDirection: 'row', flex: 1 }}>{children}</View>;
+}
+
+type KeyboardToolbarButtonPresetType =
+	| 'esc'
+	| '/'
+	| '|'
+	| 'home'
+	| 'up'
+	| 'end'
+	| 'pgup'
+	| 'pgdn'
+	| 'fn'
+	| 'tab'
+	| 'ctrl'
+	| 'alt'
+	| 'left'
+	| 'down'
+	| 'right'
+	| 'insert'
+	| 'delete'
+	| 'pageup'
+	| 'pagedown'
+	| 'fn';
+
+function KeyboardToolbarButtonPreset({
+	preset,
+}: {
+	preset: KeyboardToolbarButtonPresetType;
+}) {
+	return (
+		<KeyboardToolbarButton {...keyboardToolbarButtonPresetToProps[preset]} />
+	);
+}
+
+const keyboardToolbarButtonPresetToProps: Record<
+	KeyboardToolbarButtonPresetType,
+	KeyboardToolbarButtonProps
+> = {
+	esc: { label: 'ESC', sendBytes: new Uint8Array([27]) },
+	'/': { label: '/', sendBytes: new Uint8Array([47]) },
+	'|': { label: '|', sendBytes: new Uint8Array([124]) },
+	home: { label: 'HOME', sendBytes: new Uint8Array([27, 91, 72]) },
+	end: { label: 'END', sendBytes: new Uint8Array([27, 91, 70]) },
+	pgup: { label: 'PGUP', sendBytes: new Uint8Array([27, 91, 53, 126]) },
+	pgdn: { label: 'PGDN', sendBytes: new Uint8Array([27, 91, 54, 126]) },
+	fn: { label: 'FN', isModifier: true },
+	tab: { label: 'TAB', sendBytes: new Uint8Array([9]) },
+	ctrl: { label: 'CTRL', isModifier: true },
+	alt: { label: 'ALT', isModifier: true },
+	left: { iconName: 'arrow-back', sendBytes: new Uint8Array([27, 91, 68]) },
+	up: { iconName: 'arrow-up', sendBytes: new Uint8Array([27, 91, 65]) },
+	down: { iconName: 'arrow-down', sendBytes: new Uint8Array([27, 91, 66]) },
+	right: {
+		iconName: 'arrow-forward',
+		sendBytes: new Uint8Array([27, 91, 67]),
+	},
+	insert: { label: 'INSERT', sendBytes: new Uint8Array([27, 91, 50, 126]) },
+	delete: { label: 'DELETE', sendBytes: new Uint8Array([27, 91, 51, 126]) },
+	pageup: { label: 'PAGEUP', sendBytes: new Uint8Array([27, 91, 53, 126]) },
+	pagedown: { label: 'PAGEDOWN', sendBytes: new Uint8Array([27, 91, 54, 126]) },
+};
+
+type KeyboardToolbarButtonProps = (
+	| {
+			isModifier: true;
+	  }
+	| {
+			sendBytes: Uint8Array;
+	  }
+) &
+	(
+		| {
+				label: string;
+		  }
+		| {
+				iconName: IconName;
+		  }
+	);
+
+function KeyboardToolbarButton(props: KeyboardToolbarButtonProps) {
+	const theme = useTheme();
+	const [modifierActive, setModifierActive] = useState(false);
+	const { sendBytes } = useContextSafe(KeyboardToolBarContext);
+
+	const isTextLabel = 'label' in props;
+	const children = isTextLabel ? (
+		<Text style={{ color: theme.colors.textPrimary }}>{props.label}</Text>
+	) : (
+		<Ionicons
+			name={props.iconName}
+			size={20}
+			color={theme.colors.textPrimary}
+		/>
+	);
+
+	return (
+		<Pressable
+			onPress={() => {
+				console.log('button pressed');
+				if ('isModifier' in props && props.isModifier) {
+					setModifierActive((active) => !active);
+				} else if ('sendBytes' in props) {
+					// todo: send key press
+					sendBytes(new Uint8Array(props.sendBytes));
+				}
+			}}
+			style={[
+				{
+					flex: 1,
+					alignItems: 'center',
+					justifyContent: 'center',
+					borderWidth: 1,
+					borderColor: theme.colors.border,
+				},
+				modifierActive && { backgroundColor: theme.colors.primary },
+			]}
+		>
+			{children}
+		</Pressable>
 	);
 }
