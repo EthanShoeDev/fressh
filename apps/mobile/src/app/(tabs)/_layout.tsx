@@ -1,4 +1,10 @@
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+	Icon,
+	Label,
+	NativeTabs,
+	VectorIcon,
+} from 'expo-router/unstable-native-tabs';
 import React from 'react';
 import { useTheme } from '@/lib/theme';
 
@@ -24,16 +30,14 @@ export default function TabsLayout() {
 			<NativeTabs.Trigger name="index">
 				<Label selectedStyle={{ color: theme.colors.textPrimary }}>Hosts</Label>
 				<Icon
+					src={<VectorIcon family={FontAwesome6} name="server" />}
 					selectedColor={theme.colors.textPrimary}
-					sf="house.fill"
-					drawable="ic_menu_myplaces"
 				/>
 			</NativeTabs.Trigger>
 			<NativeTabs.Trigger name="shell">
 				<Icon
+					src={<VectorIcon family={MaterialCommunityIcons} name="console" />}
 					selectedColor={theme.colors.textPrimary}
-					sf="gear"
-					drawable="ic_menu_compass"
 				/>
 				<Label selectedStyle={{ color: theme.colors.textPrimary }}>
 					Shells
@@ -41,9 +45,8 @@ export default function TabsLayout() {
 			</NativeTabs.Trigger>
 			<NativeTabs.Trigger name="settings">
 				<Icon
+					src={<VectorIcon family={MaterialCommunityIcons} name="cog" />}
 					selectedColor={theme.colors.textPrimary}
-					sf="gear"
-					drawable="ic_menu_preferences"
 				/>
 				<Label selectedStyle={{ color: theme.colors.textPrimary }}>
 					Settings

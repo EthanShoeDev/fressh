@@ -325,7 +325,6 @@ type KeyboardToolbarButtonPresetType =
 	| 'end'
 	| 'pgup'
 	| 'pgdn'
-	| 'fn'
 	| 'tab'
 	| 'ctrl'
 	| 'alt'
@@ -335,8 +334,7 @@ type KeyboardToolbarButtonPresetType =
 	| 'insert'
 	| 'delete'
 	| 'pageup'
-	| 'pagedown'
-	| 'fn';
+	| 'pagedown';
 
 function KeyboardToolbarButtonPreset({
 	preset,
@@ -354,12 +352,6 @@ type ModifierContract = {
 		bytes: Uint8Array<ArrayBuffer>,
 	) => Uint8Array<ArrayBuffer>;
 	orderPreference: number;
-};
-
-const noOpModifier: ModifierContract = {
-	canApplyModifierToBytes: (_) => false,
-	applyModifierToBytes: (bytes) => bytes,
-	orderPreference: 0,
 };
 
 const escapeByte = 27;
@@ -426,11 +418,6 @@ const keyboardToolbarButtonPresetToProps: Record<
 	delete: { label: 'DELETE', sendBytes: new Uint8Array([27, 91, 51, 126]) },
 	pageup: { label: 'PAGEUP', sendBytes: new Uint8Array([27, 91, 53, 126]) },
 	pagedown: { label: 'PAGEDOWN', sendBytes: new Uint8Array([27, 91, 54, 126]) },
-	fn: {
-		label: 'FN',
-		type: 'modifier',
-		...noOpModifier,
-	},
 	ctrl: { label: 'CTRL', type: 'modifier', ...ctrlModifier },
 	alt: { label: 'ALT', type: 'modifier', ...altModifier },
 };
