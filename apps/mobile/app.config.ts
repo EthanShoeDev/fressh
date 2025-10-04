@@ -24,6 +24,7 @@ const config: ExpoConfig = {
 		},
 		edgeToEdgeEnabled: true,
 		predictiveBackGestureEnabled: false,
+		softwareKeyboardLayoutMode: 'pan',
 	},
 	web: {
 		output: 'static',

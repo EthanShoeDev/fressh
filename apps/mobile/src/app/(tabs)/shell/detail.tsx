@@ -12,12 +12,12 @@ import {
 	useFocusEffect,
 } from 'expo-router';
 import React, { startTransition, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, Text, View } from 'react-native';
 
-import {
-	KeyboardAvoidingView,
-	KeyboardToolbar,
-} from 'react-native-keyboard-controller';
+// import {
+// 	// KeyboardAvoidingView,
+// 	KeyboardToolbar,
+// } from 'react-native-keyboard-controller';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
 import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
@@ -144,8 +144,8 @@ function ShellDetail() {
 				/>
 				<KeyboardAvoidingView
 					behavior="height"
-					keyboardVerticalOffset={240}
-					style={{ flex: 1 }}
+					keyboardVerticalOffset={120}
+					style={{ flex: 1, borderWidth: 2, borderColor: theme.colors.border }}
 				>
 					<XtermJsWebView
 						ref={xtermRef}
@@ -219,11 +219,11 @@ function ShellDetail() {
 					/>
 				</KeyboardAvoidingView>
 			</View>
-			<KeyboardToolbar
+			{/* <KeyboardToolbar
 				offset={{
 					opened: -80,
 				}}
-			/>
+			/> */}
 		</>
 	);
 }
