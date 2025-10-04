@@ -151,6 +151,9 @@ importers:
       react-native-keyboard-controller:
         specifier: 1.18.5
         version: 1.18.5(react-native-reanimated@4.1.2(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
+      react-native-logs:
+        specifier: ^5.5.0
+        version: 5.5.0
       react-native-mmkv:
         specifier: ^3.3.1
         version: 3.3.1(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
@@ -7696,6 +7699,9 @@ packages:
       react: '*'
       react-native: '*'
       react-native-reanimated: '>=3.0.0'
+
+  react-native-logs@5.5.0:
+    resolution: {integrity: sha512-H3Jc1pNTzNhYb9yHuk1drHdyGHwRvt4IERSz3EUul8vVTey6999fzGRFLK6ugrxYnmw7P+5fo/mRzDXeByhA8g==}
 
   react-native-mmkv@3.3.1:
     resolution: {integrity: sha512-LYamDWQirPTUJZ9Re+BkCD+zLRGNr+EVJDeIeblvoJXGatWy9PXnChtajDSLqwjX3EXVeUyjgrembs7wlBw9ug==}
@@ -18494,6 +18500,8 @@ snapshots:
       react-native: 0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0)
       react-native-is-edge-to-edge: 1.2.1(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       react-native-reanimated: 4.1.2(@babel/core@7.28.3)(react-native-worklets@0.5.1(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
+
+  react-native-logs@5.5.0: {}
 
   react-native-mmkv@3.3.1(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0):
     dependencies:

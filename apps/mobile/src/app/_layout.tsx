@@ -4,17 +4,18 @@ import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Stack } from 'expo-router';
 import React from 'react';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { rootLogger } from '@/lib/logger';
 import { ThemeProvider } from '../lib/theme';
 import { queryClient } from '../lib/utils';
 
-console.log('Fressh App Init', {
+rootLogger.info('Fressh App Init', {
 	isLiquidGlassAvailable: isLiquidGlassAvailable(),
 });
 
 void DevClient.registerDevMenuItems([
 	{
 		callback: () => {
-			console.log('Hello from dev menu');
+			rootLogger.info('Hello from dev menu');
 		},
 		name: 'Hello from dev menu',
 	},

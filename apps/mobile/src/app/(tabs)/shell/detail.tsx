@@ -14,17 +14,22 @@ import {
 import React, {
 	createContext,
 	startTransition,
+	useCallback,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from 'react';
 import { KeyboardAvoidingView, Pressable, Text, View } from 'react-native';
+import { rootLogger } from '@/lib/logger';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
 import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 import { useContextSafe } from '@/lib/utils';
 
 type IconName = keyof typeof Ionicons.glyphMap;
+
+const logger = rootLogger.extend('TabsShellDetail');
 
 export default function TabsShellDetail() {
 	const [ready, setReady] = useState(false);
@@ -71,7 +76,6 @@ const encoder = new TextEncoder();
 
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
-	const terminalReadyRef = useRef(false);
 	const listenerIdRef = useRef<bigint | null>(null);
 
 	const searchParams = useLocalSearchParams<{
@@ -95,7 +99,7 @@ function ShellDetail() {
 
 	useEffect(() => {
 		if (shell && connection) return;
-		console.log('shell or connection not found, replacing route with /shell');
+		logger.info('shell or connection not found, replacing route with /shell');
 		router.back();
 	}, [connection, router, shell]);
 
@@ -110,6 +114,37 @@ function ShellDetail() {
 	}, [shell]);
 
 	const marginBottom = useBottomTabSpacing();
+
+	const [modifierKeysActive, setModifierKeysActive] = useState<
+		KeyboardToolbarModifierButtonProps[]
+	>([]);
+
+	const sendBytes = useCallback(
+		(bytes: Uint8Array<ArrayBuffer>) => {
+			if (!shell) return;
+
+			modifierKeysActive
+				.sort((a, b) => a.orderPreference - b.orderPreference)
+				.forEach((m) => {
+					if (!m.canApplyModifierToBytes(bytes)) return;
+					bytes = m.applyModifierToBytes(bytes);
+				});
+
+			shell.sendData(bytes.buffer).catch((e: unknown) => {
+				logger.warn('sendData failed', e);
+				router.back();
+			});
+		},
+		[shell, router, modifierKeysActive],
+	);
+	const toolbarContext: KeyboardToolbarContextType = useMemo(
+		() => ({
+			modifierKeysActive,
+			setModifierKeysActive,
+			sendBytes,
+		}),
+		[sendBytes, modifierKeysActive],
+	);
 
 	return (
 		<>
@@ -133,11 +168,12 @@ function ShellDetail() {
 								accessibilityLabel="Disconnect"
 								hitSlop={10}
 								onPress={async () => {
+									logger.info('Disconnect button pressed');
 									if (!connection) return;
 									try {
 										await connection.disconnect();
 									} catch (e) {
-										console.warn('Failed to disconnect', e);
+										logger.warn('Failed to disconnect', e);
 									}
 								}}
 							>
@@ -151,93 +187,80 @@ function ShellDetail() {
 					keyboardVerticalOffset={120}
 					style={{ flex: 1, gap: 4 }}
 				>
-					<View
-						style={{
-							flex: 1,
-							borderWidth: 2,
-							borderColor: theme.colors.border,
-						}}
-					>
-						<XtermJsWebView
-							ref={xtermRef}
-							style={{ flex: 1 }}
-							webViewOptions={{
-								// Prevent iOS from adding automatic top inset inside WebView
-								contentInsetAdjustmentBehavior: 'never',
+					<KeyboardToolBarContext value={toolbarContext}>
+						<View
+							style={{
+								flex: 1,
+								borderWidth: 2,
+								borderColor: theme.colors.border,
 							}}
-							logger={{
-								log: console.log,
-								// debug: console.log,
-								warn: console.warn,
-								error: console.error,
-							}}
-							// xterm options
-							xtermOptions={{
-								theme: {
-									background: theme.colors.background,
-									foreground: theme.colors.textPrimary,
-								},
-							}}
-							onInitialized={() => {
-								if (terminalReadyRef.current) return;
-								terminalReadyRef.current = true;
+						>
+							<XtermJsWebView
+								ref={xtermRef}
+								style={{ flex: 1 }}
+								webViewOptions={{
+									// Prevent iOS from adding automatic top inset inside WebView
+									contentInsetAdjustmentBehavior: 'never',
+								}}
+								logger={{
+									log: logger.info,
+									// debug: logger.debug,
+									warn: logger.warn,
+									error: logger.error,
+								}}
+								xtermOptions={{
+									theme: {
+										background: theme.colors.background,
+										foreground: theme.colors.textPrimary,
+									},
+								}}
+								onInitialized={() => {
+									if (!shell) throw new Error('Shell not found');
 
-								if (!shell) throw new Error('Shell not found');
-
-								// Replay from head, then attach live listener
-								void (async () => {
-									const res = shell.readBuffer({ mode: 'head' });
-									console.log('readBuffer(head)', {
-										chunks: res.chunks.length,
-										nextSeq: res.nextSeq,
-										dropped: res.dropped,
-									});
-									if (res.chunks.length) {
-										const chunks = res.chunks.map((c) => c.bytes);
-										const xr = xtermRef.current;
-										if (xr) {
-											xr.writeMany(chunks.map((c) => new Uint8Array(c)));
-											xr.flush();
-										}
-									}
-									const id = shell.addListener(
-										(ev: ListenerEvent) => {
-											if ('kind' in ev) {
-												console.log('listener.dropped', ev);
-												return;
+									// Replay from head, then attach live listener
+									void (async () => {
+										const res = shell.readBuffer({ mode: 'head' });
+										logger.info('readBuffer(head)', {
+											chunks: res.chunks.length,
+											nextSeq: res.nextSeq,
+											dropped: res.dropped,
+										});
+										if (res.chunks.length) {
+											const chunks = res.chunks.map((c) => c.bytes);
+											const xr = xtermRef.current;
+											if (xr) {
+												xr.writeMany(chunks.map((c) => new Uint8Array(c)));
+												xr.flush();
 											}
-											const chunk = ev;
-											const xr3 = xtermRef.current;
-											if (xr3) xr3.write(new Uint8Array(chunk.bytes));
-										},
-										{ cursor: { mode: 'seq', seq: res.nextSeq } },
-									);
-									console.log('shell listener attached', id.toString());
-									listenerIdRef.current = id;
-								})();
-								// Focus to pop the keyboard (iOS needs the prop we set)
-								const xr2 = xtermRef.current;
-								if (xr2) xr2.focus();
-							}}
-							onData={(terminalMessage) => {
-								if (!shell) return;
-								const bytes = encoder.encode(terminalMessage);
-								shell.sendData(bytes.buffer).catch((e: unknown) => {
-									console.warn('sendData failed', e);
-									router.back();
-								});
-							}}
-						/>
-					</View>
-					<KeyboardToolbar
-						sendBytes={(bytes) => {
-							if (!shell) return;
-							shell.sendData(bytes.buffer).catch((e: unknown) => {
-								console.warn('sendData failed', e);
-								router.back();
-							});
-						}}
-					/>
+										}
+										const id = shell.addListener(
+											(ev: ListenerEvent) => {
+												if ('kind' in ev) {
+													logger.warn('listener.dropped', ev);
+													return;
+												}
+												const chunk = ev;
+												const xr3 = xtermRef.current;
+												if (xr3) xr3.write(new Uint8Array(chunk.bytes));
+											},
+											{ cursor: { mode: 'seq', seq: res.nextSeq } },
+										);
+										logger.info('shell listener attached', id.toString());
+										listenerIdRef.current = id;
+									})();
+									// Focus to pop the keyboard (iOS needs the prop we set)
+									const xr2 = xtermRef.current;
+									if (xr2) xr2.focus();
+								}}
+								onData={(terminalMessage) => {
+									if (!shell) return;
+									const bytes = encoder.encode(terminalMessage);
+									sendBytes(bytes);
+								}}
+							/>
+						</View>
+						<KeyboardToolbar />
+					</KeyboardToolBarContext>
 				</KeyboardAvoidingView>
 			</View>
 			{/* <KeyboardToolbar
@@ -249,39 +272,43 @@ function ShellDetail() {
 	);
 }
 
-type KeyboardToolbarProps = {
+type KeyboardToolbarContextType = {
+	modifierKeysActive: KeyboardToolbarModifierButtonProps[];
+	setModifierKeysActive: React.Dispatch<
+		React.SetStateAction<KeyboardToolbarModifierButtonProps[]>
+	>;
 	sendBytes: (bytes: Uint8Array<ArrayBuffer>) => void;
 };
-const KeyboardToolBarContext = createContext<KeyboardToolbarProps | null>(null);
+const KeyboardToolBarContext = createContext<KeyboardToolbarContextType | null>(
+	null,
+);
 
-function KeyboardToolbar(props: KeyboardToolbarProps) {
+function KeyboardToolbar() {
 	return (
-		<KeyboardToolBarContext value={props}>
-			<View
-				style={{
-					height: 100,
-				}}
-			>
-				<KeyboardToolbarRow>
-					<KeyboardToolbarButtonPreset preset="esc" />
-					<KeyboardToolbarButtonPreset preset="/" />
-					<KeyboardToolbarButtonPreset preset="|" />
-					<KeyboardToolbarButtonPreset preset="home" />
-					<KeyboardToolbarButtonPreset preset="up" />
-					<KeyboardToolbarButtonPreset preset="end" />
-					<KeyboardToolbarButtonPreset preset="pgup" />
-				</KeyboardToolbarRow>
-				<KeyboardToolbarRow>
-					<KeyboardToolbarButtonPreset preset="tab" />
-					<KeyboardToolbarButtonPreset preset="ctrl" />
-					<KeyboardToolbarButtonPreset preset="alt" />
-					<KeyboardToolbarButtonPreset preset="left" />
-					<KeyboardToolbarButtonPreset preset="down" />
-					<KeyboardToolbarButtonPreset preset="right" />
-					<KeyboardToolbarButtonPreset preset="pgdn" />
-				</KeyboardToolbarRow>
-			</View>
-		</KeyboardToolBarContext>
+		<View
+			style={{
+				height: 100,
+			}}
+		>
+			<KeyboardToolbarRow>
+				<KeyboardToolbarButtonPreset preset="esc" />
+				<KeyboardToolbarButtonPreset preset="/" />
+				<KeyboardToolbarButtonPreset preset="|" />
+				<KeyboardToolbarButtonPreset preset="home" />
+				<KeyboardToolbarButtonPreset preset="up" />
+				<KeyboardToolbarButtonPreset preset="end" />
+				<KeyboardToolbarButtonPreset preset="pgup" />
+			</KeyboardToolbarRow>
+			<KeyboardToolbarRow>
+				<KeyboardToolbarButtonPreset preset="tab" />
+				<KeyboardToolbarButtonPreset preset="ctrl" />
+				<KeyboardToolbarButtonPreset preset="alt" />
+				<KeyboardToolbarButtonPreset preset="left" />
+				<KeyboardToolbarButtonPreset preset="down" />
+				<KeyboardToolbarButtonPreset preset="right" />
+				<KeyboardToolbarButtonPreset preset="pgdn" />
+			</KeyboardToolbarRow>
+		</View>
 	);
 }
 
@@ -321,6 +348,61 @@ function KeyboardToolbarButtonPreset({
 	);
 }
 
+type ModifierContract = {
+	canApplyModifierToBytes: (bytes: Uint8Array<ArrayBuffer>) => boolean;
+	applyModifierToBytes: (
+		bytes: Uint8Array<ArrayBuffer>,
+	) => Uint8Array<ArrayBuffer>;
+	orderPreference: number;
+};
+
+const noOpModifier: ModifierContract = {
+	canApplyModifierToBytes: (_) => false,
+	applyModifierToBytes: (bytes) => bytes,
+	orderPreference: 0,
+};
+
+const escapeByte = 27;
+
+const ctrlModifier: ModifierContract = {
+	orderPreference: 10,
+	canApplyModifierToBytes: (bytes) => {
+		const firstByte = bytes[0];
+		if (firstByte === undefined) return false;
+		return mapByteToCtrl(firstByte) != null;
+	},
+	applyModifierToBytes: (bytes) => {
+		const firstByte = bytes[0];
+		if (firstByte === undefined) return bytes;
+		const ctrlByte = mapByteToCtrl(firstByte);
+		if (ctrlByte == null) return bytes;
+		return new Uint8Array([ctrlByte]);
+	},
+};
+
+const altModifier: ModifierContract = {
+	orderPreference: 20,
+	canApplyModifierToBytes: (bytes) => {
+		return bytes.length > 0 && bytes[0] !== escapeByte;
+	},
+	applyModifierToBytes: (bytes) => {
+		const result = new Uint8Array(bytes.length + 1);
+		result[0] = escapeByte;
+		result.set(bytes, 1);
+		return result;
+	},
+};
+
+function mapByteToCtrl(byte: number): number | null {
+	if (byte === 32) return 0; // Ctrl+Space
+	const uppercase = byte & 0b1101_1111; // Fold to uppercase / control range
+	if (uppercase >= 64 && uppercase <= 95) {
+		return uppercase & 0x1f;
+	}
+	if (byte === 63) return 127; // Ctrl+?
+	return null;
+}
+
 const keyboardToolbarButtonPresetToProps: Record<
 	KeyboardToolbarButtonPresetType,
 	KeyboardToolbarButtonProps
@@ -332,10 +414,7 @@ const keyboardToolbarButtonPresetToProps: Record<
 	end: { label: 'END', sendBytes: new Uint8Array([27, 91, 70]) },
 	pgup: { label: 'PGUP', sendBytes: new Uint8Array([27, 91, 53, 126]) },
 	pgdn: { label: 'PGDN', sendBytes: new Uint8Array([27, 91, 54, 126]) },
-	fn: { label: 'FN', isModifier: true },
 	tab: { label: 'TAB', sendBytes: new Uint8Array([9]) },
-	ctrl: { label: 'CTRL', isModifier: true },
-	alt: { label: 'ALT', isModifier: true },
 	left: { iconName: 'arrow-back', sendBytes: new Uint8Array([27, 91, 68]) },
 	up: { iconName: 'arrow-up', sendBytes: new Uint8Array([27, 91, 65]) },
 	down: { iconName: 'arrow-down', sendBytes: new Uint8Array([27, 91, 66]) },
@@ -347,29 +426,40 @@ const keyboardToolbarButtonPresetToProps: Record<
 	delete: { label: 'DELETE', sendBytes: new Uint8Array([27, 91, 51, 126]) },
 	pageup: { label: 'PAGEUP', sendBytes: new Uint8Array([27, 91, 53, 126]) },
 	pagedown: { label: 'PAGEDOWN', sendBytes: new Uint8Array([27, 91, 54, 126]) },
+	fn: {
+		label: 'FN',
+		type: 'modifier',
+		...noOpModifier,
+	},
+	ctrl: { label: 'CTRL', type: 'modifier', ...ctrlModifier },
+	alt: { label: 'ALT', type: 'modifier', ...altModifier },
 };
 
-type KeyboardToolbarButtonProps = (
+type KeyboardToolbarButtonViewProps =
 	| {
-			isModifier: true;
+			label: string;
 	  }
 	| {
-			sendBytes: Uint8Array;
-	  }
-) &
-	(
-		| {
-				label: string;
-		  }
-		| {
-				iconName: IconName;
-		  }
-	);
+			iconName: IconName;
+	  };
+
+type KeyboardToolbarModifierButtonProps = {
+	type: 'modifier';
+} & ModifierContract &
+	KeyboardToolbarButtonViewProps;
+type KeyboardToolbarInstantButtonProps = {
+	type?: 'sendBytes';
+	sendBytes: Uint8Array<ArrayBuffer>;
+} & KeyboardToolbarButtonViewProps;
+
+type KeyboardToolbarButtonProps =
+	| KeyboardToolbarModifierButtonProps
+	| KeyboardToolbarInstantButtonProps;
 
 function KeyboardToolbarButton(props: KeyboardToolbarButtonProps) {
 	const theme = useTheme();
-	const [modifierActive, setModifierActive] = useState(false);
-	const { sendBytes } = useContextSafe(KeyboardToolBarContext);
+	const { sendBytes, modifierKeysActive, setModifierKeysActive } =
+		useContextSafe(KeyboardToolBarContext);
 
 	const isTextLabel = 'label' in props;
 	const children = isTextLabel ? (
@@ -382,16 +472,26 @@ function KeyboardToolbarButton(props: KeyboardToolbarButtonProps) {
 		/>
 	);
 
+	const modifierActive =
+		props.type === 'modifier' && modifierKeysActive.includes(props);
+
 	return (
 		<Pressable
 			onPress={() => {
-				console.log('button pressed');
-				if ('isModifier' in props && props.isModifier) {
-					setModifierActive((active) => !active);
-				} else if ('sendBytes' in props) {
-					// todo: send key press
-					sendBytes(new Uint8Array(props.sendBytes));
+				if (props.type === 'modifier') {
+					setModifierKeysActive((modifierKeysActive) =>
+						modifierKeysActive.includes(props)
+							? modifierKeysActive.filter((m) => m !== props)
+							: [...modifierKeysActive, props],
+					);
+					return;
 				}
+
+				if ('sendBytes' in props) {
+					sendBytes(new Uint8Array(props.sendBytes));
+					return;
+				}
+				throw new Error('Invalid button type');
 			}}
 			style={[
 				{

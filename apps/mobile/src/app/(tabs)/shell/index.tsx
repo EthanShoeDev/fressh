@@ -17,10 +17,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
+import { rootLogger } from '@/lib/logger';
 import { preferences } from '@/lib/preferences';
 import {} from '@/lib/query-fns';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
+
+const logger = rootLogger.extend('TabsShellList');
 
 export default function TabsShellList() {
 	const theme = useTheme();
@@ -35,7 +38,7 @@ function ShellContent() {
 	const connections = useSshStore(
 		useShallow((s) => Object.values(s.connections)),
 	);
-	console.log('DEBUG list view connections', connections.length);
+	logger.debug('list view connections', connections.length);
 
 	return (
 		<View style={{ flex: 1 }}>

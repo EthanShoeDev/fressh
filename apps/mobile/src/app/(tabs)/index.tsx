@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppForm, useFieldContext } from '@/components/form-components';
 import { KeyList } from '@/components/key-manager/KeyList';
+import { rootLogger } from '@/lib/logger';
 import { useSshConnMutation } from '@/lib/query-fns';
 import {
 	connectionDetailsSchema,
@@ -22,6 +23,8 @@ import {
 } from '@/lib/secrets-manager';
 import { useTheme } from '@/lib/theme';
 import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
+
+const logger = rootLogger.extend('TabsIndex');
 
 export default function TabsIndex() {
 	return <Host />;
@@ -65,7 +68,7 @@ function Host() {
 	const formErrors = useStore(connectionForm.store, (state) => state.errorMap);
 	useEffect(() => {
 		if (!formErrors || Object.keys(formErrors).length === 0) return;
-		console.log('formErrors', JSON.stringify(formErrors, null, 2));
+		logger.info('formErrors', JSON.stringify(formErrors, null, 2));
 	}, [formErrors]);
 
 	const isSubmitting = useStore(
@@ -207,7 +210,7 @@ function Host() {
 									submittingTitle={buttonLabel}
 									testID="connect"
 									onPress={() => {
-										console.log('Connect button pressed', { isSubmitting });
+										logger.info('Connect button pressed', { isSubmitting });
 										if (isSubmitting) return;
 										void connectionForm.handleSubmit();
 									}}

@@ -4,6 +4,9 @@ import {
 	type SshShell,
 } from '@fressh/react-native-uniffi-russh';
 import { create } from 'zustand';
+import { rootLogger } from './logger';
+
+const logger = rootLogger.extend('SshStore');
 
 type SshRegistryStore = {
 	connections: Record<string, SshConnection>;
@@ -19,7 +22,7 @@ export const useSshStore = create<SshRegistryStore>((set) => ({
 			...args,
 			onDisconnected: (connectionId) => {
 				args.onDisconnected?.(connectionId);
-				console.log('DEBUG connection disconnected', connectionId);
+				logger.debug('connection disconnected', connectionId);
 				set((s) => {
 					const { [connectionId]: _omit, ...rest } = s.connections;
 					return { connections: rest };
@@ -33,7 +36,7 @@ export const useSshStore = create<SshRegistryStore>((set) => ({
 				onClosed: (channelId) => {
 					args.onClosed?.(channelId);
 					const storeKey = `${connection.connectionId}-${channelId}` as const;
-					console.log('DEBUG shell closed', storeKey);
+					logger.debug('shell closed', storeKey);
 					set((s) => {
 						const { [storeKey]: _omit, ...rest } = s.shells;
 						if (Object.keys(rest).length === 0) {

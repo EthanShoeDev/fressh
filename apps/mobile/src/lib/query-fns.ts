@@ -1,9 +1,12 @@
 import { type SshConnectionProgress } from '@fressh/react-native-uniffi-russh';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { rootLogger } from './logger';
 import { secretsManager, type InputConnectionDetails } from './secrets-manager';
 import { useSshStore } from './ssh-store';
 import { AbortSignalTimeout } from './utils';
+
+const logger = rootLogger.extend('QueryFns');
 
 export const useSshConnMutation = (opts?: {
 	onConnectionProgress?: (progressEvent: SshConnectionProgress) => void;
@@ -14,20 +17,20 @@ export const useSshConnMutation = (opts?: {
 	return useMutation({
 		mutationFn: async (connectionDetails: InputConnectionDetails) => {
 			try {
-				console.log('Connecting to SSH server...');
+				logger.info('Connecting to SSH server...');
 				// Resolve security into the RN bridge shape
 				const security =
 					connectionDetails.security.type === 'password'
 						? {
-								type: 'password' as const,
-								password: connectionDetails.security.password,
-							}
+							type: 'password' as const,
+							password: connectionDetails.security.password,
+						}
 						: {
-								type: 'key' as const,
-								privateKey: await secretsManager.keys.utils
-									.getPrivateKey(connectionDetails.security.keyId)
-									.then((e) => e.value),
-							};
+							type: 'key' as const,
+							privateKey: await secretsManager.keys.utils
+								.getPrivateKey(connectionDetails.security.keyId)
+								.then((e) => e.value),
+						};
 
 				const sshConnection = await connect({
 					host: connectionDetails.host,
@@ -35,11 +38,11 @@ export const useSshConnMutation = (opts?: {
 					username: connectionDetails.username,
 					security,
 					onConnectionProgress: (progressEvent) => {
-						console.log('SSH connect progress event', progressEvent);
+						logger.info('SSH connect progress event', progressEvent);
 						opts?.onConnectionProgress?.(progressEvent);
 					},
 					onServerKey: async (serverKeyInfo) => {
-						console.log('SSH server key', serverKeyInfo);
+						logger.info('SSH server key', serverKeyInfo);
 						return true;
 					},
 					abortSignal: AbortSignalTimeout(5_000),
@@ -55,7 +58,7 @@ export const useSshConnMutation = (opts?: {
 					abortSignal: AbortSignalTimeout(5_000),
 				});
 
-				console.log(
+				logger.info(
 					'Connected to SSH server',
 					sshConnection.connectionId,
 					shellHandle.channelId,
@@ -68,7 +71,7 @@ export const useSshConnMutation = (opts?: {
 					},
 				});
 			} catch (error) {
-				console.error('Error connecting to SSH server', error);
+				logger.error('Error connecting to SSH server', error);
 				throw error;
 			}
 		},
