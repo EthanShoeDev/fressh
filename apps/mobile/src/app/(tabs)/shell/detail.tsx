@@ -170,6 +170,7 @@ function ShellDetail() {
 				<Stack.Screen
 					options={{
 						headerBackVisible: true,
+						title: `${connection?.connectionDetails.username}@${connection?.connectionDetails.host}`,
 						headerRight: () => (
 							<Pressable
 								accessibilityLabel="Close Shell"
