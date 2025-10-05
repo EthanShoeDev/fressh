@@ -2,6 +2,14 @@ import { type ExpoConfig } from 'expo/config';
 import 'tsx/cjs';
 import packageJson from './package.json';
 
+function semverToCode(v: string) {
+	const [maj, min, pat] = v.split('.').map((n) => parseInt(n || '0', 10));
+	if (maj === undefined || min === undefined || pat === undefined)
+		throw new Error(`Invalid version: ${v}`);
+	return maj * 10000 + min * 100 + pat;
+}
+const versionCode = semverToCode(packageJson.version);
+
 const config: ExpoConfig = {
 	name: 'Fressh',
 	slug: 'fressh',
@@ -15,9 +23,11 @@ const config: ExpoConfig = {
 		supportsTablet: true,
 		config: { usesNonExemptEncryption: false },
 		bundleIdentifier: 'dev.fressh.app',
+		buildNumber: String(versionCode),
 	},
 	android: {
 		package: 'dev.fressh.app',
+		versionCode,
 		adaptiveIcon: {
 			foregroundImage: '../../packages/assets/adaptive-icon.png',
 			backgroundColor: '#151718',
