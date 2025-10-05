@@ -153,7 +153,19 @@ window.onload = () => {
 		window.addEventListener('message', handler);
 
 		// Initial handshake (send once)
-		setTimeout(() => sendToRn({ type: 'initialized' }), 100);
+		setTimeout(() => {
+			const ta = document.querySelector(
+				'.xterm-helper-textarea',
+			) as HTMLTextAreaElement | null;
+			if (!ta) throw new Error('xterm-helper-textarea not found');
+			ta.setAttribute('autocomplete', 'off');
+			ta.setAttribute('autocorrect', 'off');
+			ta.setAttribute('autocapitalize', 'none');
+			ta.setAttribute('spellcheck', 'false');
+			ta.setAttribute('inputmode', 'verbatim');
+
+			return sendToRn({ type: 'initialized' });
+		}, 200);
 	} catch (e) {
 		sendToRn({
 			type: 'debug',

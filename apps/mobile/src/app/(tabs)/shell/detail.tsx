@@ -20,7 +20,14 @@ import React, {
 	useRef,
 	useState,
 } from 'react';
-import { KeyboardAvoidingView, Pressable, Text, View } from 'react-native';
+import {
+	KeyboardAvoidingView,
+	Pressable,
+	Text,
+	View,
+	type StyleProp,
+	type ViewStyle,
+} from 'react-native';
 import { rootLogger } from '@/lib/logger';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
@@ -165,19 +172,27 @@ function ShellDetail() {
 						headerBackVisible: true,
 						headerRight: () => (
 							<Pressable
-								accessibilityLabel="Disconnect"
+								accessibilityLabel="Close Shell"
 								hitSlop={10}
 								onPress={async () => {
-									logger.info('Disconnect button pressed');
-									if (!connection) return;
+									logger.info('Close Shell button pressed');
+									if (!shell) return;
 									try {
-										await connection.disconnect();
+										await shell.close();
 									} catch (e) {
-										logger.warn('Failed to disconnect', e);
+										logger.warn('Failed to close shell', e);
 									}
 								}}
+								style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
 							>
-								<Ionicons name="power" size={20} color={theme.colors.primary} />
+								<Ionicons
+									name="close"
+									size={20}
+									color={theme.colors.textPrimary}
+								/>
+								<Text style={{ color: theme.colors.textPrimary }}>
+									Close Shell
+								</Text>
 							</Pressable>
 						),
 					}}
@@ -284,10 +299,13 @@ const KeyboardToolBarContext = createContext<KeyboardToolbarContextType | null>(
 );
 
 function KeyboardToolbar() {
+	const theme = useTheme();
 	return (
 		<View
 			style={{
 				height: 100,
+				borderWidth: 1,
+				borderColor: theme.colors.border,
 			}}
 		>
 			<KeyboardToolbarRow>
@@ -338,11 +356,16 @@ type KeyboardToolbarButtonPresetType =
 
 function KeyboardToolbarButtonPreset({
 	preset,
+	style,
 }: {
+	style?: StyleProp<ViewStyle>;
 	preset: KeyboardToolbarButtonPresetType;
 }) {
 	return (
-		<KeyboardToolbarButton {...keyboardToolbarButtonPresetToProps[preset]} />
+		<KeyboardToolbarButton
+			{...keyboardToolbarButtonPresetToProps[preset]}
+			style={style}
+		/>
 	);
 }
 
@@ -443,7 +466,10 @@ type KeyboardToolbarButtonProps =
 	| KeyboardToolbarModifierButtonProps
 	| KeyboardToolbarInstantButtonProps;
 
-function KeyboardToolbarButton(props: KeyboardToolbarButtonProps) {
+function KeyboardToolbarButton({
+	style,
+	...props
+}: KeyboardToolbarButtonProps & { style?: StyleProp<ViewStyle> }) {
 	const theme = useTheme();
 	const { sendBytes, modifierKeysActive, setModifierKeysActive } =
 		useContextSafe(KeyboardToolBarContext);
@@ -464,6 +490,17 @@ function KeyboardToolbarButton(props: KeyboardToolbarButtonProps) {
 
 	return (
 		<Pressable
+			style={[
+				{
+					flex: 1,
+					alignItems: 'center',
+					justifyContent: 'center',
+					borderWidth: 1,
+					borderColor: theme.colors.border,
+				},
+				modifierActive && { backgroundColor: theme.colors.primary },
+				style,
+			]}
 			onPress={() => {
 				if (props.type === 'modifier') {
 					setModifierKeysActive((modifierKeysActive) =>
@@ -480,16 +517,6 @@ function KeyboardToolbarButton(props: KeyboardToolbarButtonProps) {
 				}
 				throw new Error('Invalid button type');
 			}}
-			style={[
-				{
-					flex: 1,
-					alignItems: 'center',
-					justifyContent: 'center',
-					borderWidth: 1,
-					borderColor: theme.colors.border,
-				},
-				modifierActive && { backgroundColor: theme.colors.primary },
-			]}
 		>
 			{children}
 		</Pressable>

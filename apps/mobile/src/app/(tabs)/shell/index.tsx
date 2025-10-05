@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import {
 	type SshShell,
 	type SshConnection,
@@ -14,6 +14,8 @@ import {
 	Pressable,
 	Text,
 	View,
+	type StyleProp,
+	type TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
@@ -22,6 +24,7 @@ import { preferences } from '@/lib/preferences';
 import {} from '@/lib/query-fns';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
+import { AbortSignalTimeout } from '@/lib/utils';
 
 const logger = rootLogger.extend('TabsShellList');
 
@@ -67,6 +70,8 @@ function LoadedState() {
 	const [shellListViewMode] =
 		preferences.shellListViewMode.useShellListViewModePref();
 
+	const router = useRouter();
+
 	return (
 		<View style={{ flex: 1 }}>
 			{shellListViewMode === 'flat' ? (
@@ -74,8 +79,8 @@ function LoadedState() {
 			) : (
 				<GroupedView setActionTarget={setActionTarget} />
 			)}
-			<ActionsSheet
-				target={actionTarget}
+			<ShellActionsSheet
+				target={actionTarget && 'shell' in actionTarget ? actionTarget : null}
 				onClose={() => {
 					setActionTarget(null);
 				}}
@@ -83,11 +88,40 @@ function LoadedState() {
 					if (!actionTarget) return;
 					if (!('shell' in actionTarget)) return;
 					void actionTarget.shell.close();
+					setActionTarget(null);
+				}}
+			/>
+			<ConnectionActionsSheet
+				target={
+					actionTarget && 'connection' in actionTarget ? actionTarget : null
+				}
+				onClose={() => {
+					setActionTarget(null);
 				}}
 				onDisconnect={() => {
 					if (!actionTarget) return;
 					if (!('connection' in actionTarget)) return;
 					void actionTarget.connection.disconnect();
+					setActionTarget(null);
+				}}
+				onStartShell={() => {
+					if (!actionTarget) return;
+					if (!('connection' in actionTarget)) return;
+					void actionTarget.connection
+						.startShell({
+							term: 'Xterm',
+							abortSignal: AbortSignalTimeout(5_000),
+						})
+						.then((shellHandle) => {
+							router.push({
+								pathname: '/shell/detail',
+								params: {
+									connectionId: actionTarget.connection.connectionId,
+									channelId: shellHandle.channelId,
+								},
+							});
+						});
+					setActionTarget(null);
 				}}
 			/>
 		</View>
@@ -164,6 +198,11 @@ function GroupedView({
 									...prev,
 									[item.connectionId]: !prev[item.connectionId],
 								}));
+							}}
+							onLongPress={() => {
+								setActionTarget({
+									connection: item,
+								});
 							}}
 						>
 							<View>
@@ -319,19 +358,85 @@ function ShellCard({
 	);
 }
 
-function ActionsSheet({
+function ShellActionsSheet({
 	target,
 	onClose,
 	onCloseShell,
-	onDisconnect,
 }: {
-	target: null | ActionTarget;
+	target: null | {
+		shell: SshShell;
+	};
 	onClose: () => void;
 	onCloseShell: () => void;
+}) {
+	const open = !!target;
+
+	return (
+		<ActionSheetModal
+			title="Shell Actions"
+			actions={[
+				{ label: 'Close Shell', onPress: onCloseShell },
+				{ label: 'Cancel', onPress: onClose, variant: 'outline' },
+			]}
+			onClose={onClose}
+			open={open}
+		/>
+	);
+}
+
+function ConnectionActionsSheet({
+	target,
+	onClose,
+	onDisconnect,
+	onStartShell,
+}: {
+	target: null | {
+		connection: SshConnection;
+	};
+	onClose: () => void;
 	onDisconnect: () => void;
+	onStartShell: () => void;
+}) {
+	const open = !!target;
+
+	return (
+		<ActionSheetModal
+			title="Connection Actions"
+			actions={[
+				{ label: 'Disconnect', onPress: onDisconnect },
+				{ label: 'Start Shell', onPress: onStartShell },
+				{ label: 'Cancel', onPress: onClose, variant: 'outline' },
+			]}
+			onClose={onClose}
+			open={open}
+			extraFooterSpacing={8}
+		/>
+	);
+}
+
+type ActionSheetButtonVariant = 'primary' | 'outline';
+
+type ActionSheetAction = {
+	label: string;
+	onPress: () => void;
+	variant?: ActionSheetButtonVariant;
+};
+
+function ActionSheetModal({
+	open,
+	title,
+	onClose,
+	actions,
+	extraFooterSpacing = 0,
+}: {
+	open: boolean;
+	title: string;
+	onClose: () => void;
+	actions: ActionSheetAction[];
+	extraFooterSpacing?: number;
 }) {
 	const theme = useTheme();
-	const open = !!target;
+
 	return (
 		<Modal
 			transparent
@@ -363,78 +468,69 @@ function ActionsSheet({
 							fontWeight: '700',
 						}}
 					>
-						Shell Actions
+						{title}
 					</Text>
 					<View style={{ height: 12 }} />
-					<Pressable
-						style={{
-							backgroundColor: theme.colors.primary,
-							borderRadius: 12,
-							paddingVertical: 14,
-							alignItems: 'center',
-						}}
-						onPress={onCloseShell}
-					>
-						<Text
-							style={{
-								color: theme.colors.buttonTextOnPrimary,
-								fontWeight: '700',
-								fontSize: 14,
-								letterSpacing: 0.3,
-							}}
-						>
-							Close Shell
-						</Text>
-					</Pressable>
-					<View style={{ height: 8 }} />
-					<Pressable
-						style={{
-							backgroundColor: theme.colors.transparent,
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							borderRadius: 12,
-							paddingVertical: 14,
-							alignItems: 'center',
-						}}
-						onPress={onDisconnect}
-					>
-						<Text
-							style={{
-								color: theme.colors.textSecondary,
-								fontWeight: '600',
-								fontSize: 14,
-								letterSpacing: 0.3,
-							}}
-						>
-							Disconnect Connection
-						</Text>
-					</Pressable>
-					<View style={{ height: 8 }} />
-					<Pressable
-						style={{
-							backgroundColor: theme.colors.transparent,
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							borderRadius: 12,
-							paddingVertical: 14,
-							alignItems: 'center',
-						}}
-						onPress={onClose}
-					>
-						<Text
-							style={{
-								color: theme.colors.textSecondary,
-								fontWeight: '600',
-								fontSize: 14,
-								letterSpacing: 0.3,
-							}}
-						>
-							Cancel
-						</Text>
-					</Pressable>
+					{actions.map((action, index) => (
+						<React.Fragment key={`${action.label}-${index.toString()}`}>
+							<ActionSheetButton {...action} />
+							{index < actions.length - 1 ? (
+								<View style={{ height: 8 }} />
+							) : null}
+						</React.Fragment>
+					))}
+					{extraFooterSpacing > 0 ? (
+						<View style={{ height: extraFooterSpacing }} />
+					) : null}
 				</View>
 			</View>
 		</Modal>
+	);
+}
+
+function ActionSheetButton({
+	label,
+	onPress,
+	variant = 'primary',
+}: ActionSheetAction) {
+	const theme = useTheme();
+	const baseButtonStyle = {
+		borderRadius: 12,
+		paddingVertical: 14,
+		alignItems: 'center',
+	} as const;
+
+	const pressableStyle =
+		variant === 'outline'
+			? [
+					baseButtonStyle,
+					{
+						backgroundColor: theme.colors.transparent,
+						borderWidth: 1,
+						borderColor: theme.colors.border,
+					},
+				]
+			: [baseButtonStyle, { backgroundColor: theme.colors.primary }];
+
+	const textStyle: StyleProp<TextStyle> =
+		variant === 'outline'
+			? {
+					color: theme.colors.textSecondary,
+					fontWeight: '600',
+					fontSize: 14,
+					letterSpacing: 0.3,
+				}
+			: {
+					color: theme.colors.buttonTextOnPrimary,
+					fontWeight: '700',
+					fontSize: 14,
+					letterSpacing: 0.3,
+				};
+
+	return (
+		<Pressable style={pressableStyle} onPress={onPress}>
+			<Text style={textStyle}>{label}</Text>
+		</Pressable>
 	);
 }
 
@@ -443,7 +539,6 @@ function HeaderViewModeButton() {
 	const [shellListViewMode, setShellListViewMode] =
 		preferences.shellListViewMode.useShellListViewModePref();
 
-	const icon = shellListViewMode === 'flat' ? 'list' : 'git-branch';
 	const accessibilityLabel =
 		shellListViewMode === 'flat'
 			? 'Switch to grouped view'
@@ -480,7 +575,19 @@ function HeaderViewModeButton() {
 				opacity: pressed ? 0.4 : 1,
 			})}
 		>
-			<Ionicons name={icon} size={22} color={theme.colors.textPrimary} />
+			{shellListViewMode === 'grouped' ? (
+				<MaterialCommunityIcons
+					name="file-tree-outline"
+					size={22}
+					color={theme.colors.textPrimary}
+				/>
+			) : (
+				<Ionicons
+					name="list-outline"
+					size={22}
+					color={theme.colors.textPrimary}
+				/>
+			)}
 		</Pressable>
 	);
 }

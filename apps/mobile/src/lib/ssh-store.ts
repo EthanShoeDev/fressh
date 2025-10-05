@@ -39,9 +39,9 @@ export const useSshStore = create<SshRegistryStore>((set) => ({
 					logger.debug('shell closed', storeKey);
 					set((s) => {
 						const { [storeKey]: _omit, ...rest } = s.shells;
-						if (Object.keys(rest).length === 0) {
-							void connection.disconnect();
-						}
+						// if (Object.keys(rest).length === 0) {
+						// 	void connection.disconnect();
+						// }
 						return { shells: rest };
 					});
 				},
