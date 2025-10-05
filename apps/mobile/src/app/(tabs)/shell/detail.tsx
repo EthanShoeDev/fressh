@@ -141,6 +141,10 @@ function ShellDetail() {
 				logger.warn('sendData failed', e);
 				router.back();
 			});
+
+			xtermRef.current?.getRecentCommands(10).then((commands) => {
+				logger.info('recent commands', commands);
+			});
 		},
 		[shell, router, modifierKeysActive],
 	);

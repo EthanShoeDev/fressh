@@ -40,6 +40,14 @@ export type XtermWebViewHandle = {
 	focus: () => void;
 	resize: (size: { cols: number; rows: number }) => void;
 	fit: () => void;
+	getRecentCommands: (
+		limit?: number,
+	) => Promise<import('./bridge').CommandMeta[]>;
+	getRecentOutputs: (
+		limit?: number,
+	) => Promise<import('./bridge').OutputMeta[]>;
+	getCommandOutput: (id: string) => Promise<Uint8Array | null>;
+	clearHistory: () => Promise<void>;
 };
 
 const defaultWebViewProps: WebViewOptions = {
@@ -95,6 +103,7 @@ export type XtermJsWebViewProps = {
 		rows: number;
 	};
 	autoFit?: boolean;
+	enableCommandHistory?: boolean; // default true
 };
 
 function xTermOptionsEquals(
@@ -126,9 +135,29 @@ export function XtermJsWebView({
 	logger,
 	size,
 	autoFit = true,
+	enableCommandHistory = true,
 }: XtermJsWebViewProps) {
 	const webRef = useRef<WebView>(null);
 	const [initialized, setInitialized] = useState(false);
+
+	// Request/response correlation for history APIs
+	const pendingRef = useRef(
+		new Map<
+			string,
+			{
+				resolve: (v: unknown) => void;
+				reject: (e: unknown) => void;
+				type:
+					| 'history:commands'
+					| 'history:outputs'
+					| 'history:output'
+					| 'history:cleared';
+			}
+		>(),
+	);
+	const genCorr = useCallback(() => {
+		return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+	}, []);
 
 	// ---- RN -> WebView message sender
 	const sendToWebView = useCallback(
@@ -243,6 +272,53 @@ export function XtermJsWebView({
 			appliedSizeRef.current = size;
 		},
 		fit,
+		getRecentCommands: (limit?: number) => {
+			return new Promise((resolve, reject) => {
+				const corr = genCorr();
+				pendingRef.current.set(corr, {
+					resolve: (v: unknown) =>
+						resolve(v as unknown as import('./bridge').CommandMeta[]),
+					reject: (e: unknown) => reject(e as unknown as never),
+					type: 'history:commands',
+				});
+				sendToWebView({ type: 'history:getCommands', corr, limit });
+			});
+		},
+		getRecentOutputs: (limit?: number) => {
+			return new Promise((resolve, reject) => {
+				const corr = genCorr();
+				pendingRef.current.set(corr, {
+					resolve: (v: unknown) =>
+						resolve(v as unknown as import('./bridge').OutputMeta[]),
+					reject: (e: unknown) => reject(e as unknown as never),
+					type: 'history:outputs',
+				});
+				sendToWebView({ type: 'history:getOutputs', corr, limit });
+			});
+		},
+		getCommandOutput: (id: string) => {
+			return new Promise((resolve, reject) => {
+				const corr = genCorr();
+				pendingRef.current.set(corr, {
+					resolve: (v: unknown) =>
+						resolve((v as unknown as Uint8Array | null) ?? null),
+					reject: (e: unknown) => reject(e as unknown as never),
+					type: 'history:output',
+				});
+				sendToWebView({ type: 'history:getOutput', corr, id });
+			});
+		},
+		clearHistory: () => {
+			return new Promise((resolve, reject) => {
+				const corr = genCorr();
+				pendingRef.current.set(corr, {
+					resolve: () => resolve(),
+					reject: (e: unknown) => reject(e as unknown as never),
+					type: 'history:cleared',
+				});
+				sendToWebView({ type: 'history:clear', corr });
+			});
+		},
 	}));
 
 	const mergedXTermOptions = useMemo(
@@ -286,6 +362,25 @@ export function XtermJsWebView({
 				if (msg.type === 'debug') {
 					logger?.log?.(`received debug msg from webview: `, msg.message);
 					return;
+				}
+				if (
+					msg.type === 'history:commands' ||
+					msg.type === 'history:outputs' ||
+					msg.type === 'history:output' ||
+					msg.type === 'history:cleared'
+				) {
+					const pending = pendingRef.current.get(msg.corr);
+					if (pending && pending.type === msg.type) {
+						pendingRef.current.delete(msg.corr);
+						if (msg.type === 'history:commands') pending.resolve(msg.items);
+						else if (msg.type === 'history:outputs') pending.resolve(msg.items);
+						else if (msg.type === 'history:output') {
+							if (!msg.item) pending.resolve(null);
+							else pending.resolve(bStrToBinary(msg.item.bytesB64));
+						} else if (msg.type === 'history:cleared')
+							pending.resolve(undefined);
+						return;
+					}
 				}
 				webViewOptions?.onMessage?.(e);
 			} catch (error) {
@@ -349,7 +444,10 @@ export function XtermJsWebView({
 			source={{ html: htmlString }}
 			onMessage={onMessage}
 			style={style}
-			injectedJavaScriptObject={mergedXTermOptions}
+			injectedJavaScriptObject={{
+				...mergedXTermOptions,
+				__fresshEnableCommandHistory: enableCommandHistory,
+			}}
 			injectedJavaScriptBeforeContentLoaded={
 				mergedXTermOptions.theme?.background
 					? `

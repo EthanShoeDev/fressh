@@ -45,6 +45,9 @@ export const useSshStore = create<SshRegistryStore>((set) => ({
 						return { shells: rest };
 					});
 				},
+			}).catch((e) => {
+				logger.error('error starting shell', e.name, e.message);
+				throw e;
 			});
 			const storeKey = `${connection.connectionId}-${shell.channelId}`;
 			set((s) => ({
