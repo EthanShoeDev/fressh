@@ -60,7 +60,7 @@ const signedBuildCommand = command({
 			long: 'gh-release',
 			type: boolean,
 			short: 'g',
-			description: 'Whether to create a GitHub release',
+			description: 'Whether to create a GitHub release (deprecated, use release-it instead)',
 			defaultValue: () => false,
 		}),
 	},
