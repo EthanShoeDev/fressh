@@ -467,6 +467,9 @@ type KeyboardToolbarButtonProps =
 	| KeyboardToolbarModifierButtonProps
 	| KeyboardToolbarInstantButtonProps;
 
+const propsToKey = (props: KeyboardToolbarButtonProps) =>
+	'label' in props ? props.label : props.iconName;
+
 function KeyboardToolbarButton({
 	style,
 	...props
@@ -487,7 +490,8 @@ function KeyboardToolbarButton({
 	);
 
 	const modifierActive =
-		props.type === 'modifier' && modifierKeysActive.includes(props);
+		props.type === 'modifier' &&
+		!!modifierKeysActive.find((m) => propsToKey(m) === propsToKey(props));
 
 	return (
 		<Pressable
@@ -505,8 +509,10 @@ function KeyboardToolbarButton({
 			onPress={() => {
 				if (props.type === 'modifier') {
 					setModifierKeysActive((modifierKeysActive) =>
-						modifierKeysActive.includes(props)
-							? modifierKeysActive.filter((m) => m !== props)
+						modifierKeysActive.find((m) => propsToKey(m) === propsToKey(props))
+							? modifierKeysActive.filter(
+									(m) => propsToKey(m) !== propsToKey(props),
+								)
 							: [...modifierKeysActive, props],
 					);
 					return;
