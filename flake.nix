@@ -95,7 +95,10 @@
           clang-tools
         ];
 
-        mkShellFn = if pkgs.stdenv.isDarwin then pkgs.mkShellNoCC else pkgs.mkShell;
+        mkShellFn =
+          if pkgs.stdenv.isDarwin
+          then pkgs.mkShellNoCC
+          else pkgs.mkShell;
 
         ndkId = "27-1-12297006"; # nix flake show github:tadfisher/android-nixpkgs | grep ndk
         ndkAttr = "ndk-${ndkId}";
