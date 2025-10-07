@@ -32,7 +32,7 @@ export default {
 
 	hooks: {
 		'before:init': ['turbo run lint:check'],
-		'before:github:release': 'pnpm run build:signed:apk',
+		'before:github:release': 'turbo run build:signed:apk',
 
 		'after:release': 'echo "Released ${npm.name} v${version}"',
 	},

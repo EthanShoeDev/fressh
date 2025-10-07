@@ -13,6 +13,14 @@ async function getSecrets(): Promise<{
 	keystoreAlias: string;
 	keystorePassword: string;
 }> {
+	const isBwUnlocked = await cmd(`bw status`, { stdio: 'pipe' }).then(
+		({ stdout }) => {
+			const bwStatus = JSON.parse(stdout) as { status: string };
+			return bwStatus.status === 'unlocked';
+		},
+	);
+	if (!isBwUnlocked) throw new Error('Bitwarden is not unlocked');
+
 	const { stdout: rawBwItemString } = await cmd(
 		`bw get item "fressh keystore" --raw`,
 		{

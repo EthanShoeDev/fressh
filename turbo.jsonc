@@ -6,6 +6,7 @@
 		"ANDROID_*",
 		"SSL_CERT_FILE",
 		"GRADLE_OPTS",
+		"BW_SESSION",
 	],
 	"tasks": {
 		// Defaults

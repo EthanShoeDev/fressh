@@ -28,5 +28,6 @@
 		// Special tasks
 		"expo:doctor": {},
 		"test:e2e": {},
+		"build:signed:apk": {},
 	},
 }
