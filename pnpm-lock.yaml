@@ -366,6 +366,9 @@ importers:
       release-it:
         specifier: ^19.0.4
         version: 19.0.4(@types/node@24.3.0)(magicast@0.3.5)
+      release-it-pnpm:
+        specifier: ^4.6.6
+        version: 4.6.6(magicast@0.3.5)(release-it@19.0.4(@types/node@24.3.0)(magicast@0.3.5))
       turbo:
         specifier: ^2.5.7
         version: 2.5.8
@@ -439,6 +442,12 @@ importers:
       react-native-webview:
         specifier: 13.15.0
         version: 13.15.0(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@20.0.2(typescript@5.9.2))(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
+      release-it:
+        specifier: ^19.0.4
+        version: 19.0.4(@types/node@24.3.0)(magicast@0.3.5)
+      release-it-pnpm:
+        specifier: ^4.6.6
+        version: 4.6.6(magicast@0.3.5)(release-it@19.0.4(@types/node@24.3.0)(magicast@0.3.5))
       typescript:
         specifier: ~5.9.2
         version: 5.9.2
@@ -14340,7 +14349,7 @@ snapshots:
   changelogithub@13.16.0(magicast@0.3.5):
     dependencies:
       ansis: 4.2.0
-      c12: 3.1.0(magicast@0.3.5)
+      c12: 3.3.0(magicast@0.3.5)
       cac: 6.7.14
       changelogen: 0.5.7(magicast@0.3.5)
       convert-gitmoji: 0.1.5
