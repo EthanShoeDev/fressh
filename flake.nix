@@ -64,6 +64,7 @@
           fen.targets.x86_64-linux-android.stable.rust-std
           fen.targets.i686-linux-android.stable.rust-std
           fen.targets.aarch64-apple-ios.stable.rust-std
+          fen.targets.aarch64-apple-ios-sim.stable.rust-std
         ];
 
         defaultPkgs = with pkgs; [
@@ -93,6 +94,8 @@
           alejandra
           clang-tools
         ];
+
+        mkShellFn = if pkgs.stdenv.isDarwin then pkgs.mkShellNoCC else pkgs.mkShell;
 
         ndkId = "27-1-12297006"; # nix flake show github:tadfisher/android-nixpkgs | grep ndk
         ndkAttr = "ndk-${ndkId}";
@@ -219,13 +222,13 @@
           export PROMPT_COMMAND=". \"$FRESSH_STARSHIP_PREINIT\""
         '';
       in {
-        default = pkgs.mkShell {
+        default = mkShellFn {
           packages = defaultPkgs ++ [remoteAndroidSdk.androidSdk];
           shellHook =
             commonAndroidInit remoteAndroidSdk.sdkRoot;
         };
 
-        android-emulator = pkgs.mkShell {
+        android-emulator = mkShellFn {
           packages = defaultPkgs ++ [fullAndroidSdk.androidSdk];
           shellHook =
             commonAndroidInit fullAndroidSdk.sdkRoot;
