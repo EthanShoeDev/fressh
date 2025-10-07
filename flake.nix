@@ -63,6 +63,7 @@
           fen.targets.armv7-linux-androideabi.stable.rust-std
           fen.targets.x86_64-linux-android.stable.rust-std
           fen.targets.i686-linux-android.stable.rust-std
+          fen.targets.aarch64-apple-ios.stable.rust-std
         ];
 
         defaultPkgs = with pkgs; [

@@ -9,6 +9,7 @@
 		"yoavbls.pretty-ts-errors",
 		"ctf0.duplicated-code-new",
 		"github.vscode-github-actions",
-		"mkhl.direnv"
+		"mkhl.direnv",
+		"jnoortheen.nix-ide"
 	]
 }
