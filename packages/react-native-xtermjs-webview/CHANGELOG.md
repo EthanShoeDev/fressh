@@ -1,3 +1,5 @@
 # Changelog
 
+## [0.0.4](https://github.com/EthanShoeDev/fressh/compare/@fressh/react-native-xtermjs-webview-v0.0.1...${npm.name}-v0.0.4) (2025-10-07)
+
 ## 0.0.1 (2025-10-07)
