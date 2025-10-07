@@ -1,7 +1,6 @@
 import { type Config } from 'release-it';
 
 export default {
-	// Avoid double-publish from the built-in npm plugin
 	npm: {
 		publish: true,
 		publishArgs: ['--access', 'public'],
@@ -18,8 +17,6 @@ export default {
 	github: {
 		release: true,
 		releaseName: '${npm.name} v${version}',
-		// optional: attach build artifacts
-		// assets: ['dist/**']
 	},
 
 	plugins: {
@@ -32,7 +29,7 @@ export default {
 
 	hooks: {
 		'before:init': ['turbo run lint:check'],
-		'before:github:release': 'turbo run build',
+		'after:bump': 'turbo run build',
 		'after:release': 'echo "Published ${npm.name} v${version} to npm"',
 	},
 } satisfies Config;

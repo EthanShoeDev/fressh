@@ -1,60 +1,28 @@
-# Welcome to your Expo app 👋
+## Fressh Mobile (Expo)
 
-This is an [Expo](https://expo.dev) project created with
-[`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This is the Fressh mobile app built with Expo. It provides a clean SSH client
+experience. packages:
 
-## Get started
+- `@fressh/react-native-uniffi-russh`
+- `@fressh/react-native-xtermjs-webview`
 
-1. Install dependencies
-
-   ```bash
-   pnpm install
-   ```
-
-2. Start the app
-
-   ```bash
-   pnpm exec expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app
-  development with Expo
-
-You can start developing by editing the files inside the **app** directory. This
-project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### Setup
 
 ```bash
-pnpm run reset-project
+pnpm install
+pnpm exec expo start
 ```
 
-This command will move the starter code to the **app-example** directory and
-create a blank **app** directory where you can start developing.
+Open using Expo Go, an emulator, or a simulator.
 
-## Learn more
+For a high-level feature overview, see the root [`README.md`](../../README.md).
 
-To learn more about developing your project with Expo, look at the following
-resources:
+### Development notes
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into
-  advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a
-  step-by-step tutorial where you'll create a project that runs on Android, iOS,
-  and the web.
+- Edit files under `app/` (file-based routing)
+- Ensure Android/iOS tooling is installed for native builds
 
-## Join the community
+### Links
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform
-  and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask
-  questions.
+- Main README: [`../../README.md`](../../README.md)
+- Changelog: [`./CHANGELOG.md`](./CHANGELOG.md)

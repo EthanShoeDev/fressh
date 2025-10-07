@@ -1,6 +1,10 @@
-import type { Config } from 'release-it';
+import { type Config } from 'release-it';
 
 export default {
+	npm: {
+		publish: true,
+		publishArgs: ['--access', 'public'],
+	},
 	git: {
 		requireCleanWorkingDir: true,
 		tagName: '${npm.name}-v${version}',
@@ -10,20 +14,9 @@ export default {
 		push: true,
 	},
 
-	// This one *does* publish to npm
-	npm: {
-		publish: true,
-		// pass flags you’d give to `npm publish`
-		publishArgs: ['--access', 'public'],
-		// (optional) skip npm’s own prepublish checks:
-		// skipChecks: true
-	},
-
 	github: {
 		release: true,
 		releaseName: '${npm.name} v${version}',
-		// optional: attach build artifacts
-		// assets: ['dist/**']
 	},
 
 	plugins: {
@@ -36,7 +29,7 @@ export default {
 
 	hooks: {
 		'before:init': ['turbo run lint:check'],
-		'before:npm:release': 'turbo run build:android build:ios',
+		'after:bump': 'turbo run build',
 		'after:release': 'echo "Published ${npm.name} v${version} to npm"',
 	},
 } satisfies Config;

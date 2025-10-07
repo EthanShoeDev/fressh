@@ -1,77 +1,67 @@
-# React + TypeScript + Vite
+## @fressh/react-native-xtermjs-webview
 
-This template provides a minimal setup to get React working in Vite with HMR and
-some ESLint rules.
+React Native WebView that embeds [xterm.js](https://xtermjs.org/) with sensible
+defaults and a bridge for input and output.
 
-Currently, two official plugins are available:
+[![npm version](https://img.shields.io/npm/v/%40fressh%2Freact-native-xtermjs-webview)](https://www.npmjs.com/package/@fressh/react-native-xtermjs-webview)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react)
-  uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc)
-  uses [SWC](https://swc.rs/) for Fast Refresh
+### Install
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the
-configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config([
-	globalIgnores(['dist']),
-	{
-		files: ['**/*.{ts,tsx}'],
-		extends: [
-			// Other configs...
-
-			// Remove tseslint.configs.recommended and replace with this
-			...tseslint.configs.recommendedTypeChecked,
-			// Alternatively, use this for stricter rules
-			...tseslint.configs.strictTypeChecked,
-			// Optionally, add this for stylistic rules
-			...tseslint.configs.stylisticTypeChecked,
-
-			// Other configs...
-		],
-		languageOptions: {
-			parserOptions: {
-				project: ['./tsconfig.node.json', './tsconfig.app.json'],
-				tsconfigRootDir: import.meta.dirname,
-			},
-			// other options...
-		},
-	},
-]);
+```bash
+pnpm add @fressh/react-native-xtermjs-webview react-native-webview
 ```
 
-You can also install
-[eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x)
-and
-[eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom)
-for React-specific lint rules:
+Peer dependencies: `react`, `react-dom` (for web), `react-native-webview`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x';
-import reactDom from 'eslint-plugin-react-dom';
+### Usage
 
-export default tseslint.config([
-	globalIgnores(['dist']),
-	{
-		files: ['**/*.{ts,tsx}'],
-		extends: [
-			// Other configs...
-			// Enable lint rules for React
-			reactX.configs['recommended-typescript'],
-			// Enable lint rules for React DOM
-			reactDom.configs.recommended,
-		],
-		languageOptions: {
-			parserOptions: {
-				project: ['./tsconfig.node.json', './tsconfig.app.json'],
-				tsconfigRootDir: import.meta.dirname,
-			},
-			// other options...
-		},
-	},
-]);
+See `apps/mobile` in this monorepo for a complete example. Basic usage:
+
+```tsx
+import React, { useRef } from 'react';
+import {
+	XtermJsWebView,
+	type XtermWebViewHandle,
+} from '@fressh/react-native-xtermjs-webview';
+
+export function Terminal() {
+	const termRef = useRef<XtermWebViewHandle | null>(null);
+	return (
+		<XtermJsWebView
+			ref={termRef}
+			onInitialized={() =>
+				termRef.current?.write(new TextEncoder().encode('hello'))
+			}
+			onData={(input) => console.log('user input:', input)}
+		/>
+	);
+}
 ```
+
+#### Props
+
+- `webViewOptions`: subset of `react-native-webview` props (sane defaults
+  applied)
+- `xtermOptions`: partial `@xterm/xterm` options (theme, font, scrollback, etc.)
+- `onInitialized`: called when the terminal is ready
+- `onData(str)`: emits user keystrokes
+- `size`: `{ cols, rows }` to set terminal size
+- `autoFit`: auto-fit after important changes (default: true)
+
+#### Ref API
+
+- `write(bytes)`, `writeMany([bytes...])`, `flush()`
+- `clear()`, `focus()`, `fit()`, `resize({ cols, rows })`
+
+### Publishing contents
+
+This package intentionally publishes both `src/` and built `dist/` artifacts for
+transparency and debugging.
+
+### Links
+
+- Changelog: [`CHANGELOG.md`](./CHANGELOG.md)
+- Contributing: see the monorepo guide at
+  [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
+- Example: `apps/mobile`
+- License: MIT

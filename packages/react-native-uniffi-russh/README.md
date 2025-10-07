@@ -1,34 +1,26 @@
-# react-native-uniffi-russh
+## @fressh/react-native-uniffi-russh
 
-Uniffi bindings for russh
+React Native bindings (via UniFFI) for the Rust SSH library
+[russh](https://github.com/Eugeny/russh).
 
-## Installation
+[![npm version](https://img.shields.io/npm/v/%40fressh%2Freact-native-uniffi-russh)](https://www.npmjs.com/package/@fressh/react-native-uniffi-russh)
 
-```sh
-npm install react-native-uniffi-russh
+### Install
+
+```bash
+pnpm add @fressh/react-native-uniffi-russh
 ```
 
-## Usage
+Peer dependencies (you manage): `react`, `react-native`.
 
-```js
-import { multiply } from 'react-native-uniffi-russh';
+### Usage
 
-// ...
+This package exposes a native Rust module for SSH transport. For a complete,
+working integration, see the example app in this monorepo at `apps/mobile`.
 
-const result = multiply(3, 7);
-```
+### Links
 
-## Contributing
-
-- [Development workflow](CONTRIBUTING.md#development-workflow)
-- [Sending a pull request](CONTRIBUTING.md#sending-a-pull-request)
-- [Code of conduct](CODE_OF_CONDUCT.md)
-
-## License
-
-MIT
-
----
-
-Made with
-[create-react-native-library](https://github.com/callstack/react-native-builder-bob)
+- Changelog: [`CHANGELOG.md`](./CHANGELOG.md)
+- Contributing: see the monorepo guide at
+  [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
+- License: MIT
