@@ -16,7 +16,7 @@
     "build:internal": "tsc -b && vite build --config vite.config.internal.ts",
     "dev": "vite --config vite.config.internal.ts",
     "preview": "vite preview",
-    "release": "release-it",
+    "release": "GITHUB_TOKEN=$(gh auth token) release-it",
     "release:dry": "release-it --dry-run"
   },
   "dependencies": {
