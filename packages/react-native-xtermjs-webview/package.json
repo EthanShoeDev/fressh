@@ -15,6 +15,24 @@
   "exports": {
     ".": "./dist/index.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EthanShoeDev/fressh.git"
+  },
+  "bugs": {
+    "url": "https://github.com/EthanShoeDev/fressh/issues"
+  },
+  "homepage": "https://github.com/EthanShoeDev/fressh#readme",
+  "keywords": [
+    "react-native",
+    "xterm",
+    "webview",
+    "terminal",
+    "ssh",
+    "expo",
+    "android",
+    "ios"
+  ],
   "scripts": {
     "fmt": "cross-env SORT_IMPORTS=true prettier --write .",
     "fmt:check": "cross-env SORT_IMPORTS=true prettier --check .",
@@ -33,7 +51,6 @@
   },
   "peerDependencies": {
     "react": "19.1.0",
-    "react-dom": "19.1.0",
     "react-native-webview": "13.15.0"
   },
   "devDependencies": {

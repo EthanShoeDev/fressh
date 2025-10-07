@@ -1,6 +1,6 @@
 {
   "name": "@fressh/react-native-uniffi-russh",
-  "homepage": "https://github.com/EthanShoeDev/fressh",
+  "homepage": "https://github.com/EthanShoeDev/fressh#readme",
   "license": "MIT",
   "description": "Uniffi bindings for russh",
   "version": "0.0.1",
@@ -52,15 +52,23 @@
     "release": "GITHUB_TOKEN=$(gh auth token) release-it",
     "release:dry": "release-it --dry-run"
   },
-  "keywords": [
-    "react-native",
-    "ios",
-    "android"
-  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/EthanShoeDev/fressh.git"
   },
+  "bugs": {
+    "url": "https://github.com/EthanShoeDev/fressh/issues"
+  },
+  "keywords": [
+    "react-native",
+    "ssh",
+    "russh",
+    "uniffi",
+    "rust",
+    "expo",
+    "android",
+    "ios"
+  ],
   "author": "EthanShoeDev <13422990+EthanShoeDev@users.noreply.github.com> (https://github.com/EthanShoeDev)",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"

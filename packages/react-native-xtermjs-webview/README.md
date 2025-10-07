@@ -11,28 +11,33 @@ defaults and a bridge for input and output.
 pnpm add @fressh/react-native-xtermjs-webview react-native-webview
 ```
 
-Peer dependencies: `react`, `react-dom` (for web), `react-native-webview`.
+Peer dependencies: `react`, `react-native-webview`.
 
 ### Usage
 
-See `apps/mobile` in this monorepo for a complete example. Basic usage:
+For a complete production example, see the mobile app:
+https://github.com/EthanShoeDev/fressh/tree/main/apps/mobile
+
+Basic usage:
 
 ```tsx
 import React, { useRef } from 'react';
-import {
-	XtermJsWebView,
-	type XtermWebViewHandle,
-} from '@fressh/react-native-xtermjs-webview';
+import type { XtermWebViewHandle } from '@fressh/react-native-xtermjs-webview';
+import { XtermJsWebView } from '@fressh/react-native-xtermjs-webview';
 
 export function Terminal() {
 	const termRef = useRef<XtermWebViewHandle | null>(null);
+
 	return (
 		<XtermJsWebView
 			ref={termRef}
-			onInitialized={() =>
-				termRef.current?.write(new TextEncoder().encode('hello'))
-			}
-			onData={(input) => console.log('user input:', input)}
+			onInitialized={() => {
+				const hello = new TextEncoder().encode('hello');
+				termRef.current?.write(hello);
+			}}
+			onData={(input) => {
+				console.log('user input:', input);
+			}}
 		/>
 	);
 }
@@ -60,8 +65,14 @@ transparency and debugging.
 
 ### Links
 
-- Changelog: [`CHANGELOG.md`](./CHANGELOG.md)
-- Contributing: see the monorepo guide at
-  [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
-- Example: `apps/mobile`
+- Changelog:
+  [`CHANGELOG.md`](https://github.com/EthanShoeDev/fressh/blob/main/packages/react-native-xtermjs-webview/CHANGELOG.md)
+- Contributing:
+  [`CONTRIBUTING.md`](https://github.com/EthanShoeDev/fressh/blob/main/CONTRIBUTING.md)
+- Example app:
+  [`apps/mobile`](https://github.com/EthanShoeDev/fressh/tree/main/apps/mobile)
+  and source usage:
+  [`apps/mobile/src/app/(tabs)/shell/detail.tsx`](<https://github.com/EthanShoeDev/fressh/blob/main/apps/mobile/src/app/(tabs)/shell/detail.tsx>)
+- API source:
+  [`src/index.tsx`](https://github.com/EthanShoeDev/fressh/blob/main/packages/react-native-xtermjs-webview/src/index.tsx)
 - License: MIT

@@ -16,11 +16,42 @@ Peer dependencies (you manage): `react`, `react-native`.
 ### Usage
 
 This package exposes a native Rust module for SSH transport. For a complete,
-working integration, see the example app in this monorepo at `apps/mobile`.
+working integration, see the example app:
+
+- https://github.com/EthanShoeDev/fressh/tree/main/apps/mobile
+
+### API overview
+
+High-level API surface (see code for full types):
+
+```ts
+import { RnRussh } from '@fressh/react-native-uniffi-russh';
+
+await RnRussh.uniffiInitAsync();
+
+const conn = await RnRussh.connect({
+	host: 'example.com',
+	port: 22,
+	username: 'me',
+	security: { type: 'password', password: '...' },
+	onServerKey: async () => true,
+});
+
+const shell = await conn.startShell({ term: 'Xterm' });
+shell.addListener(
+	(ev) => {
+		// handle TerminalChunk or DropNotice
+	},
+	{ cursor: { mode: 'live' } },
+);
+```
 
 ### Links
 
-- Changelog: [`CHANGELOG.md`](./CHANGELOG.md)
-- Contributing: see the monorepo guide at
-  [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
+- Changelog:
+  [`CHANGELOG.md`](https://github.com/EthanShoeDev/fressh/blob/main/packages/react-native-uniffi-russh/CHANGELOG.md)
+- Contributing:
+  [`CONTRIBUTING.md`](https://github.com/EthanShoeDev/fressh/blob/main/CONTRIBUTING.md)
+- API source:
+  [`src/api.ts`](https://github.com/EthanShoeDev/fressh/blob/main/packages/react-native-uniffi-russh/src/api.ts)
 - License: MIT

@@ -24,7 +24,7 @@
 			"dependsOn": ["build:bob"],
 		},
 		"typecheck": {
-			"dependsOn": ["build:native"],
+			"dependsOn": ["build:native", "build:bob"],
 		},
 
 		// Special tasks
