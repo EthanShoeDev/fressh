@@ -33,7 +33,7 @@ export default {
 	hooks: {
 		'before:init': 'turbo run lint:check',
 		'before:github:release': [
-			'export GITHUB_TOKEN=$(gh auth token)',
+			// 'export GITHUB_TOKEN=$(gh auth token)',
 			'turbo run build:signed:apk',
 		],
 		'after:release': 'echo "Released ${npm.name} v${version}"',
