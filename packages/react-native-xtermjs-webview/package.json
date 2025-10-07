@@ -1,8 +1,17 @@
 {
   "name": "@fressh/react-native-xtermjs-webview",
-  "private": true,
-  "version": "0.0.1",
+  "private": false,
+  "version": "0.0.3",
+  "license": "MIT",
   "type": "module",
+  "files": [
+    "src",
+    "dist",
+    "dist-internal",
+    "!node_modules",
+    "!.turbo",
+    "*"
+  ],
   "exports": {
     ".": "./dist/index.js"
   },

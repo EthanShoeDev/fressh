@@ -28,6 +28,9 @@
 		// Special tasks
 		"expo:doctor": {},
 		"test:e2e": {},
-		"build:signed:apk": {},
+		"build:signed:apk": {
+			"dependsOn": ["^build", "^build:android"],
+			"outputs": ["android/app/build/outputs/**"],
+		},
 	},
 }

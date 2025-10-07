@@ -1,9 +1,10 @@
 {
   "name": "@fressh/react-native-uniffi-russh",
   "homepage": "https://github.com/EthanShoeDev/fressh",
-  "license": "UNKNOWN",
+  "license": "MIT",
   "description": "Uniffi bindings for russh",
   "version": "0.0.1",
+  "type": "module",
   "main": "./lib/module/api.js",
   "types": "./lib/typescript/src/api.d.ts",
   "exports": {
@@ -20,6 +21,7 @@
     "cpp",
     "*.podspec",
     "react-native.config.js",
+    "LICENSE",
     "!ios/build",
     "!android/build",
     "!android/gradle",
@@ -70,6 +72,7 @@
     "@react-native-community/cli": "20.0.2",
     "@react-native/babel-preset": "0.81.1",
     "@react-native/eslint-config": "^0.81.1",
+    "@epic-web/config": "^1.21.3",
     "@release-it/conventional-changelog": "^10.0.1",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.1.12",
@@ -97,13 +100,6 @@
       "<rootDir>/example/node_modules",
       "<rootDir>/lib/"
     ]
-  },
-  "prettier": {
-    "quoteProps": "consistent",
-    "singleQuote": true,
-    "tabWidth": 2,
-    "trailingComma": "es5",
-    "useTabs": false
   },
   "react-native-builder-bob": {
     "source": "src",
