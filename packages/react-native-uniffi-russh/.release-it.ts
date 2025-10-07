@@ -29,7 +29,7 @@ export default {
 
 	hooks: {
 		'before:init': ['turbo run lint:check'],
-		'after:bump': 'turbo run build',
+		'after:bump': ['turbo run build:android', 'turbo run build:ios'],
 		'after:release': 'echo "Published ${npm.name} v${version} to npm"',
 	},
 } satisfies Config;
