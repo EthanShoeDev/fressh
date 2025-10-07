@@ -15,7 +15,9 @@
     "build:main": "tsc -b && vite build",
     "build:internal": "tsc -b && vite build --config vite.config.internal.ts",
     "dev": "vite --config vite.config.internal.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "release": "release-it",
+    "release:dry": "release-it --dry-run"
   },
   "dependencies": {
     "js-base64": "^3.7.8"

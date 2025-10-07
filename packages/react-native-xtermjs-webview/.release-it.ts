@@ -1,4 +1,4 @@
-import  { type Config } from 'release-it';
+import { type Config } from 'release-it';
 
 export default {
 	git: {
@@ -35,8 +35,8 @@ export default {
 	},
 
 	hooks: {
-		'before:init': ['pnpm run lint:check', 'pnpm run test'],
-		'before:npm:release': 'pnpm run build',
+		'before:init': ['turbo run lint:check'],
+		'before:npm:release': 'turbo run build',
 		'after:release': 'echo "Published ${npm.name} v${version} to npm"',
 	},
 } satisfies Config;
