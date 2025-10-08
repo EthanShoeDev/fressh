@@ -22,7 +22,7 @@
     "cpp",
     "rust",
     "*.podspec",
-    "*.xcframework",
+    "*.xcframework/**",
     "react-native.config.js",
     "*.md",
     "*.config.*",
