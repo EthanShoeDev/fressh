@@ -1,0 +1,20 @@
+# Exclude build and workspace caches not meant for publication
+.turbo/
+
+# Node modules should never be packed (npm ignores it by default, but explicit is fine)
+node_modules/
+
+# OS cruft
+**/.DS_Store
+
+# Keep dist outputs and sources; do not exclude them here
+# dist/
+# dist-internal/
+# src/
+
+# Common ignores that shouldn't ship
+coverage/
+.vscode/
+.idea/
+*.log
+*.local

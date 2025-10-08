@@ -8,8 +8,6 @@
     "src",
     "dist",
     "dist-internal",
-    "!node_modules",
-    "!.turbo",
     "*"
   ],
   "exports": {

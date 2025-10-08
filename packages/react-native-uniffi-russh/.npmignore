@@ -1,0 +1,31 @@
+# Workspace caches
+.turbo/
+
+# Node modules (npm excludes by default)
+node_modules/
+
+# OS junk
+**/.DS_Store
+
+# Platform build outputs and local config
+ios/build/
+android/build/
+android/gradle/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+
+# Tests and mocks
+**/__tests__/
+**/__fixtures__/
+**/__mocks__/
+
+# Dotfiles and editors
+**/.*
+.vscode/
+.idea/
+
+# Coverage and logs
+coverage/
+*.log
+*.local
