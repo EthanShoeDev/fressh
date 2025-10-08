@@ -4,11 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  uniffi-bindgen-react-native:
-    hash: 527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec
-    path: patches/uniffi-bindgen-react-native.patch
-
 importers:
 
   .:
@@ -315,8 +310,8 @@ importers:
   packages/react-native-uniffi-russh:
     dependencies:
       uniffi-bindgen-react-native:
-        specifier: github:EthanShoeDev/uniffi-bindgen-react-native#build-ts
-        version: https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/54dd681081a4117ee417f78607a942544636b145(patch_hash=527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec)
+        specifier: github:jhugman/uniffi-bindgen-react-native#main
+        version: https://codeload.github.com/jhugman/uniffi-bindgen-react-native/tar.gz/b9301797ef697331d29edb9d2402ea35c218571e
     devDependencies:
       '@epic-web/config':
         specifier: ^1.21.3
@@ -8991,8 +8986,8 @@ packages:
     resolution: {integrity: sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA==}
     engines: {node: '>=18'}
 
-  uniffi-bindgen-react-native@https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/54dd681081a4117ee417f78607a942544636b145:
-    resolution: {tarball: https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/54dd681081a4117ee417f78607a942544636b145}
+  uniffi-bindgen-react-native@https://codeload.github.com/jhugman/uniffi-bindgen-react-native/tar.gz/b9301797ef697331d29edb9d2402ea35c218571e:
+    resolution: {tarball: https://codeload.github.com/jhugman/uniffi-bindgen-react-native/tar.gz/b9301797ef697331d29edb9d2402ea35c218571e}
     version: 0.29.3-1
     hasBin: true
 
@@ -20270,7 +20265,7 @@ snapshots:
 
   unicorn-magic@0.3.0: {}
 
-  uniffi-bindgen-react-native@https://codeload.github.com/EthanShoeDev/uniffi-bindgen-react-native/tar.gz/54dd681081a4117ee417f78607a942544636b145(patch_hash=527b712c8fb029b29d9ac7caa72e593fa37a6dcebb63e15a56e21e75ffcb88ec): {}
+  uniffi-bindgen-react-native@https://codeload.github.com/jhugman/uniffi-bindgen-react-native/tar.gz/b9301797ef697331d29edb9d2402ea35c218571e: {}
 
   unified@11.0.5:
     dependencies:

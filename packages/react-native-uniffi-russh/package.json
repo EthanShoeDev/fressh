@@ -92,7 +92,7 @@
     "typescript": "~5.9.2"
   },
   "dependencies": {
-    "uniffi-bindgen-react-native": "github:EthanShoeDev/uniffi-bindgen-react-native#build-ts"
+    "uniffi-bindgen-react-native": "github:jhugman/uniffi-bindgen-react-native#main"
   },
   "peerDependencies": {
     "react": "19.1.0",
