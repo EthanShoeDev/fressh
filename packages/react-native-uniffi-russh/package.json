@@ -3,7 +3,7 @@
   "homepage": "https://github.com/EthanShoeDev/fressh#readme",
   "license": "MIT",
   "description": "Uniffi bindings for russh",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "main": "./lib/module/api.js",
   "types": "./lib/typescript/src/api.d.ts",
