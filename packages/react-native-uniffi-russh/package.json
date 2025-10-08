@@ -20,8 +20,13 @@
     "ios",
     "src",
     "cpp",
+    "rust",
     "*.podspec",
+    "*.xcframework",
     "react-native.config.js",
+    "*.md",
+    "*.config.*",
+    "tsconfig*.json",
     "LICENSE"
   ],
   "scripts": {
