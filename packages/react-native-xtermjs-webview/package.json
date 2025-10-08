@@ -8,7 +8,10 @@
     "src",
     "dist",
     "dist-internal",
-    "*"
+    "*.config.*",
+    "tsconfig*.json",
+    "*.md",
+    "*.html"
   ],
   "exports": {
     ".": "./dist/index.js"
