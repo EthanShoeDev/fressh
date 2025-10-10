@@ -15,7 +15,7 @@ const config: ExpoConfig = {
 	slug: 'fressh',
 	version: packageJson.version,
 	orientation: 'portrait',
-	icon: '../../packages/assets/ios-dark-2.png',
+	icon: '../../packages/assets/mobile-app-icon-dark.png',
 	scheme: 'fressh',
 	userInterfaceStyle: 'automatic',
 	newArchEnabled: true,
@@ -24,21 +24,23 @@ const config: ExpoConfig = {
 		config: { usesNonExemptEncryption: false },
 		bundleIdentifier: 'dev.fressh.app',
 		buildNumber: String(versionCode),
+		// TODO: Add ios specific icons
+		// icon: {
+		// 	dark: '',
+		// 	light: '',
+		// 	tinted: '',
+		// }
 	},
 	android: {
 		package: 'dev.fressh.app',
 		versionCode,
 		adaptiveIcon: {
-			foregroundImage: '../../packages/assets/adaptive-icon.png',
+			foregroundImage: '../../packages/assets/android-adaptive-icon.png',
 			backgroundColor: '#151718',
 		},
 		edgeToEdgeEnabled: true,
 		predictiveBackGestureEnabled: false,
 		softwareKeyboardLayoutMode: 'pan',
-	},
-	web: {
-		output: 'static',
-		favicon: '../../packages/assets/favicon.png',
 	},
 	plugins: [
 		'expo-router',
@@ -46,12 +48,12 @@ const config: ExpoConfig = {
 			'expo-splash-screen',
 			{
 				image: '../../packages/assets/splash-icon-light.png',
+				backgroundColor: '#ECEDEE',
 				dark: {
 					image: '../../packages/assets/splash-icon-dark.png',
 					backgroundColor: '#151718',
 				},
 				imageWidth: 200,
-				backgroundColor: '#ECEDEE',
 			},
 		],
 		'expo-secure-store',

@@ -10,14 +10,20 @@ simple while supporting powerful features.
 ### Features
 
 - **Secure connection history**: Securely store previous connections
-- **Command presets**: Configurable preset command buttons
 - **Theming**: Configurable theme
+- **xterm fidelity**: Fully accurate xterm emulation
 
 ### Coming soon
 
-- ~~**xterm fidelity**: Fully accurate xterm emulation~~ Done!
+- **Command presets**: Configurable preset command buttons
 - **On-device AI**: On-device LLM for command completion and output
   summarization
+
+### Screenshots
+
+![Hosts tab](./packages/assets/mobile-screenshots/hosts-tab.png)
+
+![Shell detail](./packages/assets/mobile-screenshots/shell-detail.png)
 
 ### Architecture
 

@@ -1,11 +1,17 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import iosDarkAppIcon from '@fressh/assets/ios-dark-2.png';
+import mobileAppIconDark from '@fressh/assets/mobile-app-icon-dark.png';
+import hostsTabAndroidScreenshot from '@fressh/assets/mobile-screenshots/hosts-tab.png';
+import shellDetailAndroidScreenshot from '@fressh/assets/mobile-screenshots/shell-detail.png';
+import GithubMark from '@fressh/assets/third-party-brands/github-mark/github-mark.svg';
+import GooglePlayBadge from '@fressh/assets/third-party-brands/google-play/GetItOnGooglePlay_Badge_Web_color_English.svg';
+import AppStoreBadge from '@fressh/assets/third-party-brands/apple-app-store/Black_lockup/SVG/Download_on_the_App_Store_Badge_US-UK_RGB_blk_092917.svg';
+import npmLogoRed from '@fressh/assets/third-party-brands/npm-js/npm-logo-red.png';
 
 const title = 'Fressh — Mobile SSH Client';
 const description =
-	'A clean, powerful mobile SSH client. Built with React Native, powered by Russh (Rust-based SSH), and planned to be open source.';
-const image = iosDarkAppIcon.src;
+	'A clean, powerful open-source mobile SSH client. Built with React Native and powered by Russh (Rust-based SSH).';
+const image = mobileAppIconDark.src;
 ---
 
 <Layout>
@@ -21,104 +27,285 @@ const image = iosDarkAppIcon.src;
 		<meta name="twitter:image" content={image} />
 	</Fragment>
 	<section
-		class="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-white px-6 dark:from-gray-900 dark:to-black"
+		class="bg-gradient-to-b from-gray-50 via-white to-white dark:from-gray-950 dark:via-gray-950 dark:to-black"
 	>
-		<img
-			src={iosDarkAppIcon.src}
-			alt="Fressh app icon"
-			class="mb-6 h-20 w-20 rounded-2xl shadow-md"
-		/>
-		<h1
-			class="text-5xl font-extrabold tracking-tight text-gray-900 sm:text-6xl dark:text-white"
-		>
-			Fressh
-		</h1>
-		<p class="mt-3 text-lg text-gray-600 dark:text-gray-300">
-			A clean, powerful mobile SSH client.
-		</p>
-		<span
-			class="mt-4 inline-flex items-center gap-2 rounded-full border border-dashed border-gray-300 px-3 py-1 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300"
-			>Coming soon</span
-		>
 		<div
-			class="mt-10 grid w-full max-w-3xl gap-6 text-left sm:grid-cols-2 lg:grid-cols-3"
+			class="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center gap-16 px-6 py-24"
 		>
-			<div class="rounded-xl border border-gray-200 p-6 dark:border-gray-800">
-				<h2
-					class="text-base font-semibold tracking-wide text-gray-900 dark:text-gray-100"
-				>
-					Features
-				</h2>
-				<ul class="mt-3 space-y-2 text-gray-700 dark:text-gray-300">
-					<li class="flex items-start gap-3">
-						<span class="text-emerald-500">✓</span><span
-							>Securely storing previous connections</span
-						>
-					</li>
-					<li class="flex items-start gap-3">
-						<span class="text-emerald-500">✓</span><span
-							>Configurable preset command buttons</span
-						>
-					</li>
-					<li class="flex items-start gap-3">
-						<span class="text-emerald-500">✓</span><span
-							>Configurable theme</span
-						>
-					</li>
-					<ul></ul>
-				</ul>
-			</div>
-			<div class="rounded-xl border border-gray-200 p-6 dark:border-gray-800">
-				<h2
-					class="text-base font-semibold tracking-wide text-gray-900 dark:text-gray-100"
-				>
-					Coming soon
-				</h2>
-				<ul class="mt-3 space-y-2 text-gray-700 dark:text-gray-300">
-					<li class="flex items-start gap-3">
-						<span class="text-amber-500">•</span><span
-							>Fully accurate xterm emulation</span
-						>
-					</li>
-					<li class="flex items-start gap-3">
-						<span class="text-amber-500">•</span><span
-							>On-device LLM for command completion and output summarization</span
-						>
-					</li>
-					<ul></ul>
-				</ul>
-			</div>
-			<div class="rounded-xl border border-gray-200 p-6 dark:border-gray-800">
-				<h2
-					class="text-base font-semibold tracking-wide text-gray-900 dark:text-gray-100"
-				>
-					Technical specs
-				</h2>
-				<ul class="mt-3 space-y-2 text-gray-700 dark:text-gray-300">
-					<li class="flex items-start gap-3">
-						<span class="text-blue-500">•</span>
-						<span>UI built with React Native</span>
-					</li>
-					<li class="flex items-start gap-3">
-						<span class="text-blue-500">•</span>
-						<span>
-							SSH core powered by
-							<a
-								href="https://github.com/Eugeny/russh"
-								target="_blank"
-								rel="noopener noreferrer"
-								class="text-blue-600 underline decoration-dotted hover:decoration-solid dark:text-blue-400"
+			<div class="grid gap-16 lg:max-w-4xl">
+				<div class="space-y-8">
+					<div class="flex items-start gap-4">
+						<img
+							src={mobileAppIconDark.src}
+							alt="Fressh app icon"
+							class="h-20 w-20 shrink-0 rounded-3xl border border-white/30 shadow-xl shadow-emerald-500/10 dark:border-white/10"
+							loading="eager"
+						/>
+						<div class="flex flex-col items-start gap-2">
+							<span
+								class="inline-flex items-center gap-2 rounded-full border border-emerald-300/70 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 dark:border-emerald-500/50 dark:bg-emerald-500/15 dark:text-emerald-200"
 							>
-								Russh
-							</a>
-							(Rust-based SSH library)
-						</span>
-					</li>
-					<li class="flex items-start gap-3">
-						<span class="text-blue-500">•</span>
-						<span>Planned to be open source</span>
-					</li>
-				</ul>
+								<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"
+								></span>
+								Coming soon
+							</span>
+							<span
+								class="text-sm font-semibold tracking-[0.3em] text-gray-500 uppercase dark:text-gray-400"
+							>
+								Mobile SSH Client
+							</span>
+						</div>
+					</div>
+					<h1
+						class="text-4xl font-black tracking-tight text-gray-900 sm:text-5xl lg:text-6xl dark:text-white"
+					>
+						Fressh — Mobile SSH Client
+					</h1>
+					<p
+						class="max-w-xl text-lg leading-relaxed text-gray-600 dark:text-gray-300"
+					>
+						A clean, powerful open-source mobile SSH client. Built with React
+						Native and powered by Russh (Rust-based SSH).
+					</p>
+					<div class="flex flex-wrap items-center gap-4">
+						<a
+							href="https://github.com/EthanShoeDev/fressh"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="group inline-flex items-center gap-3 rounded-full border border-gray-200 bg-white/70 px-5 py-3 text-sm font-medium text-gray-900 shadow-sm backdrop-blur transition hover:border-gray-300 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/10"
+						>
+							<GithubMark
+								class="h-5 w-5"
+								viewBox="0 0 98 96"
+								preserveAspectRatio="xMidYMid meet"
+								aria-hidden="true"
+							/>
+							<span>View the source on GitHub</span>
+						</a>
+						<div
+							class="flex flex-col gap-2 text-xs text-gray-500 dark:text-gray-400"
+						>
+							<div class="flex items-center gap-6">
+								<div class="flex flex-col items-start gap-2">
+									<GooglePlayBadge
+										class="h-12 w-auto select-none"
+										role="img"
+										aria-label="Get it on Google Play badge"
+									/>
+									<span
+										class="inline-flex items-center gap-2 rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-[11px] font-medium tracking-wider text-gray-500 uppercase dark:border-gray-700 dark:text-gray-400"
+										>Coming soon</span
+									>
+								</div>
+								<div class="flex flex-col items-start gap-2">
+									<div class="flex h-12 items-center rounded-lg">
+										<AppStoreBadge
+											class="h-9 w-auto select-none"
+											role="img"
+											aria-label="Download on the App Store badge"
+										/>
+									</div>
+									<span
+										class="inline-flex items-center gap-2 rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-[11px] font-medium tracking-wider text-gray-500 uppercase dark:border-gray-700 dark:text-gray-400"
+										>Coming soon</span
+									>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="grid gap-6 lg:grid-cols-3">
+				<article
+					class="rounded-3xl border border-gray-200/80 bg-white/80 p-8 backdrop-blur-sm transition hover:border-emerald-200 dark:border-white/10 dark:bg-white/5 dark:hover:border-emerald-500/30"
+				>
+					<h2
+						class="text-sm font-semibold tracking-wider text-emerald-600 uppercase dark:text-emerald-300"
+					>
+						Features
+					</h2>
+					<ul
+						class="mt-4 space-y-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300"
+					>
+						<li class="flex items-start gap-3">
+							<span
+								class="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/10 text-sm font-semibold text-emerald-600 dark:text-emerald-300"
+								>✓</span
+							>
+							<span>Securely store previous connections</span>
+						</li>
+						<li class="flex items-start gap-3">
+							<span
+								class="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/10 text-sm font-semibold text-emerald-600 dark:text-emerald-300"
+								>✓</span
+							>
+							<span>Configurable theme for approachable ergonomics</span>
+						</li>
+						<li class="flex items-start gap-3">
+							<span
+								class="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/10 text-sm font-semibold text-emerald-600 dark:text-emerald-300"
+								>✓</span
+							>
+							<span>Fully accurate xterm emulation</span>
+						</li>
+					</ul>
+				</article>
+				<article
+					class="rounded-3xl border border-gray-200/80 bg-white/80 p-8 backdrop-blur-sm transition hover:border-amber-200 dark:border-white/10 dark:bg-white/5 dark:hover:border-amber-400/30"
+				>
+					<h2
+						class="text-sm font-semibold tracking-wider text-amber-600 uppercase dark:text-amber-300"
+					>
+						Coming soon
+					</h2>
+					<ul
+						class="mt-4 space-y-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300"
+					>
+						<li class="flex items-start gap-3">
+							<span
+								class="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/10 text-sm font-semibold text-amber-600 dark:text-amber-300"
+								>•</span
+							>
+							<span
+								>On-device LLM for command completion and output summarization</span
+							>
+						</li>
+						<li class="flex items-start gap-3">
+							<span
+								class="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/10 text-sm font-semibold text-amber-600 dark:text-amber-300"
+								>•</span
+							>
+							<span>Configurable preset command buttons</span>
+						</li>
+					</ul>
+				</article>
+				<article
+					class="rounded-3xl border border-gray-200/80 bg-white/80 p-8 backdrop-blur-sm transition hover:border-blue-200 dark:border-white/10 dark:bg-white/5 dark:hover:border-blue-400/30"
+				>
+					<h2
+						class="text-sm font-semibold tracking-wider text-blue-600 uppercase dark:text-blue-300"
+					>
+						Technical specs
+					</h2>
+					<ul
+						class="mt-4 space-y-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300"
+					>
+						<li class="flex items-start gap-3">
+							<span
+								class="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 text-sm font-semibold text-blue-600 dark:text-blue-300"
+								>•</span
+							>
+							<span>UI built with React Native</span>
+						</li>
+						<li class="flex items-start gap-3">
+							<span
+								class="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 text-sm font-semibold text-blue-600 dark:text-blue-300"
+								>•</span
+							>
+							<span>
+								SSH core powered by
+								<a
+									href="https://github.com/Eugeny/russh"
+									target="_blank"
+									rel="noopener noreferrer"
+									class="text-blue-600 underline decoration-dotted hover:decoration-solid dark:text-blue-400"
+								>
+									Russh
+								</a>
+								(Rust-based SSH library)
+							</span>
+						</li>
+						<li class="flex items-start gap-3">
+							<span
+								class="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 text-sm font-semibold text-blue-600 dark:text-blue-300"
+								>•</span
+							>
+							<span>
+								Open source on
+								<a
+									href="https://github.com/EthanShoeDev/fressh"
+									target="_blank"
+									rel="noopener noreferrer"
+									class="text-blue-600 underline decoration-dotted hover:decoration-solid dark:text-blue-400"
+								>
+									GitHub
+								</a>
+							</span>
+						</li>
+					</ul>
+				</article>
+			</div>
+			<div class="grid gap-6 lg:grid-cols-2">
+				<a
+					href="https://www.npmjs.com/package/@fressh/react-native-uniffi-russh"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="group relative overflow-hidden rounded-3xl border border-gray-200 bg-white/80 p-8 backdrop-blur-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-xl dark:border-white/10 dark:bg-white/5 dark:hover:border-emerald-500/30"
+				>
+					<img
+						src={npmLogoRed.src}
+						alt="npm"
+						class="absolute top-5 right-5 h-4 w-auto opacity-80"
+						loading="lazy"
+					/>
+					<h3
+						class="pr-12 text-lg font-semibold text-gray-900 transition group-hover:text-emerald-600 dark:text-gray-100 dark:group-hover:text-emerald-300"
+					>
+						@fressh/react-native-uniffi-russh
+					</h3>
+					<p
+						class="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300"
+					>
+						React Native bindings (via uniffi) exposing a native Rust module for
+						the Russh SSH library.
+					</p>
+				</a>
+				<a
+					href="https://www.npmjs.com/package/@fressh/react-native-xtermjs-webview"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="group relative overflow-hidden rounded-3xl border border-gray-200 bg-white/80 p-8 backdrop-blur-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl dark:border-white/10 dark:bg-white/5 dark:hover:border-blue-400/30"
+				>
+					<img
+						src={npmLogoRed.src}
+						alt="npm"
+						class="absolute top-5 right-5 h-4 w-auto opacity-80"
+						loading="lazy"
+					/>
+					<h3
+						class="pr-12 text-lg font-semibold text-gray-900 transition group-hover:text-blue-600 dark:text-gray-100 dark:group-hover:text-blue-300"
+					>
+						@fressh/react-native-xtermjs-webview
+					</h3>
+					<p
+						class="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300"
+					>
+						An Expo WebView preloaded with xterm.js for terminal rendering on
+						iOS and Android.
+					</p>
+				</a>
+			</div>
+			<div class="mt-16">
+				<div
+					class="mx-auto max-w-5xl rounded-[2.5rem] border border-gray-200/70 bg-white/80 px-8 py-12 shadow-xl shadow-emerald-500/5 backdrop-blur dark:border-white/10 dark:bg-white/5 dark:shadow-emerald-500/10"
+				>
+					<div
+						class="flex flex-col items-center gap-8 lg:flex-row lg:justify-center"
+					>
+						<img
+							src={hostsTabAndroidScreenshot.src}
+							alt="Hosts tab screenshot"
+							class="w-full max-w-xs rounded-3xl border border-white/60 shadow-xl ring-1 shadow-emerald-500/15 ring-emerald-500/10 dark:border-white/10 dark:ring-white/10"
+							loading="lazy"
+						/>
+						<img
+							src={shellDetailAndroidScreenshot.src}
+							alt="Shell detail screenshot"
+							class="w-full max-w-xs rounded-3xl border border-white/60 shadow-xl ring-1 shadow-slate-900/10 ring-slate-900/10 dark:border-white/10 dark:ring-white/10"
+							loading="lazy"
+						/>
+					</div>
+				</div>
 			</div>
 		</div>
 	</section>

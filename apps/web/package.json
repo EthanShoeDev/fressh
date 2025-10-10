@@ -14,11 +14,12 @@
 		"preview": "astro preview"
 	},
 	"dependencies": {
-		"@astrojs/vercel": "^8.2.7",
+		"@astrojs/vercel": "^8.2.9",
 		"@fressh/assets": "workspace:*",
 		"@tailwindcss/vite": "4.1.9",
 		"@vercel/analytics": "^1.5.0",
-		"astro": "^5.13.7",
+		"astro": "^5.14.3",
+		"sharp": "^0.34.4",
 		"tailwindcss": "4.1.10"
 	},
 	"devDependencies": {
