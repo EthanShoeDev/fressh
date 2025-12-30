@@ -45,6 +45,14 @@ function Host() {
 	const [lastConnectionProgressEvent, setLastConnectionProgressEvent] =
 		React.useState<SshConnectionProgress | null>(null);
 
+	// Preload keys so they're ready when switching to key mode
+	const listPrivateKeysQuery = useQuery(secretsManager.keys.query.list);
+	const getDefaultKeyId = React.useCallback(() => {
+		const keys = listPrivateKeysQuery.data ?? [];
+		const def = keys.find((k) => k.metadata.isDefault);
+		return def?.id ?? keys[0]?.id;
+	}, [listPrivateKeysQuery.data]);
+
 	const sshConnMutation = useSshConnMutation({
 		onConnectionProgress: (s) => setLastConnectionProgressEvent(s),
 	});
@@ -177,11 +185,19 @@ function Host() {
 											values={['Password', 'Private Key']}
 											selectedIndex={field.state.value === 'password' ? 0 : 1}
 											onChange={(event) => {
-												field.handleChange(
-													event.nativeEvent.selectedSegmentIndex === 0
-														? 'password'
-														: 'key',
-												);
+												const isKey =
+													event.nativeEvent.selectedSegmentIndex === 1;
+												field.handleChange(isKey ? 'key' : 'password');
+												// Set the default keyId when switching to key mode
+												if (isKey) {
+													const defaultKeyId = getDefaultKeyId();
+													if (defaultKeyId) {
+														connectionForm.setFieldValue(
+															'security.keyId',
+															defaultKeyId,
+														);
+													}
+												}
 											}}
 										/>
 									</View>
