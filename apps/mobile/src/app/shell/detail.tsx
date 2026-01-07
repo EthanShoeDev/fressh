@@ -472,9 +472,6 @@ function ShellDetail() {
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [scrollbackActive, setScrollbackActive] = useState(false);
-	const [scrollbackPhase, setScrollbackPhase] = useState<'dragging' | 'active'>(
-		'active',
-	);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
 	const currentInstanceIdRef = useRef<string | null>(null);
@@ -547,8 +544,8 @@ function ShellDetail() {
 
 	const clearScrollbackState = useCallback(() => {
 		scrollbackActiveRef.current = false;
+		scrollbackPhaseRef.current = 'active';
 		setScrollbackActive(false);
-		setScrollbackPhase('active');
 		xtermRef.current?.exitScrollback({ emitExit: false });
 	}, []);
 
@@ -979,7 +976,6 @@ function ShellDetail() {
 			scrollbackActiveRef.current = event.active;
 			scrollbackPhaseRef.current = event.phase;
 			setScrollbackActive(event.active);
-			setScrollbackPhase(event.phase);
 		},
 		[],
 	);
@@ -1056,7 +1052,6 @@ function ShellDetail() {
 			scrollbackActiveRef.current = false;
 			scrollbackPhaseRef.current = 'active';
 			setScrollbackActive(false);
-			setScrollbackPhase('active');
 
 			if (!shell) throw new Error('Shell not found');
 			if (Platform.OS === 'android') {

@@ -72,6 +72,83 @@ Rust SSH PTY → tmux attach → copy-mode scroll
 - **Fast flick** → page scroll (PgUp/PgDn) + residual line scroll
 Use `invertScroll` to flip direction if testing shows the device feels “reversed”.
 
+## Immediate Scroll Compensation (Cursor Edge Anchoring)
+
+### Problem
+In tmux copy‑mode, the cursor starts on the **bottom line** of the viewport. Arrow keys (`Up`/`Down`) first move the **cursor within the visible page** before the viewport itself scrolls. On touch devices this feels laggy:
+
+- **First drag**: user expects content to move immediately, but must scroll a full page before the viewport starts moving.
+- **Direction change**: after scrolling up, reversing direction requires the cursor to traverse the whole screen before the viewport follows.
+
+This creates a “dead zone” that feels unlike native mobile scrolling.
+
+### Goal
+Make the **viewport move immediately** on the first drag and whenever the user reverses direction, while keeping line‑by‑line control and without requiring tmux config changes.
+
+### Approach: Anchor the Cursor at the Viewport Edge
+Before emitting scroll keys in a given direction, **move the copy‑mode cursor to the edge that makes scrolling immediate**:
+
+- **Scrolling up (older)** → move cursor to **top line**
+- **Scrolling down (newer)** → move cursor to **bottom line**
+
+With the cursor pinned to the edge, the next `Up`/`Down` arrow scrolls the viewport immediately instead of just moving the cursor inside the page.
+
+### Key bindings (defaults + configurability)
+Use copy‑mode keys that move the cursor to the edge:
+
+- **Default (vi table):**
+  - `anchorUpKey = 'H'` (top of screen)
+  - `anchorDownKey = 'L'` (bottom of screen)
+- **Emacs users:** set custom keys (e.g. `M-<` / `M->`) via config if needed.
+
+These anchor keys are **sent only inside copy‑mode**, and they are **not** combined with payload input, so `Esc` sequences are acceptable here if a user configures them.
+
+If anchor keys are **unset**, fall back to the current behavior (no compensation).
+
+### Direction change logic
+Track the **last scroll direction** (`up | down | null`).
+
+On each flush:
+1. Determine current direction from `pendingLines`.
+2. If direction is **new or changed**, emit the corresponding anchor key **once**.
+3. Emit line/page scroll keys as normal.
+
+This makes the viewport respond immediately on:
+- **First scroll after entering copy‑mode**
+- **Each direction reversal**
+
+### Timing & ordering
+- Anchor keys **must only be sent after `copyModeState === 'on'`**.
+- Anchor keys and subsequent scroll keys go through the **single writer queue** to maintain order.
+- If `copyModeState === 'entering'`, accumulate deltas and anchor once entry completes.
+
+### Configuration (new optional fields)
+Add optional fields to `TouchScrollConfig`:
+
+```
+anchorUpKey?: string;   // default 'H' (vi top-of-screen)
+anchorDownKey?: string; // default 'L' (vi bottom-of-screen)
+anchorOnDirectionChange?: boolean; // default true
+```
+
+### Pseudocode (controller flush)
+```
+if (copyModeState !== 'on') return;
+if (!pendingLines) return;
+
+const dir = pendingLines > 0 ? 'up' : 'down';
+if (anchorOnDirectionChange && dir !== lastDir) {
+  send(anchorKeyFor(dir));
+  lastDir = dir;
+}
+
+emitScrollSteps(dir, pendingLines);
+```
+
+### Trade‑offs
+- Assumes default **vi copy‑mode** keys for anchors (`H`/`L`). Emacs users should override.
+- If a user rebinds these keys to something else, anchors may misbehave; they can disable or override per connection.
+
 ## TouchScrollController Design
 
 ### State Machine
@@ -165,6 +242,9 @@ export type TouchScrollConfig = {
 	maxLinesPerFrame?: number;
 	flickVelocity?: number;
 	invertScroll?: boolean; // optional: invert natural direction
+	anchorUpKey?: string; // move cursor to top-of-screen before scrolling up (default 'H')
+	anchorDownKey?: string; // move cursor to bottom-of-screen before scrolling down (default 'L')
+	anchorOnDirectionChange?: boolean; // default true
 	enterDelayMs?: number; // delay between prefixKey and copyModeKey (default 10)
 	prefixKey?: string; // default "\x02"
 	copyModeKey?: string; // default "["

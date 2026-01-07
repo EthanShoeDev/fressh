@@ -1450,8 +1450,10 @@ window.onload = () => {
 			type CopyModeConfidence = 'uncertain' | 'confident';
 			type EntryIntent = 'scroll' | 'recovery';
 
-			const keyUp = '\x1b[A';
-			const keyDown = '\x1b[B';
+			// Use tmux scroll commands so the viewport moves immediately (no cursor dead zone).
+			// Ctrl+Up / Ctrl+Down are bound to scroll-up / scroll-down in tmux defaults.
+			const keyScrollUp = '\x1b[1;5A';
+			const keyScrollDown = '\x1b[1;5B';
 			const keyPageUp = '\x1b[5~';
 			const keyPageDown = '\x1b[6~';
 
@@ -1639,6 +1641,7 @@ window.onload = () => {
 				if (!pendingLines) return;
 
 				const direction = pendingLines > 0 ? 1 : -1;
+
 				const absPending = Math.abs(pendingLines);
 				const pageStep = Math.max(10, term.rows - 1);
 
@@ -1653,7 +1656,7 @@ window.onload = () => {
 				const remaining = Math.abs(pendingLines);
 				if (remaining) {
 					const count = Math.min(remaining, cfg.maxLinesPerFrame);
-					const seq = direction > 0 ? keyUp : keyDown;
+					const seq = direction > 0 ? keyScrollUp : keyScrollDown;
 					let payload = '';
 					for (let i = 0; i < count; i += 1) {
 						payload += seq;

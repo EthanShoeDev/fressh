@@ -1,12 +1,12 @@
-import {
+import React, {
 	useEffect,
 	useImperativeHandle,
 	useMemo,
 	useRef,
 	useCallback,
 	useState,
+	type RefObject,
 } from 'react';
-import type { RefObject } from 'react';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import htmlString from '../dist-internal/index.html?raw';
 
@@ -33,7 +33,9 @@ if (__DEV__ && !didLogHtmlFingerprint) {
 				'#60a5fa',
 			)}`,
 		);
-	} catch {}
+	} catch {
+		// Ignore fingerprint logging failures
+	}
 }
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
@@ -613,7 +615,7 @@ export function XtermJsWebView({
 			return { uri: normalized };
 		}
 		return { html: htmlString };
-	}, [devServerUrl, htmlString]);
+	}, [devServerUrl]);
 
 	return (
 		<WebView
