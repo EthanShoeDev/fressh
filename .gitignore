@@ -42,3 +42,4 @@ mnt/*
 .turbo/
 .direnv/
 .cache/
+config.bat

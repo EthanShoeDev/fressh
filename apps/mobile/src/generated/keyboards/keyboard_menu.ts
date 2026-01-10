@@ -25,7 +25,12 @@ export const keyboard_keyboard_menu = {
 				label: 'Cmds',
 				icon: 'Command',
 			},
-			null,
+			{
+				type: 'action',
+				actionId: 'OPEN_TEXT_EDITOR',
+				label: 'Text',
+				icon: 'Type',
+			},
 			{
 				type: 'bytes',
 				bytes: [12],

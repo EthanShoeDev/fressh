@@ -69,6 +69,7 @@ import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
 import { TerminalCommanderModal } from './components/TerminalCommanderModal';
 import { TerminalKeyboard } from './components/TerminalKeyboard';
+import { TextEntryModal } from './components/TextEntryModal';
 
 const logger = rootLogger.extend('TabsShellDetail');
 
@@ -481,6 +482,7 @@ function ShellDetail() {
 	const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
+	const [textEntryOpen, setTextEntryOpen] = useState(false);
 	const [configureOpen, setConfigureOpen] = useState(false);
 	const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
 	const [featureRequestSubmitting, setFeatureRequestSubmitting] =
@@ -744,6 +746,17 @@ function ShellDetail() {
 		}
 	}, [exitSelectionMode, sendTextRaw, selectionModeEnabled]);
 
+	const handlePasteTextEntry = useCallback(
+		(value: string) => {
+			if (!value) return;
+			sendTextRaw(value);
+			if (selectionModeEnabled) {
+				exitSelectionMode();
+			}
+		},
+		[exitSelectionMode, sendTextRaw, selectionModeEnabled],
+	);
+
 	const handleCopySelection = useCallback(() => {
 		const xr = xtermRef.current;
 		if (!xr) return;
@@ -872,11 +885,18 @@ function ShellDetail() {
 			copySelection: handleCopySelection,
 			toggleCommandPresets: () => {
 				setCommanderOpen(false);
+				setTextEntryOpen(false);
 				setCommandPresetsOpen((prev) => !prev);
 			},
 			openCommander: () => {
 				setCommandPresetsOpen(false);
+				setTextEntryOpen(false);
 				setCommanderOpen(true);
+			},
+			openTextEditor: () => {
+				setCommandPresetsOpen(false);
+				setCommanderOpen(false);
+				setTextEntryOpen(true);
 			},
 		}),
 		[
@@ -1310,6 +1330,14 @@ function ShellDetail() {
 					onSendShortcut={(sequence) => {
 						sendBytesRaw(encoder.encode(sequence));
 					}}
+				/>
+				<TextEntryModal
+					open={textEntryOpen}
+					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
+					onClose={() => {
+						setTextEntryOpen(false);
+					}}
+					onPaste={handlePasteTextEntry}
 				/>
 				<ConfigureModal
 					open={configureOpen}

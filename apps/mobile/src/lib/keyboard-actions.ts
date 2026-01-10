@@ -18,6 +18,7 @@ export const KNOWN_ACTION_IDS = [
 	'OPEN_KEYBOARD_MENU',
 	'TOGGLE_COMMAND_PRESETS',
 	'OPEN_COMMANDER',
+	'OPEN_TEXT_EDITOR',
 	'PASTE_CLIPBOARD',
 	'COPY_SELECTION',
 	'CYCLE_TMUX_WINDOW',
@@ -36,6 +37,7 @@ export type ActionContext = {
 	copySelection: () => void;
 	toggleCommandPresets?: () => void;
 	openCommander?: () => void;
+	openTextEditor?: () => void;
 };
 
 const logger = rootLogger.extend('KeyboardActions');
@@ -89,6 +91,10 @@ export async function runAction(
 		}
 		case 'OPEN_COMMANDER': {
 			context.openCommander?.();
+			return;
+		}
+		case 'OPEN_TEXT_EDITOR': {
+			context.openTextEditor?.();
 			return;
 		}
 		default: {

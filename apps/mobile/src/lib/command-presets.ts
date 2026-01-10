@@ -58,6 +58,10 @@ export const commandPresets: CommandPreset[] = [
 		steps: [{ type: 'text', data: 'yes' }, { type: 'enter' }],
 	},
 	{
+		label: 'approve',
+		steps: [{ type: 'text', data: 'approve' }, { type: 'enter' }],
+	},
+	{
 		label: '/git:cc-fix-pr',
 		steps: [{ type: 'text', data: '/git:cc-fix-pr' }, { type: 'enter' }],
 	},
