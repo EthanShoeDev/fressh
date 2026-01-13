@@ -5,10 +5,8 @@
   "main": "expo-router/entry",
   "type": "module",
   "scripts": {
-    "oxfmt:fix": "oxfmt --write",
-    "oxfmt:check": "oxfmt --check",
-    "oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --fix .",
-    "oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check .",
+    "oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error --fix .",
+    "oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error .",
     "tsgo:check": "tsgo --noEmit",
     "android": "expo run:android --port 8082",
     "ios": "expo run:ios --port 8081",

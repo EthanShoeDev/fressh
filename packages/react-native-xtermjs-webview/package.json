@@ -37,10 +37,8 @@
   "scripts": {
     "build": "bun run vite:build",
     "dev": "bun run vite:dev",
-    "oxfmt:fix": "oxfmt --write",
-    "oxfmt:check": "oxfmt --check",
-    "oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --fix .",
-    "oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check .",
+    "oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error --fix .",
+    "oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error .",
     "tsgo:check": "tsgo --noEmit",
     "vite:build": "tsc -b && vite build",
     "vite:build:internal": "tsc -b && vite build --config vite.config.internal.ts",

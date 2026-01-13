@@ -29,20 +29,16 @@
 	// This keeps the root config generic and scalable as packages are added.
 	// ============================================================================
 	"tasks": {
-		// Default workspace tasks
-		"oxfmt:fix": {
-			"with": ["//#oxfmt:fix"],
-		},
-		"oxfmt:check": {
-			"with": ["//#oxfmt:check"],
-		},
+		// ========================================
+		// Workspace tasks (run per-package)
+		// ========================================
 		"oxlint:fix": {
-			"dependsOn": ["oxfmt:fix", "^build"],
-			"with": ["tsgo:check", "//#oxlint:fix"],
+			"dependsOn": ["^build"],
+			"with": ["tsgo:check"],
 		},
 		"oxlint:check": {
 			"dependsOn": ["^build"],
-			"with": ["oxfmt:check", "tsgo:check", "//#oxlint:check"],
+			"with": ["tsgo:check"],
 		},
 		"tsgo:check": {
 			"dependsOn": ["^build"],
@@ -64,7 +60,9 @@
 			"dependsOn": ["^clean"],
 		},
 
-		// Root-only tasks
+		// ========================================
+		// Root-only tasks (run once at root level)
+		// ========================================
 		"//#oxfmt:fix": {
 			"with": ["nix:fmt"],
 		},
@@ -74,12 +72,12 @@
 		"//#nix:fmt": {},
 		"//#nix:fmt:check": {},
 		"//#oxlint:fix": {
-			"dependsOn": ["oxfmt:fix", "@fressh/oxlint-plugins#build"],
+			"dependsOn": ["@fressh/oxlint-plugins#build"],
 			"with": ["jscpd:check", "catalog:fix"],
 		},
 		"//#oxlint:check": {
 			"dependsOn": ["@fressh/oxlint-plugins#build"],
-			"with": ["oxfmt:check", "jscpd:check", "catalog:check"],
+			"with": ["jscpd:check", "catalog:check"],
 		},
 		"//#jscpd:check": {},
 		"//#knip:check": {},

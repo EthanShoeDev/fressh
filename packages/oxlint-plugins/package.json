@@ -14,6 +14,8 @@
   "scripts": {
     "build": "bun run tsdown:build",
     "tsdown:build": "tsdown",
+    "oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error --fix .",
+    "oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error .",
     "tsgo:check": "tsgo --noEmit"
   },
   "devDependencies": {

@@ -3,12 +3,12 @@
 	"tasks": {
 		// Override default tasks for mobile
 		"oxlint:fix": {
-			"dependsOn": ["oxfmt:fix", "^build"],
-			"with": ["tsgo:check", "//#oxlint:fix", "expo:doctor"],
+			"dependsOn": ["^build"],
+			"with": ["tsgo:check", "expo:doctor"],
 		},
 		"oxlint:check": {
 			"dependsOn": ["^build"],
-			"with": ["oxfmt:check", "tsgo:check", "//#oxlint:check", "expo:doctor"],
+			"with": ["tsgo:check", "expo:doctor"],
 		},
 		"test": {
 			"dependsOn": ["^build"],

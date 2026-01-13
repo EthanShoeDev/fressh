@@ -6,10 +6,8 @@
 	"scripts": {
 		"build": "bun run astro:build",
 		"dev": "bun run astro:dev",
-		"oxfmt:fix": "oxfmt --write",
-		"oxfmt:check": "oxfmt --check",
-		"oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --fix .",
-		"oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check .",
+		"oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error --fix .",
+		"oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error .",
 		"tsgo:check": "tsgo --noEmit",
 		"astro:build": "astro build",
 		"astro:dev": "astro dev",

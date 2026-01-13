@@ -32,10 +32,8 @@
   "scripts": {
     "build": "bun run bob:build",
     "test": "bun run jest:test",
-    "oxfmt:fix": "oxfmt --write",
-    "oxfmt:check": "oxfmt --check",
-    "oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --fix .",
-    "oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check .",
+    "oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error --fix .",
+    "oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error .",
     "tsgo:check": "tsgo --noEmit",
     "ubrn:build:ios": "ubrn build ios --and-generate --release",
     "ubrn:build:android": "ubrn build android --and-generate --release",
