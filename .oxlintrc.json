@@ -1,10 +1,6 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
-	"plugins": [
-		"unicorn",
-		"typescript",
-		"oxc"
-	],
+	"plugins": ["unicorn", "typescript", "oxc"],
 	"jsPlugins": [
 		"@fressh/oxlint-plugins/require-disable-description",
 		"@fressh/oxlint-plugins/require-unknown-cast-comment"

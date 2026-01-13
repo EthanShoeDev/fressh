@@ -12,8 +12,9 @@
     }
   },
   "scripts": {
-    "build": "tsdown",
-    "typecheck": "tsgo --noEmit"
+    "build": "bun run tsdown:build",
+    "tsdown:build": "tsdown",
+    "tsgo:check": "tsgo --noEmit"
   },
   "devDependencies": {
     "@types/eslint": "^9.6.1",

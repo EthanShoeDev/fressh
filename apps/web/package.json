@@ -4,14 +4,16 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"fmt": "oxfmt --write",
-		"fmt:check": "oxfmt --check",
-		"lint": "oxlint -c .oxlintrc.json --type-aware --type-check --fix .",
-		"lint:check": "oxlint -c .oxlintrc.json --type-aware --type-check .",
-		"typecheck": "tsgo --noEmit",
-		"build": "astro build",
-		"dev": "astro dev",
-		"preview": "astro preview"
+		"build": "bun run astro:build",
+		"dev": "bun run astro:dev",
+		"oxfmt:fix": "oxfmt --write",
+		"oxfmt:check": "oxfmt --check",
+		"oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --fix .",
+		"oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check .",
+		"tsgo:check": "tsgo --noEmit",
+		"astro:build": "astro build",
+		"astro:dev": "astro dev",
+		"astro:preview": "astro preview"
 	},
 	"dependencies": {
 		"@astrojs/vercel": "^9.0.3",

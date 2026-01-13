@@ -24,134 +24,66 @@
 	// Instead, packages should override tasks in their own turbo.json.
 	//
 	// NOTE: Turbo uses SHALLOW extend - arrays are replaced, not merged.
-	// When overriding a task, copy the base definition and add your items:
-	//
-	//   // apps/mobile/turbo.jsonc
-	//   {
-	//     "extends": ["//"],
-	//     "tasks": {
-	//       // Copied from root + mobile-specific (lint:eslint:check, expo:doctor)
-	//       "lint": {
-	//         "dependsOn": ["fmt", "^build"],
-	//         "with": ["typecheck", "oxlint:fix", "lint:eslint:check", "expo:doctor", "//#lint:root"],
-	//       }
-	//     }
-	//   }
+	// When overriding a task, copy the base definition and add your items.
 	//
 	// This keeps the root config generic and scalable as packages are added.
 	// ============================================================================
 	"tasks": {
-		// Defaults
-		"fmt": {
-			"with": [
-				"//#fmt:root"
-			]
+		// Default workspace tasks
+		"oxfmt:fix": {
+			"with": ["//#oxfmt:fix"],
 		},
-		"fmt:check": {
-			"with": [
-				"//#fmt:check:root"
-			]
+		"oxfmt:check": {
+			"with": ["//#oxfmt:check"],
 		},
-		"lint": {
-			"dependsOn": [
-				"fmt",
-				"^build"
-			],
-			"with": [
-				"typecheck",
-				"//#lint:root"
-			],
+		"oxlint:fix": {
+			"dependsOn": ["oxfmt:fix", "^build"],
+			"with": ["tsgo:check", "//#oxlint:fix"],
 		},
-		"lint:check": {
-			"dependsOn": [
-				"^build"
-			],
-			"with": [
-				"fmt:check",
-				"typecheck",
-				"//#lint:check:root"
-			],
+		"oxlint:check": {
+			"dependsOn": ["^build"],
+			"with": ["oxfmt:check", "tsgo:check", "//#oxlint:check"],
 		},
-		"typecheck": {
-			"dependsOn": [
-				"^build"
-			],
+		"tsgo:check": {
+			"dependsOn": ["^build"],
 		},
 		"build": {
-			"outputs": [
-				"dist/**"
-			],
-			"dependsOn": [
-				"^build"
-			],
+			"outputs": ["dist/**"],
+			"dependsOn": ["^build"],
 		},
 		"test": {
-			"dependsOn": [
-				"^build"
-			],
+			"dependsOn": ["^build"],
 		},
 		"dev": {
 			"cache": false,
 			"persistent": true,
-			"dependsOn": [
-				"^build"
-			],
+			"dependsOn": ["^build"],
 		},
 		"clean": {
 			"cache": false,
-			"dependsOn": [
-				"^clean"
-			]
+			"dependsOn": ["^clean"],
 		},
-		// Root tasks overrides
-		"//#fmt:root": {
-			"with": [
-				"fmt:root:nix"
-			],
+
+		// Root-only tasks
+		"//#oxfmt:fix": {
+			"with": ["nix:fmt"],
 		},
-		"//#fmt:root:nix": {},
-		"//#fmt:check:root:nix": {},
-		"//#fmt:check:root": {
-			"with": [
-				"fmt:check:root:nix"
-			],
+		"//#oxfmt:check": {
+			"with": ["nix:fmt:check"],
 		},
-		"//#lint:root": {
-			"dependsOn": [
-				"fmt:root"
-			],
-			"with": [
-				"syncpack:fix",
-				"jscpd:check",
-				// "knip:fix:danger",
-			],
-		},
-		"//#lint:check:root": {
-			"with": [
-				"fmt:check:root",
-				"syncpack:check",
-				"jscpd:check",
-				//"knip:check",
-			],
-		},
-		// Special root tasks
-		"//#jscpd:check": {},
-		"//#syncpack:fix": {},
-		"//#syncpack:check": {},
-		"//#knip:check": {},
-		"//#knip:fix:danger": {},
-		"//#oxfmt:fix": {},
-		"//#oxfmt:check": {},
+		"//#nix:fmt": {},
+		"//#nix:fmt:check": {},
 		"//#oxlint:fix": {
-			"dependsOn": [
-				"@fressh/oxlint-plugins#build"
-			]
+			"dependsOn": ["oxfmt:fix", "@fressh/oxlint-plugins#build"],
+			"with": ["jscpd:check", "catalog:fix"],
 		},
 		"//#oxlint:check": {
-			"dependsOn": [
-				"@fressh/oxlint-plugins#build"
-			]
+			"dependsOn": ["@fressh/oxlint-plugins#build"],
+			"with": ["oxfmt:check", "jscpd:check", "catalog:check"],
 		},
+		"//#jscpd:check": {},
+		"//#knip:check": {},
+		"//#knip:fix": {},
 		"//#catalog:check": {},
 		"//#catalog:fix": {},
 	},

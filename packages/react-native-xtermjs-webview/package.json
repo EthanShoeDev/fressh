@@ -35,17 +35,19 @@
     "ios"
   ],
   "scripts": {
-    "fmt": "oxfmt --write",
-    "fmt:check": "oxfmt --check",
-    "lint": "oxlint -c .oxlintrc.json --type-aware --type-check --fix .",
-    "lint:check": "oxlint -c .oxlintrc.json --type-aware --type-check .",
-    "typecheck": "tsgo --noEmit",
-    "build:main": "tsc -b && vite build",
-    "build:internal": "tsc -b && vite build --config vite.config.internal.ts",
-    "dev": "vite --config vite.config.internal.ts",
-    "preview": "vite preview",
-    "release": "GITHUB_TOKEN=$(gh auth token) release-it",
-    "release:dry": "release-it --dry-run"
+    "build": "bun run vite:build",
+    "dev": "bun run vite:dev",
+    "oxfmt:fix": "oxfmt --write",
+    "oxfmt:check": "oxfmt --check",
+    "oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --fix .",
+    "oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check .",
+    "tsgo:check": "tsgo --noEmit",
+    "vite:build": "tsc -b && vite build",
+    "vite:build:internal": "tsc -b && vite build --config vite.config.internal.ts",
+    "vite:dev": "vite --config vite.config.internal.ts",
+    "vite:preview": "vite preview",
+    "release-it:release": "GITHUB_TOKEN=$(gh auth token) release-it",
+    "release-it:dry": "release-it --dry-run"
   },
   "dependencies": {
     "js-base64": "^3.7.8"
