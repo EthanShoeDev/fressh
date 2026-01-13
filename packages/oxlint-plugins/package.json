@@ -1,0 +1,25 @@
+{
+  "name": "@fressh/oxlint-plugins",
+  "type": "module",
+  "exports": {
+    "./require-disable-description": {
+      "types": "./dist/require-disable-description.d.mts",
+      "default": "./dist/require-disable-description.mjs"
+    },
+    "./require-unknown-cast-comment": {
+      "types": "./dist/require-unknown-cast-comment.d.mts",
+      "default": "./dist/require-unknown-cast-comment.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsgo --noEmit"
+  },
+  "devDependencies": {
+    "@types/eslint": "^9.6.1",
+    "tsdown": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "catalog:"
+  }
+}
