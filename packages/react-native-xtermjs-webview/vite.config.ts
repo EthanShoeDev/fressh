@@ -11,15 +11,6 @@ export default defineConfig({
 		react({}),
 		dts({
 			tsconfigPath: './tsconfig.app.json',
-			// This makes dist/ look nice but breaks Cmd + Click
-			rollupTypes: false,
-			// We need this or the types defined in package.json will be missing
-			// If rollupTypes is true, this is forced true
-			insertTypesEntry: true,
-			compilerOptions: {
-				// This allows Cmd + Click from different packages in the monorepo
-				declarationMap: true,
-			},
 		}),
 	],
 	build: {

@@ -15,12 +15,12 @@ Prefer inferred return types over explicit ones. Explicit return types add verbo
 ```typescript
 // Good - let TypeScript infer the return type
 function getUser(id: string) {
-  return db.users.find(u => u.id === id);
+	return db.users.find((u) => u.id === id);
 }
 
 // Bad - explicit return type that must be manually kept in sync
 function getUser(id: string): User | undefined {
-  return db.users.find(u => u.id === id);
+	return db.users.find((u) => u.id === id);
 }
 ```
 
@@ -36,15 +36,17 @@ import { Command } from '@effect/platform';
 CommandUtils.withLog(Command.make('git', 'status'), CommandUtils.runString);
 
 // Use runString when you need the full buffered output
-const output = yield* CommandUtils.runString(Command.make('git', 'log', '--oneline'));
+const output =
+	yield * CommandUtils.runString(Command.make('git', 'log', '--oneline'));
 
 // Use bufferStringStream to both buffer output AND stream to stdout
-const proc = yield* Command.start(Command.make('git', 'log'));
-const output = yield* CommandUtils.bufferStringStream(
-  proc.stdout,
-  (chunk) => Effect.sync(() => process.stdout.write(chunk))
-);
+const proc = yield * Command.start(Command.make('git', 'log'));
+const output =
+	yield *
+	CommandUtils.bufferStringStream(proc.stdout, (chunk) =>
+		Effect.sync(() => process.stdout.write(chunk)),
+	);
 
 // Use runCommandInherit to stream to terminal (but you can't capture the output)
-yield* CommandUtils.runCommandInheritWithLog(Command.make('npm', 'install'));
+yield * CommandUtils.runCommandInheritWithLog(Command.make('npm', 'install'));
 ```

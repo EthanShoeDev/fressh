@@ -1,0 +1,41 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["unicorn", "typescript", "oxc"],
+	"extends": [
+		"./node_modules/ultracite/config/oxlint/core/.oxlintrc.json",
+		"./node_modules/ultracite/config/oxlint/react/.oxlintrc.json"
+	],
+	"ignorePatterns": [
+		"docs/**",
+		"**/dist/**",
+		"**/dist-internal/**",
+		"**/lib/**",
+		"**/.expo/**",
+		"**/android/**",
+		"**/ios/**"
+	],
+	"rules": {
+		"unicorn/no-array-method-this-argument": "off",
+		"max-classes-per-file": "off",
+		"func-names": "off",
+		"no-warning-comments": "off",
+		"max-statements": "off",
+		"no-array-for-each": "off",
+		"no-nested-ternary": "off",
+		"unicorn/no-nested-ternary": "off",
+		"strict-boolean-expressions": "off",
+		"typescript/promise-function-async": "off",
+		"typescript/no-unsafe-type-assertion": "off",
+		"react-perf/jsx-no-new-function-as-prop": "off",
+		"func-style": "off",
+		"unicorn/consistent-function-scoping": "off",
+		"react/no-unescaped-entities": "off",
+		"sort-keys": "off",
+		"oxc/no-barrel-file": "off",
+		"typescript/no-import-type-side-effects": "off",
+		"typescript/array-type": "off",
+		"no-duplicate-imports": "off",
+		"no-plusplus": "off",
+		"no-inline-comments": "off"
+	}
+}

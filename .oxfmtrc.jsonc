@@ -1,0 +1,22 @@
+// Oxfmt Configuration
+// https://oxc.rs/docs/guide/usage/formatter/config-file-reference.html
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"printWidth": 80,
+	"tabWidth": 2,
+	"useTabs": true,
+	"singleQuote": true,
+	"jsxSingleQuote": true,
+	"trailingComma": "all",
+	"bracketSpacing": true,
+	"bracketSameLine": false,
+	"ignorePatterns": [
+		"docs/**",
+		"**/dist/**",
+		"**/dist-internal/**",
+		"**/lib/**",
+		"**/.expo/**",
+		"**/android/**",
+		"**/ios/**",
+	],
+}
