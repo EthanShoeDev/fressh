@@ -1,3 +1,4 @@
+import  { type ITerminalOptions } from '@xterm/xterm';
 import React, {
 	useEffect,
 	useImperativeHandle,
@@ -18,7 +19,6 @@ import {
 export { bStrToBinary, binaryToBStr };
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
-type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type WebViewOptions = React.ComponentProps<typeof WebView>;
 
 const defaultCoalescingThreshold = 8 * 1024;
@@ -31,7 +31,7 @@ export type XtermInbound =
 	| { type: 'data'; data: Uint8Array }
 	| { type: 'debug'; message: string };
 
-export type XtermWebViewHandle = {
+export interface XtermWebViewHandle {
 	write: (data: Uint8Array) => void; // bytes in (batched)
 	// Efficiently write many chunks in one postMessage (for initial replay)
 	writeMany: (chunks: Uint8Array[]) => void;
@@ -40,7 +40,7 @@ export type XtermWebViewHandle = {
 	focus: () => void;
 	resize: (size: { cols: number; rows: number }) => void;
 	fit: () => void;
-};
+}
 
 const defaultWebViewProps: WebViewOptions = {
 	// WebView behavior that suits terminals
@@ -65,7 +65,7 @@ const defaultWebViewProps: WebViewOptions = {
 const defaultXtermOptions: Partial<ITerminalOptions> = {
 	allowProposedApi: true,
 	convertEol: true,
-	scrollback: 10000,
+	scrollback: 10_000,
 	cursorBlink: true,
 	fontFamily: 'Menlo, ui-monospace, monospace',
 	fontSize: 10,
@@ -76,7 +76,7 @@ type UserControllableWebViewProps = StrictOmit<
 	'source' | 'style' | 'injectedJavaScriptBeforeContentLoaded'
 >;
 
-export type XtermJsWebViewProps = {
+export interface XtermJsWebViewProps {
 	ref: React.RefObject<XtermWebViewHandle | null>;
 	style?: WebViewOptions['style'];
 	webViewOptions?: UserControllableWebViewProps;
@@ -95,22 +95,22 @@ export type XtermJsWebViewProps = {
 		rows: number;
 	};
 	autoFit?: boolean;
-};
+}
 
 function xTermOptionsEquals(
 	a: Partial<ITerminalOptions> | null,
 	b: Partial<ITerminalOptions> | null,
 ): boolean {
-	if (a == b) return true;
-	if (a == null && b == null) return true;
-	if (a == null || b == null) return false;
+	if (a === b) {return true;}
+	if (a === null && b === null) {return true;}
+	if (a === null || b === null) {return false;}
 	const keys = new Set<string>([
 		...Object.keys(a as object),
 		...Object.keys(b as object),
 	]);
 	for (const k of keys) {
 		const key = k as keyof ITerminalOptions;
-		if (a[key] !== b[key]) return false;
+		if (a[key] !== b[key]) {return false;}
 	}
 	return true;
 }
@@ -134,7 +134,7 @@ export function XtermJsWebView({
 	const sendToWebView = useCallback(
 		(obj: BridgeOutboundMessage) => {
 			const webViewRef = webRef.current;
-			if (!webViewRef) return;
+			if (!webViewRef) {return;}
 			const payload = JSON.stringify(obj);
 			logger?.debug?.(`sending msg to webview: ${payload}`);
 			const js = `window.dispatchEvent(new MessageEvent('message',{data:${payload}})); true;`;
@@ -148,10 +148,10 @@ export function XtermJsWebView({
 	const rafRef = useRef<number | null>(null);
 
 	const flush = useCallback(() => {
-		if (!bufRef.current) return;
+		if (!bufRef.current) {return;}
 		const bStr = binaryToBStr(bufRef.current);
 		bufRef.current = null;
-		if (rafRef.current != null) {
+		if (rafRef.current !== null) {
 			cancelAnimationFrame(rafRef.current);
 			rafRef.current = null;
 		}
@@ -159,7 +159,7 @@ export function XtermJsWebView({
 	}, [sendToWebView]);
 
 	const schedule = useCallback(() => {
-		if (rafRef.current != null) return;
+		if (rafRef.current !== null) {return;}
 		rafRef.current = requestAnimationFrame(() => {
 			rafRef.current = null;
 			flush();
@@ -168,25 +168,25 @@ export function XtermJsWebView({
 
 	const write = useCallback(
 		(data: Uint8Array) => {
-			if (!data || data.length === 0) return;
-			if (!bufRef.current) {
-				bufRef.current = data;
-			} else {
+			if (!data || data.length === 0) {return;}
+			if (bufRef.current) {
 				const a = bufRef.current;
 				const merged = new Uint8Array(a.length + data.length);
 				merged.set(a, 0);
 				merged.set(data, a.length);
 				bufRef.current = merged;
+			} else {
+				bufRef.current = data;
 			}
-			if ((bufRef.current?.length ?? 0) >= coalescingThreshold) flush();
-			else schedule();
+			if ((bufRef.current?.length ?? 0) >= coalescingThreshold) {flush();}
+			else {schedule();}
 		},
 		[coalescingThreshold, flush, schedule],
 	);
 
 	const writeMany = useCallback(
 		(chunks: Uint8Array[]) => {
-			if (!chunks || chunks.length === 0) return;
+			if (!chunks || chunks.length === 0) {return;}
 			flush(); // Ensure any pending small buffered write is flushed before bulk write
 			const bStrs = chunks.map(binaryToBStr);
 			sendToWebView({ type: 'writeMany', chunks: bStrs });
@@ -195,31 +195,29 @@ export function XtermJsWebView({
 	);
 
 	// Cleanup pending rAF on unmount
-	useEffect(() => {
-		return () => {
-			if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+	useEffect(() => () => {
+			if (rafRef.current !== null) {cancelAnimationFrame(rafRef.current);}
 			rafRef.current = null;
 			bufRef.current = null;
-		};
-	}, []);
+		}, []);
 
 	const fit = useCallback(() => {
 		sendToWebView({ type: 'fit' });
 	}, [sendToWebView]);
 
 	const autoFitFn = useCallback(() => {
-		if (!autoFit) return;
+		if (!autoFit) {return;}
 		fit();
 	}, [autoFit, fit]);
 
 	const appliedSizeRef = useRef<{ cols: number; rows: number } | null>(null);
 
 	useEffect(() => {
-		if (!initialized) return;
+		if (!initialized) {return;}
 		const appliedSize = appliedSizeRef.current;
-		if (!size) return;
+		if (!size) {return;}
 		if (appliedSize?.cols === size.cols && appliedSize?.rows === size.rows)
-			return;
+			{return;}
 
 		logger?.log?.(`calling resize`, size);
 		sendToWebView({ type: 'resize', cols: size.cols, rows: size.rows });
@@ -232,7 +230,7 @@ export function XtermJsWebView({
 		write,
 		writeMany,
 		flush,
-		clear: () => sendToWebView({ type: 'clear' }),
+		clear: () =>{  sendToWebView({ type: 'clear' }); },
 		focus: () => {
 			sendToWebView({ type: 'focus' });
 			webRef.current?.requestFocus();
@@ -256,9 +254,9 @@ export function XtermJsWebView({
 	const appliedXtermOptionsRef = useRef<Partial<ITerminalOptions> | null>(null);
 
 	useEffect(() => {
-		if (!initialized) return;
+		if (!initialized) {return;}
 		const appliedXtermOptions = appliedXtermOptionsRef.current;
-		if (xTermOptionsEquals(appliedXtermOptions, mergedXTermOptions)) return;
+		if (xTermOptionsEquals(appliedXtermOptions, mergedXTermOptions)) {return;}
 		logger?.log?.(`setting options: `, mergedXTermOptions);
 		sendToWebView({ type: 'setOptions', opts: mergedXTermOptions });
 		autoFitFn();
@@ -269,7 +267,7 @@ export function XtermJsWebView({
 	const onMessage = useCallback(
 		(e: WebViewMessageEvent) => {
 			try {
-				const msg: BridgeInboundMessage = JSON.parse(e.nativeEvent.data);
+				const msg = JSON.parse(e.nativeEvent.data) as BridgeInboundMessage;
 				logger?.log?.(`received msg from webview: `, msg);
 				if (msg.type === 'initialized') {
 					onInitialized?.();

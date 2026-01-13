@@ -47,6 +47,7 @@
 		"@typescript/native-preview": "^7.0.0-dev.20260112.1",
 		"cross-env": "catalog:",
 		"effect": "catalog:",
+		"eslint": "^9.39.2",
 		"globby": "^16.1.0",
 		"jscpd": "^4.0.7",
 		"knip": "^5.80.2",

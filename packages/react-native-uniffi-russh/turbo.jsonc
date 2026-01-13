@@ -2,43 +2,41 @@
 	"$schema": "https://turbo.build/schema.json",
 	"extends": ["//"],
 	"tasks": {
-		// Default overrides
-		"fmt": { "with": ["//#fmt:root", "fmt:rust"] },
-		"fmt:check": { "with": ["//#fmt:check:root", "fmt:rust:check"] },
+		// Override default tasks for uniffi-russh
+		// Cargo tasks are optional - they require rust toolchain
 		"lint": {
-			"dependsOn": ["fmt", "^build", "build:bob", "fmt:rust"],
-			"with": ["typecheck", "//#lint:root", "lint:rust"],
+			"dependsOn": ["//#oxfmt:fix", "oxlint:fix"],
 		},
 		"lint:check": {
-			"dependsOn": ["^build", "build:bob"],
-			"with": [
-				"fmt:check",
-				"typecheck",
-				"//#lint:check:root",
-				"lint:rust",
-				"lint:rust:check",
-				"fmt:rust:check",
-			],
+			"dependsOn": ["//#oxfmt:check", "oxlint:check"],
+		},
+		"oxlint:fix": {
+			"dependsOn": ["^build"],
+			"with": ["tsgo:check"],
+		},
+		"oxlint:check": {
+			"dependsOn": ["^build"],
+			"with": ["tsgo:check"],
+		},
+		"tsgo:check": {
+			// Note: Requires generated files to exist (from ubrn:build:android/ios)
+			// If tsgo fails with missing files, run: turbo ubrn:build:android
 		},
 		"build": {
-			"dependsOn": ["build:bob"],
-		},
-		"typecheck": {
-			"dependsOn": ["build:native", "build:bob"],
+			"dependsOn": ["bob:build"],
 		},
 
-		// Special tasks
-		"lint:rust": {},
-		"lint:rust:check": {},
-		"fmt:rust": {},
-		"fmt:rust:check": {},
-		"build:bob": {
-			"dependsOn": ["build:native"],
+		// Package-specific tasks (run separately with `turbo cargo:lint:fix` etc)
+		"cargo:lint:fix": {},
+		"cargo:lint:check": {},
+		"cargo:fmt:fix": {},
+		"cargo:fmt:check": {},
+		"bob:build": {
 			"inputs": ["src/**"],
 			"outputs": ["lib/**"],
 		},
-		"build:native": {},
-		"build:android": {
+		"tsx:build:native": {},
+		"ubrn:build:android": {
 			"inputs": ["rust/**", "!rust/target"],
 			"outputs": [
 				"android/**",
@@ -48,7 +46,7 @@
 				"src/NativeReactNativeUniffi*.ts",
 			],
 		},
-		"build:ios": {
+		"ubrn:build:ios": {
 			"inputs": ["rust/**", "!rust/target"],
 			"outputs": [
 				"ios/**",

@@ -1,4 +1,20 @@
 {
   "$schema": "../../node_modules/oxlint/configuration_schema.json",
-  "extends": ["../../.oxlintrc.json"]
+  "extends": ["../../.oxlintrc.json"],
+  "overrides": [
+    {
+      "files": ["src-internal/**"],
+      "rules": {
+        "eslint-plugin-react/prefer-destructuring-assignment": "off",
+        "eslint-plugin-react-hooks/rules-of-hooks": "off",
+        "eslint-plugin-jest/require-hook": "off"
+      }
+    },
+    {
+      "files": [".release-it.ts"],
+      "rules": {
+        "no-template-curly-in-string": "off"
+      }
+    }
+  ]
 }

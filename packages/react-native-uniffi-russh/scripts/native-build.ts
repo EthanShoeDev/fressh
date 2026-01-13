@@ -18,6 +18,6 @@ const target =
 
 console.log(`Building for ${target}`);
 
-child.execSync(`turbo run build:${target} --ui stream`, {
+child.execSync(`turbo run ubrn:build:${target} --ui stream`, {
 	stdio: 'inherit',
 });

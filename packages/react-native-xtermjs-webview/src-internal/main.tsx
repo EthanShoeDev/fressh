@@ -30,7 +30,7 @@ const sendToRn = (msg: BridgeInboundMessage) =>
  * Idempotent boot guard: ensure we only install once.
  * If the script happens to run twice (dev reloads, double-mounts), we bail out early.
  */
-window.onload = () => {
+window.addEventListener('load', () => {
 	try {
 		if (window.__FRESSH_XTERM_BRIDGE__) {
 			sendToRn({
@@ -59,7 +59,11 @@ window.onload = () => {
 		const fitAddon = new FitAddon();
 		term.loadAddon(fitAddon);
 
-		const root = document.getElementById('terminal')!;
+		const root = document.querySelector<HTMLElement>('#terminal');
+		if (!root) {
+			sendToRn({ type: 'debug', message: '#terminal element not found' });
+			return;
+		}
 		term.open(root);
 		fitAddon.fit();
 
@@ -73,17 +77,17 @@ window.onload = () => {
 
 		// Remove old handler if any (just in case)
 		if (window.__FRESSH_XTERM_MSG_HANDLER__)
-			window.removeEventListener(
+			{window.removeEventListener(
 				'message',
-				window.__FRESSH_XTERM_MSG_HANDLER__!,
-			);
+				window.__FRESSH_XTERM_MSG_HANDLER__,
+			);}
 
 		// RN -> WebView handler (write, resize, setFont, setTheme, setOptions, clear, focus)
 		const handler = (e: MessageEvent<BridgeOutboundMessage>) => {
 			try {
 				const msg = e.data;
 
-				if (!msg || typeof msg.type !== 'string') return;
+				if (!msg || typeof msg.type !== 'string') {return;}
 
 				// TODO: https://xtermjs.org/docs/guides/flowcontrol/#ideas-for-a-better-mechanism
 				const termWrite = (bStr: string) => {
@@ -124,9 +128,7 @@ window.onload = () => {
 						term.options = newOpts;
 						if (
 							'theme' in newOpts &&
-							newOpts.theme &&
-							'background' in newOpts.theme &&
-							newOpts.theme.background
+							newOpts.theme?.background
 						) {
 							document.body.style.backgroundColor = newOpts.theme.background;
 						}
@@ -140,11 +142,15 @@ window.onload = () => {
 						term.focus();
 						break;
 					}
+					default: {
+						// Unknown message type - ignore
+						break;
+					}
 				}
-			} catch (err) {
+			} catch (error) {
 				sendToRn({
 					type: 'debug',
-					message: `message handler error: ${String(err)}`,
+					message: `message handler error: ${String(error)}`,
 				});
 			}
 		};
@@ -156,8 +162,8 @@ window.onload = () => {
 		setTimeout(() => {
 			const ta = document.querySelector(
 				'.xterm-helper-textarea',
-			) as HTMLTextAreaElement | null;
-			if (!ta) throw new Error('xterm-helper-textarea not found');
+			);
+			if (!ta) {throw new Error('xterm-helper-textarea not found');}
 			ta.setAttribute('autocomplete', 'off');
 			ta.setAttribute('autocorrect', 'off');
 			ta.setAttribute('autocapitalize', 'none');
@@ -166,10 +172,10 @@ window.onload = () => {
 
 			return sendToRn({ type: 'initialized' });
 		}, 200);
-	} catch (e) {
+	} catch (error) {
 		sendToRn({
 			type: 'debug',
-			message: `error in xtermjs-webview: ${String(e)}`,
+			message: `error in xtermjs-webview: ${String(error)}`,
 		});
 	}
-};
+});

@@ -1,10 +1,10 @@
-import fs from 'fs';
-import { resolve } from 'path';
+import fs from 'node:fs';
+import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 
-const logExternal: boolean = false;
+const logExternal = false;
 
 export default defineConfig({
 	plugins: [
@@ -19,7 +19,7 @@ export default defineConfig({
 			// Externalize all non-relative, non-absolute imports (i.e. dependencies)
 			// Keep only our own sources and the raw internal HTML in the bundle.
 			external: (id) => {
-				if (logExternal) fs.writeFileSync('dep.log', `${id}\n`, { flag: 'a' });
+				if (logExternal) {fs.writeFileSync('dep.log', `${id}\n`, { flag: 'a' });}
 				const isRelative = id.startsWith('.') || id.startsWith('/');
 				const isInternalHtml = id.includes('dist-internal/index.html?raw');
 				return !isRelative && !isInternalHtml;

@@ -8,7 +8,5 @@ window.ReactNativeWebView = {
 	postMessage: (data: string) => {
 		console.log('postMessage', data);
 	},
-	injectedObjectJson: () => {
-		return JSON.stringify({});
-	},
+	injectedObjectJson: () => JSON.stringify({}),
 };

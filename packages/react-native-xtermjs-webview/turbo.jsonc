@@ -1,18 +1,18 @@
 {
 	"extends": ["//"],
 	"tasks": {
-		// Default overrides
+		// Override build to depend on both vite builds
 		"build": {
-			"dependsOn": ["build:internal", "build:main"],
+			"dependsOn": ["vite:build:internal", "vite:build"],
 		},
 
-		// Special tasks
-		"build:main": {
+		// Package-specific tasks
+		"vite:build": {
 			"inputs": ["src/**", "vite.config.ts"],
-			"dependsOn": ["build:internal"],
+			"dependsOn": ["vite:build:internal"],
 			"outputs": ["dist/**"],
 		},
-		"build:internal": {
+		"vite:build:internal": {
 			"inputs": ["src-internal/**", "index.html", "vite.config.internal.ts"],
 			"outputs": ["dist-internal/**"],
 		},

@@ -2,13 +2,21 @@
 	"extends": ["//"],
 	"tasks": {
 		// Override default tasks for mobile
+		"lint": {
+			"dependsOn": ["//#oxfmt:fix", "oxlint:fix"],
+			"with": ["expo:doctor"],
+		},
+		"lint:check": {
+			"dependsOn": ["//#oxfmt:check", "oxlint:check"],
+			"with": ["expo:doctor"],
+		},
 		"oxlint:fix": {
 			"dependsOn": ["^build"],
-			"with": ["tsgo:check", "expo:doctor"],
+			"with": ["tsgo:check"],
 		},
 		"oxlint:check": {
 			"dependsOn": ["^build"],
-			"with": ["tsgo:check", "expo:doctor"],
+			"with": ["tsgo:check"],
 		},
 		"test": {
 			"dependsOn": ["^build"],
