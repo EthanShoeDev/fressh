@@ -77,8 +77,7 @@
           # JS
           nodejs_22
           turbo
-          nodePackages.pnpm
-          yarn
+          bun
           watchman
           # Rust
           rustToolchain

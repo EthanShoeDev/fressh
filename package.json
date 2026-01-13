@@ -2,7 +2,8 @@
   "name": "fressh",
   "private": true,
   "version": "workspace:*",
-  "packageManager": "pnpm@10.18.0",
+  "packageManager": "bun@1.3.5",
+  "workspaces": ["apps/*", "packages/*"],
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -12,13 +13,13 @@
     "fmt:check:root": "prettier --check .",
     "fmt:root:nix": "nix fmt flake.nix",
     "fmt:check:root:nix": "nix fmt flake.nix -- -c",
-    "syncpack:fix": "syncpack list-mismatches || (syncpack fix-mismatches && pnpm i)",
+    "syncpack:fix": "syncpack list-mismatches || (syncpack fix-mismatches && bun i)",
     "syncpack:check": "syncpack list-mismatches",
     "jscpd:check": "cross-env NODE_OPTIONS=--max-old-space-size=8192 jscpd --config .jscpd.json",
     "knip:check": "knip",
     "knip:fix:danger": "knip --fix",
     "update:all": "syncpack update",
-    "update:all:alt": "pnpm dlx npm-check-updates --interactive --format group -ws --root"
+    "update:all:alt": "bunx npm-check-updates --interactive --format group -ws --root"
   },
   "devDependencies": {
     "@epic-web/config": "^1.21.3",

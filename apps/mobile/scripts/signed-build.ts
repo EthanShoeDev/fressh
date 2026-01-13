@@ -85,7 +85,7 @@ const signedBuildCommand = command({
 				ghRelease,
 			);
 			const secrets = await getSecrets();
-			await cmd(`pnpm run prebuild:clean`);
+			await cmd(`bun run prebuild:clean`);
 
 			// Ensure keystore is in the right place
 			// https://docs.expo.dev/guides/local-app-production/#create-an-upload-key
