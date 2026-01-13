@@ -11,11 +11,11 @@
 			"dependsOn": ["//#oxfmt:check", "oxlint:check"],
 		},
 		"oxlint:fix": {
-			"dependsOn": ["^build"],
+			"dependsOn": ["^build", "@fressh/oxlint-plugins#build"],
 			"with": ["tsgo:check"],
 		},
 		"oxlint:check": {
-			"dependsOn": ["^build"],
+			"dependsOn": ["^build", "@fressh/oxlint-plugins#build"],
 			"with": ["tsgo:check"],
 		},
 		"tsgo:check": {

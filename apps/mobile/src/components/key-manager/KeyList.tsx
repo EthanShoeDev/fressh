@@ -92,7 +92,7 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 	const importMutation = useMutation({
 		mutationFn: async () => {
 			const trimmed = content.trim();
-			if (!trimmed) throw new Error('No key content provided');
+			if (!trimmed) {throw new Error('No key content provided');}
 			await secretsManager.keys.utils.upsertPrivateKey({
 				metadata: {
 					priority: 0,
@@ -117,10 +117,10 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 		});
 		// Newer expo-document-picker: { canceled: boolean, assets?: [{ uri, name, ... }] }
 		const canceled = 'canceled' in res ? res.canceled : false;
-		if (canceled) return;
+		if (canceled) {return;}
 		const asset = res.assets?.[0];
 		const file = asset?.file;
-		if (!file) return;
+		if (!file) {return;}
 		setFileName(asset.name ?? null);
 		const data = await file.text();
 		setContent(data);
@@ -336,7 +336,7 @@ function KeyRow(props: {
 
 	const renameMutation = useMutation({
 		mutationFn: async (newLabel: string) => {
-			if (!entry) return;
+			if (!entry) {return;}
 			await secretsManager.keys.utils.upsertPrivateKey({
 				keyId: entry.manifestEntry.id,
 				value: entry.value,
@@ -382,7 +382,7 @@ function KeyRow(props: {
 		},
 	});
 
-	if (!entry) return null;
+	if (!entry) {return null;}
 
 	return (
 		<View

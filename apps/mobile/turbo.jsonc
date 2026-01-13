@@ -11,11 +11,11 @@
 			"with": ["expo:doctor"],
 		},
 		"oxlint:fix": {
-			"dependsOn": ["^build"],
+			"dependsOn": ["^build", "@fressh/oxlint-plugins#build"],
 			"with": ["tsgo:check"],
 		},
 		"oxlint:check": {
-			"dependsOn": ["^build"],
+			"dependsOn": ["^build", "@fressh/oxlint-plugins#build"],
 			"with": ["tsgo:check"],
 		},
 		"test": {

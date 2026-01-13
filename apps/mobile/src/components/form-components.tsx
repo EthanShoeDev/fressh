@@ -82,7 +82,7 @@ export function NumberField(
 		label?: string;
 	},
 ) {
-	const { label, style, keyboardType, onChangeText, ...rest } = props;
+	const { label, style, keyboardType, onChangeText: _onChangeText, ...rest } = props;
 	const field = useFieldContext<number>();
 	return (
 		<View style={{ marginBottom: 16 }}>

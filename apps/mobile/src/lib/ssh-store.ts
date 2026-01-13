@@ -8,11 +8,11 @@ import { rootLogger } from './logger';
 
 const logger = rootLogger.extend('SshStore');
 
-type SshRegistryStore = {
+interface SshRegistryStore {
 	connections: Record<string, SshConnection>;
 	shells: Record<`${string}-${number}`, SshShell>;
 	connect: typeof RnRussh.connect;
-};
+}
 
 export const useSshStore = create<SshRegistryStore>((set) => ({
 	connections: {},

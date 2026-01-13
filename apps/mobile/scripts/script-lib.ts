@@ -1,5 +1,5 @@
-import * as child from 'child_process';
-import * as path from 'path';
+import * as child from 'node:child_process';
+import * as path from 'node:path';
 
 export const cmd = (
 	command: string,

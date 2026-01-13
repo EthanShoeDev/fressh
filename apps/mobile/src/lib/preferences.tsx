@@ -1,7 +1,7 @@
-import { MMKV, useMMKVString } from 'react-native-mmkv';
+import { createMMKV, useMMKVString } from 'react-native-mmkv';
 import { type ThemeName } from './theme';
 
-const storage = new MMKV({ id: 'settings' });
+const storage = createMMKV({ id: 'settings' });
 
 type ShellListViewMode = 'flat' | 'grouped';
 

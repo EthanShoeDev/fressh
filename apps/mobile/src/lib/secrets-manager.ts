@@ -11,7 +11,7 @@ const logger = rootLogger.extend('SecretsManager');
 function splitIntoChunks(data: string, chunkSize: number): string[] {
 	const chunks: string[] = [];
 	for (let i = 0; i < data.length; i += chunkSize) {
-		chunks.push(data.substring(i, i + chunkSize));
+		chunks.push(data.slice(i, i + chunkSize));
 	}
 	return chunks;
 }
@@ -89,7 +89,7 @@ function makeBetterSecureStore<
 					manifestChunkKeyString,
 				);
 				if (!rawManifestChunkString)
-					throw new Error('Manifest chunk not found');
+					{throw new Error('Manifest chunk not found');}
 				logger.info(
 					`Manifest chunk for ${manifestChunkKeyString} is ${rawManifestChunkString.length} bytes`,
 				);
@@ -119,7 +119,7 @@ function makeBetterSecureStore<
 				logger.info(
 					`Entry chunk for ${entryKeyString} is ${rawEntryChunk?.length} bytes`,
 				);
-				if (!rawEntryChunk) throw new Error('Entry chunk not found');
+				if (!rawEntryChunk) {throw new Error('Entry chunk not found');}
 				return rawEntryChunk;
 			}),
 		);
@@ -129,12 +129,10 @@ function makeBetterSecureStore<
 
 	async function getEntry(id: string) {
 		const manifest = await getManifest();
-		const manifestEntry = manifest.manifestChunks.reduce<Entry | undefined>(
-			(_, mChunk) =>
-				mChunk.manifestChunk.entries.find((entry) => entry.id === id),
-			undefined,
-		);
-		if (!manifestEntry) throw new Error('Entry not found');
+		const manifestEntry = manifest.manifestChunks
+			.flatMap((mChunk) => mChunk.manifestChunk.entries)
+			.find((entry) => entry.id === id);
+		if (!manifestEntry) {throw new Error('Entry not found');}
 
 		return {
 			value: await _getEntryValueFromManifestEntry(manifestEntry),
@@ -155,12 +153,10 @@ function makeBetterSecureStore<
 	> {
 		const manifestEntries = await listEntries();
 		return await Promise.all(
-			manifestEntries.map(async (entry) => {
-				return {
+			manifestEntries.map(async (entry) => ({
 					...entry,
 					value: await _getEntryValueFromManifestEntry(entry),
-				} as Entry & { value: Value };
-			}),
+				})),
 		);
 	}
 
@@ -169,13 +165,13 @@ function makeBetterSecureStore<
 		const manifestChunkContainingEntry = manifest.manifestChunks.find(
 			(mChunk) => mChunk.manifestChunk.entries.some((entry) => entry.id === id),
 		);
-		if (!manifestChunkContainingEntry) throw new Error('Entry not found');
+		if (!manifestChunkContainingEntry) {throw new Error('Entry not found');}
 
 		const manifestEntry =
 			manifestChunkContainingEntry.manifestChunk.entries.find(
 				(entry) => entry.id === id,
 			);
-		if (!manifestEntry) throw new Error('Entry not found');
+		if (!manifestEntry) {throw new Error('Entry not found');}
 
 		await Promise.all([
 			...Array.from(
@@ -244,7 +240,7 @@ function makeBetterSecureStore<
 		} satisfies Entry);
 		const newManifestEntrySize = JSON.stringify(newManifestEntry).length;
 		if (newManifestEntrySize > sizeLimit / 2)
-			throw new Error('Manifest entry size is too large');
+			{throw new Error('Manifest entry size is too large');}
 		const manifest = await getManifest();
 
 		const existingManifestChunkWithRoom = manifest.manifestChunks.find(
@@ -350,7 +346,7 @@ async function upsertPrivateKey(params: {
 	// Preserve createdAtMs if the entry already exists
 	const existing = await betterKeyStorage
 		.getEntry(keyId)
-		.catch(() => undefined);
+		.catch(() => {});
 	const createdAtMs =
 		existing?.manifestEntry.metadata.createdAtMs ?? Date.now();
 

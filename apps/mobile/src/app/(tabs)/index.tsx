@@ -67,7 +67,7 @@ function Host() {
 	);
 	const formErrors = useStore(connectionForm.store, (state) => state.errorMap);
 	useEffect(() => {
-		if (!formErrors || Object.keys(formErrors).length === 0) return;
+		if (!formErrors || Object.keys(formErrors).length === 0) {return;}
 		logger.info('formErrors', JSON.stringify(formErrors, null, 2));
 	}, [formErrors]);
 
@@ -77,12 +77,12 @@ function Host() {
 	);
 
 	const buttonLabel = (() => {
-		if (!sshConnMutation.isPending) return 'Connect';
-		if (lastConnectionProgressEvent === null) return 'TCP Connecting...';
+		if (!sshConnMutation.isPending) {return 'Connect';}
+		if (lastConnectionProgressEvent === null) {return 'TCP Connecting...';}
 		if (lastConnectionProgressEvent === 'tcpConnected')
-			return 'SSH Handshake...';
+			{return 'SSH Handshake...';}
 		if (lastConnectionProgressEvent === 'sshHandshake')
-			return 'Authenticating...';
+			{return 'Authenticating...';}
 		return 'Connected!';
 	})();
 
@@ -211,7 +211,7 @@ function Host() {
 									testID="connect"
 									onPress={() => {
 										logger.info('Connect button pressed', { isSubmitting });
-										if (isSubmitting) return;
+										if (isSubmitting) {return;}
 										void connectionForm.handleSubmit();
 									}}
 								/>
@@ -485,7 +485,7 @@ function ConnectionRow(props: {
 				marginBottom: 8,
 			}}
 			onPress={() => {
-				if (details) props.onFillForm(details);
+				if (details) {props.onFillForm(details);}
 			}}
 			disabled={!details}
 		>
@@ -678,7 +678,7 @@ function ConnectionRow(props: {
 						<View style={{ flexDirection: 'row', gap: 8 }}>
 							<Pressable
 								onPress={async () => {
-									if (!details) return;
+									if (!details) {return;}
 									if (!newId || newId === props.id) {
 										setRenameOpen(false);
 										return;

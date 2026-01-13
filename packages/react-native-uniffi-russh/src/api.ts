@@ -28,14 +28,14 @@ export type TerminalType =
 	| 'Xterm'
 	| 'Xterm256';
 
-export type ConnectionDetails = {
+export interface ConnectionDetails {
 	host: string;
 	port: number;
 	username: string;
 	security:
 		| { type: 'password'; password: string }
 		| { type: 'key'; privateKey: string };
-};
+}
 
 /**
  * This status is only to provide updates for discrete events
@@ -57,26 +57,26 @@ export type ConnectOptions = ConnectionDetails & {
 	abortSignal?: AbortSignal;
 };
 
-export type StartShellOptions = {
+export interface StartShellOptions {
 	term: TerminalType;
 	terminalMode?: GeneratedRussh.TerminalMode[];
 	terminalPixelSize?: GeneratedRussh.TerminalPixelSize;
 	terminalSize?: GeneratedRussh.TerminalSize;
 	onClosed?: (shellId: number) => void;
 	abortSignal?: AbortSignal;
-};
+}
 
 export type StreamKind = 'stdout' | 'stderr';
 
-export type TerminalChunk = {
+export interface TerminalChunk {
 	seq: bigint;
 	/** Milliseconds since UNIX epoch (double). */
 	tMs: number;
 	stream: StreamKind;
 	bytes: ArrayBuffer;
-};
+}
 
-export type DropNotice = { kind: 'dropped'; fromSeq: bigint; toSeq: bigint };
+export interface DropNotice { kind: 'dropped'; fromSeq: bigint; toSeq: bigint }
 export type ListenerEvent = TerminalChunk | DropNotice;
 
 export type Cursor =
@@ -86,28 +86,28 @@ export type Cursor =
 	| { mode: 'time'; tMs: number } // from timestamp
 	| { mode: 'live' }; // no replay, live only
 
-export type ListenerOptions = {
+export interface ListenerOptions {
 	cursor: Cursor;
 	/** Optional per-listener coalescing window in ms (e.g., 10–25). */
 	coalesceMs?: number;
-};
+}
 
-export type BufferReadResult = {
+export interface BufferReadResult {
 	chunks: TerminalChunk[];
 	nextSeq: bigint;
 	dropped?: { fromSeq: bigint; toSeq: bigint };
-};
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handles
 // ─────────────────────────────────────────────────────────────────────────────
 
-type ProgressTimings = {
+interface ProgressTimings {
 	tcpEstablishedAtMs: number;
 	sshHandshakeAtMs: number;
-};
+}
 
-export type SshConnection = {
+export interface SshConnection {
 	readonly connectionId: string;
 	readonly createdAtMs: number;
 	readonly connectedAtMs: number;
@@ -116,9 +116,9 @@ export type SshConnection = {
 
 	startShell: (opts: StartShellOptions) => Promise<SshShell>;
 	disconnect: (opts?: { signal?: AbortSignal }) => Promise<void>;
-};
+}
 
-export type SshShell = {
+export interface SshShell {
 	readonly channelId: number;
 	readonly createdAtMs: number;
 	readonly pty: TerminalType;
@@ -146,9 +146,9 @@ export type SshShell = {
 		opts: ListenerOptions,
 	) => bigint;
 	removeListener: (id: bigint) => void;
-};
+}
 
-type RusshApi = {
+interface RusshApi {
 	uniffiInitAsync: () => Promise<void>;
 	connect: (opts: ConnectOptions) => Promise<SshConnection>;
 	generateKeyPair: (
@@ -163,7 +163,7 @@ type RusshApi = {
 	) =>
 		| { valid: true; error?: never }
 		| { valid: false; error: GeneratedRussh.SshError };
-};
+}
 
 // #endregion
 
@@ -222,18 +222,23 @@ function generatedConnDetailsToIdeal(
 
 function cursorToGenerated(cursor: Cursor): GeneratedRussh.Cursor {
 	switch (cursor.mode) {
-		case 'head':
+		case 'head': {
 			return new GeneratedRussh.Cursor.Head();
-		case 'tailBytes':
+		}
+		case 'tailBytes': {
 			return new GeneratedRussh.Cursor.TailBytes({
 				bytes: cursor.bytes,
 			});
-		case 'seq':
+		}
+		case 'seq': {
 			return new GeneratedRussh.Cursor.Seq({ seq: cursor.seq });
-		case 'time':
+		}
+		case 'time': {
 			return new GeneratedRussh.Cursor.TimeMs({ tMs: cursor.tMs });
-		case 'live':
+		}
+		case 'live': {
 			return new GeneratedRussh.Cursor.Live();
+		}
 	}
 }
 
@@ -264,7 +269,7 @@ function wrapShellSession(
 		const listener = {
 			onEvent: (ev: GeneratedRussh.ShellEvent) => {
 				if (ev instanceof GeneratedRussh.ShellEvent.Chunk) {
-					cb(toTerminalChunk(ev.inner[0]!));
+					cb(toTerminalChunk(ev.inner[0]));
 				} else if (ev instanceof GeneratedRussh.ShellEvent.Dropped) {
 					cb({
 						kind: 'dropped',
@@ -284,9 +289,9 @@ function wrapShellSession(
 				throw new Error('Failed to attach shell listener (id=0)');
 			}
 			return id;
-		} catch (e) {
+		} catch (error) {
 			throw new Error(
-				`addListener failed: ${String((e as any)?.message ?? e)}`,
+				`addListener failed: ${String(error instanceof Error ? error.message : error)}`, { cause: error },
 			);
 		}
 	};
@@ -300,11 +305,11 @@ function wrapShellSession(
 			shell.sendData(data, o?.signal ? { signal: o.signal } : undefined),
 		close: (o) => shell.close(o?.signal ? { signal: o.signal } : undefined),
 		// setBufferPolicy,
-		bufferStats: shell.bufferStats,
+		bufferStats: () => shell.bufferStats(),
 		currentSeq: () => Number(shell.currentSeq()),
 		readBuffer,
 		addListener,
-		removeListener: (id) => shell.removeListener(id),
+		removeListener: (id) =>{  shell.removeListener(id); },
 	};
 }
 
@@ -327,7 +332,7 @@ function wrapConnection(
 					term: terminalTypeLiteralToEnum[params.term],
 					onClosedCallback: onClosed
 						? {
-								onChange: (channelId) => onClosed(channelId),
+								onChange: (channelId) =>{  onClosed(channelId); },
 							}
 						: undefined,
 					terminalMode: params.terminalMode,
@@ -367,13 +372,13 @@ async function connect({
 			},
 			onConnectionProgressCallback: onConnectionProgress
 				? {
-						onChange: (statusEnum) =>
-							onConnectionProgress(sshConnProgressEnumToLiteral[statusEnum]),
+						onChange: (statusEnum) =>{ 
+							onConnectionProgress(sshConnProgressEnumToLiteral[statusEnum]); },
 					}
 				: undefined,
 			onDisconnectedCallback: onDisconnected
 				? {
-						onChange: (connectionId) => onDisconnected(connectionId),
+						onChange: (connectionId) =>{  onDisconnected(connectionId); },
 					}
 				: undefined,
 			onServerKeyCallback: {
@@ -386,13 +391,13 @@ async function connect({
 	return wrapConnection(sshConnection);
 }
 
-async function generateKeyPair(type: 'rsa' | 'ecdsa' | 'ed25519') {
+function generateKeyPair(type: 'rsa' | 'ecdsa' | 'ed25519') {
 	const map = {
 		rsa: GeneratedRussh.KeyType.Rsa,
 		ecdsa: GeneratedRussh.KeyType.Ecdsa,
 		ed25519: GeneratedRussh.KeyType.Ed25519,
 	} as const;
-	return GeneratedRussh.generateKeyPair(map[type]);
+	return Promise.resolve(GeneratedRussh.generateKeyPair(map[type]));
 }
 
 function validatePrivateKey(
@@ -403,8 +408,8 @@ function validatePrivateKey(
 	try {
 		GeneratedRussh.validatePrivateKey(key);
 		return { valid: true };
-	} catch (e) {
-		return { valid: false, error: e as GeneratedRussh.SshError };
+	} catch (error) {
+		return { valid: false, error: error as GeneratedRussh.SshError };
 	}
 }
 

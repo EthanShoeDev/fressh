@@ -1,8 +1,8 @@
 /**
  * https://docs.expo.dev/guides/local-app-production/
  */
-import * as fsp from 'fs/promises';
-import * as path from 'path';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
 import { boolean, command, flag, oneOf, option, run } from 'cmd-ts';
 import { z } from 'zod';
 import packageJson from '../package.json' with { type: 'json' };
@@ -19,7 +19,7 @@ async function getSecrets(): Promise<{
 			return bwStatus.status === 'unlocked';
 		},
 	);
-	if (!isBwUnlocked) throw new Error('Bitwarden is not unlocked');
+	if (!isBwUnlocked) {throw new Error('Bitwarden is not unlocked');}
 
 	const { stdout: rawBwItemString } = await cmd(
 		`bw get item "fressh keystore" --raw`,
@@ -45,7 +45,7 @@ async function getSecrets(): Promise<{
 	const keystoreBase64 = bwItem.fields.find(
 		(field) => field.name === 'keystore',
 	)?.value;
-	if (!keystoreBase64) throw new Error('Keystore not found');
+	if (!keystoreBase64) {throw new Error('Keystore not found');}
 	return {
 		keystoreBase64,
 		keystoreAlias: bwItem.login.username,
@@ -76,7 +76,7 @@ const signedBuildCommand = command({
 	handler: async ({ format, ghRelease }) => {
 		{
 			if (ghRelease && format !== 'apk')
-				throw new Error('ghRelease is only supported for apk builds');
+				{throw new Error('ghRelease is only supported for apk builds');}
 
 			console.log(
 				'Making signed build. Format:',
@@ -177,9 +177,9 @@ const signedBuildCommand = command({
 			});
 
 			if (ghRelease)
-				await cmd(
+				{await cmd(
 					`gh release create v${packageJson.version} ./android/app/build/outputs/apk/release/app-release.apk`,
-				);
+				);}
 		}
 	},
 });

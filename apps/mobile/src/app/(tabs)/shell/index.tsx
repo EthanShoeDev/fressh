@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { rootLogger } from '@/lib/logger';
 import { preferences } from '@/lib/preferences';
-import {} from '@/lib/query-fns';
+
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
 import { AbortSignalTimeout } from '@/lib/utils';
@@ -85,8 +85,8 @@ function LoadedState() {
 					setActionTarget(null);
 				}}
 				onCloseShell={() => {
-					if (!actionTarget) return;
-					if (!('shell' in actionTarget)) return;
+					if (!actionTarget) {return;}
+					if (!('shell' in actionTarget)) {return;}
 					void actionTarget.shell.close();
 					setActionTarget(null);
 				}}
@@ -99,18 +99,18 @@ function LoadedState() {
 					setActionTarget(null);
 				}}
 				onDisconnect={() => {
-					if (!actionTarget) return;
-					if (!('connection' in actionTarget)) return;
+					if (!actionTarget) {return;}
+					if (!('connection' in actionTarget)) {return;}
 					void actionTarget.connection.disconnect();
 					setActionTarget(null);
 				}}
 				onStartShell={() => {
-					if (!actionTarget) return;
-					if (!('connection' in actionTarget)) return;
+					if (!actionTarget) {return;}
+					if (!('connection' in actionTarget)) {return;}
 					void actionTarget.connection
 						.startShell({
 							term: 'Xterm',
-							abortSignal: AbortSignalTimeout(5_000),
+							abortSignal: AbortSignalTimeout(5000),
 						})
 						.then((shellHandle) => {
 							router.push({
@@ -294,7 +294,7 @@ function ShellCard({
 		addSuffix: true,
 	});
 	const connection = useSshStore((s) => s.connections[shell.connectionId]);
-	if (!connection) return null;
+	if (!connection) {return null;}
 	return (
 		<Pressable
 			style={{
@@ -416,11 +416,11 @@ function ConnectionActionsSheet({
 
 type ActionSheetButtonVariant = 'primary' | 'outline';
 
-type ActionSheetAction = {
+interface ActionSheetAction {
 	label: string;
 	onPress: () => void;
 	variant?: ActionSheetButtonVariant;
-};
+}
 
 function ActionSheetModal({
 	open,
@@ -550,7 +550,7 @@ function HeaderViewModeButton() {
 	}, [setShellListViewMode, shellListViewMode]);
 
 	const handleLongPress = React.useCallback(() => {
-		if (Platform.OS !== 'ios') return;
+		if (Platform.OS !== 'ios') {return;}
 		ActionSheetIOS.showActionSheetWithOptions(
 			{
 				title: 'View Mode',
@@ -558,8 +558,8 @@ function HeaderViewModeButton() {
 				cancelButtonIndex: 2,
 			},
 			(buttonIndex) => {
-				if (buttonIndex === 0) setShellListViewMode('flat');
-				if (buttonIndex === 1) setShellListViewMode('grouped');
+				if (buttonIndex === 0) {setShellListViewMode('flat');}
+				if (buttonIndex === 1) {setShellListViewMode('grouped');}
 			},
 		);
 	}, [setShellListViewMode]);

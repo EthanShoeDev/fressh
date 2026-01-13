@@ -21,7 +21,33 @@
 		"apps/**",
 		"packages/**"
 	],
+	"overrides": [
+		{
+			"files": ["**/scripts/*.ts", "**/scripts/**/*.ts"],
+			"rules": {
+				"jest/require-hook": "off",
+				"unicorn/text-encoding-identifier-case": "off",
+				"typescript/no-unsafe-assignment": "off",
+				"typescript/no-unsafe-member-access": "off",
+				"typescript/no-unsafe-call": "off",
+				"typescript/no-unsafe-return": "off",
+				"unicorn/prefer-node-protocol": "off",
+				"no-void": "off",
+				"prefer-destructuring": "off"
+			}
+		}
+	],
 	"rules": {
+		"typescript/no-unsafe-assignment": "off",
+		"typescript/no-unsafe-member-access": "off",
+		"typescript/no-unsafe-call": "off",
+		"typescript/no-unsafe-return": "off",
+		"unicorn/prefer-node-protocol": "off",
+		"jest/require-hook": "off",
+		"unicorn/text-encoding-identifier-case": "off",
+		"no-void": "off",
+		"prefer-destructuring": "off",
+		"import/consistent-type-specifier-style": "off",
 		"unicorn/no-array-method-this-argument": "off",
 		"max-classes-per-file": "off",
 		"func-names": "off",

@@ -7,10 +7,7 @@
 		"source.fixAll": "explicit",
 		"source.sortMembers": "explicit"
 	},
-	"editor.defaultFormatter": "esbenp.prettier-vscode",
 	"editor.formatOnSave": true,
-	"prettier.ignorePath": "",
-	"prettier.requireConfig": true,
 	"duplicatedCode.options": {
 		"absolute": true,
 		"silent": true,
@@ -28,18 +25,7 @@
 		"**/mnt/**",
 		"**/dist/**",
 		"**/node_modules/**",
-		"**/android/**",
-		"**/eslint.config.js"
-	],
-	"[astro]": {
-		"editor.defaultFormatter": "esbenp.prettier-vscode"
-	},
-	"eslint.validate": [
-		"javascript",
-		"javascriptreact",
-		"astro", // Enable .astro
-		"typescript", // Enable .ts
-		"typescriptreact" // Enable .tsx
+		"**/android/**"
 	],
 	"tailwindCSS.classAttributes": [
 		"class",
@@ -47,15 +33,6 @@
 		"ngClass",
 		".*className"
 	],
-	// Turbo example included it
-	"eslint.workingDirectories": [
-		{
-			"mode": "auto"
-		}
-	],
-	"[typescript]": {
-		"editor.defaultFormatter": "vscode.typescript-language-features"
-	},
 	"json.schemas": [
 		{
 			"fileMatch": ["**/*.jsonc"],

@@ -98,14 +98,14 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
 
 export function useTheme() {
 	const ctx = React.use(ThemeContext);
-	if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
+	if (!ctx) {throw new Error('useTheme must be used within ThemeProvider');}
 	return ctx.theme;
 }
 
 export function useThemeControls() {
 	const ctx = React.use(ThemeContext);
 	if (!ctx)
-		throw new Error('useThemeControls must be used within ThemeProvider');
+		{throw new Error('useThemeControls must be used within ThemeProvider');}
 	const { themeName, setThemeName } = ctx;
 	return { themeName, setThemeName };
 }

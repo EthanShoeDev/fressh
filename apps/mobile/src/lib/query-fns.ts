@@ -45,7 +45,7 @@ export const useSshConnMutation = (opts?: {
 						logger.info('SSH server key', serverKeyInfo);
 						return true;
 					},
-					abortSignal: AbortSignalTimeout(5_000),
+					abortSignal: AbortSignalTimeout(5000),
 				});
 
 				await secretsManager.connections.utils.upsertConnection({
@@ -55,7 +55,7 @@ export const useSshConnMutation = (opts?: {
 				});
 				const shellHandle = await sshConnection.startShell({
 					term: 'Xterm',
-					abortSignal: AbortSignalTimeout(5_000),
+					abortSignal: AbortSignalTimeout(5000),
 				});
 
 				logger.info(
