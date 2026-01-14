@@ -1,44 +1,80 @@
 {
-	"extends": ["//"],
+	"extends": [
+		"//"
+	],
 	"tasks": {
 		// Override default tasks for mobile
 		"lint": {
-			"dependsOn": ["//#oxfmt:fix", "oxlint:fix"],
-			"with": ["expo:doctor"],
+			"dependsOn": [
+				"//#oxfmt:fix",
+				"oxlint:fix"
+			],
+			"with": [
+				"expo:doctor"
+			],
 		},
 		"lint:check": {
-			"dependsOn": ["//#oxfmt:check", "oxlint:check"],
-			"with": ["expo:doctor"],
+			"dependsOn": [
+				"//#oxfmt:check",
+				"oxlint:check"
+			],
+			"with": [
+				"expo:doctor"
+			],
 		},
 		"oxlint:fix": {
-			"dependsOn": ["^build", "@fressh/oxlint-plugins#build"],
-			"with": ["tsgo:check"],
+			"dependsOn": [
+				"^build",
+				"@fressh/oxlint-plugins#build"
+			],
+			"with": [
+				"tsgo:check"
+			],
 		},
 		"oxlint:check": {
-			"dependsOn": ["^build", "@fressh/oxlint-plugins#build"],
-			"with": ["tsgo:check"],
+			"dependsOn": [
+				"^build",
+				"@fressh/oxlint-plugins#build"
+			],
+			"with": [
+				"tsgo:check"
+			],
 		},
 		"test": {
-			"dependsOn": ["^build"],
-			"with": ["maestro:test"],
+			"dependsOn": [
+				"^build"
+			],
+			"with": [
+				"maestro:test"
+			],
 		},
 		"dev:android": {
-			"dependsOn": ["^build", "^ubrn:build:android"],
+			"dependsOn": [
+				"^build",
+				"^ubrn:build:android"
+			],
 			"cache": false,
 			"persistent": true,
 		},
 		"dev:ios": {
-			"dependsOn": ["^build", "^ubrn:build:ios"],
+			"dependsOn": [
+				"^build",
+				"^ubrn:build:ios"
+			],
 			"cache": false,
 			"persistent": true,
 		},
-
 		// Mobile-specific tasks
 		"expo:doctor": {},
 		"maestro:test": {},
 		"gradle:build:signed:apk": {
-			"dependsOn": ["^build", "^ubrn:build:android"],
-			"outputs": ["android/app/build/outputs/**"],
+			"dependsOn": [
+				"^build",
+				"^ubrn:build:android"
+			],
+			"outputs": [
+				"android/app/build/outputs/**"
+			],
 		},
 	},
 }

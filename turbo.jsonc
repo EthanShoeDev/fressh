@@ -71,6 +71,12 @@
 		},
 
 		// ========================================
+		// Optional per-package tasks (defined here so ^taskName works)
+		// ========================================
+		"ubrn:build:android": {},
+		"ubrn:build:ios": {},
+
+		// ========================================
 		// Root-only tasks (run once at root level)
 		// ========================================
 		"//#oxfmt:fix": {
