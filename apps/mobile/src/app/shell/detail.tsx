@@ -1,4 +1,7 @@
-import { type ListenerEvent } from '@fressh/react-native-uniffi-russh';
+import {
+	type ListenerEvent,
+	type SshShell,
+} from '@fressh/react-native-uniffi-russh';
 import {
 	XtermJsWebView,
 	type XtermWebViewHandle,
@@ -61,9 +64,11 @@ import {
 import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
+import { secretsManager } from '@/lib/secrets-manager';
 import { executeSideChannelCommand } from '@/lib/ssh-side-channel';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
+import { queryClient } from '@/lib/utils';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
@@ -348,6 +353,9 @@ const DEFAULT_KEYBOARD_ID_FALLBACK =
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
 	const listenerIdRef = useRef<bigint | null>(null);
+	const tmuxControlShellRef = useRef<SshShell | null>(null);
+	const tmuxControlListenerRef = useRef<bigint | null>(null);
+	const tmuxControlWriterRef = useRef<OrderedWriter | null>(null);
 
 	const searchParams = useLocalSearchParams<{
 		connectionId?: string;
@@ -380,6 +388,10 @@ function ShellDetail() {
 			: undefined);
 	const isAutoConnecting = useAutoConnectStore((s) => s.isAutoConnecting);
 	const isReconnecting = useAutoConnectStore((s) => s.isReconnecting);
+	const [tmuxTarget, setTmuxTarget] = useState(
+		tmuxSessionName?.trim().length ? tmuxSessionName.trim() : 'main',
+	);
+	const [tmuxEnabled, setTmuxEnabled] = useState(true);
 
 	useEffect(() => {
 		if (hasTmuxAttachError) return;
@@ -398,6 +410,37 @@ function ShellDetail() {
 	]);
 
 	useEffect(() => {
+		if (tmuxSessionName?.trim().length) {
+			// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Sync state from prop
+			setTmuxTarget(tmuxSessionName.trim());
+		}
+	}, [tmuxSessionName]);
+
+	useEffect(() => {
+		if (!storedConnectionId) return;
+		let cancelled = false;
+		void queryClient
+			.fetchQuery(secretsManager.connections.query.get(storedConnectionId))
+			.then((entry) => {
+				if (cancelled) return;
+				const details = entry?.value;
+				if (!details) return;
+				const useTmux = details.useTmux ?? true;
+				setTmuxEnabled(useTmux);
+				if (useTmux) {
+					const sessionName = details.tmuxSessionName?.trim() || 'main';
+					setTmuxTarget(sessionName);
+				}
+			})
+			.catch((error) => {
+				logger.warn('Failed to load tmux session info', error);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [storedConnectionId]);
+
+	useEffect(() => {
 		const xterm = xtermRef.current;
 		return () => {
 			if (shell && listenerIdRef.current != null)
@@ -406,6 +449,50 @@ function ShellDetail() {
 			if (xterm) xterm.flush();
 		};
 	}, [shell]);
+
+	useEffect(() => {
+		if (!connection || !tmuxEnabled) return;
+		let cancelled = false;
+		const startTmuxControlShell = async () => {
+			try {
+				const controlShell = await connection.startShell({
+					term: 'Xterm',
+					useTmux: false,
+					tmuxSessionName: '',
+				});
+				if (cancelled) {
+					await controlShell.close();
+					return;
+				}
+				const listenerId = controlShell.addListener(() => {}, {
+					cursor: { mode: 'live' },
+				});
+				tmuxControlShellRef.current = controlShell;
+				tmuxControlListenerRef.current = listenerId;
+				tmuxControlWriterRef.current = new OrderedWriter(async (bytes) => {
+					await controlShell.sendData(bytes.buffer as ArrayBuffer);
+				});
+			} catch (error) {
+				logger.warn('Failed to start tmux control shell', error);
+			}
+		};
+		void startTmuxControlShell();
+		return () => {
+			cancelled = true;
+			const controlShell = tmuxControlShellRef.current;
+			const listenerId = tmuxControlListenerRef.current;
+			tmuxControlShellRef.current = null;
+			tmuxControlListenerRef.current = null;
+			tmuxControlWriterRef.current = null;
+			if (!controlShell) return;
+			if (listenerId != null) {
+				controlShell.removeListener(listenerId);
+			}
+			controlShell.close().catch((error) => {
+				logger.warn('Failed to close tmux control shell', error);
+			});
+		};
+	}, [connection, tmuxEnabled]);
 
 	useEffect(() => {
 		return () => {
@@ -505,33 +592,35 @@ function ShellDetail() {
 	const lastSelectionRef = useRef<{ text: string; at: number } | null>(null);
 	const { width, height } = useWindowDimensions();
 	const touchScrollEnabled =
-		Platform.OS === 'android' && Math.min(width, height) >= 600;
+		Platform.OS === 'android' &&
+		Math.min(width, height) >= 600 &&
+		tmuxEnabled;
 	const touchScrollConfig = useMemo<TouchScrollConfig>(
 		() =>
 			touchScrollEnabled
 				? {
 						enabled: true,
-						pxPerLine: 16,
+						pxPerLine: 10,
 						slopPx: 10,
-						maxLinesPerFrame: 6,
+						maxLinesPerFrame: 12,
 						flickVelocity: 1.2,
 						coalesceMs: 24,
 						minFlushMs: 16,
 						maxFlushMs: 80,
-						maxPagesPerFlush: 8,
-						maxExtraLines: 12,
+						maxPagesPerFlush: 12,
+						maxExtraLines: 999,
 						maxBacklogPages: 50,
 						velocityMultiplierEnabled: true,
-						velocityThreshold: 0.9,
-						velocityBoost: 0.8,
-						velocityBoostMax: 6,
+						velocityThreshold: 0.3,
+						velocityBoost: 2.5,
+						velocityBoostMax: 20,
 						velocitySmoothing: 0.2,
 						backlogMultiplierEnabled: true,
 						backlogBoostRefPages: 2,
 						backlogBoostMax: 2,
 						rttEwmaAlpha: 0.2,
 						debug: __DEV__,
-						debugOverlay: __DEV__,
+						debugOverlay: false,
 						debugTelemetry: __DEV__,
 						debugTelemetryIntervalMs: 120,
 						enterDelayMs: touchEnterDelayMs,
@@ -574,6 +663,17 @@ function ShellDetail() {
 
 	const sendBytesOrdered = useCallback((bytes: Uint8Array<ArrayBuffer>) => {
 		return writerRef.current?.send(bytes);
+	}, []);
+
+	const sendTmuxControlCommand = useCallback((command: string) => {
+		const writer = tmuxControlWriterRef.current;
+		if (!writer) return false;
+		writer
+			.send(encoder.encode(`${command}\n`))
+			.catch((error: unknown) => {
+				logger.warn('tmux control send failed', error);
+			});
+		return true;
 	}, []);
 
 	const sendBytesQueued = useCallback(
@@ -1206,10 +1306,32 @@ fi
 				return;
 			}
 			if (selectionModeEnabled) return;
+			if (!tmuxEnabled) return;
 
 			const pages = Math.max(0, event.pages);
 			const lines = Math.max(0, event.lines);
 			if (!pages && !lines) return;
+
+			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+			const safeTarget = targetName.replace(/'/g, "'\\''");
+			const targetArg = `'${safeTarget}'`;
+			const pageCmd = event.direction === 'up' ? 'page-up' : 'page-down';
+			const lineCmd = event.direction === 'up' ? 'scroll-up' : 'scroll-down';
+			const parts: string[] = [];
+			if (pages > 0) {
+				parts.push(
+					`send-keys -t ${targetArg} -N ${pages} -X ${pageCmd}`,
+				);
+			}
+			if (lines > 0) {
+				parts.push(
+					`send-keys -t ${targetArg} -N ${lines} -X ${lineCmd}`,
+				);
+			}
+			if (parts.length === 0) return;
+			const command = `tmux ${parts.join(' \\; ')}`;
+			const sent = sendTmuxControlCommand(command);
+			if (sent) return;
 
 			const pageKey = event.direction === 'up' ? tmuxPageUpKey : tmuxPageDownKey;
 			const lineKey =
@@ -1219,7 +1341,14 @@ fi
 			if (lines > 0) payload += lineKey.repeat(lines);
 			void sendBytesOrdered(encoder.encode(payload));
 		},
-		[shell, selectionModeEnabled, sendBytesOrdered],
+		[
+			shell,
+			selectionModeEnabled,
+			sendBytesOrdered,
+			sendTmuxControlCommand,
+			tmuxTarget,
+			tmuxEnabled,
+		],
 	);
 
 	const handleWebViewInput = useCallback(

@@ -9,6 +9,7 @@ function semverToCode(v: string) {
 	return maj * 10000 + min * 100 + pat;
 }
 const versionCode = semverToCode(packageJson.version);
+const projectId = '5e4aaebd-05a4-4032-adad-f3c27cc7ab71';
 
 const config: ExpoConfig = {
 	name: 'Fressh',
@@ -42,6 +43,13 @@ const config: ExpoConfig = {
 		predictiveBackGestureEnabled: false,
 		softwareKeyboardLayoutMode: 'pan',
 	},
+	updates: {
+		enabled: true,
+		checkAutomatically: 'ON_LOAD',
+		fallbackToCacheTimeout: 0,
+		url: `https://u.expo.dev/${projectId}`,
+	},
+	runtimeVersion: packageJson.version,
 	plugins: [
 		'expo-router',
 		[
@@ -63,7 +71,7 @@ const config: ExpoConfig = {
 	experiments: { typedRoutes: true, reactCompiler: true },
 	extra: {
 		eas: {
-			projectId: '5e4aaebd-05a4-4032-adad-f3c27cc7ab71',
+			projectId,
 		},
 	},
 };
