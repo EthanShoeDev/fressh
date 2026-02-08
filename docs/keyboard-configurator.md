@@ -39,9 +39,9 @@ curl -X POST http://localhost:3000/api/keyboards/generate
 5) Publish a preview update so the app picks up regenerated files:
 ```
 cd /home/muly/fressh/apps/mobile
-pnpm exec eas update --branch preview --message "Update keyboard layouts"
+pnpm exec eas update --channel preview --message "Update keyboard layouts"
 ```
-- Reopen the app to apply the update.
+- Reopen the app to apply the update (preview flow, no Metro required).
 
 ## What To Edit (react-ttyd)
 

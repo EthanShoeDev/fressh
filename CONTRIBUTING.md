@@ -52,8 +52,16 @@ cd apps/mobile
 pnpm exec eas build --local --profile preview --platform android
 ```
 
-Install the APK and use preview updates for JS-only changes. See
-`docs/dev-builds.md` for the full workflow.
+Install the APK and use preview OTA updates for JS-only changes:
+
+```
+cd apps/mobile
+pnpm exec eas update --channel preview --message "Describe change"
+```
+
+This project defaults to preview-only local builds (no Metro/dev-client in the
+normal flow). See `docs/dev-builds.md` for the full workflow and OTA vs rebuild
+rules.
 
 ### Releasing
 

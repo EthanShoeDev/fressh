@@ -1,7 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
-import { type CommandPreset } from '@/lib/command-presets';
+import {
+	type CommandPreset,
+	type CommandPresetEntry,
+	type CommandPresetMenu,
+} from '@/lib/command-presets';
 import { useTheme } from '@/lib/theme';
+
+const isCommandPresetMenu = (
+	preset: CommandPresetEntry,
+): preset is CommandPresetMenu => preset.type === 'submenu';
 
 export function CommandPresetsModal({
 	open,
@@ -11,21 +19,44 @@ export function CommandPresetsModal({
 	onSelect,
 }: {
 	open: boolean;
-	presets: CommandPreset[];
+	presets: CommandPresetEntry[];
 	bottomOffset: number;
 	onClose: () => void;
 	onSelect: (preset: CommandPreset) => void;
 }) {
 	const theme = useTheme();
+	const [menuStack, setMenuStack] = useState<CommandPresetMenu[]>([]);
+
+	useEffect(() => {
+		if (!open) setMenuStack([]);
+	}, [open]);
+
+	const activeMenu = menuStack[menuStack.length - 1];
+	const activePresets = activeMenu?.presets ?? presets;
+	const menuTitle = activeMenu?.label ?? 'Command Presets';
+	const canGoBack = menuStack.length > 0;
+
 	const uniquePresets = useMemo(() => {
 		const seen = new Set<string>();
-		return presets.filter((preset) => {
+		return activePresets.filter((preset) => {
 			const key = preset.label.trim();
 			if (seen.has(key)) return false;
 			seen.add(key);
 			return true;
 		});
-	}, [presets]);
+	}, [activePresets]);
+
+	const handlePresetPress = (preset: CommandPresetEntry) => {
+		if (isCommandPresetMenu(preset)) {
+			setMenuStack((current) => [...current, preset]);
+			return;
+		}
+		onSelect(preset);
+	};
+
+	const handleBack = () => {
+		setMenuStack((current) => current.slice(0, -1));
+	};
 
 	return (
 		<Modal
@@ -74,7 +105,7 @@ export function CommandPresetsModal({
 								fontWeight: '700',
 							}}
 						>
-							Command Presets
+							{menuTitle}
 						</Text>
 						<Pressable
 							onPress={onClose}
@@ -89,6 +120,22 @@ export function CommandPresetsModal({
 							<Text style={{ color: theme.colors.textSecondary }}>Close</Text>
 						</Pressable>
 					</View>
+					{canGoBack ? (
+						<Pressable
+							onPress={handleBack}
+							style={{
+								alignSelf: 'flex-start',
+								paddingHorizontal: 10,
+								paddingVertical: 6,
+								borderRadius: 8,
+								borderWidth: 1,
+								borderColor: theme.colors.border,
+								marginBottom: 12,
+							}}
+						>
+							<Text style={{ color: theme.colors.textSecondary }}>Back</Text>
+						</Pressable>
+					) : null}
 					{uniquePresets.length === 0 ? (
 						<Text style={{ color: theme.colors.textSecondary }}>
 							No command presets configured.
@@ -97,8 +144,8 @@ export function CommandPresetsModal({
 						<ScrollView>
 							{uniquePresets.map((preset, index) => (
 								<Pressable
-									key={`${preset.label}-${index.toString()}`}
-									onPress={() => onSelect(preset)}
+									key={`${preset.type}-${preset.label}-${index.toString()}`}
+									onPress={() => handlePresetPress(preset)}
 									style={{
 										paddingVertical: 12,
 										paddingHorizontal: 12,
@@ -109,15 +156,28 @@ export function CommandPresetsModal({
 										marginBottom: 8,
 									}}
 								>
-									<Text
+									<View
 										style={{
-											color: theme.colors.textPrimary,
-											fontSize: 14,
-											fontWeight: '600',
+											flexDirection: 'row',
+											alignItems: 'center',
+											justifyContent: 'space-between',
 										}}
 									>
-										{preset.label}
-									</Text>
+										<Text
+											style={{
+												color: theme.colors.textPrimary,
+												fontSize: 14,
+												fontWeight: '600',
+											}}
+										>
+											{preset.label}
+										</Text>
+										{isCommandPresetMenu(preset) ? (
+											<Text
+												style={{ color: theme.colors.textSecondary }}
+											>{`>`}</Text>
+										) : null}
+									</View>
 								</Pressable>
 							))}
 						</ScrollView>

@@ -590,6 +590,9 @@ function ShellDetail() {
 	const [systemKeyboardEnabled, setSystemKeyboardEnabled] = useState(
 		Platform.OS === 'android',
 	);
+	const systemKeyboardVisibleRef = useRef(false);
+	const lastKeyboardVisibleRef = useRef(false);
+	const appStateRef = useRef(AppState.currentState);
 	const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
@@ -1366,6 +1369,9 @@ fi
 	// Debounced PTY resize handler
 	const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
+	const resumeDismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 
 	const handleTerminalResize = useCallback(
 		(cols: number, rows: number) => {
@@ -1401,21 +1407,55 @@ fi
 			if (resizeTimeoutRef.current) {
 				clearTimeout(resizeTimeoutRef.current);
 			}
+			if (resumeDismissTimeoutRef.current) {
+				clearTimeout(resumeDismissTimeoutRef.current);
+			}
+		};
+	}, []);
+
+	useEffect(() => {
+		if (Platform.OS !== 'android') return;
+		const showSub = Keyboard.addListener('keyboardDidShow', () => {
+			systemKeyboardVisibleRef.current = true;
+		});
+		const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+			systemKeyboardVisibleRef.current = false;
+		});
+		return () => {
+			showSub.remove();
+			hideSub.remove();
 		};
 	}, []);
 
 	useEffect(() => {
 		if (Platform.OS !== 'android') return;
 		const dismissKeyboard = () => Keyboard.dismiss();
+		appStateRef.current = AppState.currentState;
 		dismissKeyboard();
 		xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
 		// eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener -- React Native AppState cleans up via subscription.remove()
 		const subscription = AppState.addEventListener('change', (nextState) => {
+			const previousState = appStateRef.current;
+			appStateRef.current = nextState;
 			if (nextState === 'active') {
 				xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
-				if (!systemKeyboardEnabled) {
+				// Preserve the previous OS keyboard visibility when returning to the app.
+				if (!systemKeyboardEnabled || !lastKeyboardVisibleRef.current) {
 					dismissKeyboard();
+					// Some devices show the keyboard after focus settles; dismiss again.
+					if (resumeDismissTimeoutRef.current) {
+						clearTimeout(resumeDismissTimeoutRef.current);
+					}
+					resumeDismissTimeoutRef.current = setTimeout(() => {
+						dismissKeyboard();
+					}, 150);
+					systemKeyboardVisibleRef.current = false;
 				}
+				return;
+			}
+			// Capture once when transitioning away from active.
+			if (previousState === 'active') {
+				lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
 			}
 		});
 		return () => {
@@ -1433,6 +1473,7 @@ fi
 		if (Platform.OS !== 'android') return;
 		xtermRef.current?.setSystemKeyboardEnabled(false);
 		Keyboard.dismiss();
+		systemKeyboardVisibleRef.current = false;
 		setSystemKeyboardEnabled(false);
 	}, []);
 

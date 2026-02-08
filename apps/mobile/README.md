@@ -26,11 +26,11 @@ For JS-only changes, publish an update to the preview channel:
 
 ```bash
 cd apps/mobile
-pnpm exec eas update --branch preview --message "Describe change"
+pnpm exec eas update --channel preview --message "Describe change"
 ```
 
-Preview builds run standalone and do not require Expo Go or a Metro server. For
-the full workflow (native rebuilds, OTA policy), see
+Preview builds run standalone and do not require Expo Go or Metro for the
+normal workflow. For the full workflow (native rebuilds, OTA policy), see
 [`docs/dev-builds.md`](../../docs/dev-builds.md).
 
 ### Development notes

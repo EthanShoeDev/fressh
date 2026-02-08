@@ -13,6 +13,12 @@ This is a pnpm + Turbo monorepo.
 ### Mobile App Identity
 - Android package name for the mobile app (current branded build): `com.finalapp.vibe2`.
 
+### Mobile Build/Debug Policy
+- Use `preview` builds by default for Android development.
+- Use local builds only: `cd apps/mobile && pnpm exec eas build --local --profile preview --platform android`.
+- Use OTA for JS/assets only: `cd apps/mobile && pnpm exec eas update --channel preview --message "..."`
+- Do not rely on Metro/dev-client for the normal mobile workflow.
+
 ## Build, Test, and Development Commands
 - `pnpm install` (root) installs workspace deps.
 - `pnpm exec turbo lint` runs fmt + lint + typecheck across packages and root
@@ -21,6 +27,7 @@ This is a pnpm + Turbo monorepo.
 - `pnpm exec turbo fmt` / `pnpm exec turbo fmt:check` runs Prettier.
 - `pnpm exec turbo test` runs package tests (includes mobile e2e).
 - Mobile (preview default): `cd apps/mobile && pnpm exec eas build --local --profile preview --platform android`.
+- Mobile OTA (preview): `cd apps/mobile && pnpm exec eas update --channel preview --message "..."`
 - Web: `cd apps/web && pnpm run dev` for local site.
 - Optional dev shells: `nix develop .#default` (or `.#android-emulator`).
 - Docker: `just docker-build`.

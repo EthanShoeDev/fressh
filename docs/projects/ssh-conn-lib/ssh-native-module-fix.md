@@ -224,7 +224,7 @@ above.
 2. Connect, navigate to the shell, then press back to unmount while the shell is
    active.
 3. Capture logs:
-   - `adb logcat --pid=$(adb shell pidof -s dev.fressh.app) RNSSHClient:V ReactNative:V ReactNativeJS:V AndroidRuntime:E *:S`
+   - `adb logcat --pid=$(adb shell pidof -s com.finalapp.vibe2) RNSSHClient:V ReactNative:V ReactNativeJS:V AndroidRuntime:E *:S`
 4. With the native changes applied, verify:
    - No “callback invoked twice” or RN bridge callback violations.
    - No crash in dev.

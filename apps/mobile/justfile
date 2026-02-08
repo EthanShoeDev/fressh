@@ -34,7 +34,7 @@ avd-mirror-remote ssh_target:
     scrcpy
 
 adb-logs:
-    while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done
+    while ! adb logcat --pid=$(adb shell pidof -s com.finalapp.vibe2); do sleep 1; done
 
 ios-logs:
     pnpm dlx react-native log-ios
