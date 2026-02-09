@@ -101,6 +101,11 @@ export const commandPresets: CommandPresetEntry[] = [
 		presets: [
 			{
 				type: 'preset',
+				label: '$git-pr',
+				steps: [{ type: 'text', data: '$git-pr' }, { type: 'enter' }],
+			},
+			{
+				type: 'preset',
 				label: 'git checkout dev',
 				steps: [{ type: 'text', data: 'git checkout dev' }, { type: 'enter' }],
 			},

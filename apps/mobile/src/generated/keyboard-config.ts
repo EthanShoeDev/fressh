@@ -62,6 +62,13 @@ export const MACROS_BY_KEYBOARD_ID: Record<string, MacroDef[]> = {
       "script": "{\n  \"type\": \"command\",\n  \"value\": \"skip\"\n}"
     },
     {
+      "id": "cmd_approve",
+      "name": "Command: approve",
+      "label": "approve",
+      "category": "Commands",
+      "script": "{\n  \"type\": \"command\",\n  \"value\": \"approve\",\n  \"enter\": true\n}"
+    },
+    {
       "id": "reply_1",
       "name": "Reply: 1",
       "label": "1",
@@ -74,57 +81,7 @@ export const MACROS_BY_KEYBOARD_ID: Record<string, MacroDef[]> = {
       "label": "2",
       "category": "Replies",
       "script": "{\n  \"type\": \"command\",\n  \"value\": \"2\",\n  \"enter\": true\n}"
-    },
-    {
-      "id": "reply_3",
-      "name": "Reply: 3",
-      "label": "3",
-      "category": "Replies",
-      "script": "{\n  \"type\": \"command\",\n  \"value\": \"3\",\n  \"enter\": true\n}"
     }
   ],
-  "advanced_keyboard": [
-    {
-      "id": "cmd_fix",
-      "name": "Command: fix",
-      "label": "fix",
-      "category": "Commands",
-      "script": "{\n  \"type\": \"command\",\n  \"value\": \"fix\"\n}"
-    },
-    {
-      "id": "cmd_yes",
-      "name": "Command: yes",
-      "label": "yes",
-      "category": "Commands",
-      "script": "{\n  \"type\": \"command\",\n  \"value\": \"yes\"\n}"
-    },
-    {
-      "id": "cmd_skip",
-      "name": "Command: skip",
-      "label": "skip",
-      "category": "Commands",
-      "script": "{\n  \"type\": \"command\",\n  \"value\": \"skip\"\n}"
-    },
-    {
-      "id": "reply_1",
-      "name": "Reply: 1",
-      "label": "1",
-      "category": "Replies",
-      "script": "{\n  \"type\": \"command\",\n  \"value\": \"1\",\n  \"enter\": true\n}"
-    },
-    {
-      "id": "reply_2",
-      "name": "Reply: 2",
-      "label": "2",
-      "category": "Replies",
-      "script": "{\n  \"type\": \"command\",\n  \"value\": \"2\",\n  \"enter\": true\n}"
-    },
-    {
-      "id": "reply_3",
-      "name": "Reply: 3",
-      "label": "3",
-      "category": "Replies",
-      "script": "{\n  \"type\": \"command\",\n  \"value\": \"3\",\n  \"enter\": true\n}"
-    }
-  ]
+  "advanced_keyboard": []
 }

@@ -1,10 +1,18 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react';
 import {
+	Animated,
 	Dimensions,
 	InteractionManager,
 	Keyboard,
 	KeyboardAvoidingView,
 	Modal,
+	PanResponder,
 	Platform,
 	Pressable,
 	Text,
@@ -38,9 +46,98 @@ export function TextEntryModal({
 		const maxByScreen = Math.floor(Dimensions.get('window').height * 0.45);
 		return Math.max(minHeight, Math.min(maxByScreen, 360));
 	}, [minHeight]);
+	const dialogMaxHeight = useMemo(() => {
+		// Android doesn't use KeyboardAvoidingView padding, so we size against the
+		// "usable" height above the keyboard/footer offset to keep controls visible.
+		const windowHeight = Dimensions.get('window').height;
+		const usableHeight = Math.max(240, windowHeight - bottomOffset);
+		return Math.floor(usableHeight * 0.92);
+	}, [bottomOffset]);
 	const [value, setValue] = useState('');
-	const [textAreaHeight, setTextAreaHeight] = useState(minHeight);
+	const [textAreaContentHeight, setTextAreaContentHeight] = useState(minHeight);
 	const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [qaMode, setQaMode] = useState(false);
+	const [questionNumber, setQuestionNumber] = useState(1);
+	const questionNumberRef = useRef(1);
+	const qaNudgePaddingX = 24;
+	const qaChoicePaddingX = 28;
+
+	// Keep the dialog within `maxHeight: '85%'` without allowing extra controls to
+	// overflow the frame by shrinking the text area when needed.
+	const effectiveTextMaxHeight = useMemo(() => {
+		// Rough chrome height budget:
+		// - dialog padding: 32
+		// - header row + spacing: ~52
+		// - QA row + spacing (when enabled): ~56
+		// - bottom buttons row + spacing: ~60
+		const chrome = 32 + 52 + (qaMode ? 56 : 0) + 60;
+		const maxByDialog = Math.max(minHeight, dialogMaxHeight - chrome);
+		return Math.max(minHeight, Math.min(maxHeight, maxByDialog));
+	}, [dialogMaxHeight, maxHeight, minHeight, qaMode]);
+
+	const textAreaHeight = useMemo(() => {
+		const nextHeight = Math.min(
+			Math.max(textAreaContentHeight, minHeight),
+			effectiveTextMaxHeight,
+		);
+		return nextHeight;
+	}, [effectiveTextMaxHeight, minHeight, textAreaContentHeight]);
+
+	const setQuestionNumberSafe = useCallback((next: number) => {
+		const normalized = Math.max(1, Math.floor(next));
+		questionNumberRef.current = normalized;
+		setQuestionNumber(normalized);
+	}, []);
+
+	const drag = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+	const dragStartRef = useRef({ x: 0, y: 0 });
+	const resetDrag = useCallback(() => {
+		drag.stopAnimation(() => {
+			dragStartRef.current = { x: 0, y: 0 };
+			drag.setValue({ x: 0, y: 0 });
+		});
+	}, [drag]);
+	const panResponder = useMemo(
+		() =>
+			PanResponder.create({
+				onStartShouldSetPanResponder: () => true,
+				onMoveShouldSetPanResponder: (_, gesture) =>
+					Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
+				onMoveShouldSetPanResponderCapture: (_, gesture) =>
+					Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
+				onPanResponderGrant: () => {
+					drag.stopAnimation((val) => {
+						dragStartRef.current = { x: val.x, y: val.y };
+					});
+				},
+				onPanResponderMove: (_, gesture) => {
+					drag.setValue({
+						x: dragStartRef.current.x + gesture.dx,
+						y: dragStartRef.current.y + gesture.dy,
+					});
+				},
+				onPanResponderRelease: () => {
+					// Clamp to a sane range so the dialog can't be dragged completely off-screen.
+					const { width, height } = Dimensions.get('window');
+					const maxX = Math.floor(width * 0.35);
+					const minX = -maxX;
+					const maxY = Math.floor(height * 0.35);
+					const minY = -maxY;
+					drag.stopAnimation((val) => {
+						drag.setValue({
+							x: Math.min(maxX, Math.max(minX, val.x)),
+							y: Math.min(maxY, Math.max(minY, val.y)),
+						});
+					});
+				},
+				onPanResponderTerminationRequest: () => false,
+			}),
+		[drag],
+	);
+
+	useEffect(() => {
+		if (!open) resetDrag();
+	}, [open, resetDrag]);
 
 	const focusInput = useCallback((delayMs = 0) => {
 		if (focusTimeoutRef.current) {
@@ -95,9 +192,10 @@ export function TextEntryModal({
 
 	const handleClear = useCallback(() => {
 		setValue('');
-		setTextAreaHeight(minHeight);
+		setTextAreaContentHeight(minHeight);
+		setQuestionNumberSafe(1);
 		inputRef.current?.focus();
-	}, [minHeight]);
+	}, [minHeight, setQuestionNumberSafe]);
 
 	const handlePaste = useCallback(() => {
 		if (!value) return;
@@ -106,9 +204,31 @@ export function TextEntryModal({
 		onPaste(value);
 		// Clear text only after successful paste
 		setValue('');
-		setTextAreaHeight(minHeight);
+		setTextAreaContentHeight(minHeight);
+		setQuestionNumberSafe(1);
 		onClose();
-	}, [minHeight, onClose, onPaste, value]);
+	}, [minHeight, onClose, onPaste, setQuestionNumberSafe, value]);
+
+	const handleToggleQaMode = useCallback(() => {
+		const next = !qaMode;
+		setQaMode(next);
+		if (next) setQuestionNumberSafe(1);
+		requestAnimationFrame(() => focusInput());
+	}, [focusInput, qaMode, setQuestionNumberSafe]);
+
+	const insertAnswer = useCallback(
+		(answer: 'A' | 'B' | 'C') => {
+			const n = questionNumberRef.current;
+			const snippet = `${n}${answer} `;
+			setValue((prev) => {
+				const separator = prev && !/\s$/.test(prev) ? ' ' : '';
+				return `${prev}${separator}${snippet}`;
+			});
+			setQuestionNumberSafe(n + 1);
+			requestAnimationFrame(() => focusInput());
+		},
+		[focusInput, setQuestionNumberSafe],
+	);
 
 	return (
 		<Modal
@@ -118,13 +238,18 @@ export function TextEntryModal({
 			onRequestClose={handleClose}
 			onShow={handleModalShow}
 		>
-			<Pressable
-				onPress={handleClose}
-				style={{
-					flex: 1,
-					backgroundColor: theme.colors.overlay,
-				}}
-			>
+			<View style={{ flex: 1, backgroundColor: theme.colors.overlay }}>
+				{/* Tap outside the dialog to close. Kept behind the dialog so it doesn't steal drags/taps. */}
+				<Pressable
+					onPress={handleClose}
+					style={{
+						position: 'absolute',
+						left: 0,
+						right: 0,
+						top: 0,
+						bottom: 0,
+					}}
+				/>
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : undefined}
 					style={{
@@ -132,140 +257,278 @@ export function TextEntryModal({
 						justifyContent: 'center',
 						paddingBottom: bottomOffset,
 					}}
+					pointerEvents="box-none"
 				>
-					<View
-						onStartShouldSetResponder={() => true}
-						style={{
-							backgroundColor: theme.colors.background,
-							borderRadius: 16,
-							padding: 16,
-							borderColor: theme.colors.borderStrong,
-							borderWidth: 1,
-							maxHeight: '85%',
-							width: '90%',
-							maxWidth: 520,
-							minWidth: 280,
-							alignSelf: 'center',
-						}}
-					>
-						<Text
-							style={{
-								color: theme.colors.textPrimary,
-								fontSize: 18,
-								fontWeight: '700',
-								marginBottom: 12,
-							}}
-						>
-							Text
-						</Text>
-						<TextInput
-							ref={inputRef}
-							value={value}
-							onChangeText={setValue}
-							placeholder="Enter text to paste..."
-							placeholderTextColor={theme.colors.muted}
-							autoFocus
-							showSoftInputOnFocus={true}
-							multiline
-							textAlignVertical="top"
-							style={{
-								borderWidth: 1,
-								borderColor: theme.colors.border,
-								backgroundColor: theme.colors.inputBackground,
-								color: theme.colors.textPrimary,
-								borderRadius: 10,
-								paddingHorizontal: 12,
-								paddingVertical: INPUT_VERTICAL_PADDING,
-								minHeight,
-								height: textAreaHeight,
-								maxHeight,
-								lineHeight: LINE_HEIGHT,
-								width: '100%',
-							}}
-							onContentSizeChange={(event) => {
-								const nextHeight = Math.min(
-									Math.max(
-										event.nativeEvent.contentSize.height +
-											INPUT_VERTICAL_PADDING,
-										minHeight,
-									),
-									maxHeight,
-								);
-								setTextAreaHeight(nextHeight);
-							}}
-							scrollEnabled={textAreaHeight >= maxHeight}
-						/>
+					<Animated.View style={{ transform: drag.getTranslateTransform() }}>
 						<View
 							style={{
-								flexDirection: 'row',
-								marginTop: 12,
+								backgroundColor: theme.colors.background,
+								borderRadius: 16,
+								padding: 16,
+								borderColor: theme.colors.borderStrong,
+								borderWidth: 1,
+								maxHeight: dialogMaxHeight,
+								overflow: 'hidden',
+								width: '90%',
+								maxWidth: 520,
+								minWidth: 280,
+								alignSelf: 'center',
 							}}
 						>
-							<Pressable
-								onPress={handleClear}
+							<View
+								{...panResponder.panHandlers}
 								style={{
-									flex: 1,
-									borderRadius: 10,
-									paddingVertical: 12,
+									flexDirection: 'row',
 									alignItems: 'center',
-									borderWidth: 1,
-									borderColor: theme.colors.border,
-									marginRight: 8,
+									justifyContent: 'space-between',
+									marginBottom: 12,
 								}}
 							>
 								<Text
 									style={{
-										color: theme.colors.textSecondary,
-										fontWeight: '600',
-									}}
-								>
-									Clear
-								</Text>
-							</Pressable>
-							<Pressable
-								onPress={handlePaste}
-								style={{
-									flex: 1,
-									backgroundColor: theme.colors.primary,
-									borderRadius: 10,
-									paddingVertical: 12,
-									alignItems: 'center',
-									marginRight: 8,
-								}}
-							>
-								<Text
-									style={{
-										color: theme.colors.buttonTextOnPrimary,
+										color: theme.colors.textPrimary,
+										fontSize: 18,
 										fontWeight: '700',
 									}}
 								>
-									Paste
+									Text
 								</Text>
-							</Pressable>
-							<Pressable
-								onPress={handleClose}
-								style={{
-									flex: 1,
-									borderRadius: 10,
-									paddingVertical: 12,
-									alignItems: 'center',
-									borderWidth: 1,
-									borderColor: theme.colors.border,
-								}}
-							>
-								<Text
+								<Pressable
+									onPress={handleToggleQaMode}
 									style={{
-										color: theme.colors.textSecondary,
-										fontWeight: '600',
+										borderRadius: 10,
+										paddingVertical: 8,
+										paddingHorizontal: 12,
+										borderWidth: 1,
+										borderColor: qaMode
+											? theme.colors.primary
+											: theme.colors.border,
+										backgroundColor: qaMode
+											? theme.colors.primary
+											: 'transparent',
 									}}
 								>
-									Close
-								</Text>
-							</Pressable>
+									<Text
+										style={{
+											color: qaMode
+												? theme.colors.buttonTextOnPrimary
+												: theme.colors.textSecondary,
+											fontWeight: '800',
+										}}
+									>
+										QA
+									</Text>
+								</Pressable>
+							</View>
+							<TextInput
+								ref={inputRef}
+								value={value}
+								onChangeText={setValue}
+								placeholder="Enter text to paste..."
+								placeholderTextColor={theme.colors.muted}
+								autoFocus
+								showSoftInputOnFocus={true}
+								multiline
+								textAlignVertical="top"
+								style={{
+									borderWidth: 1,
+									borderColor: theme.colors.border,
+									backgroundColor: theme.colors.inputBackground,
+									color: theme.colors.textPrimary,
+									borderRadius: 10,
+									paddingHorizontal: 12,
+									paddingVertical: INPUT_VERTICAL_PADDING,
+									minHeight,
+									height: textAreaHeight,
+									maxHeight: effectiveTextMaxHeight,
+									lineHeight: LINE_HEIGHT,
+									width: '100%',
+								}}
+								onContentSizeChange={(event) => {
+									setTextAreaContentHeight(
+										event.nativeEvent.contentSize.height +
+											INPUT_VERTICAL_PADDING,
+									);
+								}}
+								scrollEnabled={textAreaHeight >= effectiveTextMaxHeight}
+							/>
+							{qaMode ? (
+								<View
+									style={{
+										flexDirection: 'row',
+										alignItems: 'center',
+										justifyContent: 'space-between',
+										marginTop: 12,
+										gap: 8,
+									}}
+								>
+									<View
+										style={{
+											flexDirection: 'row',
+											alignItems: 'center',
+											gap: 6,
+										}}
+									>
+										<Pressable
+											onPress={() => {
+												setQuestionNumberSafe(questionNumberRef.current - 1);
+												requestAnimationFrame(() => focusInput());
+											}}
+											style={{
+												borderRadius: 10,
+												paddingVertical: 10,
+												paddingHorizontal: qaNudgePaddingX,
+												borderWidth: 1,
+												borderColor: theme.colors.border,
+											}}
+										>
+											<Text
+												style={{
+													color: theme.colors.textSecondary,
+													fontWeight: '700',
+												}}
+											>
+												-
+											</Text>
+										</Pressable>
+										<Text
+											style={{
+												color: theme.colors.textPrimary,
+												fontWeight: '700',
+												minWidth: 42,
+												textAlign: 'center',
+											}}
+										>
+											Q{questionNumber}
+										</Text>
+										<Pressable
+											onPress={() => {
+												setQuestionNumberSafe(questionNumberRef.current + 1);
+												requestAnimationFrame(() => focusInput());
+											}}
+											style={{
+												borderRadius: 10,
+												paddingVertical: 10,
+												paddingHorizontal: qaNudgePaddingX,
+												borderWidth: 1,
+												borderColor: theme.colors.border,
+											}}
+										>
+											<Text
+												style={{
+													color: theme.colors.textSecondary,
+													fontWeight: '700',
+												}}
+											>
+												+
+											</Text>
+										</Pressable>
+									</View>
+									<View
+										style={{
+											flexDirection: 'row',
+											alignItems: 'center',
+											gap: 6,
+										}}
+									>
+										{(['A', 'B', 'C'] as const).map((answer) => (
+											<Pressable
+												key={answer}
+												onPress={() => insertAnswer(answer)}
+												style={{
+													borderRadius: 10,
+													paddingVertical: 10,
+													paddingHorizontal: qaChoicePaddingX,
+													backgroundColor: theme.colors.surface,
+													borderWidth: 1,
+													borderColor: theme.colors.border,
+												}}
+											>
+												<Text
+													style={{
+														color: theme.colors.textPrimary,
+														fontWeight: '800',
+													}}
+												>
+													{answer}
+												</Text>
+											</Pressable>
+										))}
+									</View>
+								</View>
+							) : null}
+							<View
+								style={{
+									flexDirection: 'row',
+									marginTop: 12,
+								}}
+							>
+								<Pressable
+									onPress={handleClear}
+									style={{
+										flex: 1,
+										borderRadius: 10,
+										paddingVertical: 12,
+										alignItems: 'center',
+										borderWidth: 1,
+										borderColor: theme.colors.border,
+										marginRight: 8,
+									}}
+								>
+									<Text
+										style={{
+											color: theme.colors.textSecondary,
+											fontWeight: '600',
+										}}
+									>
+										Clear
+									</Text>
+								</Pressable>
+								<Pressable
+									onPress={handlePaste}
+									style={{
+										flex: 1,
+										backgroundColor: theme.colors.primary,
+										borderRadius: 10,
+										paddingVertical: 12,
+										alignItems: 'center',
+										marginRight: 8,
+									}}
+								>
+									<Text
+										style={{
+											color: theme.colors.buttonTextOnPrimary,
+											fontWeight: '700',
+										}}
+									>
+										Paste
+									</Text>
+								</Pressable>
+								<Pressable
+									onPress={handleClose}
+									style={{
+										flex: 1,
+										borderRadius: 10,
+										paddingVertical: 12,
+										alignItems: 'center',
+										borderWidth: 1,
+										borderColor: theme.colors.border,
+									}}
+								>
+									<Text
+										style={{
+											color: theme.colors.textSecondary,
+											fontWeight: '600',
+										}}
+									>
+										Close
+									</Text>
+								</Pressable>
+							</View>
 						</View>
-					</View>
+					</Animated.View>
 				</KeyboardAvoidingView>
-			</Pressable>
+			</View>
 		</Modal>
 	);
 }

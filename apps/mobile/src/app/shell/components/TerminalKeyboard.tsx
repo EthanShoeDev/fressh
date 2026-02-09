@@ -22,7 +22,9 @@ export function TerminalKeyboard({
 	onCopySelection: () => void;
 }) {
 	const theme = useTheme();
-	const keyMinHeight = 44;
+	// Fixed key height keeps all rows visually consistent even when some keys
+	// render an icon+label stack and others are label-only.
+	const keyHeight = 48;
 	const repeatDelayMs = 320;
 	const repeatIntervalMs = 70;
 	const repeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,7 +110,7 @@ export function TerminalKeyboard({
 				cells.push(
 					<View
 						key={`slot-${rowIndex}-${col}`}
-						style={{ flex: 1, margin: 2, minHeight: keyMinHeight }}
+						style={{ flex: 1, margin: 2, height: keyHeight }}
 					/>,
 				);
 				col += 1;
@@ -145,7 +147,7 @@ export function TerminalKeyboard({
 						{
 							flex: span,
 							margin: 2,
-							minHeight: keyMinHeight,
+							height: keyHeight,
 							paddingVertical: 6,
 							borderRadius: 8,
 							borderWidth: 1,
@@ -165,6 +167,7 @@ export function TerminalKeyboard({
 							style={{
 								color: theme.colors.textPrimary,
 								fontSize: 10,
+								lineHeight: 12,
 								marginTop: Icon ? 2 : 0,
 							}}
 						>

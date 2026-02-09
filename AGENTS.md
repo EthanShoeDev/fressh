@@ -18,6 +18,10 @@ This is a pnpm + Turbo monorepo.
 - Use local builds only: `cd apps/mobile && pnpm exec eas build --local --profile preview --platform android`.
 - Use OTA for JS/assets only: `cd apps/mobile && pnpm exec eas update --channel preview --message "..."`
 - Do not rely on Metro/dev-client for the normal mobile workflow.
+- Keep a single Android signing lane for `com.finalapp.vibe2` (do not mix
+  differently signed APKs on the same package ID).
+- Before uninstall/reinstall or signing migration, export backup JSON from
+  `Settings -> Backup & Restore` to preserve private keys and connections.
 
 ## Build, Test, and Development Commands
 - `pnpm install` (root) installs workspace deps.
