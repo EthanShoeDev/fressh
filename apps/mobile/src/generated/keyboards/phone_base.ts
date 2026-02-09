@@ -9,10 +9,11 @@ export const keyboard_phone_base = {
     [
       {
         "type": "action",
-        "actionId": "OPEN_KEYBOARD_SETTINGS",
-        "label": "Config",
-        "icon": "Settings"
+        "actionId": "OPEN_ADVANCED_KEYBOARD",
+        "label": "Advanced",
+        "icon": "Keyboard"
       },
+      null,
       {
         "type": "action",
         "actionId": "PASTE_CLIPBOARD",
@@ -22,17 +23,18 @@ export const keyboard_phone_base = {
       {
         "type": "bytes",
         "bytes": [
-          27,
-          115
+          27
         ],
-        "label": "~",
-        "icon": "LineSquiggle"
+        "label": "ESC",
+        "icon": "X"
       },
       {
-        "type": "action",
-        "actionId": "OPEN_ADVANCED_KEYBOARD",
-        "label": "Advanced",
-        "icon": "Keyboard"
+        "type": "bytes",
+        "bytes": [
+          3
+        ],
+        "label": "Ctrl+C",
+        "icon": null
       },
       {
         "type": "bytes",
@@ -46,14 +48,6 @@ export const keyboard_phone_base = {
         ],
         "label": "Pane",
         "icon": "SquareSplitVertical"
-      },
-      {
-        "type": "bytes",
-        "bytes": [
-          27
-        ],
-        "label": "ESC",
-        "icon": "X"
       },
       {
         "type": "bytes",
@@ -111,6 +105,8 @@ export const keyboard_phone_base = {
         "label": "PAGE_UP",
         "icon": "ChevronsUp"
       },
+      null,
+      null,
       {
         "type": "bytes",
         "bytes": [
@@ -119,23 +115,6 @@ export const keyboard_phone_base = {
           90
         ],
         "label": "S-Tab",
-        "icon": null
-      },
-      {
-        "type": "bytes",
-        "bytes": [
-          3
-        ],
-        "label": "Ctrl+C",
-        "icon": null
-      },
-      {
-        "type": "bytes",
-        "bytes": [
-          2,
-          110
-        ],
-        "label": "Next all",
         "icon": null
       },
       {
@@ -219,6 +198,12 @@ export const keyboard_phone_base = {
       },
       {
         "type": "macro",
+        "macroId": "cmd_approve",
+        "label": "approve",
+        "icon": null
+      },
+      {
+        "type": "macro",
         "macroId": "reply_1",
         "label": "1",
         "icon": null
@@ -227,12 +212,6 @@ export const keyboard_phone_base = {
         "type": "macro",
         "macroId": "reply_2",
         "label": "2",
-        "icon": null
-      },
-      {
-        "type": "macro",
-        "macroId": "reply_3",
-        "label": "3",
         "icon": null
       },
       {

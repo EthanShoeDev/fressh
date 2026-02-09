@@ -4,6 +4,10 @@ import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { pickLatestConnection } from './connection-utils';
+import {
+	startForegroundService,
+	stopForegroundService,
+} from './foreground-service';
 import { rootLogger } from './logger';
 import { connectAndOpenShell } from './query-fns';
 import {
@@ -13,10 +17,6 @@ import {
 } from './secrets-manager';
 import { useSshStore } from './ssh-store';
 import { queryClient } from './utils';
-import {
-	startForegroundService,
-	stopForegroundService,
-} from './foreground-service';
 
 const logger = rootLogger.extend('AutoConnect');
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 5_000, 10_000];

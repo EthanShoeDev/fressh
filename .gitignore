@@ -45,4 +45,5 @@ mnt/*
 
 # Local backups & artifacts
 backup.json
+backup-recovery.json
 apps/mobile/*.apk

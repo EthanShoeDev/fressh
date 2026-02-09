@@ -65,6 +65,9 @@ promising.
 ### Docs
 
 - [Keyboard configurator workflow](./docs/keyboard-configurator.md)
+- [Mobile preview builds + OTA workflow](./docs/dev-builds.md)
+  (includes Android signing-lane policy for `com.finalapp.vibe2` and
+  backup/restore guidance before uninstall/reinstall)
 
 ### Changelogs
 

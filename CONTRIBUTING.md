@@ -63,6 +63,12 @@ This project defaults to preview-only local builds (no Metro/dev-client in the
 normal flow). See `docs/dev-builds.md` for the full workflow and OTA vs rebuild
 rules.
 
+Android signing lane policy (`com.finalapp.vibe2`):
+- Use one signing source per package ID.
+- Do not mix differently signed APKs for the same package.
+- Before uninstall/reinstall, export backup JSON from
+  `Settings -> Backup & Restore` to preserve private keys/connections.
+
 ### Releasing
 
 Each publishable package uses release-it. From the package directory:

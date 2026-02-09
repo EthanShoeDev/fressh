@@ -1,7 +1,8 @@
 import * as Clipboard from 'expo-clipboard';
+import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Updates from 'expo-updates';
 import { Link } from 'expo-router';
+import * as Updates from 'expo-updates';
 import React from 'react';
 import {
 	Alert,
@@ -19,6 +20,7 @@ import { secretsManager } from '@/lib/secrets-manager';
 import { useTheme, useThemeControls } from '@/lib/theme';
 
 export default function Tab() {
+	const jsVersion = '2026.02.09.1';
 	const theme = useTheme();
 	const { themeName, setThemeName } = useThemeControls();
 	const [lastUpdateCheck, setLastUpdateCheck] =
@@ -66,7 +68,7 @@ export default function Tab() {
 		} finally {
 			setUpdateBusy(false);
 		}
-	}, []);
+	}, [setLastUpdateCheck]);
 
 	const handleResetUpdateStatus = React.useCallback(() => {
 		Alert.alert(
@@ -97,6 +99,7 @@ export default function Tab() {
 
 	const updateInfo = React.useMemo(
 		() => ({
+			jsVersion,
 			channel: Updates.channel ?? '—',
 			updateId: Updates.updateId ?? 'Bundled',
 			runtimeVersion: Updates.runtimeVersion ?? '—',
@@ -105,7 +108,7 @@ export default function Tab() {
 				: 'Bundled',
 			lastCheckAt: lastUpdateCheck ? formatTimestamp(lastUpdateCheck) : 'Never',
 		}),
-		[formatTimestamp, lastUpdateCheck],
+		[formatTimestamp, jsVersion, lastUpdateCheck],
 	);
 
 	return (
@@ -325,6 +328,7 @@ export default function Tab() {
 					</Text>
 				</Pressable>
 				<View style={{ marginTop: 10, gap: 6 }}>
+					<InfoRow label="JS Version" value={updateInfo.jsVersion} />
 					<InfoRow label="Channel" value={updateInfo.channel} />
 					<InfoRow label="Update ID" value={updateInfo.updateId} />
 					<InfoRow label="Runtime" value={updateInfo.runtimeVersion} />
@@ -600,6 +604,45 @@ function BackupRestoreModal({
 		}
 	}, [doRestore]);
 
+	const handleImportFromPicker = React.useCallback(async () => {
+		setRestoreError(null);
+		try {
+			const res = await DocumentPicker.getDocumentAsync({
+				multiple: false,
+				copyToCacheDirectory: true,
+				type: ['application/json', 'text/*', 'application/*'],
+			});
+			const canceled = 'canceled' in res ? res.canceled : false;
+			if (canceled) return;
+			const asset = res.assets?.[0];
+			if (!asset?.uri) {
+				throw new Error('No file selected.');
+			}
+			const text = await FileSystem.readAsStringAsync(asset.uri, {
+				encoding: FileSystem.EncodingType.UTF8,
+			});
+			setRestoreText(text);
+			Alert.alert(
+				'Restore backup from selected file?',
+				'This will merge the backup into your existing data. Matching key IDs will be overwritten.',
+				[
+					{ text: 'Cancel', style: 'cancel' },
+					{
+						text: 'Restore',
+						style: 'destructive',
+						onPress: () => {
+							void doRestore(text);
+						},
+					},
+				],
+			);
+		} catch (error) {
+			setRestoreError(
+				error instanceof Error ? error.message : 'Import failed.',
+			);
+		}
+	}, [doRestore]);
+
 	return (
 		<Modal
 			transparent
@@ -836,6 +879,28 @@ function BackupRestoreModal({
 									}}
 								>
 									Import from files/backup.json
+								</Text>
+							</Pressable>
+							<Pressable
+								onPress={handleImportFromPicker}
+								disabled={isRestoring}
+								style={{
+									borderWidth: 1,
+									borderColor: theme.colors.border,
+									borderRadius: 10,
+									paddingVertical: 10,
+									alignItems: 'center',
+									marginBottom: 12,
+									opacity: isRestoring ? 0.6 : 1,
+								}}
+							>
+								<Text
+									style={{
+										color: theme.colors.textSecondary,
+										fontWeight: '600',
+									}}
+								>
+									Import from picked file
 								</Text>
 							</Pressable>
 							{restoreError ? (

@@ -22,6 +22,12 @@ pnpm exec eas build --local --profile preview --platform android
 adb install -r path/to/app-preview.apk
 ```
 
+Important signing rule for `com.finalapp.vibe2`:
+- Keep one signing lane (EAS preview for normal dev).
+- Do not mix APKs signed by different certs on the same package ID.
+- Before uninstall/reinstall, export backup JSON from
+  `Settings -> Backup & Restore` so private keys/connections can be restored.
+
 For JS-only changes, publish an update to the preview channel:
 
 ```bash

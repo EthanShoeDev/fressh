@@ -28,8 +28,17 @@ export function CommandPresetsModal({
 	const [menuStack, setMenuStack] = useState<CommandPresetMenu[]>([]);
 
 	useEffect(() => {
-		if (!open) setMenuStack([]);
+		if (!open) {
+			// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Reset navigation when parent closes the modal (e.g. after selecting a preset).
+			setMenuStack([]);
+		}
 	}, [open]);
+
+	const handleClose = () => {
+		// Reset navigation state when the modal closes.
+		setMenuStack([]);
+		onClose();
+	};
 
 	const activeMenu = menuStack[menuStack.length - 1];
 	const activePresets = activeMenu?.presets ?? presets;
@@ -51,6 +60,9 @@ export function CommandPresetsModal({
 			setMenuStack((current) => [...current, preset]);
 			return;
 		}
+		// Ensure the next open starts at the root even if the parent closes the modal
+		// as a side effect of selecting a preset.
+		setMenuStack([]);
 		onSelect(preset);
 	};
 
@@ -63,10 +75,10 @@ export function CommandPresetsModal({
 			transparent
 			visible={open}
 			animationType="slide"
-			onRequestClose={onClose}
+			onRequestClose={handleClose}
 		>
 			<Pressable
-				onPress={onClose}
+				onPress={handleClose}
 				style={{
 					flex: 1,
 					backgroundColor: theme.colors.overlay,
@@ -108,7 +120,7 @@ export function CommandPresetsModal({
 							{menuTitle}
 						</Text>
 						<Pressable
-							onPress={onClose}
+							onPress={handleClose}
 							style={{
 								paddingHorizontal: 10,
 								paddingVertical: 6,

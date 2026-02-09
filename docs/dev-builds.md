@@ -17,6 +17,24 @@ Policy:
 - Preview build channel: `preview`
 - OTA updates for preview builds must be published to channel `preview`
 
+## Android Signing Lane (Must Follow)
+
+To avoid `INSTALL_FAILED_UPDATE_INCOMPATIBLE` and accidental key loss, keep a
+single signing lane for `com.finalapp.vibe2`.
+
+- Use one signing source per package ID:
+  - day-to-day: preview builds from EAS (`eas build --local --profile preview`)
+  - release migration: release keystore flow in this file
+- Do not install mixed-signature APKs for `com.finalapp.vibe2` (for example:
+  local debug Gradle build on top of EAS preview install).
+- If you need another signing lane, use a different package ID.
+- Before any uninstall/reinstall that might happen during signature migration:
+  create and export backup JSON from `Settings -> Backup & Restore`.
+
+If mismatch still happens, only two recovery paths exist:
+- Install an APK signed with the same certificate as the currently installed app.
+- Or uninstall and reinstall (then restore backup JSON).
+
 ## Decide: OTA vs Rebuild
 
 Publish OTA (`eas update`) when all changes are JS/assets only, including:
@@ -117,6 +135,13 @@ while ! adb logcat --pid=$(adb shell pidof -s com.finalapp.vibe2); do sleep 1; d
   - OTA cannot deliver native/runtime changes
   - rebuild and reinstall local preview APK
 
+- `INSTALL_FAILED_UPDATE_INCOMPATIBLE` during install:
+  - you switched signing lane for `com.finalapp.vibe2`
+  - export backup JSON in app if possible
+  - uninstall old app
+  - install APK from the intended single lane
+  - restore backup JSON in `Settings -> Backup & Restore`
+
 ## Release Keystore + Data-Preserving Migration
 
 Use this when moving devices to a stable release keystore without losing data.
@@ -174,7 +199,15 @@ adb uninstall com.finalapp.vibe2
 ```bash
 adb install -r apps/mobile/android/app/build/outputs/apk/release/app-release.apk
 ```
-5) Push backup via ADB and restore in app:
+5) Push backup via ADB and restore in app (preferred, works on non-debuggable builds):
+```bash
+adb push /path/to/backup.json /sdcard/Download/backup.json
+```
+
+In app: `Settings -> Backup & Restore -> Import from picked file` and select
+`Downloads/backup.json`, then tap `Restore`.
+
+Optional legacy method (requires a debuggable build because it uses `run-as`):
 ```bash
 adb push /path/to/backup.json /data/local/tmp/backup.json
 adb shell run-as com.finalapp.vibe2 cp /data/local/tmp/backup.json \

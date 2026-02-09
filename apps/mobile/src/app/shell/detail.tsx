@@ -11,13 +11,13 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Linking from 'expo-linking';
-import * as Updates from 'expo-updates';
 import {
 	Stack,
 	useLocalSearchParams,
 	useRouter,
 	useFocusEffect,
 } from 'expo-router';
+import * as Updates from 'expo-updates';
 import React, {
 	startTransition,
 	useCallback,
@@ -1663,6 +1663,7 @@ fi
 
 		if (Platform.OS === 'android') {
 			xterm.setSystemKeyboardEnabled(true);
+			// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Called from an attach routine invoked in an effect; keep UI in sync.
 			setSystemKeyboardEnabled(true);
 		}
 		xterm.setSelectionModeEnabled(selectionModeEnabled);
