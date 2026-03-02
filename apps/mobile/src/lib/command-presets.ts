@@ -37,14 +37,7 @@ export const commandPresets: CommandPresetEntry[] = [
 			{ type: 'enter', delayMs: 280 },
 		],
 	},
-	{
-		type: 'preset',
-		label: 'fix',
-		steps: [
-			{ type: 'text', data: 'fix' },
-			{ type: 'enter', delayMs: 280 },
-		],
-	},
+
 	{
 		type: 'preset',
 		label: '/pr',
@@ -65,36 +58,31 @@ export const commandPresets: CommandPresetEntry[] = [
 		label: '/work-step-by-step',
 		steps: [{ type: 'text', data: '/work-step-by-step' }, { type: 'enter' }],
 	},
+
 	{
 		type: 'preset',
-		label: '/compact',
-		steps: [{ type: 'text', data: '/compact' }, { type: 'enter' }],
+		label: '/rloop-code-fix',
+		steps: [
+			{ type: 'text', data: '/rloop-code-fix' },
+			{ type: 'enter', delayMs: 280 },
+		],
 	},
 	{
 		type: 'preset',
-		label: 'skip',
-		steps: [{ type: 'text', data: 'skip' }, { type: 'enter' }],
+		label: '/rloop-review',
+		steps: [
+			{ type: 'text', data: '/rloop-review' },
+			{ type: 'enter', delayMs: 280 },
+		],
 	},
-	{
-		type: 'preset',
-		label: 'yes',
-		steps: [{ type: 'text', data: 'yes' }, { type: 'enter' }],
-	},
+
+
 	{
 		type: 'preset',
 		label: 'approve',
 		steps: [{ type: 'text', data: 'approve' }, { type: 'enter' }],
 	},
-	{
-		type: 'preset',
-		label: '/git:cc-fix-pr',
-		steps: [{ type: 'text', data: '/git:cc-fix-pr' }, { type: 'enter' }],
-	},
-	{
-		type: 'preset',
-		label: '/work-on-issue',
-		steps: [{ type: 'text', data: '/work-on-issue' }],
-	},
+
 	{
 		type: 'submenu',
 		label: 'Git',
@@ -118,6 +106,30 @@ export const commandPresets: CommandPresetEntry[] = [
 				type: 'preset',
 				label: 'git status',
 				steps: [{ type: 'text', data: 'git status' }, { type: 'enter' }],
+			},
+		],
+	},
+	{
+		type: 'submenu',
+		label: 'core8',
+		presets: [
+			{
+				type: 'preset',
+				label: 'core8 env fix',
+				steps: [
+					{ type: 'text', data: './bin/core8 env fix' },
+					{ type: 'enter' },
+				],
+			},
+			{
+				type: 'preset',
+				label: 'core8 jobs switch F0',
+				steps: [{ type: 'text', data: './bin/core8 jobs switch F0' }],
+			},
+			{
+				type: 'preset',
+				label: 'core8 env switch staging',
+				steps: [{ type: 'text', data: './bin/core8 env switch staging' }],
 			},
 		],
 	},

@@ -415,7 +415,13 @@ function ShellDetail() {
 		if (shell && connection) return;
 		const autoState = useAutoConnectStore.getState();
 		if (autoState.isAutoConnecting || autoState.isReconnecting) return;
-		logger.info('shell or connection not found, replacing route with /shell');
+		if (connection && !shell) {
+			logger.info(
+				'shell missing on active connection, waiting for reconnect cycle',
+			);
+			return;
+		}
+		logger.info('connection not found, replacing route with /shell');
 		router.back();
 	}, [
 		connection,

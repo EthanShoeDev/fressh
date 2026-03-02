@@ -82,11 +82,8 @@ export const keyboard_advanced_keyboard = {
         "icon": null
       },
       {
-        "type": "bytes",
-        "bytes": [
-          2,
-          119
-        ],
+        "type": "macro",
+        "macroId": "alt_w",
         "label": "Alt-w",
         "icon": null
       }

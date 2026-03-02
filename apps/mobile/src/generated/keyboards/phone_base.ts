@@ -105,7 +105,12 @@ export const keyboard_phone_base = {
         "label": "PAGE_UP",
         "icon": "ChevronsUp"
       },
-      null,
+      {
+        "type": "macro",
+        "macroId": "cmd_approve",
+        "label": "approve",
+        "icon": null
+      },
       null,
       {
         "type": "bytes",
@@ -198,8 +203,8 @@ export const keyboard_phone_base = {
       },
       {
         "type": "macro",
-        "macroId": "cmd_approve",
-        "label": "approve",
+        "macroId": "cmd_review",
+        "label": "/review",
         "icon": null
       },
       {

@@ -1,7 +1,9 @@
 import {
 	type RnRussh,
 	type ConnectionDetails,
+	type SshConnection,
 	type SshConnectionProgress,
+	type SshShell,
 	SshError_Tags,
 } from '@fressh/react-native-uniffi-russh';
 import { useMutation } from '@tanstack/react-query';
@@ -14,6 +16,21 @@ import { AbortSignalTimeout } from './utils';
 
 const logger = rootLogger.extend('QueryFns');
 const DEFAULT_CONNECT_TIMEOUT_MS = 5_000;
+
+export type ConnectAndOpenShellResult =
+	| {
+			status: 'connected';
+			sshConnection: SshConnection;
+			shellHandle: SshShell;
+			connectionId: string;
+			channelId: number;
+	  }
+	| {
+			status: 'tmux_attach_failed';
+			connectionId: string;
+			tmuxSessionName: string;
+			storedConnectionId: string;
+	  };
 
 // Shared resolver for turning stored details into a connect-ready security object.
 export async function resolveSecurityFromDetails(
@@ -41,7 +58,7 @@ export async function connectAndOpenShell(args: {
 	onConnectionProgress?: (progressEvent: SshConnectionProgress) => void;
 	abortSignalTimeoutMs?: number;
 	resolvedSecurity?: ConnectionDetails['security'];
-}) {
+}): Promise<ConnectAndOpenShellResult> {
 	const {
 		connectionDetails,
 		connect,
@@ -94,7 +111,12 @@ export async function connectAndOpenShell(args: {
 				tmuxSessionName: connectionDetails.tmuxSessionName,
 				storedConnectionId,
 			});
-			return null;
+			return {
+				status: 'tmux_attach_failed',
+				connectionId: sshConnection.connectionId,
+				tmuxSessionName: connectionDetails.tmuxSessionName,
+				storedConnectionId,
+			};
 		}
 		throw error;
 	}
@@ -109,7 +131,13 @@ export async function connectAndOpenShell(args: {
 		channelId: shellHandle.channelId,
 	});
 
-	return { sshConnection, shellHandle };
+	return {
+		status: 'connected',
+		sshConnection,
+		shellHandle,
+		connectionId: sshConnection.connectionId,
+		channelId: shellHandle.channelId,
+	};
 }
 
 export const useSshConnMutation = (opts?: {

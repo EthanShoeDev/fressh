@@ -69,6 +69,13 @@ export const MACROS_BY_KEYBOARD_ID: Record<string, MacroDef[]> = {
       "script": "{\n  \"type\": \"command\",\n  \"value\": \"approve\",\n  \"enter\": true\n}"
     },
     {
+      "id": "cmd_review",
+      "name": "Command: review",
+      "label": "/review",
+      "category": "Commands",
+      "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"/review\\r\\u001b[B\\r\"\n}"
+    },
+    {
       "id": "reply_1",
       "name": "Reply: 1",
       "label": "1",
@@ -83,5 +90,13 @@ export const MACROS_BY_KEYBOARD_ID: Record<string, MacroDef[]> = {
       "script": "{\n  \"type\": \"command\",\n  \"value\": \"2\",\n  \"enter\": true\n}"
     }
   ],
-  "advanced_keyboard": []
+  "advanced_keyboard": [
+    {
+      "id": "alt_w",
+      "name": "Meta: Alt-w",
+      "label": "Alt-w",
+      "category": "Navigation",
+      "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
+    }
+  ]
 }

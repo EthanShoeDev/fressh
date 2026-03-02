@@ -1,9 +1,10 @@
+import { SshError_Tags } from '@fressh/react-native-uniffi-russh';
 import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
 import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
-import { pickLatestConnection } from './connection-utils';
+import { getStoredConnectionId, pickLatestConnection } from './connection-utils';
 import {
 	startForegroundService,
 	stopForegroundService,
@@ -16,10 +17,11 @@ import {
 	type StoredConnectionDetails,
 } from './secrets-manager';
 import { useSshStore } from './ssh-store';
-import { queryClient } from './utils';
+import { AbortSignalTimeout, queryClient } from './utils';
 
 const logger = rootLogger.extend('AutoConnect');
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 5_000, 10_000];
+const RECONNECT_WINDOW_MS = 2 * 60 * 1_000;
 
 type AutoConnectState = {
 	isAutoConnecting: boolean;
@@ -84,6 +86,9 @@ export function AutoConnectManager() {
 	const reconnectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
+	const reconnectStartedAtMsRef = React.useRef<number | null>(null);
+	const reconnectAttemptRef = React.useRef(0);
+	const reconnectLoopRunningRef = React.useRef(false);
 	const prevShellCountRef = React.useRef(shells.length);
 	const isActiveRef = React.useRef(isActiveState(AppState.currentState));
 	const foregroundKeyRef = React.useRef<string | null>(null);
@@ -96,6 +101,18 @@ export function AutoConnectManager() {
 			reconnectTimerRef.current = null;
 		}
 	}, []);
+
+	const stopReconnectCycle = React.useCallback(
+		(reason: string) => {
+			clearReconnectTimer();
+			reconnectLoopRunningRef.current = false;
+			reconnectStartedAtMsRef.current = null;
+			reconnectAttemptRef.current = 0;
+			setReconnecting(false);
+			logger.info('Reconnect cycle stopped', { reason });
+		},
+		[clearReconnectTimer, setReconnecting],
+	);
 
 	// Always replace to avoid stacking repeated resumes in history.
 	const navigateToShell = React.useCallback(
@@ -131,6 +148,57 @@ export function AutoConnectManager() {
 				return true;
 			}
 
+			const activeConnections = Object.values(connections);
+			if (activeConnections.length > 0) {
+				const activeConnection = activeConnections.reduce((latest, current) =>
+					current.connectedAtMs > latest.connectedAtMs ? current : latest,
+				);
+				const storedConnectionId = getStoredConnectionId(
+					activeConnection.connectionDetails,
+				);
+				let useTmux = true;
+				let tmuxSessionName = 'main';
+				try {
+					const entry = await queryClient.fetchQuery(
+						secretsManager.connections.query.get(storedConnectionId),
+					);
+					if (entry?.value) {
+						useTmux = entry.value.useTmux ?? true;
+						tmuxSessionName = entry.value.tmuxSessionName?.trim() || 'main';
+					}
+				} catch (error) {
+					logger.warn('Failed to load tmux settings for active connection', error);
+				}
+
+				try {
+					const shellHandle = await activeConnection.startShell({
+						term: 'Xterm',
+						useTmux,
+						tmuxSessionName,
+						abortSignal: AbortSignalTimeout(5_000),
+					});
+					logger.info('Reconnected by reopening shell on active connection', {
+						connectionId: activeConnection.connectionId,
+						channelId: shellHandle.channelId,
+					});
+					navigateToShell(activeConnection.connectionId, shellHandle.channelId);
+					return true;
+				} catch (error) {
+					const err = error as { tag?: string };
+					if (err?.tag === SshError_Tags.TmuxAttachFailed) {
+						logger.info(
+							'Tmux attach failed while reopening shell on active connection',
+							{
+								connectionId: activeConnection.connectionId,
+								tmuxSessionName,
+							},
+						);
+					} else {
+						logger.warn('Failed to reopen shell on active connection', error);
+					}
+				}
+			}
+
 			const latestEntry = await loadLatestSavedConnection();
 			if (!latestEntry) return false;
 
@@ -150,30 +218,21 @@ export function AutoConnectManager() {
 			const resolvedSecurity = await resolveKeySecurity(details);
 			if (!resolvedSecurity) return false;
 
-			await connectAndOpenShell({
+			const result = await connectAndOpenShell({
 				connectionDetails: normalizedDetails,
 				resolvedSecurity,
 				connect,
 				navigate: ({ connectionId, channelId }) => {
 					navigateToShell(connectionId, channelId);
 				},
-				navigateWithError: ({
-					connectionId,
-					tmuxSessionName,
-					storedConnectionId,
-				}) => {
-					router.replace({
-						pathname: '/shell/detail',
-						params: {
-							connectionId,
-							channelId: '0',
-							tmuxError: 'attach-failed',
-							tmuxSessionName,
-							storedConnectionId,
-						},
-					});
-				},
 			});
+			if (result.status === 'tmux_attach_failed') {
+				logger.info('Auto-connect tmux attach failed, will retry', {
+					connectionId: result.connectionId,
+					tmuxSessionName: result.tmuxSessionName,
+				});
+				return false;
+			}
 			return true;
 		} catch (error) {
 			logger.warn('Auto-connect attempt failed', error);
@@ -184,11 +243,11 @@ export function AutoConnectManager() {
 		}
 	}, [
 		connect,
+		connections,
 		latestShell,
 		loadLatestSavedConnection,
 		navigateToShell,
 		pathname,
-		router,
 		setAutoConnecting,
 	]);
 
@@ -203,35 +262,57 @@ export function AutoConnectManager() {
 		await attemptAutoConnect();
 	}, [attemptAutoConnect]);
 
-	// On disconnect, retry a few times with backoff before giving up.
-	const scheduleReconnect = React.useCallback(async () => {
-		if (isReconnecting || isAutoConnecting) return;
+	// On disconnect, retry with capped backoff for up to RECONNECT_WINDOW_MS.
+	const scheduleReconnect = React.useCallback(async (reason: string) => {
+		if (reconnectLoopRunningRef.current || isReconnecting || isAutoConnecting) {
+			return;
+		}
+		reconnectLoopRunningRef.current = true;
+		reconnectStartedAtMsRef.current = Date.now();
+		reconnectAttemptRef.current = 0;
 		setReconnecting(true);
+		logger.info('Reconnect cycle started', { reason });
 
-		const attemptWithBackoff = async (attempt: number) => {
+		const attemptWithBackoff = async () => {
 			if (
 				!isActiveRef.current &&
 				!(Platform.OS === 'android' && allowBackgroundRef.current)
 			) {
-				setReconnecting(false);
+				stopReconnectCycle('app-not-active');
+				return;
+			}
+
+			const startedAt = reconnectStartedAtMsRef.current ?? Date.now();
+			const elapsedMs = Date.now() - startedAt;
+			if (elapsedMs >= RECONNECT_WINDOW_MS) {
+				logger.warn('Reconnect timeout reached', { elapsedMs });
+				stopReconnectCycle('retry-timeout');
 				return;
 			}
 			const success = await attemptAutoConnect();
 			if (success) {
-				setReconnecting(false);
+				logger.info('Reconnected successfully', { elapsedMs });
+				stopReconnectCycle('reconnected');
 				return;
 			}
-			if (attempt >= RECONNECT_DELAYS_MS.length) {
-				setReconnecting(false);
-				return;
-			}
+			const attempt = reconnectAttemptRef.current;
+			reconnectAttemptRef.current = attempt + 1;
+			const delayMs =
+				RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)] ??
+				10_000;
 			reconnectTimerRef.current = setTimeout(() => {
-				void attemptWithBackoff(attempt + 1);
-			}, RECONNECT_DELAYS_MS[attempt]);
+				void attemptWithBackoff();
+			}, delayMs);
 		};
 
-		await attemptWithBackoff(0);
-	}, [attemptAutoConnect, isAutoConnecting, isReconnecting, setReconnecting]);
+		await attemptWithBackoff();
+	}, [
+		attemptAutoConnect,
+		isAutoConnecting,
+		isReconnecting,
+		setReconnecting,
+		stopReconnectCycle,
+	]);
 
 	React.useEffect(() => {
 		if (Platform.OS !== 'android') return;
@@ -288,13 +369,12 @@ export function AutoConnectManager() {
 			isActiveRef.current = isActiveState(nextState);
 
 			if (wasActive && !isActiveRef.current) {
-				clearReconnectTimer();
-				setReconnecting(false);
+				stopReconnectCycle('app-backgrounded');
 				return;
 			}
 			if (!wasActive && isActiveRef.current) {
 				if (shells.length === 0) {
-					void scheduleReconnect();
+					void scheduleReconnect('app-resume-no-shell');
 				} else {
 					void runAutoConnectOnce();
 				}
@@ -303,13 +383,11 @@ export function AutoConnectManager() {
 
 		return () => {
 			subscription.remove();
-			clearReconnectTimer();
 		};
 	}, [
-		clearReconnectTimer,
 		runAutoConnectOnce,
 		scheduleReconnect,
-		setReconnecting,
+		stopReconnectCycle,
 		shells.length,
 	]);
 
@@ -323,7 +401,7 @@ export function AutoConnectManager() {
 			return;
 		}
 		if (prevShellCountRef.current > 0 && shells.length === 0) {
-			void scheduleReconnect();
+			void scheduleReconnect('shell-drop');
 		}
 		prevShellCountRef.current = shells.length;
 	}, [scheduleReconnect, shells.length]);

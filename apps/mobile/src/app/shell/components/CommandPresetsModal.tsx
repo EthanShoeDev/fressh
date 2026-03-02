@@ -43,7 +43,6 @@ export function CommandPresetsModal({
 	const activeMenu = menuStack[menuStack.length - 1];
 	const activePresets = activeMenu?.presets ?? presets;
 	const menuTitle = activeMenu?.label ?? 'Command Presets';
-	const canGoBack = menuStack.length > 0;
 
 	const uniquePresets = useMemo(() => {
 		const seen = new Set<string>();
@@ -64,10 +63,6 @@ export function CommandPresetsModal({
 		// as a side effect of selecting a preset.
 		setMenuStack([]);
 		onSelect(preset);
-	};
-
-	const handleBack = () => {
-		setMenuStack((current) => current.slice(0, -1));
 	};
 
 	return (
@@ -132,22 +127,6 @@ export function CommandPresetsModal({
 							<Text style={{ color: theme.colors.textSecondary }}>Close</Text>
 						</Pressable>
 					</View>
-					{canGoBack ? (
-						<Pressable
-							onPress={handleBack}
-							style={{
-								alignSelf: 'flex-start',
-								paddingHorizontal: 10,
-								paddingVertical: 6,
-								borderRadius: 8,
-								borderWidth: 1,
-								borderColor: theme.colors.border,
-								marginBottom: 12,
-							}}
-						>
-							<Text style={{ color: theme.colors.textSecondary }}>Back</Text>
-						</Pressable>
-					) : null}
 					{uniquePresets.length === 0 ? (
 						<Text style={{ color: theme.colors.textSecondary }}>
 							No command presets configured.
