@@ -61,9 +61,9 @@ export const commandPresets: CommandPresetEntry[] = [
 
 	{
 		type: 'preset',
-		label: '/rloop-code-fix',
+		label: '$rloop-code-fix',
 		steps: [
-			{ type: 'text', data: '/rloop-code-fix' },
+			{ type: 'text', data: '$rloop-code-fix' },
 			{ type: 'enter', delayMs: 280 },
 		],
 	},

@@ -842,23 +842,30 @@ function ShellDetail() {
 		[sendBytesRaw, sendTextRaw],
 	);
 
-	const runCommandPreset = useCallback(
-		(preset: CommandPreset) => {
+	const runCommandSteps = useCallback(
+		(steps: CommandStep[]) => {
 			exitSelectionMode();
 			clearCommandTimeouts();
-			let delay = 0;
 			const baseDelay = 50;
-			preset.steps.forEach((step) => {
-				const stepDelay = step.delayMs ?? baseDelay;
+			let scheduledDelay = 0;
+			steps.forEach((step, index) => {
+				const stepDelay = step.delayMs ?? (index === 0 ? 0 : baseDelay);
+				scheduledDelay += stepDelay;
 				const timeoutId = setTimeout(() => {
 					sendCommandStep(step);
-				}, delay);
+				}, scheduledDelay);
 				commandTimeoutsRef.current.push(timeoutId);
-				delay += stepDelay * (step.repeat ?? 1);
 			});
 			setCommandPresetsOpen(false);
 		},
 		[clearCommandTimeouts, exitSelectionMode, sendCommandStep],
+	);
+
+	const runCommandPreset = useCallback(
+		(preset: CommandPreset) => {
+			runCommandSteps(preset.steps);
+		},
+		[runCommandSteps],
 	);
 
 	const toggleModifier = useCallback((modifier: ModifierKey) => {
@@ -1339,6 +1346,7 @@ fi
 						runMacro(macro, {
 							sendBytes: sendBytesRaw,
 							sendText: sendTextRaw,
+							runSteps: runCommandSteps,
 							onAction: handleAction,
 						});
 					}
@@ -1364,6 +1372,7 @@ fi
 			handleAction,
 			sendBytesRaw,
 			sendBytesWithModifiers,
+			runCommandSteps,
 			sendTextRaw,
 			sendTextWithModifiers,
 			selectionModeEnabled,

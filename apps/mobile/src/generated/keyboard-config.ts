@@ -73,7 +73,7 @@ export const MACROS_BY_KEYBOARD_ID: Record<string, MacroDef[]> = {
       "name": "Command: review",
       "label": "/review",
       "category": "Commands",
-      "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"/review\\r\\u001b[B\\r\"\n}"
+      "script": "{\n  \"type\": \"steps\",\n  \"steps\": [\n    {\n      \"type\": \"text\",\n      \"data\": \"/review\"\n    },\n    {\n      \"type\": \"enter\",\n      \"delayMs\": 280\n    },\n    {\n      \"type\": \"arrowDown\",\n      \"delayMs\": 280\n    },\n    {\n      \"type\": \"enter\",\n      \"delayMs\": 280\n    }\n  ]\n}"
     },
     {
       "id": "reply_1",
