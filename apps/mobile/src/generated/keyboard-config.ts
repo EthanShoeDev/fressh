@@ -69,11 +69,11 @@ export const MACROS_BY_KEYBOARD_ID: Record<string, MacroDef[]> = {
       "script": "{\n  \"type\": \"command\",\n  \"value\": \"approve\",\n  \"enter\": true\n}"
     },
     {
-      "id": "cmd_review",
-      "name": "Command: review",
-      "label": "/review",
+      "id": "cmd_rloop_code_fix",
+      "name": "Command: rloop code fix",
+      "label": "$rloop-code-fix",
       "category": "Commands",
-      "script": "{\n  \"type\": \"steps\",\n  \"steps\": [\n    {\n      \"type\": \"text\",\n      \"data\": \"/review\"\n    },\n    {\n      \"type\": \"enter\",\n      \"delayMs\": 280\n    },\n    {\n      \"type\": \"arrowDown\",\n      \"delayMs\": 280\n    },\n    {\n      \"type\": \"enter\",\n      \"delayMs\": 280\n    }\n  ]\n}"
+      "script": "{\n  \"type\": \"command\",\n  \"value\": \"$rloop-code-fix\",\n  \"enter\": true\n}"
     },
     {
       "id": "reply_1",

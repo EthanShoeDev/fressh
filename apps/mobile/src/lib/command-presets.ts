@@ -29,17 +29,6 @@ export type CommandPresetMenu = Extract<
 export const commandPresets: CommandPresetEntry[] = [
 	{
 		type: 'preset',
-		label: '/review',
-		steps: [
-			{ type: 'text', data: '/review' },
-			{ type: 'enter', delayMs: 280 },
-			{ type: 'arrowDown', delayMs: 280 },
-			{ type: 'enter', delayMs: 280 },
-		],
-	},
-
-	{
-		type: 'preset',
 		label: '/pr',
 		steps: [{ type: 'text', data: '/pr' }, { type: 'enter' }],
 	},
@@ -84,8 +73,18 @@ export const commandPresets: CommandPresetEntry[] = [
 	},
 	{
 		type: 'submenu',
-		label: 'feature',
+		label: 'features',
 		presets: [
+			{
+				type: 'preset',
+				label: '/review',
+				steps: [
+					{ type: 'text', data: '/review' },
+					{ type: 'enter', delayMs: 280 },
+					{ type: 'arrowDown', delayMs: 280 },
+					{ type: 'enter', delayMs: 280 },
+				],
+			},
 			{
 				type: 'preset',
 				label: '/feature-design-step1',

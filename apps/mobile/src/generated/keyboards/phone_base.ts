@@ -203,8 +203,8 @@ export const keyboard_phone_base = {
       },
       {
         "type": "macro",
-        "macroId": "cmd_review",
-        "label": "/review",
+        "macroId": "cmd_rloop_code_fix",
+        "label": "Review",
         "icon": null
       },
       {
