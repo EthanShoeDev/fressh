@@ -82,6 +82,51 @@ export const commandPresets: CommandPresetEntry[] = [
 		label: 'approve',
 		steps: [{ type: 'text', data: 'approve' }, { type: 'enter' }],
 	},
+	{
+		type: 'submenu',
+		label: 'feature',
+		presets: [
+			{
+				type: 'preset',
+				label: '/feature-design-step1',
+				steps: [{ type: 'text', data: '/feature-design-step1' }],
+			},
+			{
+				type: 'preset',
+				label: '/feature-design-step2',
+				steps: [
+					{ type: 'text', data: '/feature-design-step2' },
+					{ type: 'enter' },
+				],
+			},
+			{
+				type: 'preset',
+				label: '/feature-design-step3',
+				steps: [
+					{ type: 'text', data: '/feature-design-step3' },
+					{ type: 'enter' },
+				],
+			},
+			{
+				type: 'preset',
+				label: '/work-on-bug',
+				steps: [{ type: 'text', data: '/work-on-bug' }],
+			},
+			{
+				type: 'preset',
+				label: '/work-on-bug-reflect',
+				steps: [
+					{ type: 'text', data: '/work-on-bug-reflect' },
+					{ type: 'enter' },
+				],
+			},
+			{
+				type: 'preset',
+				label: '$oracle',
+				steps: [{ type: 'text', data: '$oracle' }],
+			},
+		],
+	},
 
 	{
 		type: 'submenu',
