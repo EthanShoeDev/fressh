@@ -1,0 +1,7 @@
+interface:
+  display_name: "Rloop Code Fix"
+  short_description: "External review plus main-agent triage for local changes"
+  default_prompt: "Use $rloop-code-fix to externally review my local code changes, decide what to fix now, and verify them before commit."
+
+policy:
+  allow_implicit_invocation: true
