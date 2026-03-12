@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git PR"
+  short_description: "Interactive PR finalize"
+  default_prompt: "Use $git-pr to review, fix, verify, and optionally ship my PR."
