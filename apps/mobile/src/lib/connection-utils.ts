@@ -1,4 +1,4 @@
-import { type StoredConnectionDetails } from './secrets-manager';
+import { type StoredConnectionDetails } from './connection-storage';
 
 type SavedConnectionMetadata = {
 	modifiedAtMs: number;

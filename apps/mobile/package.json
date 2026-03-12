@@ -23,6 +23,7 @@
     "prebuild:clean": "expo prebuild --clean",
     "expo:dep:check": "expo install --fix",
     "expo:doctor": "pnpm dlx expo-doctor@latest || true",
+    "test:integration": "tsx --test test/integration/**/*.test.ts",
     "test:e2e": "maestro test test/e2e/",
     "adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s com.finalapp.vibe2); do sleep 1; done",
     "release": "GITHUB_TOKEN=$(gh auth token) release-it",

@@ -8,9 +8,9 @@ import {
 } from '@fressh/react-native-uniffi-russh';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { getStoredConnectionId } from './connection-utils';
 import { rootLogger } from './logger';
 import { secretsManager, type InputConnectionDetails } from './secrets-manager';
+import { connectAndRememberConnection } from './ssh-connect-flow';
 import { useSshStore } from './ssh-store';
 import { AbortSignalTimeout } from './utils';
 
@@ -70,31 +70,19 @@ export async function connectAndOpenShell(args: {
 	const security =
 		resolvedSecurity ?? (await resolveSecurityFromDetails(connectionDetails));
 
-	const sshConnection = await connect({
-		host: connectionDetails.host,
-		port: connectionDetails.port,
-		username: connectionDetails.username,
-		security,
-		onConnectionProgress: (progressEvent) => {
-			logger.info('SSH connect progress event', progressEvent);
-			onConnectionProgress?.(progressEvent);
-		},
-		// TODO: Implement proper host key verification (known_hosts).
-		// Currently accepts all server keys, which is vulnerable to MITM attacks.
-		// Future: store known host keys, verify against them, prompt user on mismatch.
-		onServerKey: async (serverKeyInfo) => {
-			logger.info('SSH server key', serverKeyInfo);
-			return true;
-		},
-		abortSignal: AbortSignalTimeout(abortSignalTimeoutMs),
-	});
-
-	const storedConnectionId = getStoredConnectionId(connectionDetails);
-	await secretsManager.connections.utils.upsertConnection({
-		label: `${connectionDetails.username}@${connectionDetails.host}:${connectionDetails.port}`,
-		details: connectionDetails,
-		priority: 0,
-	});
+	const { sshConnection, storedConnectionId } =
+		await connectAndRememberConnection({
+			connectionDetails,
+			connect,
+			saveConnection: (params) =>
+				secretsManager.connections.utils.upsertConnection(params),
+			onConnectionProgress: (progressEvent) => {
+				logger.info('SSH connect progress event', progressEvent);
+				onConnectionProgress?.(progressEvent);
+			},
+			abortSignalTimeoutMs,
+			resolvedSecurity: security,
+		});
 	let shellHandle: Awaited<ReturnType<typeof sshConnection.startShell>>;
 	try {
 		shellHandle = await sshConnection.startShell({

@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import React from 'react';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { rootLogger } from '@/lib/logger';
+import { secretsManager } from '@/lib/secrets-manager';
 import { AutoConnectManager } from '../lib/auto-connect';
 import { ThemeProvider } from '../lib/theme';
 import { queryClient } from '../lib/utils';
@@ -23,6 +24,12 @@ void DevClient.registerDevMenuItems([
 ]);
 
 export default function RootLayout() {
+	React.useEffect(() => {
+		void secretsManager.initialize().catch((error: unknown) => {
+			rootLogger.warn('Failed to initialize secrets manager', error);
+		});
+	}, []);
+
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeProvider>
