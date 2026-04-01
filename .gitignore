@@ -47,3 +47,4 @@ mnt/*
 backup.json
 backup-recovery.json
 apps/mobile/*.apk
+config.bat
