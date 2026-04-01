@@ -151,6 +151,21 @@ export const commandPresets: CommandPresetEntry[] = [
 				label: 'git status',
 				steps: [{ type: 'text', data: 'git status' }, { type: 'enter' }],
 			},
+			{
+				type: 'preset',
+				label: 'yarn cq',
+				steps: [{ type: 'text', data: 'yarn cq' }, { type: 'enter' }],
+			},
+			{
+				type: 'preset',
+				label: 'yarn test:ci',
+				steps: [{ type: 'text', data: 'yarn test:ci' }, { type: 'enter' }],
+			},
+			{
+				type: 'preset',
+				label: 'clear',
+				steps: [{ type: 'text', data: 'clear' }, { type: 'enter' }],
+			},
 		],
 	},
 	{
