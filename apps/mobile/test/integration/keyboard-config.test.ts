@@ -4,7 +4,10 @@ import { MACROS_BY_KEYBOARD_ID } from '../../src/generated/keyboard-config';
 import { keyboard_phone_base } from '../../src/generated/keyboards/phone_base';
 
 void test('phone base keyboard exposes a continue command key between approve and shift-tab', () => {
-	const continueMacro = MACROS_BY_KEYBOARD_ID.phone_base.find(
+	const phoneBaseMacros = MACROS_BY_KEYBOARD_ID[keyboard_phone_base.id];
+	assert.ok(phoneBaseMacros);
+
+	const continueMacro = phoneBaseMacros.find(
 		(macro) => macro.id === 'cmd_continue',
 	);
 

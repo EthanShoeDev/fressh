@@ -457,6 +457,14 @@ export const createTouchScrollController = ({
 		}
 	};
 
+	const cancelTrackingForSelectionMode = () => {
+		resetPendingScroll();
+		releasePointerCapture();
+		resetPointerTracking();
+		state = scrollbackActive ? 'ScrollbackActive' : 'Idle';
+		updateDebugOverlay({ force: true });
+	};
+
 	const installListeners = () => {
 		if (listenersInstalled || !enabled) return;
 		target = term.element ?? root;
@@ -469,7 +477,11 @@ export const createTouchScrollController = ({
 		}
 
 		const onPointerDown = (event: PointerEvent) => {
-			if (!enabled || isSelectionModeEnabled()) return;
+			if (!enabled) return;
+			if (isSelectionModeEnabled()) {
+				cancelTrackingForSelectionMode();
+				return;
+			}
 			if (event.pointerType && event.pointerType !== 'touch') return;
 			if (!event.isPrimary) return;
 			pointerIsDown = true;
@@ -483,7 +495,11 @@ export const createTouchScrollController = ({
 		};
 
 		const onPointerMove = (event: PointerEvent) => {
-			if (!enabled || isSelectionModeEnabled()) return;
+			if (!enabled) return;
+			if (isSelectionModeEnabled()) {
+				cancelTrackingForSelectionMode();
+				return;
+			}
 			if (activePointerId !== event.pointerId) return;
 			if (!pointerIsDown) return;
 
@@ -573,6 +589,10 @@ export const createTouchScrollController = ({
 		};
 
 		const onPointerUp = (event: PointerEvent) => {
+			if (isSelectionModeEnabled()) {
+				cancelTrackingForSelectionMode();
+				return;
+			}
 			if (activePointerId !== event.pointerId) return;
 			pointerIsDown = false;
 			releasePointerCapture();
@@ -593,6 +613,10 @@ export const createTouchScrollController = ({
 		};
 
 		const onPointerCancel = (event: PointerEvent) => {
+			if (isSelectionModeEnabled()) {
+				cancelTrackingForSelectionMode();
+				return;
+			}
 			if (activePointerId !== event.pointerId) return;
 			pointerIsDown = false;
 			releasePointerCapture();
