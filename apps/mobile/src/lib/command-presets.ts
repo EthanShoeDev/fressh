@@ -26,6 +26,21 @@ export type CommandPresetMenu = Extract<
 	{ type: 'submenu' }
 >;
 
+const superpowerSkillLabels = [
+	'$test-driven-development',
+	'$systematic-debugging',
+	'$verification-before-completion',
+	'$brainstorming',
+	'$writing-plans',
+	'$executing-plans',
+	'$dispatching-parallel-agents',
+	'$requesting-code-review',
+	'$receiving-code-review',
+	'$finishing-a-development-branch',
+	'$writing-skills',
+	'$using-superpowers',
+] as const;
+
 export const commandPresets: CommandPresetEntry[] = [
 	{
 		type: 'preset',
@@ -64,7 +79,15 @@ export const commandPresets: CommandPresetEntry[] = [
 			{ type: 'enter', delayMs: 280 },
 		],
 	},
-
+	{
+		type: 'submenu',
+		label: 'superpower',
+		presets: superpowerSkillLabels.map((label) => ({
+			type: 'preset',
+			label,
+			steps: [{ type: 'text', data: label }],
+		})),
+	},
 
 	{
 		type: 'preset',

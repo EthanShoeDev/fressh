@@ -76,6 +76,13 @@ export const MACROS_BY_KEYBOARD_ID: Record<string, MacroDef[]> = {
       "script": "{\n  \"type\": \"command\",\n  \"value\": \"$rloop-code-fix\",\n  \"enter\": true\n}"
     },
     {
+      "id": "cmd_continue",
+      "name": "Command: continue",
+      "label": "continue",
+      "category": "Commands",
+      "script": "{\n  \"type\": \"command\",\n  \"value\": \"continue\",\n  \"enter\": true\n}"
+    },
+    {
       "id": "reply_1",
       "name": "Reply: 1",
       "label": "1",

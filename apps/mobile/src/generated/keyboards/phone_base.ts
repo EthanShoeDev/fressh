@@ -111,7 +111,12 @@ export const keyboard_phone_base = {
         "label": "approve",
         "icon": null
       },
-      null,
+      {
+        "type": "macro",
+        "macroId": "cmd_continue",
+        "label": "continue",
+        "icon": null
+      },
       {
         "type": "bytes",
         "bytes": [
