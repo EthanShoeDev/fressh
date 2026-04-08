@@ -17,7 +17,6 @@ import {
 	useRouter,
 	useFocusEffect,
 } from 'expo-router';
-import * as Updates from 'expo-updates';
 import React, {
 	startTransition,
 	useCallback,
@@ -41,27 +40,22 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-	ACTIVE_KEYBOARD_IDS,
-	DEFAULT_KEYBOARD_ID,
-	KEYBOARDS_BY_ID,
-	MACROS_BY_KEYBOARD_ID,
+	getActiveKeyboardIds,
+	getKeyboardActionTarget,
+	getKeyboardsById,
+	resolveActiveOneShotReturnKeyboardId,
 	type KeyboardDefinition,
 	type KeyboardSlot,
 	type MacroDef,
 	type ModifierKey,
-} from '@/generated/keyboard-config';
-import { useAutoConnectStore } from '@/lib/auto-connect';
-import {
-	commandPresets,
+	resolveSelectedKeyboardId,
 	type CommandPreset,
 	type CommandStep,
-} from '@/lib/command-presets';
+} from '@/lib/shell-config';
+import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
 import {
-	ADVANCED_KEYBOARD_ID,
-	CONFIGURATOR_URL,
 	HANDLE_DEV_SERVER_URL,
-	PHONE_BASE_KEYBOARD_ID,
 	runAction,
 	type ActionContext,
 	type ActionId,
@@ -70,6 +64,10 @@ import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { secretsManager } from '@/lib/secrets-manager';
+import {
+	loadRuntimeShellConfigState,
+	reloadRuntimeShellConfigFromRemote,
+} from '@/lib/shell-config-store-native';
 import { executeSideChannelCommand } from '@/lib/ssh-side-channel';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
@@ -161,8 +159,8 @@ const isLargePayload = (bytes: Uint8Array) => {
 };
 
 const GITHUB_ISSUES_URL = 'https://github.com/mulyoved/fressh/issues';
-const KEYBOARD_CONFIG_DOC_URL =
-	'https://github.com/mulyoved/fressh/blob/dev/docs/keyboard-configurator.md';
+const SHELL_CONFIG_DOC_URL =
+	'https://github.com/mulyoved/fressh/blob/dev/docs/shell-config.md';
 
 export default function TabsShellDetail() {
 	const [ready, setReady] = useState(false);
@@ -357,11 +355,6 @@ const tmuxScrollDownKey = '\x1b[1;5B';
 const tmuxPageUpKey = '\x1b[5~';
 const tmuxPageDownKey = '\x1b[6~';
 const touchEnterDelayMs = 10;
-const ALL_KEYBOARD_IDS = Object.keys(KEYBOARDS_BY_ID);
-const ACTIVE_KEYBOARD_IDS_FALLBACK: readonly string[] =
-	ACTIVE_KEYBOARD_IDS.length > 0 ? ACTIVE_KEYBOARD_IDS : ALL_KEYBOARD_IDS;
-const DEFAULT_KEYBOARD_ID_FALLBACK =
-	DEFAULT_KEYBOARD_ID || ACTIVE_KEYBOARD_IDS_FALLBACK[0] || '';
 
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
@@ -373,6 +366,9 @@ function ShellDetail() {
 	const tmuxControlWriterRef = useRef<OrderedWriter | null>(null);
 	const [terminalReady, setTerminalReady] = useState(false);
 	const [hasRenderedTerminal, setHasRenderedTerminal] = useState(false);
+	const [shellConfigState, setShellConfigState] = useState(() =>
+		loadRuntimeShellConfigState(),
+	);
 
 	const searchParams = useLocalSearchParams<{
 		connectionId?: string;
@@ -527,29 +523,49 @@ function ShellDetail() {
 		};
 	}, []);
 
-	const [selectedKeyboardId, setSelectedKeyboardId] = useState<string>(
-		DEFAULT_KEYBOARD_ID_FALLBACK,
+	const shellConfig = shellConfigState.config;
+	const keyboardsById = useMemo(
+		() => getKeyboardsById(shellConfig),
+		[shellConfig],
 	);
-	const availableKeyboardIds = useMemo(() => new Set(ALL_KEYBOARD_IDS), []);
+	const activeKeyboardIds = useMemo(
+		() => getActiveKeyboardIds(shellConfig),
+		[shellConfig],
+	);
+	const [selectedKeyboardId, setSelectedKeyboardId] = useState<string>(
+		resolveSelectedKeyboardId(shellConfig, shellConfig.defaultKeyboardId),
+	);
+	const availableKeyboardIds = useMemo(
+		() => new Set(activeKeyboardIds),
+		[activeKeyboardIds],
+	);
 
-	const currentKeyboard = useMemo<KeyboardDefinition | null>(() => {
-		if (selectedKeyboardId && KEYBOARDS_BY_ID[selectedKeyboardId]) {
-			return KEYBOARDS_BY_ID[selectedKeyboardId];
-		}
-		if (
-			DEFAULT_KEYBOARD_ID_FALLBACK &&
-			KEYBOARDS_BY_ID[DEFAULT_KEYBOARD_ID_FALLBACK]
-		) {
-			return KEYBOARDS_BY_ID[DEFAULT_KEYBOARD_ID_FALLBACK];
-		}
-		const fallbackId = ACTIVE_KEYBOARD_IDS_FALLBACK[0];
-		return fallbackId ? (KEYBOARDS_BY_ID[fallbackId] ?? null) : null;
+	useEffect(() => {
+		shellConfigRef.current = shellConfig;
+	}, [shellConfig]);
+
+	useEffect(() => {
+		availableKeyboardIdsRef.current = availableKeyboardIds;
+	}, [availableKeyboardIds]);
+
+	useEffect(() => {
+		selectedKeyboardIdRef.current = selectedKeyboardId;
 	}, [selectedKeyboardId]);
 
+	useEffect(() => {
+		setSelectedKeyboardId((current) =>
+			resolveSelectedKeyboardId(shellConfig, current),
+		);
+	}, [shellConfig]);
+
+	const currentKeyboard = useMemo<KeyboardDefinition | null>(() => {
+		const resolvedId = resolveSelectedKeyboardId(shellConfig, selectedKeyboardId);
+		return resolvedId ? (keyboardsById[resolvedId] ?? null) : null;
+	}, [keyboardsById, selectedKeyboardId, shellConfig]);
+
 	const currentMacros = useMemo<MacroDef[]>(
-		() =>
-			currentKeyboard ? (MACROS_BY_KEYBOARD_ID[currentKeyboard.id] ?? []) : [],
-		[currentKeyboard],
+		() => (currentKeyboard ? (shellConfig.macrosByKeyboardId[currentKeyboard.id] ?? []) : []),
+		[currentKeyboard, shellConfig],
 	);
 
 	// Flash message for keyboard switching
@@ -613,6 +629,9 @@ function ShellDetail() {
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
+	const shellConfigRef = useRef(shellConfig);
+	const availableKeyboardIdsRef = useRef(availableKeyboardIds);
+	const selectedKeyboardIdRef = useRef(selectedKeyboardId);
 	const currentInstanceIdRef = useRef<string | null>(null);
 	const writerRef = useRef<OrderedWriter | null>(null);
 	const commandTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -877,13 +896,14 @@ function ShellDetail() {
 	}, []);
 
 	const rotateKeyboard = useCallback(() => {
-		if (ACTIVE_KEYBOARD_IDS_FALLBACK.length <= 1) return;
+		if (activeKeyboardIds.length <= 1) return;
 		setSelectedKeyboardId((current) => {
-			const idx = Math.max(0, ACTIVE_KEYBOARD_IDS_FALLBACK.indexOf(current));
-			const nextIdx = (idx + 1) % ACTIVE_KEYBOARD_IDS_FALLBACK.length;
-			return ACTIVE_KEYBOARD_IDS_FALLBACK[nextIdx] ?? current;
+			const resolvedCurrent = resolveSelectedKeyboardId(shellConfig, current);
+			const idx = Math.max(0, activeKeyboardIds.indexOf(resolvedCurrent));
+			const nextIdx = (idx + 1) % activeKeyboardIds.length;
+			return activeKeyboardIds[nextIdx] ?? resolvedCurrent;
 		});
-	}, []);
+	}, [activeKeyboardIds, shellConfig]);
 
 	const selectKeyboardIfExists = useCallback(
 		(id: string) => {
@@ -945,9 +965,6 @@ function ShellDetail() {
 	const handleCopySelection = useCallback(() => {
 		const xr = xtermRef.current;
 		if (!xr) return;
-		const shouldAutoReturn =
-			currentKeyboard?.id === ADVANCED_KEYBOARD_ID &&
-			availableKeyboardIds.has(PHONE_BASE_KEYBOARD_ID);
 		void (async () => {
 			const selection = await xr.getSelection();
 			if (!selection) {
@@ -958,17 +975,16 @@ function ShellDetail() {
 			await Clipboard.setStringAsync(selection);
 			logger.info('copied selection', selection.length);
 			exitSelectionMode();
-			// Advanced keyboard is a one-shot layout; copy counts as a key press.
-			if (shouldAutoReturn) {
-				setSelectedKeyboardId(PHONE_BASE_KEYBOARD_ID);
+			const returnKeyboardId = resolveActiveOneShotReturnKeyboardId(
+				shellConfigRef.current,
+				availableKeyboardIdsRef.current,
+				selectedKeyboardIdRef.current,
+			);
+			if (returnKeyboardId) {
+				setSelectedKeyboardId(returnKeyboardId);
 			}
 		})();
-	}, [
-		availableKeyboardIds,
-		currentKeyboard,
-		exitSelectionMode,
-		setSelectedKeyboardId,
-	]);
+	}, [exitSelectionMode, setSelectedKeyboardId]);
 
 	const handleSelectionChanged = useCallback((text: string) => {
 		if (!text) return;
@@ -981,65 +997,32 @@ function ShellDetail() {
 		setConfigureOpen(true);
 	}, []);
 
-	const handleKeyboardConfig = useCallback(() => {
-		setConfigureOpen(false);
-		void Linking.openURL(CONFIGURATOR_URL);
-	}, []);
-
 	const handleDevServer = useCallback(() => {
 		setConfigureOpen(false);
 		void Linking.openURL(HANDLE_DEV_SERVER_URL);
 	}, []);
 
-	const handleCheckUpdates = useCallback(async () => {
+	const handleReloadConfig = useCallback(async () => {
 		setConfigureOpen(false);
-		if (!Updates.isEnabled) {
-			Alert.alert(
-				'Updates disabled',
-				'Over-the-air updates are disabled in this build. Install a preview or production build from EAS to use updates.',
-			);
-			return;
-		}
 		try {
-			const update = await Updates.checkForUpdateAsync();
-			if (!update.isAvailable) {
-				Alert.alert('Up to date', 'No new updates are available.');
-				return;
-			}
-			await Updates.fetchUpdateAsync();
+			const nextState = await reloadRuntimeShellConfigFromRemote();
+			setShellConfigState(nextState);
 			Alert.alert(
-				'Update ready',
-				'Restart the app now to apply the update?',
-				[
-					{ text: 'Later', style: 'cancel' },
-					{ text: 'Restart', onPress: () => void Updates.reloadAsync() },
-				],
+				'Config reloaded',
+				`Loaded ${nextState.config.version} from GitHub.`,
 			);
 		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : 'Unable to reload config.';
+			setShellConfigState((current) => ({
+				...current,
+				lastError: message,
+			}));
 			Alert.alert(
-				'Update check failed',
-				error instanceof Error ? error.message : 'Unable to check for updates.',
+				'Config reload failed',
+				message,
 			);
 		}
-	}, []);
-
-	const handleReloadUpdates = useCallback(() => {
-		setConfigureOpen(false);
-		if (!Updates.isEnabled) {
-			Alert.alert(
-				'Updates disabled',
-				'Over-the-air updates are disabled in this build. Install a preview or production build from EAS to use updates.',
-			);
-			return;
-		}
-		Alert.alert(
-			'Reload update?',
-			'Restart the app to apply the latest downloaded update?',
-			[
-				{ text: 'Cancel', style: 'cancel' },
-				{ text: 'Reload', onPress: () => void Updates.reloadAsync() },
-			],
-		);
 	}, []);
 
 	const handleExportBackup = useCallback(async () => {
@@ -1163,9 +1146,9 @@ function ShellDetail() {
 		void Linking.openURL(GITHUB_ISSUES_URL);
 	}, []);
 
-	const handleOpenKeyboardDocs = useCallback(() => {
+	const handleOpenShellConfigDocs = useCallback(() => {
 		setConfigureOpen(false);
-		void Linking.openURL(KEYBOARD_CONFIG_DOC_URL);
+		void Linking.openURL(SHELL_CONFIG_DOC_URL);
 	}, []);
 
 	const handleOpenFeatureRequest = useCallback(() => {
@@ -1278,6 +1261,8 @@ fi
 		() => ({
 			availableKeyboardIds,
 			selectKeyboard: selectKeyboardIfExists,
+			resolveKeyboardActionTarget: (actionId) =>
+				getKeyboardActionTarget(shellConfig, actionId),
 			rotateKeyboard,
 			openConfigurator: openConfigDialog,
 			sendBytes: sendBytesRaw,
@@ -1305,6 +1290,7 @@ fi
 			handlePasteClipboard,
 			openConfigDialog,
 			rotateKeyboard,
+			shellConfig,
 			selectKeyboardIfExists,
 			sendBytesRaw,
 		],
@@ -1326,9 +1312,11 @@ fi
 				// Any input/command should exit selection first, except explicit copy.
 				exitSelectionMode();
 			}
-			const shouldAutoReturn =
-				currentKeyboard?.id === ADVANCED_KEYBOARD_ID &&
-				availableKeyboardIds.has(PHONE_BASE_KEYBOARD_ID);
+			const returnKeyboardId = resolveActiveOneShotReturnKeyboardId(
+				shellConfig,
+				availableKeyboardIds,
+				currentKeyboard?.id,
+			);
 
 			switch (slot.type) {
 				case 'modifier':
@@ -1359,24 +1347,24 @@ fi
 					break;
 			}
 
-			// Advanced keyboard is a one-shot layout; return after any key press.
-			if (shouldAutoReturn) {
-				setSelectedKeyboardId(PHONE_BASE_KEYBOARD_ID);
+			if (returnKeyboardId) {
+				setSelectedKeyboardId(returnKeyboardId);
 			}
 		},
 		[
 			availableKeyboardIds,
-			currentMacros,
 			currentKeyboard,
+			currentMacros,
 			exitSelectionMode,
 			handleAction,
+			runCommandSteps,
+			selectionModeEnabled,
 			sendBytesRaw,
 			sendBytesWithModifiers,
-			runCommandSteps,
 			sendTextRaw,
 			sendTextWithModifiers,
-			selectionModeEnabled,
 			setSelectedKeyboardId,
+			shellConfig,
 			toggleModifier,
 		],
 	);
@@ -1879,7 +1867,7 @@ fi
 				/>
 				<CommandPresetsModal
 					open={commandPresetsOpen}
-					presets={commandPresets}
+					presets={shellConfig.commandMenus}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
 					onClose={() => {
 						setCommandPresetsOpen(false);
@@ -1919,16 +1907,19 @@ fi
 					onClose={() => {
 						setConfigureOpen(false);
 					}}
-					onKeyboardConfig={handleKeyboardConfig}
 					onDevServer={handleDevServer}
-					onCheckUpdates={handleCheckUpdates}
-					onReloadUpdates={handleReloadUpdates}
+					onReloadConfig={handleReloadConfig}
 					onExportBackup={handleExportBackup}
 					onImportBackup={handleImportBackup}
 					onHostConfig={handleHostConfig}
 					onOpenGitHubIssues={handleOpenGitHubIssues}
-					onOpenKeyboardDocs={handleOpenKeyboardDocs}
+					onOpenShellConfigDocs={handleOpenShellConfigDocs}
 					onRequestFeature={handleOpenFeatureRequest}
+					configVersion={shellConfig.version}
+					configUpdatedAt={shellConfig.updatedAt}
+					configSource={shellConfigState.source}
+					configLastLoadedAt={shellConfigState.lastLoadedAt}
+					configLastError={shellConfigState.lastError}
 				/>
 				<FeatureRequestModal
 					open={featureRequestOpen}

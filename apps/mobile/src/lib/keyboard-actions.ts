@@ -1,25 +1,22 @@
 import { rootLogger } from '@/lib/logger';
 
-// Action IDs emitted by codegen are handled here at runtime.
-
-export const MAIN_MENU_KEYBOARD_ID = 'main_menu';
-export const SECONDARY_MENU_KEYBOARD_ID = 'secondary_menu';
-export const KEYBOARD_MENU_KEYBOARD_ID = 'keyboard_menu';
-// Primary vs one-shot layouts used by the advanced switch.
-export const PHONE_BASE_KEYBOARD_ID = 'phone_base';
-export const ADVANCED_KEYBOARD_ID = 'advanced_keyboard';
+// Action IDs emitted by runtime config are handled here at runtime.
 
 export const CONFIGURATOR_URL =
 	'https://dev-remote-machine-1.tail83108.ts.net:4002/keyboard-configurator';
 export const HANDLE_DEV_SERVER_URL = 'http://100.122.2.100:5173/';
 
-export const KNOWN_ACTION_IDS = [
-	'ROTATE_KEYBOARD',
-	'OPEN_KEYBOARD_SETTINGS',
+export const KEYBOARD_TARGET_ACTION_IDS = [
 	'OPEN_MAIN_MENU',
 	'OPEN_SECONDARY_MENU',
 	'OPEN_KEYBOARD_MENU',
 	'OPEN_ADVANCED_KEYBOARD',
+] as const;
+
+export const KNOWN_ACTION_IDS = [
+	'ROTATE_KEYBOARD',
+	'OPEN_KEYBOARD_SETTINGS',
+	...KEYBOARD_TARGET_ACTION_IDS,
 	'TOGGLE_COMMAND_PRESETS',
 	'OPEN_COMMANDER',
 	'OPEN_TEXT_EDITOR',
@@ -29,11 +26,13 @@ export const KNOWN_ACTION_IDS = [
 ] as const;
 
 export type KnownActionId = (typeof KNOWN_ACTION_IDS)[number];
+export type KeyboardTargetActionId = (typeof KEYBOARD_TARGET_ACTION_IDS)[number];
 export type ActionId = KnownActionId | (string & {});
 
 export type ActionContext = {
 	availableKeyboardIds: Set<string>;
 	selectKeyboard: (id: string) => void;
+	resolveKeyboardActionTarget?: (actionId: KeyboardTargetActionId) => string | null;
 	rotateKeyboard: () => void;
 	openConfigurator: () => void;
 	sendBytes: (bytes: Uint8Array<ArrayBuffer>) => void;
@@ -46,33 +45,35 @@ export type ActionContext = {
 
 const logger = rootLogger.extend('KeyboardActions');
 
+function selectKeyboardForAction(
+	actionId: KeyboardTargetActionId,
+	context: ActionContext,
+) {
+	const targetKeyboardId = context.resolveKeyboardActionTarget?.(actionId);
+	if (targetKeyboardId && context.availableKeyboardIds.has(targetKeyboardId)) {
+		context.selectKeyboard(targetKeyboardId);
+	}
+}
+
 export async function runAction(
 	actionId: ActionId,
 	context: ActionContext,
 ): Promise<void> {
 	switch (actionId) {
 		case 'OPEN_MAIN_MENU': {
-			if (context.availableKeyboardIds.has(MAIN_MENU_KEYBOARD_ID)) {
-				context.selectKeyboard(MAIN_MENU_KEYBOARD_ID);
-			}
+			selectKeyboardForAction('OPEN_MAIN_MENU', context);
 			return;
 		}
 		case 'OPEN_SECONDARY_MENU': {
-			if (context.availableKeyboardIds.has(SECONDARY_MENU_KEYBOARD_ID)) {
-				context.selectKeyboard(SECONDARY_MENU_KEYBOARD_ID);
-			}
+			selectKeyboardForAction('OPEN_SECONDARY_MENU', context);
 			return;
 		}
 		case 'OPEN_KEYBOARD_MENU': {
-			if (context.availableKeyboardIds.has(KEYBOARD_MENU_KEYBOARD_ID)) {
-				context.selectKeyboard(KEYBOARD_MENU_KEYBOARD_ID);
-			}
+			selectKeyboardForAction('OPEN_KEYBOARD_MENU', context);
 			return;
 		}
 		case 'OPEN_ADVANCED_KEYBOARD': {
-			if (context.availableKeyboardIds.has(ADVANCED_KEYBOARD_ID)) {
-				context.selectKeyboard(ADVANCED_KEYBOARD_ID);
-			}
+			selectKeyboardForAction('OPEN_ADVANCED_KEYBOARD', context);
 			return;
 		}
 		case 'ROTATE_KEYBOARD': {

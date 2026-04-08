@@ -12,53 +12,49 @@ export function ConfigureModal({
 	open,
 	bottomOffset,
 	onClose,
-	onKeyboardConfig,
 	onDevServer,
-	onCheckUpdates,
-	onReloadUpdates,
+	onReloadConfig,
 	onExportBackup,
 	onImportBackup,
 	onHostConfig,
 	onRequestFeature,
 	onOpenGitHubIssues,
-	onOpenKeyboardDocs,
+	onOpenShellConfigDocs,
+	configVersion,
+	configUpdatedAt,
+	configSource,
+	configLastLoadedAt,
+	configLastError,
 }: {
 	open: boolean;
 	bottomOffset: number;
 	onClose: () => void;
-	onKeyboardConfig: () => void;
 	onDevServer: () => void;
-	onCheckUpdates: () => void;
-	onReloadUpdates: () => void;
+	onReloadConfig: () => void;
 	onExportBackup: () => void;
 	onImportBackup: () => void;
 	onHostConfig: () => void;
 	onRequestFeature: () => void;
 	onOpenGitHubIssues: () => void;
-	onOpenKeyboardDocs: () => void;
+	onOpenShellConfigDocs: () => void;
+	configVersion: string;
+	configUpdatedAt: string;
+	configSource: string;
+	configLastLoadedAt: string | null;
+	configLastError: string | null;
 }) {
 	const theme = useTheme();
 
 	const options: ConfigOption[] = [
-		{
-			label: 'Keyboard config',
-			description: 'Open keyboard configurator',
-			onPress: onKeyboardConfig,
-		},
 		{
 			label: 'Dev server',
 			description: 'Handle dev server',
 			onPress: onDevServer,
 		},
 		{
-			label: 'Check OTA',
-			description: 'Check and download the latest update',
-			onPress: onCheckUpdates,
-		},
-		{
-			label: 'Reload OTA',
-			description: 'Restart to apply the latest update',
-			onPress: onReloadUpdates,
+			label: 'Reload config',
+			description: 'Fetch the latest keyboard and command menu config',
+			onPress: onReloadConfig,
 		},
 		{
 			label: 'Export backup',
@@ -149,6 +145,66 @@ export function ConfigureModal({
 							<Text style={{ color: theme.colors.textSecondary }}>Close</Text>
 						</Pressable>
 					</View>
+					<View
+						style={{
+							padding: 12,
+							borderRadius: 10,
+							borderWidth: 1,
+							borderColor: theme.colors.border,
+							backgroundColor: theme.colors.surface,
+							marginBottom: 12,
+						}}
+					>
+						<Text
+							style={{
+								color: theme.colors.textPrimary,
+								fontSize: 14,
+								fontWeight: '600',
+							}}
+						>
+							{`Config ${configVersion}`}
+						</Text>
+						<Text
+							style={{
+								color: theme.colors.textSecondary,
+								fontSize: 12,
+								marginTop: 2,
+							}}
+						>
+							{`Source: ${configSource}`}
+						</Text>
+						<Text
+							style={{
+								color: theme.colors.textSecondary,
+								fontSize: 12,
+								marginTop: 2,
+							}}
+						>
+							{`Updated: ${configUpdatedAt}`}
+						</Text>
+						{configLastLoadedAt ? (
+							<Text
+								style={{
+									color: theme.colors.textSecondary,
+									fontSize: 12,
+									marginTop: 2,
+								}}
+							>
+								{`Loaded: ${configLastLoadedAt}`}
+							</Text>
+						) : null}
+						{configLastError ? (
+							<Text
+								style={{
+									color: theme.colors.textSecondary,
+									fontSize: 12,
+									marginTop: 6,
+								}}
+							>
+								{`Last error: ${configLastError}`}
+							</Text>
+						) : null}
+					</View>
 					{options.map((option, index) => (
 						<Pressable
 							key={option.label}
@@ -186,7 +242,7 @@ export function ConfigureModal({
 						</Pressable>
 					))}
 					<Pressable
-						onPress={onOpenKeyboardDocs}
+						onPress={onOpenShellConfigDocs}
 						style={{ marginTop: 10, alignSelf: 'flex-start' }}
 					>
 						<Text
@@ -196,7 +252,7 @@ export function ConfigureModal({
 								fontWeight: '600',
 							}}
 						>
-							Keyboard config docs
+							Shell config docs
 						</Text>
 					</Pressable>
 				</View>

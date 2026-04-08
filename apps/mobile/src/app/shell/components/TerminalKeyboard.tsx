@@ -4,7 +4,7 @@ import {
 	type KeyboardDefinition,
 	type KeyboardSlot,
 	type ModifierKey,
-} from '@/generated/keyboard-config';
+} from '@/lib/shell-config';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { useTheme } from '@/lib/theme';
 

@@ -9,6 +9,7 @@
 		"verbatimModuleSyntax": true,
 		"noImplicitOverride": true,
 		"allowJs": true,
+		"resolveJsonModule": true,
 		"strictNullChecks": true,
 		"baseUrl": ".",
 		"paths": {
