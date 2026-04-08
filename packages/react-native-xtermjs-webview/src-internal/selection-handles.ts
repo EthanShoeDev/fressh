@@ -1111,6 +1111,7 @@ export const createSelectionHandles = ({
 							if (!event.isPrimary) return;
 							tapPointerId = event.pointerId;
 							tapStart = { x: event.clientX, y: event.clientY };
+							overlay.setPointerCapture(event.pointerId);
 							consumeSelectionGestureEvent(event);
 						};
 						const onPointerMove = (event: PointerEvent) => {
@@ -1126,6 +1127,7 @@ export const createSelectionHandles = ({
 							if (tapPointerId !== event.pointerId) return;
 							const shouldDismiss = Boolean(tapStart);
 							clearTapState();
+							overlay.releasePointerCapture(event.pointerId);
 							if (shouldDismiss) {
 								applySelectionMode(false);
 							}
@@ -1134,6 +1136,7 @@ export const createSelectionHandles = ({
 						const onPointerCancel = (event: PointerEvent) => {
 							if (tapPointerId !== event.pointerId) return;
 							clearTapState();
+							overlay.releasePointerCapture(event.pointerId);
 							consumeSelectionGestureEvent(event);
 						};
 

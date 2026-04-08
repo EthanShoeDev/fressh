@@ -458,10 +458,25 @@ export const createTouchScrollController = ({
 	};
 
 	const cancelTrackingForSelectionMode = () => {
+		const wasCopyModeOn = copyModeState === 'on';
+		const previousPhase = scrollbackPhase;
+		pendingEnterRequestId = null;
+		copyModeState = 'off';
+		copyModeConfidence = 'uncertain';
+		entryIntent = null;
 		resetPendingScroll();
 		releasePointerCapture();
 		resetPointerTracking();
-		state = scrollbackActive ? 'ScrollbackActive' : 'Idle';
+		state = 'Idle';
+		if (scrollbackActive) {
+			emitScrollbackMode(false, previousPhase);
+		}
+		if (wasCopyModeOn) {
+			const cfg = getActiveConfig();
+			if (cfg && isValidCancelKey(cfg.cancelKey)) {
+				sendScrollInput(cfg.cancelKey);
+			}
+		}
 		updateDebugOverlay({ force: true });
 	};
 
