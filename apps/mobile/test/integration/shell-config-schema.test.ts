@@ -1,0 +1,92 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import test from 'node:test';
+import {
+	parseShellConfigData,
+	parseShellConfigString,
+	resolveSelectedKeyboardId,
+} from '../../src/lib/shell-config';
+
+const bundledConfigText = readFileSync(
+	path.resolve(import.meta.dirname, '../../config/shell-config.json'),
+	'utf8',
+);
+
+void test('bundled runtime shell config parses with keyboards and command menus', () => {
+	const config = parseShellConfigString(bundledConfigText);
+	const rawConfig = JSON.parse(bundledConfigText) as Record<string, unknown>;
+
+	assert.ok(config.version);
+	assert.ok(config.updatedAt);
+	assert.ok(config.keyboards.length > 0);
+	assert.ok(config.commandMenus.length > 0);
+	assert.ok(rawConfig.keyboardRouting);
+	assert.deepEqual(
+		(rawConfig.keyboardRouting as {
+			oneShotReturnByKeyboardId?: Record<string, string>;
+		}).oneShotReturnByKeyboardId,
+		{ advanced_keyboard: 'phone_base' },
+	);
+	assert.equal(resolveSelectedKeyboardId(config, 'missing-keyboard'), config.defaultKeyboardId);
+});
+
+void test('runtime shell config falls back to default when selected keyboard is inactive', () => {
+	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
+	config.activeKeyboardIds = ['phone_base'];
+	config.keyboardRouting = {
+		actionTargets: {},
+		oneShotReturnByKeyboardId: {},
+	};
+
+	const parsed = parseShellConfigData(config);
+
+	assert.equal(resolveSelectedKeyboardId(parsed, 'advanced_keyboard'), 'phone_base');
+});
+
+void test('runtime shell config rejects duplicate active keyboard ids', () => {
+	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
+	config.activeKeyboardIds = ['phone_base', 'phone_base'];
+	config.keyboardRouting = {
+		actionTargets: {},
+		oneShotReturnByKeyboardId: {},
+	};
+
+	assert.throws(() => parseShellConfigData(config), /Duplicate active keyboard id phone_base/);
+});
+
+void test('runtime shell config rejects missing macro references', () => {
+	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
+	const keyboards = structuredClone(config.keyboards) as Array<Record<string, unknown>>;
+	const firstKeyboard = keyboards[0];
+	assert.ok(firstKeyboard);
+	const grid = structuredClone(firstKeyboard.grid) as Array<Array<unknown>>;
+	grid[0]![0] = {
+		type: 'macro',
+		macroId: 'missing_macro',
+		label: 'Missing',
+		icon: null,
+	};
+	firstKeyboard.grid = grid;
+	config.keyboards = keyboards;
+
+	assert.throws(() => parseShellConfigData(config), /missing_macro/);
+});
+
+void test('runtime shell config rejects unknown action ids', () => {
+	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
+	const keyboards = structuredClone(config.keyboards) as Array<Record<string, unknown>>;
+	const firstKeyboard = keyboards[0];
+	assert.ok(firstKeyboard);
+	const grid = structuredClone(firstKeyboard.grid) as Array<Array<unknown>>;
+	grid[0]![0] = {
+		type: 'action',
+		actionId: 'NOT_A_REAL_ACTION',
+		label: 'Broken',
+		icon: null,
+	};
+	firstKeyboard.grid = grid;
+	config.keyboards = keyboards;
+
+	assert.throws(() => parseShellConfigData(config), /NOT_A_REAL_ACTION/);
+});

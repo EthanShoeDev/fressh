@@ -1,0 +1,3 @@
+display_name: Runtime Shell Config
+short_description: Edit, validate, and publish the mobile shell config JSON.
+default_prompt: Edit the mobile runtime shell config JSON, validate it, push it to dev, and tell me to reload config in the app.

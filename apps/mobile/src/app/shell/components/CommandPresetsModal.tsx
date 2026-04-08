@@ -4,7 +4,7 @@ import {
 	type CommandPreset,
 	type CommandPresetEntry,
 	type CommandPresetMenu,
-} from '@/lib/command-presets';
+} from '@/lib/shell-config';
 import { useTheme } from '@/lib/theme';
 
 const isCommandPresetMenu = (
