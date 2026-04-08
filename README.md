@@ -3,7 +3,7 @@
 [Fressh](https://fressh.dev/) is a mobile SSH client that remains clean and
 simple while supporting powerful features.
 
-[![ci](https://github.com/EthanShoeDev/fressh/actions/workflows/check.yml/badge.svg)](https://github.com/EthanShoeDev/fressh/actions/workflows/check.yml)
+[![ci](https://github.com/mulyoved/fressh/actions/workflows/check.yml/badge.svg)](https://github.com/mulyoved/fressh/actions/workflows/check.yml)
 [![npm: @fressh/react-native-uniffi-russh](https://img.shields.io/npm/v/%40fressh%2Freact-native-uniffi-russh)](https://www.npmjs.com/package/@fressh/react-native-uniffi-russh)
 [![npm: @fressh/react-native-xtermjs-webview](https://img.shields.io/npm/v/%40fressh%2Freact-native-xtermjs-webview)](https://www.npmjs.com/package/@fressh/react-native-xtermjs-webview)
 

@@ -867,6 +867,10 @@ export const createSelectionHandles = ({
 			let dragStart: { x: number; y: number } | null = null;
 			let dragOffset: { x: number; y: number } | null = null;
 			let dragging = false;
+			const consumeHandlePointerEvent = (event: PointerEvent) => {
+				event.preventDefault();
+				event.stopPropagation();
+			};
 
 			const resetDrag = () => {
 				dragStart = null;
@@ -876,6 +880,7 @@ export const createSelectionHandles = ({
 
 			const onPointerDown = (event: PointerEvent) => {
 				if (!selectionModeEnabled) return;
+				consumeHandlePointerEvent(event);
 				activeHandle = kind;
 				activePointerId = event.pointerId;
 				const layout = getHandleLayout(kind);
@@ -890,20 +895,17 @@ export const createSelectionHandles = ({
 				};
 				dragging = false;
 				handle.setPointerCapture(event.pointerId);
-				event.preventDefault();
-				event.stopPropagation();
 			};
 			const onPointerMove = (event: PointerEvent) => {
 				if (!selectionModeEnabled) return;
 				if (activeHandle !== kind || activePointerId !== event.pointerId)
 					return;
+				consumeHandlePointerEvent(event);
 				if (!dragStart || !dragOffset) return;
 				const dx = event.clientX - dragStart.x;
 				const dy = event.clientY - dragStart.y;
 				if (!dragging) {
 					if (Math.hypot(dx, dy) <= longPressSlopPx) {
-						event.preventDefault();
-						event.stopPropagation();
 						return;
 					}
 					dragging = true;
@@ -940,37 +942,33 @@ export const createSelectionHandles = ({
 					selectionService.selectionStart ?? model.selectionStart ?? coords;
 				const endExclusive =
 					selectionService.selectionEnd ?? model.selectionEnd ?? coords;
-				const end = toInclusiveEnd(
-					endExclusive,
-					core.bufferService.cols,
-					core.bufferService.buffer.ydisp,
-				);
-				if (kind === 'start') {
-					updateSelectionRange([normalizedCol, coords[1]], end);
-				} else {
-					updateSelectionRange(start, [normalizedCol, coords[1]]);
-				}
-				event.preventDefault();
-				event.stopPropagation();
-			};
+					const end = toInclusiveEnd(
+						endExclusive,
+						core.bufferService.cols,
+						core.bufferService.buffer.ydisp,
+					);
+					if (kind === 'start') {
+						updateSelectionRange([normalizedCol, coords[1]], end);
+					} else {
+						updateSelectionRange(start, [normalizedCol, coords[1]]);
+					}
+				};
 			const onPointerUp = (event: PointerEvent) => {
 				if (activePointerId !== event.pointerId) return;
+				consumeHandlePointerEvent(event);
 				activeHandle = null;
 				activePointerId = null;
 				resetDrag();
 				handle.releasePointerCapture(event.pointerId);
 				emitSelectionChanged();
-				event.preventDefault();
-				event.stopPropagation();
 			};
 			const onPointerCancel = (event: PointerEvent) => {
 				if (activePointerId !== event.pointerId) return;
+				consumeHandlePointerEvent(event);
 				activeHandle = null;
 				activePointerId = null;
 				resetDrag();
 				handle.releasePointerCapture(event.pointerId);
-				event.preventDefault();
-				event.stopPropagation();
 			};
 			handle.addEventListener('pointerdown', onPointerDown);
 			handle.addEventListener('pointermove', onPointerMove);
@@ -1065,43 +1063,90 @@ export const createSelectionHandles = ({
 						return overlay;
 					};
 
-					const overlay = ensureOverlay();
-					term.element?.style.setProperty('outline', 'none');
+						const overlay = ensureOverlay();
+						term.element?.style.setProperty('outline', 'none');
 
-					let tapStart: { x: number; y: number } | null = null;
-					const onTouchStart = (event: TouchEvent) => {
-						if (!selectionModeEnabled) return;
-						if (event.touches.length !== 1) return;
-						const touch = event.touches.item(0);
-						if (!touch) return;
-						tapStart = { x: touch.clientX, y: touch.clientY };
-						event.preventDefault();
-					};
-					const onTouchMove = (event: TouchEvent) => {
-						if (!tapStart) return;
-						const touch = event.touches.item(0);
-						if (!touch) return;
-						const dx = touch.clientX - tapStart.x;
-						const dy = touch.clientY - tapStart.y;
-						if (Math.hypot(dx, dy) > longPressSlopPx) {
+						let tapStart: { x: number; y: number } | null = null;
+						let tapPointerId: number | null = null;
+						const clearTapState = () => {
 							tapStart = null;
-						}
-						event.preventDefault();
-					};
-					const onTouchEnd = (event: TouchEvent) => {
-						if (!tapStart) return;
-						tapStart = null;
-						applySelectionMode(false);
-						event.preventDefault();
-					};
-					const onTouchCancel = (event: TouchEvent) => {
-						tapStart = null;
-						event.preventDefault();
-					};
+							tapPointerId = null;
+						};
+						const consumeSelectionGestureEvent = (event: Event) => {
+							event.preventDefault();
+							event.stopPropagation();
+						};
+						const onTouchStart = (event: TouchEvent) => {
+							if (!selectionModeEnabled) return;
+							if (event.touches.length !== 1) return;
+							const touch = event.touches.item(0);
+							if (!touch) return;
+							tapStart = { x: touch.clientX, y: touch.clientY };
+							consumeSelectionGestureEvent(event);
+						};
+						const onTouchMove = (event: TouchEvent) => {
+							if (!tapStart) return;
+							const touch = event.touches.item(0);
+							if (!touch) return;
+							const dx = touch.clientX - tapStart.x;
+							const dy = touch.clientY - tapStart.y;
+							if (Math.hypot(dx, dy) > longPressSlopPx) {
+								clearTapState();
+							}
+							consumeSelectionGestureEvent(event);
+						};
+						const onTouchEnd = (event: TouchEvent) => {
+							if (!tapStart) return;
+							clearTapState();
+							applySelectionMode(false);
+							consumeSelectionGestureEvent(event);
+						};
+						const onTouchCancel = (event: TouchEvent) => {
+							clearTapState();
+							consumeSelectionGestureEvent(event);
+						};
+						const onPointerDown = (event: PointerEvent) => {
+							if (!selectionModeEnabled) return;
+							if (event.pointerType && event.pointerType !== 'touch') return;
+							if (!event.isPrimary) return;
+							tapPointerId = event.pointerId;
+							tapStart = { x: event.clientX, y: event.clientY };
+							overlay.setPointerCapture(event.pointerId);
+							consumeSelectionGestureEvent(event);
+						};
+						const onPointerMove = (event: PointerEvent) => {
+							if (tapPointerId !== event.pointerId || !tapStart) return;
+							const dx = event.clientX - tapStart.x;
+							const dy = event.clientY - tapStart.y;
+							if (Math.hypot(dx, dy) > longPressSlopPx) {
+								clearTapState();
+							}
+							consumeSelectionGestureEvent(event);
+						};
+						const onPointerUp = (event: PointerEvent) => {
+							if (tapPointerId !== event.pointerId) return;
+							const shouldDismiss = Boolean(tapStart);
+							clearTapState();
+							overlay.releasePointerCapture(event.pointerId);
+							if (shouldDismiss) {
+								applySelectionMode(false);
+							}
+							consumeSelectionGestureEvent(event);
+						};
+						const onPointerCancel = (event: PointerEvent) => {
+							if (tapPointerId !== event.pointerId) return;
+							clearTapState();
+							overlay.releasePointerCapture(event.pointerId);
+							consumeSelectionGestureEvent(event);
+						};
 
-					overlay.addEventListener('touchstart', onTouchStart, {
-						passive: false,
-					});
+						overlay.addEventListener('pointerdown', onPointerDown);
+						overlay.addEventListener('pointermove', onPointerMove);
+						overlay.addEventListener('pointerup', onPointerUp);
+						overlay.addEventListener('pointercancel', onPointerCancel);
+						overlay.addEventListener('touchstart', onTouchStart, {
+							passive: false,
+						});
 					overlay.addEventListener('touchmove', onTouchMove, {
 						passive: false,
 					});
@@ -1112,14 +1157,19 @@ export const createSelectionHandles = ({
 						passive: false,
 					});
 
-					return () => {
-						overlay.removeEventListener('touchstart', onTouchStart);
-						overlay.removeEventListener('touchmove', onTouchMove);
-						overlay.removeEventListener('touchend', onTouchEnd);
-						overlay.removeEventListener('touchcancel', onTouchCancel);
-						overlay.style.pointerEvents = 'none';
-						overlay.style.display = 'none';
-						term.element?.style.setProperty('outline', 'none');
+						return () => {
+							overlay.removeEventListener('pointerdown', onPointerDown);
+							overlay.removeEventListener('pointermove', onPointerMove);
+							overlay.removeEventListener('pointerup', onPointerUp);
+							overlay.removeEventListener('pointercancel', onPointerCancel);
+							overlay.removeEventListener('touchstart', onTouchStart);
+							overlay.removeEventListener('touchmove', onTouchMove);
+							overlay.removeEventListener('touchend', onTouchEnd);
+							overlay.removeEventListener('touchcancel', onTouchCancel);
+							clearTapState();
+							overlay.style.pointerEvents = 'none';
+							overlay.style.display = 'none';
+							term.element?.style.setProperty('outline', 'none');
 					};
 				})();
 			}

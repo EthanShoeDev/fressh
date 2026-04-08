@@ -457,6 +457,29 @@ export const createTouchScrollController = ({
 		}
 	};
 
+	const cancelTrackingForSelectionMode = () => {
+		const wasCopyModeOn = copyModeState === 'on';
+		const previousPhase = scrollbackPhase;
+		pendingEnterRequestId = null;
+		copyModeState = 'off';
+		copyModeConfidence = 'uncertain';
+		entryIntent = null;
+		resetPendingScroll();
+		releasePointerCapture();
+		resetPointerTracking();
+		state = 'Idle';
+		if (scrollbackActive) {
+			emitScrollbackMode(false, previousPhase);
+		}
+		if (wasCopyModeOn) {
+			const cfg = getActiveConfig();
+			if (cfg && isValidCancelKey(cfg.cancelKey)) {
+				sendScrollInput(cfg.cancelKey);
+			}
+		}
+		updateDebugOverlay({ force: true });
+	};
+
 	const installListeners = () => {
 		if (listenersInstalled || !enabled) return;
 		target = term.element ?? root;
@@ -469,7 +492,11 @@ export const createTouchScrollController = ({
 		}
 
 		const onPointerDown = (event: PointerEvent) => {
-			if (!enabled || isSelectionModeEnabled()) return;
+			if (!enabled) return;
+			if (isSelectionModeEnabled()) {
+				cancelTrackingForSelectionMode();
+				return;
+			}
 			if (event.pointerType && event.pointerType !== 'touch') return;
 			if (!event.isPrimary) return;
 			pointerIsDown = true;
@@ -483,7 +510,11 @@ export const createTouchScrollController = ({
 		};
 
 		const onPointerMove = (event: PointerEvent) => {
-			if (!enabled || isSelectionModeEnabled()) return;
+			if (!enabled) return;
+			if (isSelectionModeEnabled()) {
+				cancelTrackingForSelectionMode();
+				return;
+			}
 			if (activePointerId !== event.pointerId) return;
 			if (!pointerIsDown) return;
 
@@ -573,6 +604,10 @@ export const createTouchScrollController = ({
 		};
 
 		const onPointerUp = (event: PointerEvent) => {
+			if (isSelectionModeEnabled()) {
+				cancelTrackingForSelectionMode();
+				return;
+			}
 			if (activePointerId !== event.pointerId) return;
 			pointerIsDown = false;
 			releasePointerCapture();
@@ -593,6 +628,10 @@ export const createTouchScrollController = ({
 		};
 
 		const onPointerCancel = (event: PointerEvent) => {
+			if (isSelectionModeEnabled()) {
+				cancelTrackingForSelectionMode();
+				return;
+			}
 			if (activePointerId !== event.pointerId) return;
 			pointerIsDown = false;
 			releasePointerCapture();

@@ -21,6 +21,9 @@ const withForegroundService: ConfigPlugin = (config) =>
 
 		const app = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest);
 		app.service = app.service ?? [];
+		type ServiceAttributesWithStopWithTask = (typeof app.service)[number]['$'] & {
+			'android:stopWithTask'?: 'true' | 'false';
+		};
 		const alreadyPresent = app.service.some(
 			(service) => service.$['android:name'] === SERVICE_NAME,
 		);
@@ -31,7 +34,7 @@ const withForegroundService: ConfigPlugin = (config) =>
 					'android:exported': 'false',
 					'android:foregroundServiceType': 'dataSync',
 					'android:stopWithTask': 'true',
-				},
+				} as ServiceAttributesWithStopWithTask,
 			});
 		}
 

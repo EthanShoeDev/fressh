@@ -1,6 +1,6 @@
 {
   "name": "@fressh/react-native-uniffi-russh",
-  "homepage": "https://github.com/EthanShoeDev/fressh#readme",
+  "homepage": "https://github.com/mulyoved/fressh#readme",
   "license": "MIT",
   "description": "Uniffi bindings for russh",
   "version": "0.0.5",
@@ -50,10 +50,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/EthanShoeDev/fressh.git"
+    "url": "git+https://github.com/mulyoved/fressh.git"
   },
   "bugs": {
-    "url": "https://github.com/EthanShoeDev/fressh/issues"
+    "url": "https://github.com/mulyoved/fressh/issues"
   },
   "keywords": [
     "react-native",
