@@ -16,7 +16,7 @@ Peer dependencies: `react`, `react-native-webview`.
 ### Usage
 
 For a complete production example, see the mobile app:
-https://github.com/EthanShoeDev/fressh/tree/main/apps/mobile
+https://github.com/mulyoved/fressh/tree/main/apps/mobile
 
 Basic usage:
 
@@ -66,13 +66,13 @@ transparency and debugging.
 ### Links
 
 - Changelog:
-  [`CHANGELOG.md`](https://github.com/EthanShoeDev/fressh/blob/main/packages/react-native-xtermjs-webview/CHANGELOG.md)
+  [`CHANGELOG.md`](https://github.com/mulyoved/fressh/blob/main/packages/react-native-xtermjs-webview/CHANGELOG.md)
 - Contributing:
-  [`CONTRIBUTING.md`](https://github.com/EthanShoeDev/fressh/blob/main/CONTRIBUTING.md)
+  [`CONTRIBUTING.md`](https://github.com/mulyoved/fressh/blob/main/CONTRIBUTING.md)
 - Example app:
-  [`apps/mobile`](https://github.com/EthanShoeDev/fressh/tree/main/apps/mobile)
+  [`apps/mobile`](https://github.com/mulyoved/fressh/tree/main/apps/mobile)
   and source usage:
-  [`apps/mobile/src/app/(tabs)/shell/detail.tsx`](<https://github.com/EthanShoeDev/fressh/blob/main/apps/mobile/src/app/(tabs)/shell/detail.tsx>)
+  [`apps/mobile/src/app/(tabs)/shell/detail.tsx`](<https://github.com/mulyoved/fressh/blob/main/apps/mobile/src/app/(tabs)/shell/detail.tsx>)
 - API source:
-  [`src/index.tsx`](https://github.com/EthanShoeDev/fressh/blob/main/packages/react-native-xtermjs-webview/src/index.tsx)
+  [`src/index.tsx`](https://github.com/mulyoved/fressh/blob/main/packages/react-native-xtermjs-webview/src/index.tsx)
 - License: MIT

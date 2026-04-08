@@ -18,7 +18,7 @@ Peer dependencies (you manage): `react`, `react-native`.
 This package exposes a native Rust module for SSH transport. For a complete,
 working integration, see the example app:
 
-- https://github.com/EthanShoeDev/fressh/tree/main/apps/mobile
+- https://github.com/mulyoved/fressh/tree/main/apps/mobile
 
 ### API overview
 
@@ -49,9 +49,9 @@ shell.addListener(
 ### Links
 
 - Changelog:
-  [`CHANGELOG.md`](https://github.com/EthanShoeDev/fressh/blob/main/packages/react-native-uniffi-russh/CHANGELOG.md)
+  [`CHANGELOG.md`](https://github.com/mulyoved/fressh/blob/main/packages/react-native-uniffi-russh/CHANGELOG.md)
 - Contributing:
-  [`CONTRIBUTING.md`](https://github.com/EthanShoeDev/fressh/blob/main/CONTRIBUTING.md)
+  [`CONTRIBUTING.md`](https://github.com/mulyoved/fressh/blob/main/CONTRIBUTING.md)
 - API source:
-  [`src/api.ts`](https://github.com/EthanShoeDev/fressh/blob/main/packages/react-native-uniffi-russh/src/api.ts)
+  [`src/api.ts`](https://github.com/mulyoved/fressh/blob/main/packages/react-native-uniffi-russh/src/api.ts)
 - License: MIT
