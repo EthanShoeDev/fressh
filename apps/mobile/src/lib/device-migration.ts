@@ -4,6 +4,7 @@ import {
 	storedConnectionDetailsSchema,
 	type StoredConnectionEntry,
 } from './connection-storage';
+import { formatSavedConnectionSummary } from './connection-utils';
 
 type KeyMetadata = {
 	priority: number;
@@ -70,7 +71,19 @@ export function parseBackupPayload(raw: string): BackupPayload {
 		if (version !== 1) throw new Error('Unsupported backup version.');
 		throw new Error('Invalid backup format.');
 	}
+	assertBackupReferencesExist(result.data);
 	return result.data;
+}
+
+function assertBackupReferencesExist(payload: BackupPayload) {
+	const keyIds = new Set(payload.keys.map((entry) => entry.id));
+	for (const connection of payload.connections) {
+		const keyId = connection.value.security.keyId;
+		if (keyIds.has(keyId)) continue;
+		throw new Error(
+			`Missing private key for saved connection: ${formatSavedConnectionSummary(connection)}`,
+		);
+	}
 }
 
 export async function replaceAllPrivateKeys(params: {

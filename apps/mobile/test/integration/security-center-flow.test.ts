@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { type BackupPayload } from '../../src/lib/device-migration';
 import {
+	createRestorePreflightSummary,
 	exportBackupForSharing,
 	loadBackupPayloadFromPicker,
 	restoreBackupPayload,
@@ -143,12 +144,61 @@ void test('loadBackupPayloadFromPicker rejects invalid backup files', async () =
 	);
 });
 
+void test('createRestorePreflightSummary lists restored keys and saved connections', () => {
+	assert.deepEqual(createRestorePreflightSummary(backupPayload), {
+		keys: [{ id: 'key_1', label: 'Primary key' }],
+		connections: [
+			{
+				id: 'muly-dev-box-22',
+				label: 'Dev Box (muly@dev-box:22)',
+			},
+		],
+		message:
+			'Keys to replace:\n- Primary key\n\nSaved connections to replace:\n- Dev Box (muly@dev-box:22)',
+	});
+});
+
+void test('createRestorePreflightSummary preserves stable ids when labels collide', () => {
+	const summary = createRestorePreflightSummary({
+		...backupPayload,
+		keys: [
+			{
+				id: 'key_1',
+				metadata: {
+					priority: 0,
+					createdAtMs: 1,
+					label: 'Shared label',
+					isDefault: true,
+				},
+				value: 'PRIVATE KEY ONE',
+			},
+			{
+				id: 'key_2',
+				metadata: {
+					priority: 0,
+					createdAtMs: 2,
+					label: 'Shared label',
+					isDefault: false,
+				},
+				value: 'PRIVATE KEY TWO',
+			},
+		],
+	});
+
+	assert.deepEqual(summary.keys, [
+		{ id: 'key_1', label: 'Shared label' },
+		{ id: 'key_2', label: 'Shared label' },
+	]);
+});
+
 void test('restoreBackupPayload returns restore counts', async () => {
 	const replacedKeys: BackupPayload['keys'][] = [];
 	const replacedConnections: BackupPayload['connections'][] = [];
 
 	const result = await restoreBackupPayload({
 		payload: backupPayload,
+		listCurrentKeys: async () => [],
+		listCurrentConnections: async () => [],
 		replaceAllKeys: async (entries) => {
 			replacedKeys.push(entries);
 		},
@@ -167,6 +217,8 @@ void test('restoreBackupPayload surfaces restore failures', async () => {
 		() =>
 			restoreBackupPayload({
 				payload: backupPayload,
+				listCurrentKeys: async () => [],
+				listCurrentConnections: async () => [],
 				replaceAllKeys: async () => {
 					throw new Error('replace failed');
 				},
@@ -174,4 +226,262 @@ void test('restoreBackupPayload surfaces restore failures', async () => {
 			}),
 		/replace failed/,
 	);
+});
+
+void test('restoreBackupPayload rolls back the previous snapshot when connection replacement fails', async () => {
+	let currentKeys: BackupPayload['keys'] = [
+		{
+			id: 'key_stale',
+			metadata: {
+				priority: 0,
+				createdAtMs: 9,
+				label: 'Stale key',
+				isDefault: false,
+			},
+			value: 'STALE KEY',
+		},
+	];
+	let currentConnections: BackupPayload['connections'] = [
+		{
+			id: 'muly-stale-box-22',
+			metadata: {
+				priority: 0,
+				createdAtMs: 10,
+				modifiedAtMs: 11,
+				label: 'Stale Box',
+			},
+			value: {
+				host: 'stale-box',
+				port: 22,
+				username: 'muly',
+				security: {
+					type: 'key' as const,
+					keyId: 'key_stale',
+				},
+				useTmux: true,
+				tmuxSessionName: 'main',
+				autoConnect: false,
+			},
+		},
+	];
+	let connectionCalls = 0;
+
+	await assert.rejects(
+		() =>
+			restoreBackupPayload({
+				payload: backupPayload,
+				listCurrentKeys: async () => currentKeys,
+				listCurrentConnections: async () => currentConnections,
+				replaceAllKeys: async (entries) => {
+					currentKeys = entries;
+				},
+				replaceAllConnections: async (entries) => {
+					connectionCalls += 1;
+					if (connectionCalls === 1) {
+						throw new Error('connection replace failed');
+					}
+					currentConnections = entries;
+				},
+			}),
+		/connection replace failed/,
+	);
+
+	assert.deepEqual(currentKeys, [
+		{
+			id: 'key_stale',
+			metadata: {
+				priority: 0,
+				createdAtMs: 9,
+				label: 'Stale key',
+				isDefault: false,
+			},
+			value: 'STALE KEY',
+		},
+	]);
+	assert.deepEqual(currentConnections, [
+		{
+			id: 'muly-stale-box-22',
+			metadata: {
+				priority: 0,
+				createdAtMs: 10,
+				modifiedAtMs: 11,
+				label: 'Stale Box',
+			},
+			value: {
+				host: 'stale-box',
+				port: 22,
+				username: 'muly',
+				security: {
+					type: 'key' as const,
+					keyId: 'key_stale',
+				},
+				useTmux: true,
+				tmuxSessionName: 'main',
+				autoConnect: false,
+			},
+		},
+	]);
+});
+
+void test('restoreBackupPayload rolls back the previous snapshot when key replacement fails mid-restore', async () => {
+	let currentKeys: BackupPayload['keys'] = [
+		{
+			id: 'key_stale',
+			metadata: {
+				priority: 0,
+				createdAtMs: 9,
+				label: 'Stale key',
+				isDefault: false,
+			},
+			value: 'STALE KEY',
+		},
+	];
+	let currentConnections: BackupPayload['connections'] = [
+		{
+			id: 'muly-stale-box-22',
+			metadata: {
+				priority: 0,
+				createdAtMs: 10,
+				modifiedAtMs: 11,
+				label: 'Stale Box',
+			},
+			value: {
+				host: 'stale-box',
+				port: 22,
+				username: 'muly',
+				security: {
+					type: 'key' as const,
+					keyId: 'key_stale',
+				},
+				useTmux: true,
+				tmuxSessionName: 'main',
+				autoConnect: false,
+			},
+		},
+	];
+	let keyCalls = 0;
+
+	await assert.rejects(
+		() =>
+			restoreBackupPayload({
+				payload: backupPayload,
+				listCurrentKeys: async () => currentKeys,
+				listCurrentConnections: async () => currentConnections,
+				replaceAllKeys: async (entries) => {
+					keyCalls += 1;
+					if (keyCalls === 1) {
+						currentKeys = entries.slice(0, 1);
+						throw new Error('key replace failed');
+					}
+					currentKeys = entries;
+				},
+				replaceAllConnections: async (entries) => {
+					currentConnections = entries;
+				},
+			}),
+		/key replace failed/,
+	);
+
+	assert.deepEqual(currentKeys, [
+		{
+			id: 'key_stale',
+			metadata: {
+				priority: 0,
+				createdAtMs: 9,
+				label: 'Stale key',
+				isDefault: false,
+			},
+			value: 'STALE KEY',
+		},
+	]);
+	assert.deepEqual(currentConnections, [
+		{
+			id: 'muly-stale-box-22',
+			metadata: {
+				priority: 0,
+				createdAtMs: 10,
+				modifiedAtMs: 11,
+				label: 'Stale Box',
+			},
+			value: {
+				host: 'stale-box',
+				port: 22,
+				username: 'muly',
+				security: {
+					type: 'key' as const,
+					keyId: 'key_stale',
+				},
+				useTmux: true,
+				tmuxSessionName: 'main',
+				autoConnect: false,
+			},
+		},
+	]);
+});
+
+void test('restoreBackupPayload reapplies the target snapshot when rollback fails', async () => {
+	let currentKeys: BackupPayload['keys'] = [
+		{
+			id: 'key_stale',
+			metadata: {
+				priority: 0,
+				createdAtMs: 9,
+				label: 'Stale key',
+				isDefault: false,
+			},
+			value: 'STALE KEY',
+		},
+	];
+	let currentConnections: BackupPayload['connections'] = [
+		{
+			id: 'muly-stale-box-22',
+			metadata: {
+				priority: 0,
+				createdAtMs: 10,
+				modifiedAtMs: 11,
+				label: 'Stale Box',
+			},
+			value: {
+				host: 'stale-box',
+				port: 22,
+				username: 'muly',
+				security: {
+					type: 'key' as const,
+					keyId: 'key_stale',
+				},
+				useTmux: true,
+				tmuxSessionName: 'main',
+				autoConnect: false,
+			},
+		},
+	];
+	let connectionCalls = 0;
+
+	const result = await restoreBackupPayload({
+		payload: backupPayload,
+		listCurrentKeys: async () => currentKeys,
+		listCurrentConnections: async () => currentConnections,
+		replaceAllKeys: async (entries) => {
+			currentKeys = entries;
+		},
+		replaceAllConnections: async (entries) => {
+			connectionCalls += 1;
+			if (connectionCalls === 1) {
+				currentConnections = entries;
+				throw new Error('connection replace failed');
+			}
+			if (connectionCalls === 2) {
+				throw new Error('rollback connections failed');
+			}
+			currentConnections = entries;
+		},
+	});
+
+	assert.deepEqual(result, {
+		restoredKeys: 1,
+		restoredConnections: 1,
+		recoveredConsistency: true,
+	});
+	assert.deepEqual(currentKeys, backupPayload.keys);
+	assert.deepEqual(currentConnections, backupPayload.connections);
 });

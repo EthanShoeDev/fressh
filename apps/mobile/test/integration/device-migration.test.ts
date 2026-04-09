@@ -221,6 +221,21 @@ void test('parseBackupPayload rejects unsupported versions', () => {
 	);
 });
 
+void test('parseBackupPayload rejects connections that reference missing keys', () => {
+	assert.throws(
+		() =>
+			parseBackupPayload(
+				JSON.stringify({
+					version: 1,
+					createdAt: '2026-04-09T00:00:00.000Z',
+					keys: [],
+					connections: [connectionEntry],
+				}),
+			),
+		/Missing private key for saved connection/,
+	);
+});
+
 void test('replaceAllPrivateKeys keeps existing entries when validation fails', async () => {
 	const keyStorage = makeBetterSecureStore({
 		storagePrefix: 'privateKey',

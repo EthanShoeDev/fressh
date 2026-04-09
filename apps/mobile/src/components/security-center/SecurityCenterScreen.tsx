@@ -4,12 +4,14 @@ import * as Sharing from 'expo-sharing';
 import React from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { KeyList } from '@/components/key-manager/KeyList';
+import { RestorePreflightModal } from '@/components/security-center/RestorePreflightModal';
 import {
 	createBackupPayload,
 	type BackupPayload,
 } from '@/lib/device-migration';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
+	createRestorePreflightSummary,
 	exportBackupForSharing,
 	loadBackupPayloadFromPicker,
 	restoreBackupPayload,
@@ -20,20 +22,30 @@ export function SecurityCenterScreen() {
 	const theme = useTheme();
 	const [isExporting, setIsExporting] = React.useState(false);
 	const [isRestoring, setIsRestoring] = React.useState(false);
+	const [pendingRestorePayload, setPendingRestorePayload] =
+		React.useState<BackupPayload | null>(null);
 	const actionsDisabled = isExporting || isRestoring;
+	const restorePreflight = pendingRestorePayload
+		? createRestorePreflightSummary(pendingRestorePayload)
+		: null;
 
 	const handleConfirmedRestore = React.useCallback(
 		async (payload: BackupPayload) => {
 			try {
 				const result = await restoreBackupPayload({
 					payload,
+					listCurrentKeys: secretsManager.keys.utils.listEntriesWithValues,
+					listCurrentConnections:
+						secretsManager.connections.utils.listEntriesWithValues,
 					replaceAllKeys: secretsManager.keys.utils.replaceAllEntries,
 					replaceAllConnections:
 						secretsManager.connections.utils.replaceAllEntries,
 				});
 				Alert.alert(
 					'Restore complete',
-					`Replaced ${result.restoredKeys} keys and ${result.restoredConnections} saved connections on this device.`,
+					'recoveredConsistency' in result && result.recoveredConsistency
+						? `Replaced ${result.restoredKeys} keys and ${result.restoredConnections} saved connections after recovering from an intermediate restore failure.`
+						: `Replaced ${result.restoredKeys} keys and ${result.restoredConnections} saved connections on this device.`,
 				);
 			} catch (error) {
 				Alert.alert(
@@ -43,6 +55,7 @@ export function SecurityCenterScreen() {
 						: 'Failed to restore from backup file.',
 				);
 			} finally {
+				setPendingRestorePayload(null);
 				setIsRestoring(false);
 			}
 		},
@@ -109,32 +122,8 @@ export function SecurityCenterScreen() {
 				return;
 			}
 
-			Alert.alert(
-				'Replace this device?',
-				`This will replace ${result.payload.keys.length} keys and ${result.payload.connections.length} saved connections on this device.`,
-				[
-					{
-						text: 'Cancel',
-						style: 'cancel',
-						onPress: () => {
-							setIsRestoring(false);
-						},
-					},
-					{
-						text: 'Replace',
-						style: 'destructive',
-						onPress: () => {
-							void handleConfirmedRestore(result.payload);
-						},
-					},
-				],
-				{
-					cancelable: true,
-					onDismiss: () => {
-						setIsRestoring(false);
-					},
-				},
-			);
+			setPendingRestorePayload(result.payload);
+			setIsRestoring(false);
 		} catch (error) {
 			Alert.alert(
 				'Restore failed',
@@ -201,6 +190,21 @@ export function SecurityCenterScreen() {
 					</Text>
 				</Pressable>
 			</View>
+			<RestorePreflightModal
+				open={pendingRestorePayload !== null}
+				keys={restorePreflight?.keys ?? []}
+				connections={restorePreflight?.connections ?? []}
+				isRestoring={isRestoring}
+				onClose={() => {
+					if (isRestoring) return;
+					setPendingRestorePayload(null);
+				}}
+				onConfirm={() => {
+					if (!pendingRestorePayload || isRestoring) return;
+					setIsRestoring(true);
+					void handleConfirmedRestore(pendingRestorePayload);
+				}}
+			/>
 		</ScrollView>
 	);
 }

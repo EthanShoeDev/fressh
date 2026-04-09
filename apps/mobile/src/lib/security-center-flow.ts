@@ -1,4 +1,5 @@
 import { type StoredConnectionEntry } from './connection-storage';
+import { formatSavedConnectionSummary } from './connection-utils';
 import {
 	parseBackupPayload,
 	replaceAllFromBackup,
@@ -80,14 +81,82 @@ export async function loadBackupPayloadFromPicker(params: {
 	};
 }
 
+export function createRestorePreflightSummary(payload: BackupPayload) {
+	const keys = payload.keys.map((entry) => ({
+		id: entry.id,
+		label: entry.metadata.label ?? entry.id,
+	}));
+	const connections = payload.connections.map((entry) => ({
+		id: entry.id,
+		label: formatSavedConnectionSummary(entry),
+	}));
+	const keyLines =
+		keys.length > 0
+			? keys.map((entry) => `- ${entry.label}`).join('\n')
+			: '- None';
+	const connectionLines =
+		connections.length > 0
+			? connections.map((entry) => `- ${entry.label}`).join('\n')
+			: '- None';
+
+	return {
+		keys,
+		connections,
+		message: `Keys to replace:\n${keyLines}\n\nSaved connections to replace:\n${connectionLines}`,
+	};
+}
+
 export async function restoreBackupPayload(params: {
 	payload: BackupPayload;
+	listCurrentKeys: () => Promise<BackupKeyEntry[]>;
+	listCurrentConnections: () => Promise<StoredConnectionEntry[]>;
 	replaceAllKeys: (entries: BackupKeyEntry[]) => Promise<void>;
 	replaceAllConnections: (entries: StoredConnectionEntry[]) => Promise<void>;
 }) {
-	return replaceAllFromBackup({
-		payload: params.payload,
-		replaceAllKeys: params.replaceAllKeys,
-		replaceAllConnections: params.replaceAllConnections,
-	});
+	const previousKeys = await params.listCurrentKeys();
+	const previousConnections = await params.listCurrentConnections();
+
+	try {
+		return await replaceAllFromBackup({
+			payload: params.payload,
+			replaceAllKeys: params.replaceAllKeys,
+			replaceAllConnections: params.replaceAllConnections,
+		});
+	} catch (error) {
+		try {
+			await params.replaceAllKeys(previousKeys);
+			await params.replaceAllConnections(previousConnections);
+		} catch (rollbackError) {
+			try {
+				const reapplied = await replaceAllFromBackup({
+					payload: params.payload,
+					replaceAllKeys: params.replaceAllKeys,
+					replaceAllConnections: params.replaceAllConnections,
+				});
+				return {
+					...reapplied,
+					recoveredConsistency: true as const,
+				};
+			} catch (recoveryError) {
+				throw new Error(
+					`Restore failed, rollback failed, and recovery failed: ${
+						recoveryError instanceof Error
+							? recoveryError.message
+							: 'Unknown recovery error.'
+					}`,
+					{
+						cause: new Error(
+							`Rollback failed: ${
+								rollbackError instanceof Error
+									? rollbackError.message
+									: 'Unknown rollback error.'
+							}`,
+							{ cause: error },
+						),
+					},
+				);
+			}
+		}
+		throw error;
+	}
 }

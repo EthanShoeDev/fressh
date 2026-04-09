@@ -51,9 +51,11 @@ void test('listConnectionsUsingKey returns only connections that reference the k
 });
 
 void test('describeConnectionsUsingKey prefers saved labels and falls back to ids', () => {
-	assert.deepEqual(describeConnectionsUsingKey(entries, 'key_1'), ['Dev Box']);
+	assert.deepEqual(describeConnectionsUsingKey(entries, 'key_1'), [
+		'Dev Box (muly@dev-box:22)',
+	]);
 	assert.deepEqual(describeConnectionsUsingKey(entries, 'key_2'), [
-		'muly-staging-box-22',
+		'muly-staging-box-22 (muly@staging-box:22)',
 	]);
 });
 
@@ -96,8 +98,8 @@ void test('getKeyDeletionGuard blocks delete when the key is in use', () => {
 		}),
 		{
 			canDelete: false,
-			message: 'Used by: Dev Box',
-			usageSummary: ['Dev Box'],
+			message: 'Used by: Dev Box (muly@dev-box:22)',
+			usageSummary: ['Dev Box (muly@dev-box:22)'],
 		},
 	);
 });

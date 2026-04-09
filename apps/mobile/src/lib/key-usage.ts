@@ -1,4 +1,4 @@
-import { type SavedConnectionEntry } from './connection-utils';
+import { formatSavedConnectionSummary, type SavedConnectionEntry } from './connection-utils';
 
 export function listConnectionsUsingKey(
 	entries: SavedConnectionEntry[],
@@ -11,9 +11,7 @@ export function describeConnectionsUsingKey(
 	entries: SavedConnectionEntry[],
 	keyId: string,
 ) {
-	return listConnectionsUsingKey(entries, keyId).map(
-		(entry) => entry.metadata.label ?? entry.id,
-	);
+	return listConnectionsUsingKey(entries, keyId).map(formatSavedConnectionSummary);
 }
 
 export type KeyDeletionGuardState = 'loading' | 'error' | 'success';
