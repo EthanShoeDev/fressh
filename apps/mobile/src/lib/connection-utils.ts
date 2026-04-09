@@ -40,3 +40,14 @@ export const getStoredConnectionId = (details: {
 		'_',
 	);
 };
+
+export const formatSavedConnectionSummary = (entry: {
+	id: string;
+	metadata: { label?: string };
+	value: { username: string; host: string; port: number };
+}) => {
+	const target = `${entry.value.username}@${entry.value.host}:${entry.value.port}`;
+	return entry.metadata.label
+		? `${entry.metadata.label} (${target})`
+		: `${entry.id} (${target})`;
+};

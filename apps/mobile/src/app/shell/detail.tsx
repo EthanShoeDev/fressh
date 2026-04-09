@@ -9,7 +9,6 @@ import {
 } from '@fressh/react-native-xtermjs-webview';
 
 import * as Clipboard from 'expo-clipboard';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as Linking from 'expo-linking';
 import {
 	Stack,
@@ -39,19 +38,6 @@ import {
 	View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-	getActiveKeyboardIds,
-	getKeyboardActionTarget,
-	getKeyboardsById,
-	resolveActiveOneShotReturnKeyboardId,
-	type KeyboardDefinition,
-	type KeyboardSlot,
-	type MacroDef,
-	type ModifierKey,
-	resolveSelectedKeyboardId,
-	type CommandPreset,
-	type CommandStep,
-} from '@/lib/shell-config';
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
 import {
@@ -64,6 +50,19 @@ import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { secretsManager } from '@/lib/secrets-manager';
+import {
+	getActiveKeyboardIds,
+	getKeyboardActionTarget,
+	getKeyboardsById,
+	resolveActiveOneShotReturnKeyboardId,
+	resolveSelectedKeyboardId,
+	type CommandPreset,
+	type CommandStep,
+	type KeyboardDefinition,
+	type KeyboardSlot,
+	type MacroDef,
+	type ModifierKey,
+} from '@/lib/shell-config';
 import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
@@ -532,8 +531,12 @@ function ShellDetail() {
 		() => getActiveKeyboardIds(shellConfig),
 		[shellConfig],
 	);
-	const [selectedKeyboardId, setSelectedKeyboardId] = useState<string>(
+	const [preferredKeyboardId, setPreferredKeyboardId] = useState<string>(() =>
 		resolveSelectedKeyboardId(shellConfig, shellConfig.defaultKeyboardId),
+	);
+	const selectedKeyboardId = useMemo(
+		() => resolveSelectedKeyboardId(shellConfig, preferredKeyboardId),
+		[preferredKeyboardId, shellConfig],
 	);
 	const availableKeyboardIds = useMemo(
 		() => new Set(activeKeyboardIds),
@@ -552,16 +555,9 @@ function ShellDetail() {
 		selectedKeyboardIdRef.current = selectedKeyboardId;
 	}, [selectedKeyboardId]);
 
-	useEffect(() => {
-		setSelectedKeyboardId((current) =>
-			resolveSelectedKeyboardId(shellConfig, current),
-		);
-	}, [shellConfig]);
-
 	const currentKeyboard = useMemo<KeyboardDefinition | null>(() => {
-		const resolvedId = resolveSelectedKeyboardId(shellConfig, selectedKeyboardId);
-		return resolvedId ? (keyboardsById[resolvedId] ?? null) : null;
-	}, [keyboardsById, selectedKeyboardId, shellConfig]);
+		return selectedKeyboardId ? (keyboardsById[selectedKeyboardId] ?? null) : null;
+	}, [keyboardsById, selectedKeyboardId]);
 
 	const currentMacros = useMemo<MacroDef[]>(
 		() => (currentKeyboard ? (shellConfig.macrosByKeyboardId[currentKeyboard.id] ?? []) : []),
@@ -897,7 +893,7 @@ function ShellDetail() {
 
 	const rotateKeyboard = useCallback(() => {
 		if (activeKeyboardIds.length <= 1) return;
-		setSelectedKeyboardId((current) => {
+		setPreferredKeyboardId((current) => {
 			const resolvedCurrent = resolveSelectedKeyboardId(shellConfig, current);
 			const idx = Math.max(0, activeKeyboardIds.indexOf(resolvedCurrent));
 			const nextIdx = (idx + 1) % activeKeyboardIds.length;
@@ -908,7 +904,7 @@ function ShellDetail() {
 	const selectKeyboardIfExists = useCallback(
 		(id: string) => {
 			if (!availableKeyboardIds.has(id)) return;
-			setSelectedKeyboardId(id);
+			setPreferredKeyboardId(id);
 		},
 		[availableKeyboardIds],
 	);
@@ -981,10 +977,10 @@ function ShellDetail() {
 				selectedKeyboardIdRef.current,
 			);
 			if (returnKeyboardId) {
-				setSelectedKeyboardId(returnKeyboardId);
+				setPreferredKeyboardId(returnKeyboardId);
 			}
 		})();
-	}, [exitSelectionMode, setSelectedKeyboardId]);
+	}, [exitSelectionMode]);
 
 	const handleSelectionChanged = useCallback((text: string) => {
 		if (!text) return;
@@ -1024,113 +1020,6 @@ function ShellDetail() {
 			);
 		}
 	}, []);
-
-	const handleExportBackup = useCallback(async () => {
-		setConfigureOpen(false);
-		try {
-			const [keys, connections] = await Promise.all([
-				secretsManager.keys.utils.listEntriesWithValues(),
-				secretsManager.connections.utils.listEntriesWithValues(),
-			]);
-			const payload = {
-				version: 1,
-				createdAt: new Date().toISOString(),
-				keys: keys.map((entry) => ({
-					id: entry.id,
-					metadata: entry.metadata,
-					value: entry.value,
-				})),
-				connections: connections.map((entry) => ({
-					id: entry.id,
-					metadata: entry.metadata,
-					value: entry.value,
-				})),
-			};
-			const backupText = JSON.stringify(payload, null, 2);
-			const backupPath = FileSystem.documentDirectory
-				? `${FileSystem.documentDirectory}backup.json`
-				: null;
-			if (backupPath) {
-				await FileSystem.writeAsStringAsync(backupPath, backupText, {
-					encoding: FileSystem.EncodingType.UTF8,
-				});
-			}
-			await Clipboard.setStringAsync(backupText);
-			Alert.alert(
-				'Backup copied',
-				`Copied ${backupText.length.toLocaleString()} characters to the clipboard.${backupPath ? ' Saved to files/backup.json for ADB.' : ''}`,
-			);
-		} catch (error) {
-			Alert.alert(
-				'Backup failed',
-				error instanceof Error ? error.message : 'Failed to create backup.',
-			);
-		}
-	}, []);
-
-	const restoreBackupPayload = useCallback(async (backupText: string) => {
-		const parsed = JSON.parse(backupText);
-		if (!parsed || typeof parsed !== 'object') {
-			throw new Error('Invalid backup format.');
-		}
-		if (parsed.version !== 1) {
-			throw new Error('Unsupported backup version.');
-		}
-		const keys = Array.isArray(parsed.keys) ? parsed.keys : [];
-		const connections = Array.isArray(parsed.connections)
-			? parsed.connections
-			: [];
-
-		let restoredKeys = 0;
-		for (const key of keys) {
-			if (!key?.id || !key?.value) continue;
-			await secretsManager.keys.utils.upsertPrivateKey({
-				keyId: key.id,
-				value: key.value,
-				metadata: {
-					priority: key.metadata?.priority ?? 0,
-					label: key.metadata?.label,
-					isDefault: key.metadata?.isDefault ?? false,
-				},
-			});
-			restoredKeys += 1;
-		}
-
-		let restoredConnections = 0;
-		for (const entry of connections) {
-			if (!entry?.value) continue;
-			await secretsManager.connections.utils.upsertConnection({
-				details: entry.value,
-				priority: entry.metadata?.priority ?? 0,
-				label: entry.metadata?.label,
-			});
-			restoredConnections += 1;
-		}
-
-		Alert.alert(
-			'Restore complete',
-			`Restored ${restoredKeys} keys and ${restoredConnections} connections.`,
-		);
-	}, []);
-
-	const handleImportBackup = useCallback(async () => {
-		setConfigureOpen(false);
-		try {
-			if (!FileSystem.documentDirectory) {
-				throw new Error('Document directory unavailable.');
-			}
-			const backupPath = `${FileSystem.documentDirectory}backup.json`;
-			const backupText = await FileSystem.readAsStringAsync(backupPath, {
-				encoding: FileSystem.EncodingType.UTF8,
-			});
-			await restoreBackupPayload(backupText);
-		} catch (error) {
-			Alert.alert(
-				'Restore failed',
-				error instanceof Error ? error.message : 'Restore failed.',
-			);
-		}
-	}, [restoreBackupPayload]);
 
 	const handleHostConfig = useCallback(() => {
 		setConfigureOpen(false);
@@ -1348,7 +1237,7 @@ fi
 			}
 
 			if (returnKeyboardId) {
-				setSelectedKeyboardId(returnKeyboardId);
+				setPreferredKeyboardId(returnKeyboardId);
 			}
 		},
 		[
@@ -1363,7 +1252,6 @@ fi
 			sendBytesWithModifiers,
 			sendTextRaw,
 			sendTextWithModifiers,
-			setSelectedKeyboardId,
 			shellConfig,
 			toggleModifier,
 		],
@@ -1909,8 +1797,6 @@ fi
 					}}
 					onDevServer={handleDevServer}
 					onReloadConfig={handleReloadConfig}
-					onExportBackup={handleExportBackup}
-					onImportBackup={handleImportBackup}
 					onHostConfig={handleHostConfig}
 					onOpenGitHubIssues={handleOpenGitHubIssues}
 					onOpenShellConfigDocs={handleOpenShellConfigDocs}

@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { parseShellConfigString } from '../../src/lib/shell-config';
 import {
 	loadInitialShellConfigState,
 	reloadShellConfigFromRemote,
 	type ShellConfigCacheStorage,
 } from '../../src/lib/shell-config-store';
-import { parseShellConfigString } from '../../src/lib/shell-config';
 
 function createMemoryStorage(): ShellConfigCacheStorage {
 	const values = new Map<string, string>();

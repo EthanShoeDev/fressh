@@ -5,6 +5,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import React from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { getKeyDeletionGuard } from '@/lib/key-usage';
 import { secretsManager } from '@/lib/secrets-manager';
 import { useTheme } from '@/lib/theme';
 
@@ -330,6 +331,7 @@ function KeyRow(props: {
 	onSelected?: (id: string) => void | Promise<void>;
 }) {
 	const theme = useTheme();
+	const listConnectionsQuery = useQuery(secretsManager.connections.query.list);
 	const entryQuery = useQuery(secretsManager.keys.query.get(props.entryId));
 	const entry = entryQuery.data;
 	const [label, setLabel] = React.useState(
@@ -374,6 +376,20 @@ function KeyRow(props: {
 		},
 		onSuccess: () => entryQuery.refetch(),
 	});
+	const deleteGuard = React.useMemo(
+		() =>
+			getKeyDeletionGuard({
+				entries: listConnectionsQuery.data,
+				keyId: props.entryId,
+				state:
+					listConnectionsQuery.status === 'success'
+						? 'success'
+						: listConnectionsQuery.status === 'error'
+							? 'error'
+							: 'loading',
+			}),
+		[listConnectionsQuery.data, listConnectionsQuery.status, props.entryId],
+	);
 
 	const setDefaultMutation = useMutation({
 		mutationFn: async () => {
@@ -591,30 +607,55 @@ function KeyRow(props: {
 						</Text>
 					</Pressable>
 				) : null}
-				<Pressable
-					style={{
-						backgroundColor: theme.colors.transparent,
-						borderWidth: 1,
-						borderColor: theme.colors.danger,
-						borderRadius: 10,
-						paddingVertical: 8,
-						paddingHorizontal: 10,
-						alignItems: 'center',
-					}}
-					onPress={() => {
-						deleteMutation.mutate();
-					}}
-				>
-					<Text
+				<View style={{ alignItems: 'flex-end', gap: 6 }}>
+					{deleteGuard.message ? (
+						<Text
+							style={{
+								color:
+									deleteGuard.canDelete ||
+									deleteGuard.message.startsWith('Used by:')
+										? theme.colors.muted
+										: theme.colors.textSecondary,
+								fontSize: 12,
+								maxWidth: 160,
+								textAlign: 'right',
+							}}
+						>
+							{deleteGuard.message}
+						</Text>
+					) : null}
+					<Pressable
 						style={{
-							color: theme.colors.danger,
-							fontWeight: '700',
-							fontSize: 12,
+							backgroundColor: theme.colors.transparent,
+							borderWidth: 1,
+							borderColor: deleteGuard.canDelete
+								? theme.colors.danger
+								: theme.colors.border,
+							borderRadius: 10,
+							paddingVertical: 8,
+							paddingHorizontal: 10,
+							alignItems: 'center',
+							opacity: deleteGuard.canDelete ? 1 : 0.5,
+						}}
+						disabled={!deleteGuard.canDelete || deleteMutation.isPending}
+						onPress={() => {
+							if (!deleteGuard.canDelete) return;
+							deleteMutation.mutate();
 						}}
 					>
-						Delete
-					</Text>
-				</Pressable>
+						<Text
+							style={{
+								color: deleteGuard.canDelete
+									? theme.colors.danger
+									: theme.colors.textSecondary,
+								fontWeight: '700',
+								fontSize: 12,
+							}}
+						>
+							{deleteGuard.canDelete ? 'Delete' : 'Reassign Connections First'}
+						</Text>
+					</Pressable>
+				</View>
 			</View>
 		</View>
 	);

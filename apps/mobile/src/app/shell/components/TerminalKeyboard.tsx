@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { resolveLucideIcon } from '@/lib/lucide-utils';
 import {
 	type KeyboardDefinition,
 	type KeyboardSlot,
 	type ModifierKey,
 } from '@/lib/shell-config';
-import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { useTheme } from '@/lib/theme';
 
 export function TerminalKeyboard({

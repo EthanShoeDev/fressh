@@ -9,9 +9,19 @@ import {
 	connectionMetadataSchema,
 	createConnectionStorage,
 	storedConnectionDetailsSchema,
+	type StoredConnectionEntry,
 	type StoredConnectionDetails,
 } from './connection-storage';
+import {
+	createReplaceAllPrivateKeyEntriesHandler,
+	replaceAllPrivateKeys,
+} from './device-migration';
+import { createDeletePrivateKeyHandler } from './key-usage';
 import { rootLogger } from './logger';
+import {
+	recoverPendingRestore,
+	type RestoreJournalStorage,
+} from './security-center-flow';
 import { queryClient, type StrictOmit } from './utils';
 
 export {
@@ -47,20 +57,61 @@ const betterKeyStorage = makeBetterSecureStore<KeyMetadata>({
 	logger,
 });
 
+const restoreJournalStore = makeBetterSecureStore({
+	storagePrefix: 'securityCenterRestoreJournal',
+	parseValue: (value) => value,
+	storage: secureStoreAdapter,
+	randomUUID: () => Crypto.randomUUID(),
+	logger,
+});
+
+const restoreJournal: RestoreJournalStorage = {
+	load: async () => {
+		let entry: Awaited<ReturnType<typeof restoreJournalStore.getEntry>>;
+		try {
+			entry = await restoreJournalStore.getEntry('pending');
+		} catch (error) {
+			if (error instanceof Error && error.message === 'Entry not found') {
+				return null;
+			}
+			throw error;
+		}
+		try {
+			return JSON.parse(entry.value) as unknown;
+		} catch (error) {
+			logger.warn('Discarding malformed restore journal entry', error);
+			await restoreJournalStore.deleteEntry('pending');
+			return null;
+		}
+	},
+	save: async (state) => {
+		await restoreJournalStore.upsertEntry({
+			id: 'pending',
+			metadata: {},
+			value: JSON.stringify(state),
+		});
+	},
+	clear: async () => {
+		await restoreJournalStore.deleteEntry('pending');
+	},
+};
+
+function validatePrivateKey(value: string) {
+	const validateKeyResult = RnRussh.validatePrivateKey(value);
+	if (validateKeyResult.valid) return;
+	logger.info('Invalid private key', validateKeyResult.error);
+	if (validateKeyResult.error.tag === SshError_Tags.RusshKeys) {
+		logger.info('Invalid private key inner', validateKeyResult.error.inner);
+	}
+	throw new Error('Invalid private key', { cause: validateKeyResult.error });
+}
+
 async function upsertPrivateKey(params: {
 	keyId?: string;
 	metadata: StrictOmit<KeyMetadata, 'createdAtMs'>;
 	value: string;
 }) {
-	const validateKeyResult = RnRussh.validatePrivateKey(params.value);
-	if (!validateKeyResult.valid) {
-		logger.info('Invalid private key', validateKeyResult.error);
-		if (validateKeyResult.error.tag === SshError_Tags.RusshKeys) {
-			logger.info('Invalid private key inner', validateKeyResult.error.inner);
-			logger.info('Invalid private key content', params.value);
-		}
-		throw new Error('Invalid private key', { cause: validateKeyResult.error });
-	}
+	validatePrivateKey(params.value);
 	const keyId = params.keyId ?? `key_${Crypto.randomUUID()}`;
 	logger.info(
 		`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`,
@@ -84,11 +135,6 @@ async function upsertPrivateKey(params: {
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
-async function deletePrivateKey(keyId: string) {
-	await betterKeyStorage.deleteEntry(keyId);
-	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
-}
-
 const keyQueryKey = 'keys';
 
 const listKeysQueryOptions = queryOptions({
@@ -105,6 +151,25 @@ const getKeyQueryOptions = (keyId: string) =>
 		queryKey: [keyQueryKey, keyId],
 		queryFn: () => betterKeyStorage.getEntry(keyId),
 	});
+
+const deletePrivateKey = createDeletePrivateKeyHandler({
+	deleteKey: (keyId) => betterKeyStorage.deleteEntry(keyId),
+	listConnections: () => connectionStorage.listEntriesWithValues(),
+	invalidateKeysQuery: () =>
+		queryClient.invalidateQueries({ queryKey: [keyQueryKey] }),
+});
+
+const replaceAllPrivateKeyEntries = createReplaceAllPrivateKeyEntriesHandler({
+	replaceAllKeys: async (entries) => {
+		await replaceAllPrivateKeys({
+			entries,
+			storage: betterKeyStorage,
+			validatePrivateKey,
+		});
+	},
+	invalidateKeysQuery: () =>
+		queryClient.invalidateQueries({ queryKey: [keyQueryKey] }),
+});
 
 const legacyConnectionStorage = makeBetterSecureStore<
 	z.infer<typeof connectionMetadataSchema>,
@@ -148,6 +213,11 @@ async function deleteConnection(id: string) {
 	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
 }
 
+async function replaceAllConnections(entries: StoredConnectionEntry[]) {
+	await connectionStorage.replaceAllEntries(entries);
+	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
+}
+
 const connectionQueryKey = 'connections';
 
 const listConnectionsQueryOptions = queryOptions({
@@ -163,6 +233,16 @@ const getConnectionQueryOptions = (id: string) =>
 
 async function initializeSecretsManager() {
 	await connectionStorage.ensureReady();
+	const recovery = await recoverPendingRestore({
+		restoreJournal,
+		listCurrentKeys: () => betterKeyStorage.listEntriesWithValues(),
+		listCurrentConnections: () => connectionStorage.listEntriesWithValues(),
+		replaceAllKeys: replaceAllPrivateKeyEntries,
+		replaceAllConnections,
+	});
+	if (recovery.restored) {
+		logger.warn('Recovered pending security center restore', recovery);
+	}
 }
 
 export const secretsManager = {
@@ -173,6 +253,7 @@ export const secretsManager = {
 			deletePrivateKey,
 			listEntriesWithValues: betterKeyStorage.listEntriesWithValues,
 			getPrivateKey: (keyId: string) => betterKeyStorage.getEntry(keyId),
+			replaceAllEntries: replaceAllPrivateKeyEntries,
 		},
 		query: {
 			list: listKeysQueryOptions,
@@ -185,10 +266,16 @@ export const secretsManager = {
 			upsertConnection,
 			deleteConnection,
 			listEntriesWithValues: connectionStorage.listEntriesWithValues,
+			replaceAllEntries: replaceAllConnections,
 		},
 		query: {
 			list: listConnectionsQueryOptions,
 			get: getConnectionQueryOptions,
+		},
+	},
+	securityCenter: {
+		utils: {
+			restoreJournal,
 		},
 	},
 };

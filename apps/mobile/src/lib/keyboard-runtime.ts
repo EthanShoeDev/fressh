@@ -1,9 +1,9 @@
+import { type ActionId } from '@/lib/keyboard-actions';
+import { parseMacroScript, type MacroStep } from '@/lib/macro-scripts';
 import {
 	type KeyboardSlot,
 	type MacroDef,
 } from '@/lib/shell-config';
-import { type ActionId } from '@/lib/keyboard-actions';
-import { parseMacroScript, type MacroStep } from '@/lib/macro-scripts';
 
 export { parseMacroScript } from '@/lib/macro-scripts';
 
