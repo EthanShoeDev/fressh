@@ -12,6 +12,7 @@ import {
 	type StoredConnectionEntry,
 	type StoredConnectionDetails,
 } from './connection-storage';
+import { type BackupKeyEntry } from './device-migration';
 import { rootLogger } from './logger';
 import { queryClient, type StrictOmit } from './utils';
 
@@ -27,6 +28,11 @@ const secureStoreAdapter = {
 	getItem: (key: string) => SecureStore.getItemAsync(key),
 	setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
 	deleteItem: (key: string) => SecureStore.deleteItemAsync(key),
+};
+
+type PrivateKeyStorage = {
+	clearAllEntries: () => Promise<void>;
+	upsertEntry: (entry: BackupKeyEntry) => Promise<void>;
 };
 
 const keyMetadataSchema = z.object({
@@ -48,20 +54,23 @@ const betterKeyStorage = makeBetterSecureStore<KeyMetadata>({
 	logger,
 });
 
+function validatePrivateKey(value: string) {
+	const validateKeyResult = RnRussh.validatePrivateKey(value);
+	if (validateKeyResult.valid) return;
+	logger.info('Invalid private key', validateKeyResult.error);
+	if (validateKeyResult.error.tag === SshError_Tags.RusshKeys) {
+		logger.info('Invalid private key inner', validateKeyResult.error.inner);
+		logger.info('Invalid private key content', value);
+	}
+	throw new Error('Invalid private key', { cause: validateKeyResult.error });
+}
+
 async function upsertPrivateKey(params: {
 	keyId?: string;
 	metadata: StrictOmit<KeyMetadata, 'createdAtMs'>;
 	value: string;
 }) {
-	const validateKeyResult = RnRussh.validatePrivateKey(params.value);
-	if (!validateKeyResult.valid) {
-		logger.info('Invalid private key', validateKeyResult.error);
-		if (validateKeyResult.error.tag === SshError_Tags.RusshKeys) {
-			logger.info('Invalid private key inner', validateKeyResult.error.inner);
-			logger.info('Invalid private key content', params.value);
-		}
-		throw new Error('Invalid private key', { cause: validateKeyResult.error });
-	}
+	validatePrivateKey(params.value);
 	const keyId = params.keyId ?? `key_${Crypto.randomUUID()}`;
 	logger.info(
 		`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`,
@@ -90,13 +99,24 @@ async function deletePrivateKey(keyId: string) {
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
-async function replaceAllPrivateKeys(
-	entries: Array<{ id: string; metadata: KeyMetadata; value: string }>,
-) {
-	await betterKeyStorage.clearAllEntries();
-	for (const entry of entries) {
-		await betterKeyStorage.upsertEntry(entry);
+export async function replaceAllPrivateKeys(params: {
+	entries: BackupKeyEntry[];
+	storage: PrivateKeyStorage;
+}) {
+	for (const entry of params.entries) {
+		validatePrivateKey(entry.value);
 	}
+	await params.storage.clearAllEntries();
+	for (const entry of params.entries) {
+		await params.storage.upsertEntry(entry);
+	}
+}
+
+async function replaceAllPrivateKeyEntries(entries: BackupKeyEntry[]) {
+	await replaceAllPrivateKeys({
+		entries,
+		storage: betterKeyStorage,
+	});
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
@@ -189,7 +209,7 @@ export const secretsManager = {
 			deletePrivateKey,
 			listEntriesWithValues: betterKeyStorage.listEntriesWithValues,
 			getPrivateKey: (keyId: string) => betterKeyStorage.getEntry(keyId),
-			replaceAllEntries: replaceAllPrivateKeys,
+			replaceAllEntries: replaceAllPrivateKeyEntries,
 		},
 		query: {
 			list: listKeysQueryOptions,
