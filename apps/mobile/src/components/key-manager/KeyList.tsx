@@ -5,10 +5,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import React from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import {
-	describeConnectionsUsingKey,
-	listConnectionsUsingKey,
-} from '@/lib/key-usage';
+import { getKeyDeletionGuard } from '@/lib/key-usage';
 import { secretsManager } from '@/lib/secrets-manager';
 import { useTheme } from '@/lib/theme';
 
@@ -379,19 +376,19 @@ function KeyRow(props: {
 		},
 		onSuccess: () => entryQuery.refetch(),
 	});
-	const usedByConnections = React.useMemo(
+	const deleteGuard = React.useMemo(
 		() =>
-			listConnectionsUsingKey(listConnectionsQuery.data ?? [], props.entryId),
-		[listConnectionsQuery.data, props.entryId],
-	);
-	const deleteBlocked = usedByConnections.length > 0;
-	const usageSummary = React.useMemo(
-		() =>
-			describeConnectionsUsingKey(
-				listConnectionsQuery.data ?? [],
-				props.entryId,
-			),
-		[listConnectionsQuery.data, props.entryId],
+			getKeyDeletionGuard({
+				entries: listConnectionsQuery.data,
+				keyId: props.entryId,
+				state:
+					listConnectionsQuery.status === 'success'
+						? 'success'
+						: listConnectionsQuery.status === 'error'
+							? 'error'
+							: 'loading',
+			}),
+		[listConnectionsQuery.data, listConnectionsQuery.status, props.entryId],
 	);
 
 	const setDefaultMutation = useMutation({
@@ -611,47 +608,51 @@ function KeyRow(props: {
 					</Pressable>
 				) : null}
 				<View style={{ alignItems: 'flex-end', gap: 6 }}>
-					{deleteBlocked ? (
+					{deleteGuard.message ? (
 						<Text
 							style={{
-								color: theme.colors.muted,
+								color:
+									deleteGuard.canDelete ||
+									deleteGuard.message.startsWith('Used by:')
+										? theme.colors.muted
+										: theme.colors.textSecondary,
 								fontSize: 12,
 								maxWidth: 160,
 								textAlign: 'right',
 							}}
 						>
-							Used by: {usageSummary.join(', ')}
+							{deleteGuard.message}
 						</Text>
 					) : null}
 					<Pressable
 						style={{
 							backgroundColor: theme.colors.transparent,
 							borderWidth: 1,
-							borderColor: deleteBlocked
-								? theme.colors.border
-								: theme.colors.danger,
+							borderColor: deleteGuard.canDelete
+								? theme.colors.danger
+								: theme.colors.border,
 							borderRadius: 10,
 							paddingVertical: 8,
 							paddingHorizontal: 10,
 							alignItems: 'center',
-							opacity: deleteBlocked ? 0.5 : 1,
+							opacity: deleteGuard.canDelete ? 1 : 0.5,
 						}}
-						disabled={deleteBlocked || deleteMutation.isPending}
+						disabled={!deleteGuard.canDelete || deleteMutation.isPending}
 						onPress={() => {
-							if (deleteBlocked) return;
+							if (!deleteGuard.canDelete) return;
 							deleteMutation.mutate();
 						}}
 					>
 						<Text
 							style={{
-								color: deleteBlocked
-									? theme.colors.textSecondary
-									: theme.colors.danger,
+								color: deleteGuard.canDelete
+									? theme.colors.danger
+									: theme.colors.textSecondary,
 								fontWeight: '700',
 								fontSize: 12,
 							}}
 						>
-							{deleteBlocked ? 'Reassign Connections First' : 'Delete'}
+							{deleteGuard.canDelete ? 'Delete' : 'Reassign Connections First'}
 						</Text>
 					</Pressable>
 				</View>
