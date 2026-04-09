@@ -9,6 +9,7 @@ import {
 	connectionMetadataSchema,
 	createConnectionStorage,
 	storedConnectionDetailsSchema,
+	type StoredConnectionEntry,
 	type StoredConnectionDetails,
 } from './connection-storage';
 import { rootLogger } from './logger';
@@ -89,6 +90,16 @@ async function deletePrivateKey(keyId: string) {
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
+async function replaceAllPrivateKeys(
+	entries: Array<{ id: string; metadata: KeyMetadata; value: string }>,
+) {
+	await betterKeyStorage.clearAllEntries();
+	for (const entry of entries) {
+		await betterKeyStorage.upsertEntry(entry);
+	}
+	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
+}
+
 const keyQueryKey = 'keys';
 
 const listKeysQueryOptions = queryOptions({
@@ -148,6 +159,11 @@ async function deleteConnection(id: string) {
 	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
 }
 
+async function replaceAllConnections(entries: StoredConnectionEntry[]) {
+	await connectionStorage.replaceAllEntries(entries);
+	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
+}
+
 const connectionQueryKey = 'connections';
 
 const listConnectionsQueryOptions = queryOptions({
@@ -173,6 +189,7 @@ export const secretsManager = {
 			deletePrivateKey,
 			listEntriesWithValues: betterKeyStorage.listEntriesWithValues,
 			getPrivateKey: (keyId: string) => betterKeyStorage.getEntry(keyId),
+			replaceAllEntries: replaceAllPrivateKeys,
 		},
 		query: {
 			list: listKeysQueryOptions,
@@ -185,6 +202,7 @@ export const secretsManager = {
 			upsertConnection,
 			deleteConnection,
 			listEntriesWithValues: connectionStorage.listEntriesWithValues,
+			replaceAllEntries: replaceAllConnections,
 		},
 		query: {
 			list: listConnectionsQueryOptions,
