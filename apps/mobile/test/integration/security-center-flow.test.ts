@@ -916,6 +916,105 @@ void test('recoverPendingRestore clears a stale journal when current state alrea
 	assert.equal(journal.getSnapshot(), null);
 });
 
+void test('recoverPendingRestore does not replay a target journal when current state matches previous after local normalization', async () => {
+	const previousSnapshot: BackupPayload = {
+		version: 1,
+		createdAt: '2026-04-09T00:00:00.000Z',
+		keys: [
+			{
+				id: 'key_live_1',
+				metadata: {
+					priority: 0,
+					createdAtMs: 9,
+					label: 'Live key one',
+					isDefault: true,
+				},
+				value: 'LIVE KEY ONE',
+			},
+			{
+				id: 'key_live_2',
+				metadata: {
+					priority: 1,
+					createdAtMs: 10,
+					label: 'Live key two',
+					isDefault: false,
+				},
+				value: 'LIVE KEY TWO',
+			},
+		],
+		connections: [
+			{
+				id: 'muly-live-box-22',
+				metadata: {
+					priority: 0,
+					createdAtMs: 11,
+					modifiedAtMs: 12,
+					label: 'Live Box',
+				},
+				value: {
+					host: 'live-box',
+					port: 22,
+					username: 'muly',
+					security: {
+						type: 'key' as const,
+						keyId: 'key_live_1',
+					},
+					useTmux: true,
+					tmuxSessionName: 'main',
+					autoConnect: false,
+				},
+			},
+		],
+	};
+	const currentKeys: BackupPayload['keys'] = [
+		{
+			id: 'key_live_1',
+			metadata: {
+				priority: 0,
+				createdAtMs: 9,
+				label: 'Live key one',
+				isDefault: true,
+			},
+			value: 'LIVE KEY ONE',
+		},
+		{
+			id: 'key_live_2',
+			metadata: {
+				priority: 1,
+				createdAtMs: 10,
+				label: 'Live key two',
+				isDefault: true,
+			},
+			value: 'LIVE KEY TWO',
+		},
+	];
+	const currentConnections = previousSnapshot.connections;
+	const journal = createMemoryRestoreJournal();
+	let replaceCalls = 0;
+
+	await journal.save({
+		recoveryTarget: 'target',
+		previous: previousSnapshot,
+		target: backupPayload,
+	});
+
+	const result = await recoverPendingRestore({
+		restoreJournal: journal,
+		listCurrentKeys: async () => currentKeys,
+		listCurrentConnections: async () => currentConnections,
+		replaceAllKeys: async () => {
+			replaceCalls += 1;
+		},
+		replaceAllConnections: async () => {
+			replaceCalls += 1;
+		},
+	});
+
+	assert.deepEqual(result, { restored: false });
+	assert.equal(replaceCalls, 0);
+	assert.equal(journal.getSnapshot(), null);
+});
+
 void test('recoverPendingRestore treats a completed journal as cleanup-only without readers after clear failure', async () => {
 	let currentKeys: BackupPayload['keys'] = [];
 	let currentConnections: BackupPayload['connections'] = [];
@@ -1181,6 +1280,82 @@ void test('recoverPendingRestore supports legacy recoveryState journals', async 
 	});
 	assert.deepEqual(currentKeys, []);
 	assert.deepEqual(currentConnections, []);
+	assert.equal(journal.getSnapshot(), null);
+});
+
+void test('recoverPendingRestore normalizes legacy previous snapshots before validation', async () => {
+	const journal = createMemoryRestoreJournal();
+	const previousSnapshot: BackupPayload = {
+		version: 1,
+		createdAt: '2026-04-09T00:00:00.000Z',
+		keys: [
+			{
+				id: 'key_live_1',
+				metadata: {
+					priority: 0,
+					createdAtMs: 9,
+					label: 'Live key one',
+					isDefault: true,
+				},
+				value: 'LIVE KEY ONE',
+			},
+			{
+				id: 'key_live_2',
+				metadata: {
+					priority: 1,
+					createdAtMs: 10,
+					label: 'Live key two',
+					isDefault: true,
+				},
+				value: 'LIVE KEY TWO',
+			},
+		],
+		connections: [
+			{
+				id: 'muly-live-box-22',
+				metadata: {
+					priority: 0,
+					createdAtMs: 11,
+					modifiedAtMs: 12,
+					label: 'Live Box',
+				},
+				value: {
+					host: 'live-box',
+					port: 22,
+					username: 'muly',
+					security: {
+						type: 'key' as const,
+						keyId: 'key_live_1',
+					},
+					useTmux: true,
+					tmuxSessionName: 'main',
+					autoConnect: false,
+				},
+			},
+		],
+	};
+	let replaceCalls = 0;
+
+	await journal.save({
+		recoveryState: 'apply-target',
+		previous: previousSnapshot,
+		target: backupPayload,
+	});
+
+	const result = await recoverPendingRestore({
+		restoreJournal: journal,
+		listCurrentKeys: async () => previousSnapshot.keys,
+		listCurrentConnections: async () => previousSnapshot.connections,
+		replaceAllKeys: async () => {
+			replaceCalls += 1;
+		},
+		replaceAllConnections: async () => {
+			replaceCalls += 1;
+		},
+	});
+
+	assert.deepEqual(result, { restored: false });
+	assert.equal(replaceCalls, 0);
 	assert.equal(journal.getSnapshot(), null);
 });
 

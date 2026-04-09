@@ -68,17 +68,26 @@ export function normalizeLocalBackupKeyDefaults(
 	});
 }
 
+export function normalizeLocalBackupPayload(
+	payload: BackupPayload,
+): BackupPayload {
+	return {
+		...payload,
+		keys: normalizeLocalBackupKeyDefaults(payload.keys),
+	};
+}
+
 export async function createBackupPayload(params: {
 	createdAt?: string;
 	listKeys: () => Promise<BackupKeyEntry[]>;
 	listConnections: () => Promise<StoredConnectionEntry[]>;
 }): Promise<BackupPayload> {
-	const payload: BackupPayload = {
+	const payload = normalizeLocalBackupPayload({
 		version: 1,
 		createdAt: params.createdAt ?? new Date().toISOString(),
-		keys: normalizeLocalBackupKeyDefaults(await params.listKeys()),
+		keys: await params.listKeys(),
 		connections: await params.listConnections(),
-	};
+	});
 	return validateBackupPayload(payload);
 }
 

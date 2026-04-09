@@ -3,7 +3,7 @@ import { type StoredConnectionEntry } from './connection-storage';
 import { formatSavedConnectionSummary } from './connection-utils';
 import {
 	backupPayloadSchema,
-	normalizeLocalBackupKeyDefaults,
+	normalizeLocalBackupPayload,
 	parseBackupPayload,
 	replaceAllFromBackup,
 	type BackupPayload,
@@ -78,12 +78,12 @@ function createSnapshot(params: {
 	keys: BackupKeyEntry[];
 	connections: StoredConnectionEntry[];
 }) {
-	return {
+	return normalizeLocalBackupPayload({
 		version: 1 as const,
 		createdAt: new Date().toISOString(),
-		keys: normalizeLocalBackupKeyDefaults(params.keys),
+		keys: params.keys,
 		connections: params.connections,
-	};
+	});
 }
 
 async function clearInvalidRestoreJournal(params: {
@@ -164,11 +164,18 @@ function matchesSnapshot(
 	},
 	payload: BackupPayload,
 ) {
+	const normalizedSnapshot = normalizeLocalBackupPayload({
+		version: 1,
+		createdAt: 'snapshot',
+		keys: snapshot.keys,
+		connections: snapshot.connections,
+	});
+	const normalizedPayload = normalizeLocalBackupPayload(payload);
 	return (
-		JSON.stringify(sortEntriesById(snapshot.keys)) ===
-			JSON.stringify(sortEntriesById(payload.keys)) &&
-		JSON.stringify(sortEntriesById(snapshot.connections)) ===
-			JSON.stringify(sortEntriesById(payload.connections))
+		JSON.stringify(sortEntriesById(normalizedSnapshot.keys)) ===
+			JSON.stringify(sortEntriesById(normalizedPayload.keys)) &&
+		JSON.stringify(sortEntriesById(normalizedSnapshot.connections)) ===
+			JSON.stringify(sortEntriesById(normalizedPayload.connections))
 	);
 }
 
@@ -234,10 +241,15 @@ async function loadRestoreJournalState(params: {
 	}
 	try {
 		const state = restoreJournalStateSchema.parse(rawState);
-		validateBackupPayload(state.previous);
-		validateBackupPayload(state.target);
+		const normalizedState = {
+			...state,
+			previous: normalizeLocalBackupPayload(state.previous),
+			target: normalizeLocalBackupPayload(state.target),
+		};
+		validateBackupPayload(normalizedState.previous);
+		validateBackupPayload(normalizedState.target);
 		return {
-			state,
+			state: normalizedState,
 		};
 	} catch (error) {
 		return clearInvalidRestoreJournal({
