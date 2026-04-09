@@ -241,6 +241,47 @@ void test('createBackupPayload rejects duplicate key ids', async () => {
 	);
 });
 
+void test('createBackupPayload normalizes locally duplicated default keys before validation', async () => {
+	const payload = await createBackupPayload({
+		createdAt: '2026-04-09T00:00:00.000Z',
+		listKeys: async () => [
+			keyEntry,
+			{
+				id: 'key_2',
+				metadata: {
+					priority: 1,
+					createdAtMs: 2,
+					label: 'Secondary key',
+					isDefault: true,
+				},
+				value: validPrivateKey,
+			},
+		],
+		listConnections: async () => [
+			connectionEntry,
+			{
+				...staleConnectionEntry,
+				id: 'muly-dev-box-2222',
+				value: {
+					...staleConnectionEntry.value,
+					host: 'dev-box-2',
+					security: {
+						...staleConnectionEntry.value.security,
+						keyId: 'key_2',
+					},
+				},
+			},
+		],
+	});
+
+	assert.equal(
+		payload.keys.filter((entry) => entry.metadata.isDefault).length,
+		1,
+	);
+	assert.equal(payload.keys[0]?.metadata.isDefault, true);
+	assert.equal(payload.keys[1]?.metadata.isDefault, false);
+});
+
 void test('parseBackupPayload rejects unsupported versions', () => {
 	assert.throws(
 		() =>

@@ -60,6 +60,7 @@ function createMemoryRestoreJournal(options?: {
 	let state: unknown = null;
 	let saveCalls = 0;
 	let clearCalls = 0;
+	let failClear = options?.failClear ?? false;
 	return {
 		load: async () => {
 			if (options?.failLoad) {
@@ -76,10 +77,13 @@ function createMemoryRestoreJournal(options?: {
 		},
 		clear: async () => {
 			clearCalls += 1;
-			if (options?.failClear) {
+			if (failClear) {
 				throw new Error('journal clear failed');
 			}
 			state = null;
+		},
+		setFailClear: (value: boolean) => {
+			failClear = value;
 		},
 		getSnapshot: () => state,
 		getClearCalls: () => clearCalls,
@@ -250,6 +254,103 @@ void test('restoreBackupPayload returns restore counts', async () => {
 	assert.deepEqual(result, { restoredKeys: 1, restoredConnections: 1 });
 	assert.deepEqual(replacedKeys, [backupPayload.keys]);
 	assert.deepEqual(replacedConnections, [backupPayload.connections]);
+	assert.equal(journal.getSnapshot(), null);
+});
+
+void test('restoreBackupPayload normalizes multi-default live keys before saving the restore journal snapshot', async () => {
+	let currentKeys: BackupPayload['keys'] = [
+		{
+			id: 'key_live_1',
+			metadata: {
+				priority: 0,
+				createdAtMs: 10,
+				label: 'Live key one',
+				isDefault: true,
+			},
+			value: 'LIVE KEY ONE',
+		},
+		{
+			id: 'key_live_2',
+			metadata: {
+				priority: 1,
+				createdAtMs: 11,
+				label: 'Live key two',
+				isDefault: true,
+			},
+			value: 'LIVE KEY TWO',
+		},
+	];
+	let currentConnections: BackupPayload['connections'] = [
+		{
+			id: 'muly-live-box-22',
+			metadata: {
+				priority: 0,
+				createdAtMs: 12,
+				modifiedAtMs: 13,
+				label: 'Live Box',
+			},
+			value: {
+				host: 'live-box',
+				port: 22,
+				username: 'muly',
+				security: {
+					type: 'key' as const,
+					keyId: 'key_live_1',
+				},
+				useTmux: true,
+				tmuxSessionName: 'main',
+				autoConnect: false,
+			},
+		},
+	];
+	const journal = createMemoryRestoreJournal({
+		failClear: true,
+	});
+
+	await assert.rejects(
+		() =>
+			restoreBackupPayload({
+				payload: backupPayload,
+				listCurrentKeys: async () => currentKeys,
+				listCurrentConnections: async () => currentConnections,
+				restoreJournal: journal,
+				replaceAllKeys: async (entries) => {
+					currentKeys = entries;
+				},
+				replaceAllConnections: async (entries) => {
+					currentConnections = entries;
+				},
+			}),
+		/journal clear failed/,
+	);
+
+	const savedState = journal.getSnapshot() as {
+		phase: 'applied';
+		previous: BackupPayload;
+		target: BackupPayload;
+	};
+	assert.equal(savedState.phase, 'applied');
+	assert.equal(
+		savedState.previous.keys.filter((entry) => entry.metadata.isDefault).length,
+		1,
+	);
+	assert.equal(savedState.previous.keys[0]?.metadata.isDefault, true);
+	assert.equal(savedState.previous.keys[1]?.metadata.isDefault, false);
+
+	journal.setFailClear(false);
+	const result = await recoverPendingRestore({
+		restoreJournal: journal,
+		listCurrentKeys: async () => currentKeys,
+		listCurrentConnections: async () => currentConnections,
+		replaceAllKeys: async (entries) => {
+			currentKeys = entries;
+		},
+		replaceAllConnections: async (entries) => {
+			currentConnections = entries;
+		},
+	});
+
+	assert.deepEqual(result, { restored: false });
 	assert.equal(journal.getSnapshot(), null);
 });
 
@@ -815,7 +916,7 @@ void test('recoverPendingRestore clears a stale journal when current state alrea
 	assert.equal(journal.getSnapshot(), null);
 });
 
-void test('recoverPendingRestore defers replay without readers after a stale journal survives clear failure', async () => {
+void test('recoverPendingRestore treats a completed journal as cleanup-only without readers after clear failure', async () => {
 	let currentKeys: BackupPayload['keys'] = [];
 	let currentConnections: BackupPayload['connections'] = [];
 	const journal = createMemoryRestoreJournal({
@@ -887,8 +988,7 @@ void test('recoverPendingRestore defers replay without readers after a stale jou
 
 	assert.deepEqual(result, {
 		restored: false,
-		recoveryPending: true,
-		reason: 'state-verification-unavailable',
+		completedJournalRetained: true,
 	});
 	assert.deepEqual(currentKeys, [
 		{
@@ -926,6 +1026,122 @@ void test('recoverPendingRestore defers replay without readers after a stale jou
 		},
 	]);
 	assert.notEqual(journal.getSnapshot(), null);
+});
+
+void test('recoverPendingRestore does not replay a completed restore journal over newer state after clear failure', async () => {
+	let currentKeys: BackupPayload['keys'] = [];
+	let currentConnections: BackupPayload['connections'] = [];
+	const journal = createMemoryRestoreJournal({
+		failClear: true,
+	});
+
+	await assert.rejects(
+		() =>
+			restoreBackupPayload({
+				payload: backupPayload,
+				listCurrentKeys: async () => currentKeys,
+				listCurrentConnections: async () => currentConnections,
+				restoreJournal: journal,
+				replaceAllKeys: async (entries) => {
+					currentKeys = entries;
+				},
+				replaceAllConnections: async (entries) => {
+					currentConnections = entries;
+				},
+			}),
+		/journal clear failed/,
+	);
+
+	journal.setFailClear(false);
+	currentKeys = [
+		{
+			id: 'key_user_newer',
+			metadata: {
+				priority: 0,
+				createdAtMs: 20,
+				label: 'User newer key',
+				isDefault: true,
+			},
+			value: 'USER NEWER KEY',
+		},
+	];
+	currentConnections = [
+		{
+			id: 'muly-user-newer-box-22',
+			metadata: {
+				priority: 0,
+				createdAtMs: 21,
+				modifiedAtMs: 22,
+				label: 'User Newer Box',
+			},
+			value: {
+				host: 'user-newer-box',
+				port: 22,
+				username: 'muly',
+				security: {
+					type: 'key' as const,
+					keyId: 'key_user_newer',
+				},
+				useTmux: true,
+				tmuxSessionName: 'main',
+				autoConnect: false,
+			},
+		},
+	];
+	let replaceCalls = 0;
+
+	const result = await recoverPendingRestore({
+		restoreJournal: journal,
+		listCurrentKeys: async () => currentKeys,
+		listCurrentConnections: async () => currentConnections,
+		replaceAllKeys: async (entries) => {
+			replaceCalls += 1;
+			currentKeys = entries;
+		},
+		replaceAllConnections: async (entries) => {
+			replaceCalls += 1;
+			currentConnections = entries;
+		},
+	});
+
+	assert.deepEqual(result, { restored: false });
+	assert.equal(replaceCalls, 0);
+	assert.deepEqual(currentKeys, [
+		{
+			id: 'key_user_newer',
+			metadata: {
+				priority: 0,
+				createdAtMs: 20,
+				label: 'User newer key',
+				isDefault: true,
+			},
+			value: 'USER NEWER KEY',
+		},
+	]);
+	assert.deepEqual(currentConnections, [
+		{
+			id: 'muly-user-newer-box-22',
+			metadata: {
+				priority: 0,
+				createdAtMs: 21,
+				modifiedAtMs: 22,
+				label: 'User Newer Box',
+			},
+			value: {
+				host: 'user-newer-box',
+				port: 22,
+				username: 'muly',
+				security: {
+					type: 'key' as const,
+					keyId: 'key_user_newer',
+				},
+				useTmux: true,
+				tmuxSessionName: 'main',
+				autoConnect: false,
+			},
+		},
+	]);
+	assert.equal(journal.getSnapshot(), null);
 });
 
 void test('recoverPendingRestore supports legacy recoveryState journals', async () => {

@@ -3,6 +3,7 @@ import { type StoredConnectionEntry } from './connection-storage';
 import { formatSavedConnectionSummary } from './connection-utils';
 import {
 	backupPayloadSchema,
+	normalizeLocalBackupKeyDefaults,
 	parseBackupPayload,
 	replaceAllFromBackup,
 	type BackupPayload,
@@ -20,8 +21,10 @@ type SecurityCenterPickerAsset = {
 };
 
 type RestoreRecoveryTarget = 'target' | 'previous';
+type RestoreJournalPhase = 'pending' | 'applied';
 
 type RestoreJournalState = {
+	phase: RestoreJournalPhase;
 	recoveryTarget: RestoreRecoveryTarget;
 	previous: BackupPayload;
 	target: BackupPayload;
@@ -29,6 +32,7 @@ type RestoreJournalState = {
 
 const restoreJournalStateSchema = z
 	.object({
+		phase: z.enum(['pending', 'applied']).optional(),
 		recoveryTarget: z.enum(['target', 'previous']).optional(),
 		recoveryState: z.enum(['apply-target', 'apply-previous']).optional(),
 		previous: backupPayloadSchema,
@@ -46,6 +50,7 @@ const restoreJournalStateSchema = z
 		});
 	})
 	.transform((value): RestoreJournalState => ({
+		phase: value.phase ?? 'pending',
 		recoveryTarget:
 			value.recoveryTarget ??
 			(value.recoveryState === 'apply-previous' ? 'previous' : 'target'),
@@ -76,13 +81,9 @@ function createSnapshot(params: {
 	return {
 		version: 1 as const,
 		createdAt: new Date().toISOString(),
-		keys: params.keys,
+		keys: normalizeLocalBackupKeyDefaults(params.keys),
 		connections: params.connections,
 	};
-}
-
-async function finalizeRestoreJournal(restoreJournal?: RestoreJournalStorage) {
-	await restoreJournal?.clear();
 }
 
 async function clearInvalidRestoreJournal(params: {
@@ -91,7 +92,11 @@ async function clearInvalidRestoreJournal(params: {
 	cause: unknown;
 }) {
 	try {
-		await finalizeRestoreJournal(params.restoreJournal);
+		await finalizeRestoreJournal({
+			restoreJournal: params.restoreJournal,
+			context: params.context,
+			cause: params.cause,
+		});
 		return {
 			state: null,
 			clearedInvalidJournal: true as const,
@@ -102,6 +107,37 @@ async function clearInvalidRestoreJournal(params: {
 			clearedInvalidJournal: false as const,
 			invalidJournalRetained: true as const,
 		};
+	}
+}
+
+async function finalizeRestoreJournal(params: {
+	restoreJournal?: RestoreJournalStorage;
+	completedState?: Omit<RestoreJournalState, 'phase'>;
+	context: string;
+	cause?: unknown;
+}) {
+	let completionSaveError: unknown = null;
+	if (params.restoreJournal && params.completedState) {
+		completionSaveError = await trySaveRestoreJournalState({
+			restoreJournal: params.restoreJournal,
+			state: {
+				...params.completedState,
+				phase: 'applied',
+			},
+		});
+	}
+
+	try {
+		await params.restoreJournal?.clear();
+	} catch (error) {
+		throw createRestoreJournalClearError({
+			context: params.context,
+			error,
+			cause:
+				completionSaveError instanceof Error
+					? completionSaveError
+					: params.cause,
+		});
 	}
 }
 
@@ -305,6 +341,7 @@ export async function restoreBackupPayload(params: {
 		connections: await params.listCurrentConnections(),
 	});
 	const targetState: RestoreJournalState = {
+		phase: 'pending',
 		recoveryTarget: 'target',
 		previous: previousSnapshot,
 		target: params.payload,
@@ -324,6 +361,7 @@ export async function restoreBackupPayload(params: {
 			restoreJournal: params.restoreJournal,
 			state: {
 				...targetState,
+				phase: 'pending',
 				recoveryTarget: 'previous',
 			},
 		});
@@ -365,11 +403,14 @@ export async function restoreBackupPayload(params: {
 				);
 			}
 			try {
-				await finalizeRestoreJournal(params.restoreJournal);
-			} catch (finalizeError) {
-				throw createRestoreJournalClearError({
+				await finalizeRestoreJournal({
+					restoreJournal: params.restoreJournal,
+					completedState: {
+						recoveryTarget: 'target',
+						previous: previousSnapshot,
+						target: params.payload,
+					},
 					context: 'reapplying target snapshot',
-					error: finalizeError,
 					cause: new Error(
 						`Rollback failed: ${
 							rollbackError instanceof Error
@@ -379,6 +420,8 @@ export async function restoreBackupPayload(params: {
 						{ cause: error },
 					),
 				});
+			} catch (finalizeError) {
+				throw finalizeError;
 			}
 			return {
 				...reapplied,
@@ -386,11 +429,14 @@ export async function restoreBackupPayload(params: {
 			};
 		}
 		try {
-			await finalizeRestoreJournal(params.restoreJournal);
-		} catch (finalizeError) {
-			throw createRestoreJournalClearError({
+			await finalizeRestoreJournal({
+				restoreJournal: params.restoreJournal,
+				completedState: {
+					recoveryTarget: 'previous',
+					previous: previousSnapshot,
+					target: params.payload,
+				},
 				context: 'restoring previous snapshot',
-				error: finalizeError,
 				cause:
 					rollbackTransitionError
 						? createRestoreJournalTransitionError({
@@ -400,6 +446,8 @@ export async function restoreBackupPayload(params: {
 							})
 						: error,
 			});
+		} catch (finalizeError) {
+			throw finalizeError;
 		}
 		if (rollbackTransitionError) {
 			throw createRestoreJournalTransitionError({
@@ -411,12 +459,17 @@ export async function restoreBackupPayload(params: {
 		throw error;
 	}
 	try {
-		await finalizeRestoreJournal(params.restoreJournal);
-	} catch (finalizeError) {
-		throw createRestoreJournalClearError({
+		await finalizeRestoreJournal({
+			restoreJournal: params.restoreJournal,
+			completedState: {
+				recoveryTarget: 'target',
+				previous: previousSnapshot,
+				target: params.payload,
+			},
 			context: 'applying target snapshot',
-			error: finalizeError,
 		});
+	} catch (finalizeError) {
+		throw finalizeError;
 	}
 	return restored;
 }
@@ -444,6 +497,23 @@ export async function recoverPendingRestore(params: {
 	}
 
 	const state = loadedState.state;
+	if (state.phase === 'applied') {
+		try {
+			await finalizeRestoreJournal({
+				restoreJournal: params.restoreJournal,
+				context: 'discarding completed restore journal',
+			});
+		} catch {
+			return {
+				restored: false as const,
+				completedJournalRetained: true as const,
+			};
+		}
+		return {
+			restored: false as const,
+		};
+	}
+
 	if (!params.listCurrentKeys || !params.listCurrentConnections) {
 		return {
 			restored: false as const,
@@ -461,12 +531,12 @@ export async function recoverPendingRestore(params: {
 		matchesSnapshot(currentSnapshot, state.target)
 	) {
 		try {
-			await finalizeRestoreJournal(params.restoreJournal);
-		} catch (finalizeError) {
-			throw createRestoreJournalClearError({
+			await finalizeRestoreJournal({
+				restoreJournal: params.restoreJournal,
 				context: 'confirming current state before replay',
-				error: finalizeError,
 			});
+		} catch (finalizeError) {
+			throw finalizeError;
 		}
 		return {
 			restored: false as const,
@@ -481,12 +551,12 @@ export async function recoverPendingRestore(params: {
 		replaceAllConnections: params.replaceAllConnections,
 	});
 	try {
-		await finalizeRestoreJournal(params.restoreJournal);
-	} catch (finalizeError) {
-		throw createRestoreJournalClearError({
+		await finalizeRestoreJournal({
+			restoreJournal: params.restoreJournal,
 			context: `recovering to ${state.recoveryTarget} snapshot`,
-			error: finalizeError,
 		});
+	} catch (finalizeError) {
+		throw finalizeError;
 	}
 	return {
 		restored: true as const,

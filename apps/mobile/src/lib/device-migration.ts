@@ -45,6 +45,29 @@ export type PrivateKeyReplacementStorage = {
 	upsertEntry: (entry: BackupKeyEntry) => Promise<void>;
 };
 
+export function normalizeLocalBackupKeyDefaults(
+	keys: BackupKeyEntry[],
+): BackupKeyEntry[] {
+	let retainedDefault = false;
+
+	return keys.map((entry) => {
+		if (!entry.metadata.isDefault) {
+			return entry;
+		}
+		if (!retainedDefault) {
+			retainedDefault = true;
+			return entry;
+		}
+		return {
+			...entry,
+			metadata: {
+				...entry.metadata,
+				isDefault: false,
+			},
+		};
+	});
+}
+
 export async function createBackupPayload(params: {
 	createdAt?: string;
 	listKeys: () => Promise<BackupKeyEntry[]>;
@@ -53,7 +76,7 @@ export async function createBackupPayload(params: {
 	const payload: BackupPayload = {
 		version: 1,
 		createdAt: params.createdAt ?? new Date().toISOString(),
-		keys: await params.listKeys(),
+		keys: normalizeLocalBackupKeyDefaults(await params.listKeys()),
 		connections: await params.listConnections(),
 	};
 	return validateBackupPayload(payload);
