@@ -38,19 +38,6 @@ import {
 	View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-	getActiveKeyboardIds,
-	getKeyboardActionTarget,
-	getKeyboardsById,
-	resolveActiveOneShotReturnKeyboardId,
-	type KeyboardDefinition,
-	type KeyboardSlot,
-	type MacroDef,
-	type ModifierKey,
-	resolveSelectedKeyboardId,
-	type CommandPreset,
-	type CommandStep,
-} from '@/lib/shell-config';
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
 import {
@@ -63,6 +50,19 @@ import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { secretsManager } from '@/lib/secrets-manager';
+import {
+	getActiveKeyboardIds,
+	getKeyboardActionTarget,
+	getKeyboardsById,
+	resolveActiveOneShotReturnKeyboardId,
+	resolveSelectedKeyboardId,
+	type CommandPreset,
+	type CommandStep,
+	type KeyboardDefinition,
+	type KeyboardSlot,
+	type MacroDef,
+	type ModifierKey,
+} from '@/lib/shell-config';
 import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
@@ -531,8 +531,12 @@ function ShellDetail() {
 		() => getActiveKeyboardIds(shellConfig),
 		[shellConfig],
 	);
-	const [selectedKeyboardId, setSelectedKeyboardId] = useState<string>(
+	const [preferredKeyboardId, setPreferredKeyboardId] = useState<string>(() =>
 		resolveSelectedKeyboardId(shellConfig, shellConfig.defaultKeyboardId),
+	);
+	const selectedKeyboardId = useMemo(
+		() => resolveSelectedKeyboardId(shellConfig, preferredKeyboardId),
+		[preferredKeyboardId, shellConfig],
 	);
 	const availableKeyboardIds = useMemo(
 		() => new Set(activeKeyboardIds),
@@ -551,16 +555,9 @@ function ShellDetail() {
 		selectedKeyboardIdRef.current = selectedKeyboardId;
 	}, [selectedKeyboardId]);
 
-	useEffect(() => {
-		setSelectedKeyboardId((current) =>
-			resolveSelectedKeyboardId(shellConfig, current),
-		);
-	}, [shellConfig]);
-
 	const currentKeyboard = useMemo<KeyboardDefinition | null>(() => {
-		const resolvedId = resolveSelectedKeyboardId(shellConfig, selectedKeyboardId);
-		return resolvedId ? (keyboardsById[resolvedId] ?? null) : null;
-	}, [keyboardsById, selectedKeyboardId, shellConfig]);
+		return selectedKeyboardId ? (keyboardsById[selectedKeyboardId] ?? null) : null;
+	}, [keyboardsById, selectedKeyboardId]);
 
 	const currentMacros = useMemo<MacroDef[]>(
 		() => (currentKeyboard ? (shellConfig.macrosByKeyboardId[currentKeyboard.id] ?? []) : []),
@@ -896,7 +893,7 @@ function ShellDetail() {
 
 	const rotateKeyboard = useCallback(() => {
 		if (activeKeyboardIds.length <= 1) return;
-		setSelectedKeyboardId((current) => {
+		setPreferredKeyboardId((current) => {
 			const resolvedCurrent = resolveSelectedKeyboardId(shellConfig, current);
 			const idx = Math.max(0, activeKeyboardIds.indexOf(resolvedCurrent));
 			const nextIdx = (idx + 1) % activeKeyboardIds.length;
@@ -907,7 +904,7 @@ function ShellDetail() {
 	const selectKeyboardIfExists = useCallback(
 		(id: string) => {
 			if (!availableKeyboardIds.has(id)) return;
-			setSelectedKeyboardId(id);
+			setPreferredKeyboardId(id);
 		},
 		[availableKeyboardIds],
 	);
@@ -980,10 +977,10 @@ function ShellDetail() {
 				selectedKeyboardIdRef.current,
 			);
 			if (returnKeyboardId) {
-				setSelectedKeyboardId(returnKeyboardId);
+				setPreferredKeyboardId(returnKeyboardId);
 			}
 		})();
-	}, [exitSelectionMode, setSelectedKeyboardId]);
+	}, [exitSelectionMode]);
 
 	const handleSelectionChanged = useCallback((text: string) => {
 		if (!text) return;
@@ -1240,7 +1237,7 @@ fi
 			}
 
 			if (returnKeyboardId) {
-				setSelectedKeyboardId(returnKeyboardId);
+				setPreferredKeyboardId(returnKeyboardId);
 			}
 		},
 		[
@@ -1255,7 +1252,6 @@ fi
 			sendBytesWithModifiers,
 			sendTextRaw,
 			sendTextWithModifiers,
-			setSelectedKeyboardId,
 			shellConfig,
 			toggleModifier,
 		],

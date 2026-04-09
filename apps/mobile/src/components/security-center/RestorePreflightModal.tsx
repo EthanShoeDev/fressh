@@ -4,8 +4,8 @@ import { useTheme } from '@/lib/theme';
 
 export function RestorePreflightModal(props: {
 	open: boolean;
-	keys: Array<{ id: string; label: string }>;
-	connections: Array<{ id: string; label: string }>;
+	keys: { id: string; label: string }[];
+	connections: { id: string; label: string }[];
 	isRestoring: boolean;
 	onClose: () => void;
 	onConfirm: () => void;
@@ -139,7 +139,7 @@ export function RestorePreflightModal(props: {
 
 function RestoreSection(props: {
 	title: string;
-	items: Array<{ id: string; label: string }>;
+	items: { id: string; label: string }[];
 }) {
 	const theme = useTheme();
 

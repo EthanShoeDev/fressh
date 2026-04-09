@@ -2,8 +2,8 @@ import { Link } from 'expo-router';
 import * as Updates from 'expo-updates';
 import React from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
-import { buildSettingsSecurityLinks } from '@/lib/settings-security-links';
 import { preferences } from '@/lib/preferences';
+import { buildSettingsSecurityLinks } from '@/lib/settings-security-links';
 import { useTheme, useThemeControls } from '@/lib/theme';
 
 export default function Tab() {

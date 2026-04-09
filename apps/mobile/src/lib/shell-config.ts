@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import bundledShellConfigData from '../../config/shell-config.json';
 import {
 	KEYBOARD_TARGET_ACTION_IDS,
 	KNOWN_ACTION_IDS,
@@ -7,6 +6,7 @@ import {
 	type KeyboardTargetActionId,
 } from '@/lib/keyboard-actions';
 import { parseMacroScript, type MacroStep } from '@/lib/macro-scripts';
+import bundledShellConfigData from '../../config/shell-config.json';
 
 export type ModifierKey = 'CTRL' | 'ALT' | 'SHIFT' | 'CMD';
 export type CommandStep = MacroStep;

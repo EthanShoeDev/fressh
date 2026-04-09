@@ -4,10 +4,10 @@ import { useTheme } from '@/lib/theme';
 
 export function KeyPickerSheet(props: {
 	open: boolean;
-	keys: Array<{
+	keys: {
 		id: string;
 		metadata: { label?: string; isDefault?: boolean };
-	}>;
+	}[];
 	selectedId: string;
 	onClose: () => void;
 	onSelect: (id: string) => void;
