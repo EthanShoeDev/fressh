@@ -9,7 +9,6 @@ import {
 } from '@fressh/react-native-xtermjs-webview';
 
 import * as Clipboard from 'expo-clipboard';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as Linking from 'expo-linking';
 import {
 	Stack,
@@ -1025,113 +1024,6 @@ function ShellDetail() {
 		}
 	}, []);
 
-	const handleExportBackup = useCallback(async () => {
-		setConfigureOpen(false);
-		try {
-			const [keys, connections] = await Promise.all([
-				secretsManager.keys.utils.listEntriesWithValues(),
-				secretsManager.connections.utils.listEntriesWithValues(),
-			]);
-			const payload = {
-				version: 1,
-				createdAt: new Date().toISOString(),
-				keys: keys.map((entry) => ({
-					id: entry.id,
-					metadata: entry.metadata,
-					value: entry.value,
-				})),
-				connections: connections.map((entry) => ({
-					id: entry.id,
-					metadata: entry.metadata,
-					value: entry.value,
-				})),
-			};
-			const backupText = JSON.stringify(payload, null, 2);
-			const backupPath = FileSystem.documentDirectory
-				? `${FileSystem.documentDirectory}backup.json`
-				: null;
-			if (backupPath) {
-				await FileSystem.writeAsStringAsync(backupPath, backupText, {
-					encoding: FileSystem.EncodingType.UTF8,
-				});
-			}
-			await Clipboard.setStringAsync(backupText);
-			Alert.alert(
-				'Backup copied',
-				`Copied ${backupText.length.toLocaleString()} characters to the clipboard.${backupPath ? ' Saved to files/backup.json for ADB.' : ''}`,
-			);
-		} catch (error) {
-			Alert.alert(
-				'Backup failed',
-				error instanceof Error ? error.message : 'Failed to create backup.',
-			);
-		}
-	}, []);
-
-	const restoreBackupPayload = useCallback(async (backupText: string) => {
-		const parsed = JSON.parse(backupText);
-		if (!parsed || typeof parsed !== 'object') {
-			throw new Error('Invalid backup format.');
-		}
-		if (parsed.version !== 1) {
-			throw new Error('Unsupported backup version.');
-		}
-		const keys = Array.isArray(parsed.keys) ? parsed.keys : [];
-		const connections = Array.isArray(parsed.connections)
-			? parsed.connections
-			: [];
-
-		let restoredKeys = 0;
-		for (const key of keys) {
-			if (!key?.id || !key?.value) continue;
-			await secretsManager.keys.utils.upsertPrivateKey({
-				keyId: key.id,
-				value: key.value,
-				metadata: {
-					priority: key.metadata?.priority ?? 0,
-					label: key.metadata?.label,
-					isDefault: key.metadata?.isDefault ?? false,
-				},
-			});
-			restoredKeys += 1;
-		}
-
-		let restoredConnections = 0;
-		for (const entry of connections) {
-			if (!entry?.value) continue;
-			await secretsManager.connections.utils.upsertConnection({
-				details: entry.value,
-				priority: entry.metadata?.priority ?? 0,
-				label: entry.metadata?.label,
-			});
-			restoredConnections += 1;
-		}
-
-		Alert.alert(
-			'Restore complete',
-			`Restored ${restoredKeys} keys and ${restoredConnections} connections.`,
-		);
-	}, []);
-
-	const handleImportBackup = useCallback(async () => {
-		setConfigureOpen(false);
-		try {
-			if (!FileSystem.documentDirectory) {
-				throw new Error('Document directory unavailable.');
-			}
-			const backupPath = `${FileSystem.documentDirectory}backup.json`;
-			const backupText = await FileSystem.readAsStringAsync(backupPath, {
-				encoding: FileSystem.EncodingType.UTF8,
-			});
-			await restoreBackupPayload(backupText);
-		} catch (error) {
-			Alert.alert(
-				'Restore failed',
-				error instanceof Error ? error.message : 'Restore failed.',
-			);
-		}
-	}, [restoreBackupPayload]);
-
 	const handleHostConfig = useCallback(() => {
 		setConfigureOpen(false);
 		const editConnectionId = storedConnectionId ?? connectionId;
@@ -1909,8 +1801,6 @@ fi
 					}}
 					onDevServer={handleDevServer}
 					onReloadConfig={handleReloadConfig}
-					onExportBackup={handleExportBackup}
-					onImportBackup={handleImportBackup}
 					onHostConfig={handleHostConfig}
 					onOpenGitHubIssues={handleOpenGitHubIssues}
 					onOpenShellConfigDocs={handleOpenShellConfigDocs}

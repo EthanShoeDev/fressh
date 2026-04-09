@@ -14,8 +14,6 @@ export function ConfigureModal({
 	onClose,
 	onDevServer,
 	onReloadConfig,
-	onExportBackup,
-	onImportBackup,
 	onHostConfig,
 	onRequestFeature,
 	onOpenGitHubIssues,
@@ -31,8 +29,6 @@ export function ConfigureModal({
 	onClose: () => void;
 	onDevServer: () => void;
 	onReloadConfig: () => void;
-	onExportBackup: () => void;
-	onImportBackup: () => void;
 	onHostConfig: () => void;
 	onRequestFeature: () => void;
 	onOpenGitHubIssues: () => void;
@@ -55,16 +51,6 @@ export function ConfigureModal({
 			label: 'Reload config',
 			description: 'Fetch the latest keyboard and command menu config',
 			onPress: onReloadConfig,
-		},
-		{
-			label: 'Export backup',
-			description: 'Copy backup JSON to clipboard',
-			onPress: onExportBackup,
-		},
-		{
-			label: 'Import backup',
-			description: 'Restore backup from files/backup.json',
-			onPress: onImportBackup,
 		},
 		{
 			label: 'Host config',
