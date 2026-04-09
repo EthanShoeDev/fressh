@@ -18,6 +18,7 @@ import { pickLatestConnection } from '@/lib/connection-utils';
 import {
 	getEmptyKeyPickerMessage,
 	getInitialSelectedKeyId,
+	getKeyPickerViewState,
 } from '@/lib/key-picker-state';
 import { rootLogger } from '@/lib/logger';
 import { useSshConnMutation } from '@/lib/query-fns';
@@ -307,19 +308,31 @@ function KeyIdPickerField() {
 	const [open, setOpen] = React.useState(false);
 
 	const listPrivateKeysQuery = useQuery(secretsManager.keys.query.list);
-	const keys = listPrivateKeysQuery.data ?? [];
+	const keys = listPrivateKeysQuery.data;
 	const fieldValue = field.state.value;
 	const fieldHandleChange = field.handleChange;
-	const computedSelectedId = getInitialSelectedKeyId(keys, fieldValue);
+	const computedSelectedId = getInitialSelectedKeyId({
+		keys,
+		currentValue: fieldValue,
+		hasLoadedKeys: listPrivateKeysQuery.status === 'success',
+	});
+	const viewState = getKeyPickerViewState({
+		keys,
+		currentValue: fieldValue,
+		hasLoadedKeys: listPrivateKeysQuery.status === 'success',
+	});
 
 	React.useEffect(() => {
-		if (!fieldValue && computedSelectedId) {
-			fieldHandleChange(computedSelectedId);
-		}
-	}, [computedSelectedId, fieldHandleChange, fieldValue]);
+		if (listPrivateKeysQuery.status !== 'success') return;
+		if (fieldValue === computedSelectedId) return;
+		fieldHandleChange(computedSelectedId);
+	}, [
+		computedSelectedId,
+		fieldHandleChange,
+		fieldValue,
+		listPrivateKeysQuery.status,
+	]);
 
-	const selected = keys.find((k) => k.id === computedSelectedId);
-	const display = selected ? (selected.metadata.label ?? selected.id) : 'None';
 	const meta = field.state.meta as { errors?: unknown[] };
 	const firstErr = meta?.errors?.[0] as { message: string } | undefined;
 	const fieldError =
@@ -359,9 +372,12 @@ function KeyIdPickerField() {
 						setOpen(true);
 					}}
 				>
-					<Text style={{ color: theme.colors.textPrimary }}>{display}</Text>
+					<Text style={{ color: theme.colors.textPrimary }}>
+						{viewState.display}
+					</Text>
 				</Pressable>
-				{!selected ? (
+				{listPrivateKeysQuery.status === 'success' &&
+				viewState.showEmptyState ? (
 					<Text style={{ color: theme.colors.muted, fontSize: 14 }}>
 						{getEmptyKeyPickerMessage()}
 					</Text>
@@ -376,8 +392,8 @@ function KeyIdPickerField() {
 			) : null}
 			<KeyPickerSheet
 				open={open}
-				keys={keys}
-				selectedId={computedSelectedId}
+				keys={keys ?? []}
+				selectedId={viewState.selectedId}
 				onClose={() => {
 					setOpen(false);
 				}}
