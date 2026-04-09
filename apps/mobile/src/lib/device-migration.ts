@@ -45,17 +45,26 @@ export type PrivateKeyReplacementStorage = {
 	upsertEntry: (entry: BackupKeyEntry) => Promise<void>;
 };
 
+function compareBackupKeyNormalizationOrder(
+	left: BackupKeyEntry,
+	right: BackupKeyEntry,
+) {
+	return (
+		left.metadata.priority - right.metadata.priority ||
+		left.metadata.createdAtMs - right.metadata.createdAtMs ||
+		left.id.localeCompare(right.id)
+	);
+}
+
 export function normalizeLocalBackupKeyDefaults(
 	keys: BackupKeyEntry[],
 ): BackupKeyEntry[] {
-	let retainedDefault = false;
+	const retainedDefaultId = keys
+		.filter((entry) => entry.metadata.isDefault)
+		.sort(compareBackupKeyNormalizationOrder)[0]?.id;
 
 	return keys.map((entry) => {
-		if (!entry.metadata.isDefault) {
-			return entry;
-		}
-		if (!retainedDefault) {
-			retainedDefault = true;
+		if (!entry.metadata.isDefault || entry.id === retainedDefaultId) {
 			return entry;
 		}
 		return {

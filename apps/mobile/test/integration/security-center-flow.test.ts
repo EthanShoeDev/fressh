@@ -916,7 +916,7 @@ void test('recoverPendingRestore clears a stale journal when current state alrea
 	assert.equal(journal.getSnapshot(), null);
 });
 
-void test('recoverPendingRestore does not replay a target journal when current state matches previous after local normalization', async () => {
+void test('recoverPendingRestore does not replay a target journal when current state matches previous after local normalization even if key order drifted', async () => {
 	const previousSnapshot: BackupPayload = {
 		version: 1,
 		createdAt: '2026-04-09T00:00:00.000Z',
@@ -968,16 +968,6 @@ void test('recoverPendingRestore does not replay a target journal when current s
 	};
 	const currentKeys: BackupPayload['keys'] = [
 		{
-			id: 'key_live_1',
-			metadata: {
-				priority: 0,
-				createdAtMs: 9,
-				label: 'Live key one',
-				isDefault: true,
-			},
-			value: 'LIVE KEY ONE',
-		},
-		{
 			id: 'key_live_2',
 			metadata: {
 				priority: 1,
@@ -986,6 +976,16 @@ void test('recoverPendingRestore does not replay a target journal when current s
 				isDefault: true,
 			},
 			value: 'LIVE KEY TWO',
+		},
+		{
+			id: 'key_live_1',
+			metadata: {
+				priority: 0,
+				createdAtMs: 9,
+				label: 'Live key one',
+				isDefault: true,
+			},
+			value: 'LIVE KEY ONE',
 		},
 	];
 	const currentConnections = previousSnapshot.connections;
