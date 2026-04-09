@@ -258,6 +258,8 @@ export function createConnectionStorage(params: {
 		writeEntriesById(
 			Object.fromEntries(entries.map((entry) => [entry.id, entry])),
 		);
+		await params.legacyStorage.clearAllEntries();
+		params.storage.set(connectionsMigrationKey, 'done');
 	}
 
 	return {

@@ -56,3 +56,27 @@ export function getKeyDeletionGuard(params: {
 		usageSummary,
 	};
 }
+
+export function assertKeyDeletionAllowed(
+	entries: SavedConnectionEntry[],
+	keyId: string,
+) {
+	const usageSummary = describeConnectionsUsingKey(entries, keyId);
+	if (usageSummary.length === 0) return;
+	throw new Error(
+		`Cannot delete key used by saved connections: ${usageSummary.join(', ')}`,
+	);
+}
+
+export function createDeletePrivateKeyHandler(params: {
+	deleteKey: (keyId: string) => Promise<void>;
+	listConnections: () => Promise<SavedConnectionEntry[]>;
+	invalidateKeysQuery: () => Promise<void>;
+}) {
+	return async (keyId: string) => {
+		const connections = await params.listConnections();
+		assertKeyDeletionAllowed(connections, keyId);
+		await params.deleteKey(keyId);
+		await params.invalidateKeysQuery();
+	};
+}

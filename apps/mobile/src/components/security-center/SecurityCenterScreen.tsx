@@ -131,7 +131,7 @@ export function SecurityCenterScreen() {
 			);
 			setIsRestoring(false);
 		}
-	}, [actionsDisabled, handleConfirmedRestore]);
+	}, [actionsDisabled]);
 
 	return (
 		<ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>

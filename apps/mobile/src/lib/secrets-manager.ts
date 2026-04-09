@@ -16,6 +16,7 @@ import {
 	createReplaceAllPrivateKeyEntriesHandler,
 	replaceAllPrivateKeys,
 } from './device-migration';
+import { createDeletePrivateKeyHandler } from './key-usage';
 import { rootLogger } from './logger';
 import { queryClient, type StrictOmit } from './utils';
 
@@ -91,11 +92,6 @@ async function upsertPrivateKey(params: {
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
-async function deletePrivateKey(keyId: string) {
-	await betterKeyStorage.deleteEntry(keyId);
-	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
-}
-
 const keyQueryKey = 'keys';
 
 const listKeysQueryOptions = queryOptions({
@@ -112,6 +108,13 @@ const getKeyQueryOptions = (keyId: string) =>
 		queryKey: [keyQueryKey, keyId],
 		queryFn: () => betterKeyStorage.getEntry(keyId),
 	});
+
+const deletePrivateKey = createDeletePrivateKeyHandler({
+	deleteKey: (keyId) => betterKeyStorage.deleteEntry(keyId),
+	listConnections: () => connectionStorage.listEntriesWithValues(),
+	invalidateKeysQuery: () =>
+		queryClient.invalidateQueries({ queryKey: [keyQueryKey] }),
+});
 
 const replaceAllPrivateKeyEntries = createReplaceAllPrivateKeyEntriesHandler({
 	replaceAllKeys: async (entries) => {

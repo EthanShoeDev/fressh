@@ -50,12 +50,14 @@ export async function createBackupPayload(params: {
 	listKeys: () => Promise<BackupKeyEntry[]>;
 	listConnections: () => Promise<StoredConnectionEntry[]>;
 }): Promise<BackupPayload> {
-	return {
+	const payload: BackupPayload = {
 		version: 1,
 		createdAt: params.createdAt ?? new Date().toISOString(),
 		keys: await params.listKeys(),
 		connections: await params.listConnections(),
 	};
+	assertBackupReferencesExist(payload);
+	return payload;
 }
 
 export function parseBackupPayload(raw: string): BackupPayload {

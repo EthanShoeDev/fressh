@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+	createDeletePrivateKeyHandler,
 	describeConnectionsUsingKey,
 	getKeyDeletionGuard,
 	listConnectionsUsingKey,
@@ -102,4 +103,42 @@ void test('getKeyDeletionGuard blocks delete when the key is in use', () => {
 			usageSummary: ['Dev Box (muly@dev-box:22)'],
 		},
 	);
+});
+
+void test('createDeletePrivateKeyHandler rejects deleting a key used by saved connections', async () => {
+	let deletedKeyId: string | null = null;
+
+	const deletePrivateKey = createDeletePrivateKeyHandler({
+		deleteKey: async (keyId) => {
+			deletedKeyId = keyId;
+		},
+		listConnections: async () => entries,
+		invalidateKeysQuery: async () => {},
+	});
+
+	await assert.rejects(
+		() => deletePrivateKey('key_1'),
+		/Cannot delete key used by saved connections: Dev Box \(muly@dev-box:22\)/,
+	);
+	assert.equal(deletedKeyId, null);
+});
+
+void test('createDeletePrivateKeyHandler deletes unused keys and invalidates queries', async () => {
+	let deletedKeyId: string | null = null;
+	let invalidateCalls = 0;
+
+	const deletePrivateKey = createDeletePrivateKeyHandler({
+		deleteKey: async (keyId) => {
+			deletedKeyId = keyId;
+		},
+		listConnections: async () => entries,
+		invalidateKeysQuery: async () => {
+			invalidateCalls += 1;
+		},
+	});
+
+	await deletePrivateKey('key_unused');
+
+	assert.equal(deletedKeyId, 'key_unused');
+	assert.equal(invalidateCalls, 1);
 });

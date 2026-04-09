@@ -206,6 +206,18 @@ void test('createBackupPayload preserves keys and saved connections', async () =
 	assert.deepEqual(payload.connections, [connectionEntry]);
 });
 
+void test('createBackupPayload rejects saved connections that reference missing keys', async () => {
+	await assert.rejects(
+		() =>
+			createBackupPayload({
+				createdAt: '2026-04-09T00:00:00.000Z',
+				listKeys: async () => [],
+				listConnections: async () => [connectionEntry],
+			}),
+		/Missing private key for saved connection/,
+	);
+});
+
 void test('parseBackupPayload rejects unsupported versions', () => {
 	assert.throws(
 		() =>
