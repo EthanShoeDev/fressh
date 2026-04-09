@@ -18,6 +18,10 @@ import {
 } from './device-migration';
 import { createDeletePrivateKeyHandler } from './key-usage';
 import { rootLogger } from './logger';
+import {
+	recoverPendingRestore,
+	type RestoreJournalStorage,
+} from './security-center-flow';
 import { queryClient, type StrictOmit } from './utils';
 
 export {
@@ -52,6 +56,45 @@ const betterKeyStorage = makeBetterSecureStore<KeyMetadata>({
 	randomUUID: () => Crypto.randomUUID(),
 	logger,
 });
+
+const restoreJournalStore = makeBetterSecureStore({
+	storagePrefix: 'securityCenterRestoreJournal',
+	parseValue: (value) => value,
+	storage: secureStoreAdapter,
+	randomUUID: () => Crypto.randomUUID(),
+	logger,
+});
+
+const restoreJournal: RestoreJournalStorage = {
+	load: async () => {
+		let entry: Awaited<ReturnType<typeof restoreJournalStore.getEntry>>;
+		try {
+			entry = await restoreJournalStore.getEntry('pending');
+		} catch (error) {
+			if (error instanceof Error && error.message === 'Entry not found') {
+				return null;
+			}
+			throw error;
+		}
+		try {
+			return JSON.parse(entry.value) as unknown;
+		} catch (error) {
+			logger.warn('Discarding malformed restore journal entry', error);
+			await restoreJournalStore.deleteEntry('pending');
+			return null;
+		}
+	},
+	save: async (state) => {
+		await restoreJournalStore.upsertEntry({
+			id: 'pending',
+			metadata: {},
+			value: JSON.stringify(state),
+		});
+	},
+	clear: async () => {
+		await restoreJournalStore.deleteEntry('pending');
+	},
+};
 
 function validatePrivateKey(value: string) {
 	const validateKeyResult = RnRussh.validatePrivateKey(value);
@@ -190,6 +233,16 @@ const getConnectionQueryOptions = (id: string) =>
 
 async function initializeSecretsManager() {
 	await connectionStorage.ensureReady();
+	const recovery = await recoverPendingRestore({
+		restoreJournal,
+		listCurrentKeys: () => betterKeyStorage.listEntriesWithValues(),
+		listCurrentConnections: () => connectionStorage.listEntriesWithValues(),
+		replaceAllKeys: replaceAllPrivateKeyEntries,
+		replaceAllConnections,
+	});
+	if (recovery.restored) {
+		logger.warn('Recovered pending security center restore', recovery);
+	}
 }
 
 export const secretsManager = {
@@ -218,6 +271,11 @@ export const secretsManager = {
 		query: {
 			list: listConnectionsQueryOptions,
 			get: getConnectionQueryOptions,
+		},
+	},
+	securityCenter: {
+		utils: {
+			restoreJournal,
 		},
 	},
 };

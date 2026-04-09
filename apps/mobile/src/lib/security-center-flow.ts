@@ -7,6 +7,7 @@ import {
 	replaceAllFromBackup,
 	type BackupPayload,
 	type BackupKeyEntry,
+	validateBackupPayload,
 } from './device-migration';
 
 type SecurityCenterShareOptions = {
@@ -84,6 +85,26 @@ async function finalizeRestoreJournal(restoreJournal?: RestoreJournalStorage) {
 	await restoreJournal?.clear();
 }
 
+async function clearInvalidRestoreJournal(params: {
+	restoreJournal: RestoreJournalStorage;
+	context: string;
+	cause: unknown;
+}) {
+	try {
+		await finalizeRestoreJournal(params.restoreJournal);
+		return {
+			state: null,
+			clearedInvalidJournal: true as const,
+		};
+	} catch (error) {
+		return {
+			state: null,
+			clearedInvalidJournal: false as const,
+			invalidJournalRetained: true as const,
+		};
+	}
+}
+
 async function applyRestoreSnapshot(params: {
 	payload: BackupPayload;
 	replaceAllKeys: (entries: BackupKeyEntry[]) => Promise<void>;
@@ -155,6 +176,40 @@ function createRestoreJournalClearError(params: {
 		`Failed to clear restore journal after ${params.context}: ${message}`,
 		params.cause ? { cause: params.cause } : undefined,
 	);
+}
+
+async function loadRestoreJournalState(params: {
+	restoreJournal: RestoreJournalStorage;
+}) {
+	let rawState: unknown;
+	try {
+		rawState = await params.restoreJournal.load();
+	} catch (error) {
+		return clearInvalidRestoreJournal({
+			restoreJournal: params.restoreJournal,
+			context: 'discarding unreadable restore journal',
+			cause: error,
+		});
+	}
+	if (!rawState) {
+		return {
+			state: null,
+		};
+	}
+	try {
+		const state = restoreJournalStateSchema.parse(rawState);
+		validateBackupPayload(state.previous);
+		validateBackupPayload(state.target);
+		return {
+			state,
+		};
+	} catch (error) {
+		return clearInvalidRestoreJournal({
+			restoreJournal: params.restoreJournal,
+			context: 'discarding invalid restore journal',
+			cause: error,
+		});
+	}
 }
 
 export async function exportBackupForSharing(params: {
@@ -373,14 +428,22 @@ export async function recoverPendingRestore(params: {
 	replaceAllKeys: (entries: BackupKeyEntry[]) => Promise<void>;
 	replaceAllConnections: (entries: StoredConnectionEntry[]) => Promise<void>;
 }) {
-	const rawState = await params.restoreJournal.load();
-	if (!rawState) {
+	const loadedState = await loadRestoreJournalState({
+		restoreJournal: params.restoreJournal,
+	});
+	if (!loadedState.state) {
 		return {
 			restored: false as const,
+			...('clearedInvalidJournal' in loadedState
+				? { clearedInvalidJournal: loadedState.clearedInvalidJournal }
+				: {}),
+			...('invalidJournalRetained' in loadedState
+				? { invalidJournalRetained: true as const }
+				: {}),
 		};
 	}
 
-	const state = restoreJournalStateSchema.parse(rawState);
+	const state = loadedState.state;
 	if (!params.listCurrentKeys || !params.listCurrentConnections) {
 		return {
 			restored: false as const,

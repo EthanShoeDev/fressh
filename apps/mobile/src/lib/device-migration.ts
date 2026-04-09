@@ -56,8 +56,7 @@ export async function createBackupPayload(params: {
 		keys: await params.listKeys(),
 		connections: await params.listConnections(),
 	};
-	assertBackupReferencesExist(payload);
-	return payload;
+	return validateBackupPayload(payload);
 }
 
 export function parseBackupPayload(raw: string): BackupPayload {
@@ -73,8 +72,40 @@ export function parseBackupPayload(raw: string): BackupPayload {
 		if (version !== 1) throw new Error('Unsupported backup version.');
 		throw new Error('Invalid backup format.');
 	}
-	assertBackupReferencesExist(result.data);
-	return result.data;
+	return validateBackupPayload(result.data);
+}
+
+export function validateBackupPayload(payload: BackupPayload): BackupPayload {
+	assertUniqueBackupEntries(payload);
+	assertSingleDefaultKey(payload);
+	assertBackupReferencesExist(payload);
+	return payload;
+}
+
+function assertUniqueBackupEntries(payload: BackupPayload) {
+	const keyIds = new Set<string>();
+	for (const key of payload.keys) {
+		if (keyIds.has(key.id)) {
+			throw new Error(`Duplicate private key id in backup: ${key.id}`);
+		}
+		keyIds.add(key.id);
+	}
+
+	const connectionIds = new Set<string>();
+	for (const connection of payload.connections) {
+		if (connectionIds.has(connection.id)) {
+			throw new Error(
+				`Duplicate saved connection id in backup: ${connection.id}`,
+			);
+		}
+		connectionIds.add(connection.id);
+	}
+}
+
+function assertSingleDefaultKey(payload: BackupPayload) {
+	const defaultKeys = payload.keys.filter((entry) => entry.metadata.isDefault);
+	if (defaultKeys.length <= 1) return;
+	throw new Error('Backup must contain at most one default private key.');
 }
 
 function assertBackupReferencesExist(payload: BackupPayload) {

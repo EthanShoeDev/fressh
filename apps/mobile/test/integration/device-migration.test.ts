@@ -22,6 +22,7 @@ import {
 	parseBackupPayload,
 	replaceAllFromBackup,
 	replaceAllPrivateKeys,
+	validateBackupPayload,
 } from '../../src/lib/device-migration';
 
 const noopLogger = {
@@ -218,6 +219,28 @@ void test('createBackupPayload rejects saved connections that reference missing 
 	);
 });
 
+void test('createBackupPayload rejects duplicate key ids', async () => {
+	await assert.rejects(
+		() =>
+			createBackupPayload({
+				createdAt: '2026-04-09T00:00:00.000Z',
+				listKeys: async () => [
+					keyEntry,
+					{
+						...keyEntry,
+						metadata: {
+							...keyEntry.metadata,
+							isDefault: false,
+						},
+						value: `${validPrivateKey}\n# duplicate`,
+					},
+				],
+				listConnections: async () => [connectionEntry],
+			}),
+		/Duplicate private key id in backup: key_1/,
+	);
+});
+
 void test('parseBackupPayload rejects unsupported versions', () => {
 	assert.throws(
 		() =>
@@ -244,6 +267,84 @@ void test('parseBackupPayload rejects connections that reference missing keys', 
 					connections: [connectionEntry],
 				}),
 			),
+		/Missing private key for saved connection/,
+	);
+});
+
+void test('parseBackupPayload rejects duplicate connection ids', () => {
+	assert.throws(
+		() =>
+			parseBackupPayload(
+				JSON.stringify({
+					version: 1,
+					createdAt: '2026-04-09T00:00:00.000Z',
+					keys: [keyEntry],
+					connections: [
+						connectionEntry,
+						{
+							...connectionEntry,
+							metadata: {
+								...connectionEntry.metadata,
+								label: 'Duplicate connection',
+							},
+						},
+					],
+				}),
+			),
+		/Duplicate saved connection id in backup: muly-dev-box-22/,
+	);
+});
+
+void test('parseBackupPayload rejects multiple default keys', () => {
+	assert.throws(
+		() =>
+			parseBackupPayload(
+				JSON.stringify({
+					version: 1,
+					createdAt: '2026-04-09T00:00:00.000Z',
+					keys: [
+						keyEntry,
+						{
+							id: 'key_2',
+							metadata: {
+								priority: 1,
+								createdAtMs: 2,
+								label: 'Secondary key',
+								isDefault: true,
+							},
+							value: validPrivateKey,
+						},
+					],
+					connections: [
+						connectionEntry,
+						{
+							...staleConnectionEntry,
+							id: 'muly-dev-box-2222',
+							value: {
+								...staleConnectionEntry.value,
+								host: 'dev-box-2',
+								security: {
+									...staleConnectionEntry.value.security,
+									keyId: 'key_2',
+								},
+							},
+						},
+					],
+				}),
+			),
+		/Backup must contain at most one default private key/,
+	);
+});
+
+void test('validateBackupPayload rejects connections that reference missing keys', () => {
+	assert.throws(
+		() =>
+			validateBackupPayload({
+				version: 1,
+				createdAt: '2026-04-09T00:00:00.000Z',
+				keys: [],
+				connections: [connectionEntry],
+			}),
 		/Missing private key for saved connection/,
 	);
 });

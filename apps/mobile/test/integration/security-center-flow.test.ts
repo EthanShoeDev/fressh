@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { type BackupPayload } from '../../src/lib/device-migration';
 import {
 	createRestorePreflightSummary,
@@ -52,11 +55,18 @@ const backupPayload: BackupPayload = {
 function createMemoryRestoreJournal(options?: {
 	failSaveAtCall?: number;
 	failClear?: boolean;
+	failLoad?: boolean;
 }) {
 	let state: unknown = null;
 	let saveCalls = 0;
+	let clearCalls = 0;
 	return {
-		load: async () => state,
+		load: async () => {
+			if (options?.failLoad) {
+				throw new Error('journal load failed');
+			}
+			return state;
+		},
 		save: async (nextState: unknown) => {
 			saveCalls += 1;
 			if (options?.failSaveAtCall === saveCalls) {
@@ -65,12 +75,14 @@ function createMemoryRestoreJournal(options?: {
 			state = nextState;
 		},
 		clear: async () => {
+			clearCalls += 1;
 			if (options?.failClear) {
 				throw new Error('journal clear failed');
 			}
 			state = null;
 		},
 		getSnapshot: () => state,
+		getClearCalls: () => clearCalls,
 	};
 }
 
@@ -986,4 +998,150 @@ void test('recoverPendingRestore clears a stale journal when current state alrea
 	assert.deepEqual(result, { restored: false });
 	assert.equal(replaceCalls, 0);
 	assert.equal(journal.getSnapshot(), null);
+});
+
+void test('recoverPendingRestore clears an invalid journal payload instead of throwing through startup', async () => {
+	const journal = createMemoryRestoreJournal();
+	let replaceCalls = 0;
+
+	await journal.save({
+		recoveryTarget: 'target',
+		previous: {
+			version: 1,
+			createdAt: '2026-04-09T00:00:00.000Z',
+			keys: [],
+			connections: [backupPayload.connections[0]],
+		},
+		target: backupPayload,
+	});
+
+	const result = await recoverPendingRestore({
+		restoreJournal: journal,
+		replaceAllKeys: async () => {
+			replaceCalls += 1;
+		},
+		replaceAllConnections: async () => {
+			replaceCalls += 1;
+		},
+	});
+
+	assert.deepEqual(result, {
+		restored: false,
+		clearedInvalidJournal: true,
+	});
+	assert.equal(replaceCalls, 0);
+	assert.equal(journal.getSnapshot(), null);
+	assert.equal(journal.getClearCalls(), 1);
+});
+
+void test('recoverPendingRestore clears a journal when loading it fails', async () => {
+	const journal = createMemoryRestoreJournal({
+		failLoad: true,
+	});
+	let replaceCalls = 0;
+
+	const result = await recoverPendingRestore({
+		restoreJournal: journal,
+		replaceAllKeys: async () => {
+			replaceCalls += 1;
+		},
+		replaceAllConnections: async () => {
+			replaceCalls += 1;
+		},
+	});
+
+	assert.deepEqual(result, {
+		restored: false,
+		clearedInvalidJournal: true,
+	});
+	assert.equal(replaceCalls, 0);
+	assert.equal(journal.getSnapshot(), null);
+	assert.equal(journal.getClearCalls(), 1);
+});
+
+void test('recoverPendingRestore keeps an invalid journal non-fatal when clear fails', async () => {
+	const journal = createMemoryRestoreJournal({
+		failClear: true,
+	});
+	let replaceCalls = 0;
+
+	await journal.save({
+		recoveryTarget: 'target',
+		previous: {
+			version: 1,
+			createdAt: '2026-04-09T00:00:00.000Z',
+			keys: [],
+			connections: [backupPayload.connections[0]],
+		},
+		target: backupPayload,
+	});
+
+	const result = await recoverPendingRestore({
+		restoreJournal: journal,
+		replaceAllKeys: async () => {
+			replaceCalls += 1;
+		},
+		replaceAllConnections: async () => {
+			replaceCalls += 1;
+		},
+	});
+
+	assert.deepEqual(result, {
+		restored: false,
+		clearedInvalidJournal: false,
+		invalidJournalRetained: true,
+	});
+	assert.equal(replaceCalls, 0);
+	assert.notEqual(journal.getSnapshot(), null);
+	assert.equal(journal.getClearCalls(), 1);
+});
+
+void test('recoverPendingRestore keeps an unreadable journal non-fatal when clear fails', async () => {
+	const journal = createMemoryRestoreJournal({
+		failLoad: true,
+		failClear: true,
+	});
+	let replaceCalls = 0;
+
+	const result = await recoverPendingRestore({
+		restoreJournal: journal,
+		replaceAllKeys: async () => {
+			replaceCalls += 1;
+		},
+		replaceAllConnections: async () => {
+			replaceCalls += 1;
+		},
+	});
+
+	assert.deepEqual(result, {
+		restored: false,
+		clearedInvalidJournal: false,
+		invalidJournalRetained: true,
+	});
+	assert.equal(replaceCalls, 0);
+	assert.equal(journal.getSnapshot(), null);
+	assert.equal(journal.getClearCalls(), 1);
+});
+
+void test('secrets-manager wires recovery readers and propagates restore journal delete failures', () => {
+	const source = readFileSync(
+		join(
+			dirname(fileURLToPath(import.meta.url)),
+			'../../src/lib/secrets-manager.ts',
+		),
+		'utf8',
+	);
+
+	assert.match(
+		source,
+		/recoverPendingRestore\(\{\s*restoreJournal,\s*listCurrentKeys:\s*\(\)\s*=>\s*betterKeyStorage\.listEntriesWithValues\(\),\s*listCurrentConnections:\s*\(\)\s*=>\s*connectionStorage\.listEntriesWithValues\(\),/s,
+	);
+	assert.match(
+		source,
+		/load:\s*async\s*\(\)\s*=>\s*\{[\s\S]*logger\.warn\('Discarding malformed restore journal entry', error\);[\s\S]*await restoreJournalStore\.deleteEntry\('pending'\);[\s\S]*return null;[\s\S]*\}/s,
+	);
+	assert.match(
+		source,
+		/clear:\s*async\s*\(\)\s*=>\s*\{\s*await restoreJournalStore\.deleteEntry\('pending'\);\s*\}/s,
+	);
 });
