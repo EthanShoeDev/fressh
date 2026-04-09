@@ -39,6 +39,11 @@ export const backupPayloadSchema = z.object({
 export type BackupPayload = z.infer<typeof backupPayloadSchema>;
 export type BackupKeyEntry = z.infer<typeof backupKeyEntrySchema>;
 
+export type PrivateKeyReplacementStorage = {
+	clearAllEntries: () => Promise<void>;
+	upsertEntry: (entry: BackupKeyEntry) => Promise<void>;
+};
+
 export async function createBackupPayload(params: {
 	createdAt?: string;
 	listKeys: () => Promise<BackupKeyEntry[]>;
@@ -66,6 +71,20 @@ export function parseBackupPayload(raw: string): BackupPayload {
 		throw new Error('Invalid backup format.');
 	}
 	return result.data;
+}
+
+export async function replaceAllPrivateKeys(params: {
+	entries: BackupKeyEntry[];
+	storage: PrivateKeyReplacementStorage;
+	validatePrivateKey: (value: string) => void;
+}) {
+	for (const entry of params.entries) {
+		params.validatePrivateKey(entry.value);
+	}
+	await params.storage.clearAllEntries();
+	for (const entry of params.entries) {
+		await params.storage.upsertEntry(entry);
+	}
 }
 
 export async function replaceAllFromBackup(params: {

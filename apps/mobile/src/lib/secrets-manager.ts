@@ -12,7 +12,10 @@ import {
 	type StoredConnectionEntry,
 	type StoredConnectionDetails,
 } from './connection-storage';
-import { type BackupKeyEntry } from './device-migration';
+import {
+	replaceAllPrivateKeys,
+	type BackupKeyEntry,
+} from './device-migration';
 import { rootLogger } from './logger';
 import { queryClient, type StrictOmit } from './utils';
 
@@ -28,11 +31,6 @@ const secureStoreAdapter = {
 	getItem: (key: string) => SecureStore.getItemAsync(key),
 	setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
 	deleteItem: (key: string) => SecureStore.deleteItemAsync(key),
-};
-
-type PrivateKeyStorage = {
-	clearAllEntries: () => Promise<void>;
-	upsertEntry: (entry: BackupKeyEntry) => Promise<void>;
 };
 
 const keyMetadataSchema = z.object({
@@ -60,7 +58,6 @@ function validatePrivateKey(value: string) {
 	logger.info('Invalid private key', validateKeyResult.error);
 	if (validateKeyResult.error.tag === SshError_Tags.RusshKeys) {
 		logger.info('Invalid private key inner', validateKeyResult.error.inner);
-		logger.info('Invalid private key content', value);
 	}
 	throw new Error('Invalid private key', { cause: validateKeyResult.error });
 }
@@ -99,23 +96,11 @@ async function deletePrivateKey(keyId: string) {
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
-export async function replaceAllPrivateKeys(params: {
-	entries: BackupKeyEntry[];
-	storage: PrivateKeyStorage;
-}) {
-	for (const entry of params.entries) {
-		validatePrivateKey(entry.value);
-	}
-	await params.storage.clearAllEntries();
-	for (const entry of params.entries) {
-		await params.storage.upsertEntry(entry);
-	}
-}
-
 async function replaceAllPrivateKeyEntries(entries: BackupKeyEntry[]) {
 	await replaceAllPrivateKeys({
 		entries,
 		storage: betterKeyStorage,
+		validatePrivateKey,
 	});
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }

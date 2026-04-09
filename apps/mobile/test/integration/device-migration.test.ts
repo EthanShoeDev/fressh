@@ -1,4 +1,14 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import {
+	chmodSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import * as z from 'zod';
 import { makeBetterSecureStore } from '../../src/lib/chunked-storage';
@@ -8,9 +18,9 @@ import {
 } from '../../src/lib/connection-storage';
 import {
 	createBackupPayload,
-	type BackupKeyEntry,
 	parseBackupPayload,
 	replaceAllFromBackup,
+	replaceAllPrivateKeys,
 } from '../../src/lib/device-migration';
 
 const noopLogger = {
@@ -20,21 +30,48 @@ const noopLogger = {
 	error: () => {},
 };
 
-async function replaceAllPrivateKeyEntries(params: {
-	entries: BackupKeyEntry[];
-	storage: {
-		clearAllEntries: () => Promise<void>;
-		upsertEntry: (entry: BackupKeyEntry) => Promise<void>;
-	};
-}) {
-	for (const entry of params.entries) {
-		if (!entry.value.startsWith('PRIVATE')) {
-			throw new Error('Invalid private key');
+function generatePrivateKeyFixture() {
+	const tempDir = mkdtempSync(join(tmpdir(), 'fressh-private-key-fixture-'));
+	const keyPath = join(tempDir, 'id_ed25519');
+	try {
+		const result = spawnSync(
+			'ssh-keygen',
+			['-q', '-t', 'ed25519', '-N', '', '-C', 'muly@dev-remote-machine', '-f', keyPath],
+			{
+				encoding: 'utf8',
+			},
+		);
+		if (result.status !== 0) {
+			throw new Error(
+				result.stderr.trim() || 'ssh-keygen failed to generate a key fixture.',
+			);
 		}
+		return readFileSync(keyPath, 'utf8');
+	} finally {
+		rmSync(tempDir, { recursive: true, force: true });
 	}
-	await params.storage.clearAllEntries();
-	for (const entry of params.entries) {
-		await params.storage.upsertEntry(entry);
+}
+
+function validatePrivateKeyWithSshKeygen(privateKey: string) {
+	const tempDir = mkdtempSync(join(tmpdir(), 'fressh-private-key-'));
+	const keyPath = join(tempDir, 'id_ed25519');
+	try {
+		writeFileSync(keyPath, privateKey, 'utf8');
+		chmodSync(keyPath, 0o600);
+		const result = spawnSync('ssh-keygen', ['-y', '-f', keyPath], {
+			encoding: 'utf8',
+		});
+		if (result.status === 0) return;
+		throw new Error(
+			'Invalid private key',
+			{
+				cause:
+					result.stderr.trim() ||
+					'ssh-keygen rejected the private key.',
+			},
+		);
+	} finally {
+		rmSync(tempDir, { recursive: true, force: true });
 	}
 }
 
@@ -77,6 +114,13 @@ const keyMetadataSchema = z.object({
 	isDefault: z.boolean().optional(),
 });
 
+const validPrivateKey = generatePrivateKeyFixture();
+
+const invalidPrivateKey = validPrivateKey.replace(
+	'BEGIN OPENSSH PRIVATE KEY',
+	'BEGIN OPENSSH PRIVATE KEYY',
+);
+
 const keyEntry = {
 	id: 'key_1',
 	metadata: {
@@ -85,7 +129,7 @@ const keyEntry = {
 		label: 'Primary key',
 		isDefault: true,
 	},
-	value: 'PRIVATE KEY',
+	value: validPrivateKey,
 };
 
 const staleKeyEntry = {
@@ -184,7 +228,7 @@ void test('replaceAllPrivateKeys keeps existing entries when validation fails', 
 
 	await assert.rejects(
 		() =>
-			replaceAllPrivateKeyEntries({
+			replaceAllPrivateKeys({
 				entries: [
 					{
 						id: 'key_invalid',
@@ -194,10 +238,11 @@ void test('replaceAllPrivateKeys keeps existing entries when validation fails', 
 							label: 'Invalid',
 							isDefault: false,
 						},
-						value: 'BROKEN KEY',
+						value: invalidPrivateKey,
 					},
 				],
 				storage: keyStorage,
+				validatePrivateKey: validatePrivateKeyWithSshKeygen,
 			}),
 		/Invalid private key/,
 	);
@@ -249,7 +294,11 @@ void test('replaceAllFromBackup replaces stale keys and connections in memory st
 			}),
 		),
 		replaceAllKeys: async (entries) => {
-			await replaceAllPrivateKeyEntries({ entries, storage: keyStorage });
+			await replaceAllPrivateKeys({
+				entries,
+				storage: keyStorage,
+				validatePrivateKey: validatePrivateKeyWithSshKeygen,
+			});
 		},
 		replaceAllConnections: async (entries) => {
 			await connectionStorage.replaceAllEntries(entries);
