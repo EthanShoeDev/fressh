@@ -18,6 +18,7 @@ import {
 } from '../../src/lib/connection-storage';
 import {
 	createBackupPayload,
+	createReplaceAllPrivateKeyEntriesHandler,
 	parseBackupPayload,
 	replaceAllFromBackup,
 	replaceAllPrivateKeys,
@@ -41,6 +42,9 @@ function generatePrivateKeyFixture() {
 				encoding: 'utf8',
 			},
 		);
+		if (result.error) {
+			throw new Error(`ssh-keygen unavailable: ${result.error.message}`);
+		}
 		if (result.status !== 0) {
 			throw new Error(
 				result.stderr.trim() || 'ssh-keygen failed to generate a key fixture.',
@@ -61,6 +65,9 @@ function validatePrivateKeyWithSshKeygen(privateKey: string) {
 		const result = spawnSync('ssh-keygen', ['-y', '-f', keyPath], {
 			encoding: 'utf8',
 		});
+		if (result.error) {
+			throw new Error(`ssh-keygen unavailable: ${result.error.message}`);
+		}
 		if (result.status === 0) return;
 		throw new Error(
 			'Invalid private key',
@@ -317,3 +324,42 @@ void test('replaceAllFromBackup replaces stale keys and connections in memory st
 		connectionEntry,
 	]);
 });
+
+void test(
+	'replaceAllPrivateKeyEntries handler invalidates after replacing entries',
+	async () => {
+		const keyStorage = makeBetterSecureStore({
+			storagePrefix: 'privateKey',
+			extraManifestFieldsSchema: keyMetadataSchema,
+			parseValue: (value) => value,
+			storage: createMemoryAsyncStorage().storage,
+			randomUUID: () => 'generated',
+			logger: noopLogger,
+		});
+		await keyStorage.upsertEntry(staleKeyEntry);
+
+		let invalidateCalls = 0;
+		const replaceAllEntries = createReplaceAllPrivateKeyEntriesHandler({
+			replaceAllKeys: async (entries) => {
+				await replaceAllPrivateKeys({
+					entries,
+					storage: keyStorage,
+					validatePrivateKey: validatePrivateKeyWithSshKeygen,
+				});
+			},
+			invalidateKeysQuery: async () => {
+				invalidateCalls += 1;
+			},
+		});
+
+		await replaceAllEntries([keyEntry]);
+
+		assert.equal(invalidateCalls, 1);
+		assert.deepEqual(
+			(await keyStorage.listEntriesWithValues()).map(
+				({ id, metadata, value }) => ({ id, metadata, value }),
+			),
+			[keyEntry],
+		);
+	},
+);

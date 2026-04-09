@@ -87,6 +87,16 @@ export async function replaceAllPrivateKeys(params: {
 	}
 }
 
+export function createReplaceAllPrivateKeyEntriesHandler(params: {
+	replaceAllKeys: (entries: BackupKeyEntry[]) => Promise<void>;
+	invalidateKeysQuery: () => Promise<void>;
+}) {
+	return async (entries: BackupKeyEntry[]) => {
+		await params.replaceAllKeys(entries);
+		await params.invalidateKeysQuery();
+	};
+}
+
 export async function replaceAllFromBackup(params: {
 	payload: BackupPayload;
 	replaceAllKeys: (entries: BackupKeyEntry[]) => Promise<void>;

@@ -13,8 +13,8 @@ import {
 	type StoredConnectionDetails,
 } from './connection-storage';
 import {
+	createReplaceAllPrivateKeyEntriesHandler,
 	replaceAllPrivateKeys,
-	type BackupKeyEntry,
 } from './device-migration';
 import { rootLogger } from './logger';
 import { queryClient, type StrictOmit } from './utils';
@@ -96,15 +96,6 @@ async function deletePrivateKey(keyId: string) {
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
-async function replaceAllPrivateKeyEntries(entries: BackupKeyEntry[]) {
-	await replaceAllPrivateKeys({
-		entries,
-		storage: betterKeyStorage,
-		validatePrivateKey,
-	});
-	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
-}
-
 const keyQueryKey = 'keys';
 
 const listKeysQueryOptions = queryOptions({
@@ -121,6 +112,18 @@ const getKeyQueryOptions = (keyId: string) =>
 		queryKey: [keyQueryKey, keyId],
 		queryFn: () => betterKeyStorage.getEntry(keyId),
 	});
+
+const replaceAllPrivateKeyEntries = createReplaceAllPrivateKeyEntriesHandler({
+	replaceAllKeys: async (entries) => {
+		await replaceAllPrivateKeys({
+			entries,
+			storage: betterKeyStorage,
+			validatePrivateKey,
+		});
+	},
+	invalidateKeysQuery: () =>
+		queryClient.invalidateQueries({ queryKey: [keyQueryKey] }),
+});
 
 const legacyConnectionStorage = makeBetterSecureStore<
 	z.infer<typeof connectionMetadataSchema>,
