@@ -71,3 +71,20 @@ void test('phone base keyboard review key runs $rloop-code-fix2 and keeps the Re
 		icon: null,
 	});
 });
+
+void test('advanced keyboard exposes a tmux history action', () => {
+	const config = getBundledShellConfig();
+	const advancedKeyboard = config.keyboards.find(
+		(keyboard) => keyboard.id === 'advanced_keyboard',
+	);
+	assert.ok(advancedKeyboard);
+
+	const hasHistoryAction = advancedKeyboard.grid.some((row) =>
+		row.some(
+			(slot) =>
+				slot?.type === 'action' && slot.actionId === 'OPEN_TMUX_HISTORY',
+		),
+	);
+
+	assert.equal(hasHistoryAction, true);
+});

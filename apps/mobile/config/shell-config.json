@@ -283,6 +283,12 @@
             "label": "Config",
             "icon": "Settings"
           },
+          {
+            "type": "action",
+            "actionId": "OPEN_TMUX_HISTORY",
+            "label": "History",
+            "icon": "History"
+          },
           null,
           null,
           null,

@@ -693,6 +693,7 @@ export const createTouchScrollController = ({
 		const emitExit = opts?.emitExit ?? true;
 		const requestId = opts?.requestId;
 		resetPendingScroll();
+		pendingEnterRequestId = null;
 		releasePointerCapture();
 		state = 'Idle';
 		pendingPointerUp = false;
