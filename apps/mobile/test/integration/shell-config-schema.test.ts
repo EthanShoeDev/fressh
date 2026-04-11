@@ -55,12 +55,12 @@ void test('runtime shell config rejects duplicate active keyboard ids', () => {
 	assert.throws(() => parseShellConfigData(config), /Duplicate active keyboard id phone_base/);
 });
 
-void test('runtime shell config rejects missing macro references', () => {
-	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
-	const keyboards = structuredClone(config.keyboards) as Array<Record<string, unknown>>;
-	const firstKeyboard = keyboards[0];
-	assert.ok(firstKeyboard);
-	const grid = structuredClone(firstKeyboard.grid) as Array<Array<unknown>>;
+	void test('runtime shell config rejects missing macro references', () => {
+		const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
+		const keyboards = structuredClone(config.keyboards) as Record<string, unknown>[];
+		const firstKeyboard = keyboards[0];
+		assert.ok(firstKeyboard);
+		const grid = structuredClone(firstKeyboard.grid) as unknown[][];
 	grid[0]![0] = {
 		type: 'macro',
 		macroId: 'missing_macro',
@@ -73,12 +73,12 @@ void test('runtime shell config rejects missing macro references', () => {
 	assert.throws(() => parseShellConfigData(config), /missing_macro/);
 });
 
-void test('runtime shell config rejects unknown action ids', () => {
-	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
-	const keyboards = structuredClone(config.keyboards) as Array<Record<string, unknown>>;
-	const firstKeyboard = keyboards[0];
-	assert.ok(firstKeyboard);
-	const grid = structuredClone(firstKeyboard.grid) as Array<Array<unknown>>;
+	void test('runtime shell config rejects unknown action ids', () => {
+		const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
+		const keyboards = structuredClone(config.keyboards) as Record<string, unknown>[];
+		const firstKeyboard = keyboards[0];
+		assert.ok(firstKeyboard);
+		const grid = structuredClone(firstKeyboard.grid) as unknown[][];
 	grid[0]![0] = {
 		type: 'action',
 		actionId: 'NOT_A_REAL_ACTION',

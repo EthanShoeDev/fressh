@@ -9,7 +9,6 @@ import {
 } from '@fressh/react-native-xtermjs-webview';
 
 import * as Clipboard from 'expo-clipboard';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as Linking from 'expo-linking';
 import {
 	Stack,
@@ -39,19 +38,6 @@ import {
 	View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-	getActiveKeyboardIds,
-	getKeyboardActionTarget,
-	getKeyboardsById,
-	resolveActiveOneShotReturnKeyboardId,
-	type KeyboardDefinition,
-	type KeyboardSlot,
-	type MacroDef,
-	type ModifierKey,
-	resolveSelectedKeyboardId,
-	type CommandPreset,
-	type CommandStep,
-} from '@/lib/shell-config';
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
 import {
@@ -65,12 +51,37 @@ import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
+	getActiveKeyboardIds,
+	getKeyboardActionTarget,
+	getKeyboardsById,
+	resolveActiveOneShotReturnKeyboardId,
+	resolveSelectedKeyboardId,
+	type CommandPreset,
+	type CommandStep,
+	type KeyboardDefinition,
+	type KeyboardSlot,
+	type MacroDef,
+	type ModifierKey,
+} from '@/lib/shell-config';
+import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
 import { executeSideChannelCommand } from '@/lib/ssh-side-channel';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
+import {
+	buildTmuxHistoryCopyModeCommand,
+	buildTmuxHistoryControlCommand,
+	buildTmuxHistoryEnterCommand,
+	getTmuxHistoryControlFailurePolicy,
+	getTmuxHistoryLiveInputPolicy,
+	getTmuxHistoryToggleAction,
+	isTmuxHistoryModeConfirmed,
+	runTmuxControlCommand,
+	shouldApplyTmuxHistoryEntryResult,
+	type TmuxHistoryCommandId,
+} from '@/lib/tmux-history';
 import { queryClient } from '@/lib/utils';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
@@ -78,6 +89,7 @@ import { FeatureRequestModal } from './components/FeatureRequestModal';
 import { TerminalCommanderModal } from './components/TerminalCommanderModal';
 import { TerminalKeyboard } from './components/TerminalKeyboard';
 import { TextEntryModal } from './components/TextEntryModal';
+import { TmuxHistoryKeyboard } from './components/TmuxHistoryKeyboard';
 
 const logger = rootLogger.extend('TabsShellDetail');
 
@@ -350,10 +362,6 @@ const tmuxPrefixKey = '\x02';
 const tmuxCopyModeKey = '[';
 const tmuxCancelKey = 'q';
 const tmuxExitKey = 'q';
-const tmuxScrollUpKey = '\x1b[1;5A';
-const tmuxScrollDownKey = '\x1b[1;5B';
-const tmuxPageUpKey = '\x1b[5~';
-const tmuxPageDownKey = '\x1b[6~';
 const touchEnterDelayMs = 10;
 
 function ShellDetail() {
@@ -404,7 +412,9 @@ function ShellDetail() {
 	const [tmuxTarget, setTmuxTarget] = useState(
 		tmuxSessionName?.trim().length ? tmuxSessionName.trim() : 'main',
 	);
-	const [tmuxEnabled, setTmuxEnabled] = useState(true);
+	const [tmuxEnabled, setTmuxEnabled] = useState(false);
+	const [tmuxControlReady, setTmuxControlReady] = useState(false);
+	const [tmuxControlRestartNonce, setTmuxControlRestartNonce] = useState(0);
 
 	useEffect(() => {
 		if (hasTmuxAttachError) return;
@@ -471,7 +481,11 @@ function ShellDetail() {
 	}, [shell]);
 
 	useEffect(() => {
-		if (!connection || !tmuxEnabled) return;
+		if (!connection || !tmuxEnabled) {
+			// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Reset readiness when tmux support is unavailable
+			setTmuxControlReady(false);
+			return;
+		}
 		let cancelled = false;
 		const startTmuxControlShell = async () => {
 			try {
@@ -492,7 +506,9 @@ function ShellDetail() {
 				tmuxControlWriterRef.current = new OrderedWriter(async (bytes) => {
 					await controlShell.sendData(bytes.buffer as ArrayBuffer);
 				});
+				setTmuxControlReady(true);
 			} catch (error) {
+				setTmuxControlReady(false);
 				logger.warn('Failed to start tmux control shell', error);
 			}
 		};
@@ -504,6 +520,7 @@ function ShellDetail() {
 			tmuxControlShellRef.current = null;
 			tmuxControlListenerRef.current = null;
 			tmuxControlWriterRef.current = null;
+			setTmuxControlReady(false);
 			if (!controlShell) return;
 			if (listenerId != null) {
 				controlShell.removeListener(listenerId);
@@ -512,7 +529,7 @@ function ShellDetail() {
 				logger.warn('Failed to close tmux control shell', error);
 			});
 		};
-	}, [connection, tmuxEnabled]);
+	}, [connection, tmuxControlRestartNonce, tmuxEnabled]);
 
 	useEffect(() => {
 		return () => {
@@ -532,8 +549,12 @@ function ShellDetail() {
 		() => getActiveKeyboardIds(shellConfig),
 		[shellConfig],
 	);
-	const [selectedKeyboardId, setSelectedKeyboardId] = useState<string>(
+	const [preferredKeyboardId, setPreferredKeyboardId] = useState<string>(() =>
 		resolveSelectedKeyboardId(shellConfig, shellConfig.defaultKeyboardId),
+	);
+	const selectedKeyboardId = useMemo(
+		() => resolveSelectedKeyboardId(shellConfig, preferredKeyboardId),
+		[preferredKeyboardId, shellConfig],
 	);
 	const availableKeyboardIds = useMemo(
 		() => new Set(activeKeyboardIds),
@@ -552,16 +573,9 @@ function ShellDetail() {
 		selectedKeyboardIdRef.current = selectedKeyboardId;
 	}, [selectedKeyboardId]);
 
-	useEffect(() => {
-		setSelectedKeyboardId((current) =>
-			resolveSelectedKeyboardId(shellConfig, current),
-		);
-	}, [shellConfig]);
-
 	const currentKeyboard = useMemo<KeyboardDefinition | null>(() => {
-		const resolvedId = resolveSelectedKeyboardId(shellConfig, selectedKeyboardId);
-		return resolvedId ? (keyboardsById[resolvedId] ?? null) : null;
-	}, [keyboardsById, selectedKeyboardId, shellConfig]);
+		return selectedKeyboardId ? (keyboardsById[selectedKeyboardId] ?? null) : null;
+	}, [keyboardsById, selectedKeyboardId]);
 
 	const currentMacros = useMemo<MacroDef[]>(
 		() => (currentKeyboard ? (shellConfig.macrosByKeyboardId[currentKeyboard.id] ?? []) : []),
@@ -616,6 +630,7 @@ function ShellDetail() {
 	const lastKeyboardVisibleRef = useRef(false);
 	const appStateRef = useRef(AppState.currentState);
 	const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
+	const [historyModeActive, setHistoryModeActive] = useState(false);
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [textEntryOpen, setTextEntryOpen] = useState(false);
@@ -629,6 +644,9 @@ function ShellDetail() {
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
+	const historyModeActiveRef = useRef(false);
+	const historyEntryPendingRef = useRef(false);
+	const historyEntryRequestIdRef = useRef(0);
 	const shellConfigRef = useRef(shellConfig);
 	const availableKeyboardIdsRef = useRef(availableKeyboardIds);
 	const selectedKeyboardIdRef = useRef(selectedKeyboardId);
@@ -640,7 +658,8 @@ function ShellDetail() {
 	const touchScrollEnabled =
 		Platform.OS === 'android' &&
 		Math.min(width, height) >= 600 &&
-		tmuxEnabled;
+		tmuxEnabled &&
+		tmuxControlReady;
 	const touchScrollConfig = useMemo<TouchScrollConfig>(
 		() =>
 			touchScrollEnabled
@@ -711,17 +730,6 @@ function ShellDetail() {
 		return writerRef.current?.send(bytes);
 	}, []);
 
-	const sendTmuxControlCommand = useCallback((command: string) => {
-		const writer = tmuxControlWriterRef.current;
-		if (!writer) return false;
-		writer
-			.send(encoder.encode(`${command}\n`))
-			.catch((error: unknown) => {
-				logger.warn('tmux control send failed', error);
-			});
-		return true;
-	}, []);
-
 	const sendBytesQueued = useCallback(
 		(
 			segments: Uint8Array<ArrayBuffer>[],
@@ -732,17 +740,82 @@ function ShellDetail() {
 		[],
 	);
 
+	useEffect(() => {
+		historyModeActiveRef.current = historyModeActive;
+	}, [historyModeActive]);
+
 	const clearScrollbackState = useCallback(() => {
+		historyEntryRequestIdRef.current += 1;
+		historyEntryPendingRef.current = false;
+		historyModeActiveRef.current = false;
+		setHistoryModeActive(false);
 		scrollbackActiveRef.current = false;
 		scrollbackPhaseRef.current = 'active';
 		setScrollbackActive(false);
 		xtermRef.current?.exitScrollback({ emitExit: false });
 	}, []);
 
+	const handleTmuxControlUnavailable = useCallback(
+		(reason: string) => {
+			logger.warn(reason);
+			const failurePolicy = getTmuxHistoryControlFailurePolicy({
+				historyModeActive: historyModeActiveRef.current,
+				scrollbackActive: scrollbackActiveRef.current,
+				pendingEnter: historyEntryPendingRef.current,
+			});
+			const controlShell = tmuxControlShellRef.current;
+			const listenerId = tmuxControlListenerRef.current;
+			tmuxControlShellRef.current = null;
+			tmuxControlListenerRef.current = null;
+			tmuxControlWriterRef.current = null;
+			setTmuxControlReady(false);
+			if (failurePolicy === 'exit-browse-and-restart-control') {
+				if (isValidCancelKey(cancelKeyBytes)) {
+					void sendBytesOrdered(cancelKeyBytes);
+				} else {
+					logger.warn('cancelKey invalid; cannot exit tmux history after control failure');
+				}
+			}
+			clearScrollbackState();
+			setTmuxControlRestartNonce((prev) => prev + 1);
+			if (!controlShell) return;
+			if (listenerId != null) {
+				controlShell.removeListener(listenerId);
+			}
+			controlShell.close().catch((error) => {
+				logger.warn('Failed to close tmux control shell after send failure', error);
+			});
+		},
+		[cancelKeyBytes, clearScrollbackState, sendBytesOrdered],
+	);
+
+	const sendTmuxControlCommand = useCallback(
+		async (command: string) => {
+			const writer = tmuxControlWriterRef.current;
+			if (!writer) return false;
+			const sent = await runTmuxControlCommand(writer, command);
+			if (sent) return true;
+			handleTmuxControlUnavailable('tmux control send failed');
+			return false;
+		},
+		[handleTmuxControlUnavailable],
+	);
+
 	const sendInputEnsuringLive = useCallback(
 		(bytes: Uint8Array<ArrayBuffer>) => {
-			if (!scrollbackActiveRef.current) {
+			const inputPolicy = getTmuxHistoryLiveInputPolicy({
+				historyModeActive: historyModeActiveRef.current,
+				scrollbackActive: scrollbackActiveRef.current,
+				pendingEnter: historyEntryPendingRef.current,
+			});
+			if (inputPolicy === 'pass-through') {
 				void sendBytesOrdered(bytes);
+				return;
+			}
+			if (inputPolicy === 'block-pending-entry') {
+				logger.info(
+					'Blocking live input while tmux history entry confirmation is pending',
+				);
 				return;
 			}
 
@@ -897,7 +970,7 @@ function ShellDetail() {
 
 	const rotateKeyboard = useCallback(() => {
 		if (activeKeyboardIds.length <= 1) return;
-		setSelectedKeyboardId((current) => {
+		setPreferredKeyboardId((current) => {
 			const resolvedCurrent = resolveSelectedKeyboardId(shellConfig, current);
 			const idx = Math.max(0, activeKeyboardIds.indexOf(resolvedCurrent));
 			const nextIdx = (idx + 1) % activeKeyboardIds.length;
@@ -908,7 +981,7 @@ function ShellDetail() {
 	const selectKeyboardIfExists = useCallback(
 		(id: string) => {
 			if (!availableKeyboardIds.has(id)) return;
-			setSelectedKeyboardId(id);
+			setPreferredKeyboardId(id);
 		},
 		[availableKeyboardIds],
 	);
@@ -935,7 +1008,18 @@ function ShellDetail() {
 			const textBytes = encoder.encode(value);
 			const enterBytes = encoder.encode('\r');
 
-			if (scrollbackActiveRef.current) {
+			const inputPolicy = getTmuxHistoryLiveInputPolicy({
+				historyModeActive: historyModeActiveRef.current,
+				scrollbackActive: scrollbackActiveRef.current,
+				pendingEnter: historyEntryPendingRef.current,
+			});
+			if (inputPolicy === 'block-pending-entry') {
+				logger.info(
+					'Blocking text-entry paste while tmux history entry confirmation is pending',
+				);
+				return;
+			}
+			if (inputPolicy === 'exit-before-send') {
 				if (!isValidCancelKey(cancelKeyBytes)) {
 					logger.warn('cancelKey invalid; cannot auto-exit scrollback');
 					return;
@@ -981,10 +1065,10 @@ function ShellDetail() {
 				selectedKeyboardIdRef.current,
 			);
 			if (returnKeyboardId) {
-				setSelectedKeyboardId(returnKeyboardId);
+				setPreferredKeyboardId(returnKeyboardId);
 			}
 		})();
-	}, [exitSelectionMode, setSelectedKeyboardId]);
+	}, [exitSelectionMode]);
 
 	const handleSelectionChanged = useCallback((text: string) => {
 		if (!text) return;
@@ -1024,113 +1108,6 @@ function ShellDetail() {
 			);
 		}
 	}, []);
-
-	const handleExportBackup = useCallback(async () => {
-		setConfigureOpen(false);
-		try {
-			const [keys, connections] = await Promise.all([
-				secretsManager.keys.utils.listEntriesWithValues(),
-				secretsManager.connections.utils.listEntriesWithValues(),
-			]);
-			const payload = {
-				version: 1,
-				createdAt: new Date().toISOString(),
-				keys: keys.map((entry) => ({
-					id: entry.id,
-					metadata: entry.metadata,
-					value: entry.value,
-				})),
-				connections: connections.map((entry) => ({
-					id: entry.id,
-					metadata: entry.metadata,
-					value: entry.value,
-				})),
-			};
-			const backupText = JSON.stringify(payload, null, 2);
-			const backupPath = FileSystem.documentDirectory
-				? `${FileSystem.documentDirectory}backup.json`
-				: null;
-			if (backupPath) {
-				await FileSystem.writeAsStringAsync(backupPath, backupText, {
-					encoding: FileSystem.EncodingType.UTF8,
-				});
-			}
-			await Clipboard.setStringAsync(backupText);
-			Alert.alert(
-				'Backup copied',
-				`Copied ${backupText.length.toLocaleString()} characters to the clipboard.${backupPath ? ' Saved to files/backup.json for ADB.' : ''}`,
-			);
-		} catch (error) {
-			Alert.alert(
-				'Backup failed',
-				error instanceof Error ? error.message : 'Failed to create backup.',
-			);
-		}
-	}, []);
-
-	const restoreBackupPayload = useCallback(async (backupText: string) => {
-		const parsed = JSON.parse(backupText);
-		if (!parsed || typeof parsed !== 'object') {
-			throw new Error('Invalid backup format.');
-		}
-		if (parsed.version !== 1) {
-			throw new Error('Unsupported backup version.');
-		}
-		const keys = Array.isArray(parsed.keys) ? parsed.keys : [];
-		const connections = Array.isArray(parsed.connections)
-			? parsed.connections
-			: [];
-
-		let restoredKeys = 0;
-		for (const key of keys) {
-			if (!key?.id || !key?.value) continue;
-			await secretsManager.keys.utils.upsertPrivateKey({
-				keyId: key.id,
-				value: key.value,
-				metadata: {
-					priority: key.metadata?.priority ?? 0,
-					label: key.metadata?.label,
-					isDefault: key.metadata?.isDefault ?? false,
-				},
-			});
-			restoredKeys += 1;
-		}
-
-		let restoredConnections = 0;
-		for (const entry of connections) {
-			if (!entry?.value) continue;
-			await secretsManager.connections.utils.upsertConnection({
-				details: entry.value,
-				priority: entry.metadata?.priority ?? 0,
-				label: entry.metadata?.label,
-			});
-			restoredConnections += 1;
-		}
-
-		Alert.alert(
-			'Restore complete',
-			`Restored ${restoredKeys} keys and ${restoredConnections} connections.`,
-		);
-	}, []);
-
-	const handleImportBackup = useCallback(async () => {
-		setConfigureOpen(false);
-		try {
-			if (!FileSystem.documentDirectory) {
-				throw new Error('Document directory unavailable.');
-			}
-			const backupPath = `${FileSystem.documentDirectory}backup.json`;
-			const backupText = await FileSystem.readAsStringAsync(backupPath, {
-				encoding: FileSystem.EncodingType.UTF8,
-			});
-			await restoreBackupPayload(backupText);
-		} catch (error) {
-			Alert.alert(
-				'Restore failed',
-				error instanceof Error ? error.message : 'Restore failed.',
-			);
-		}
-	}, [restoreBackupPayload]);
 
 	const handleHostConfig = useCallback(() => {
 		setConfigureOpen(false);
@@ -1268,6 +1245,80 @@ fi
 			sendBytes: sendBytesRaw,
 			pasteClipboard: handlePasteClipboard,
 			copySelection: handleCopySelection,
+			toggleTmuxHistory: () => {
+				const nextAction = getTmuxHistoryToggleAction({
+					tmuxEnabled,
+					tmuxControlReady,
+					historyModeActive: historyModeActiveRef.current,
+					scrollbackActive: scrollbackActiveRef.current,
+					pendingEnter: historyEntryPendingRef.current,
+				});
+				if (nextAction === 'noop-disabled') {
+					logger.info('Ignoring tmux history toggle because tmux is not ready');
+					return;
+				}
+				if (nextAction === 'noop-pending') {
+					logger.info(
+						'Ignoring tmux history toggle while entry confirmation is pending',
+					);
+					return;
+				}
+				if (selectionModeEnabled) {
+					exitSelectionMode();
+				}
+				if (nextAction === 'exit') {
+					if (!isValidCancelKey(cancelKeyBytes)) {
+						logger.warn('cancelKey invalid; cannot exit tmux history mode');
+						return;
+					}
+					void sendBytesOrdered(cancelKeyBytes);
+					clearScrollbackState();
+					return;
+				}
+				if (nextAction === 'adopt') {
+					historyEntryPendingRef.current = false;
+					historyModeActiveRef.current = true;
+					setHistoryModeActive(true);
+					return;
+				}
+				if (!connection) {
+					logger.warn(
+						'tmux history entry skipped because connection is unavailable',
+					);
+					return;
+				}
+				const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+				const command = buildTmuxHistoryEnterCommand(targetName);
+				const requestId = historyEntryRequestIdRef.current + 1;
+				historyEntryRequestIdRef.current = requestId;
+				historyEntryPendingRef.current = true;
+				const requestedInstanceId = currentInstanceIdRef.current;
+				void executeSideChannelCommand(connection, command, 5_000)
+					.then((result) => {
+						if (
+							!shouldApplyTmuxHistoryEntryResult({
+								requestId,
+								activeRequestId: historyEntryRequestIdRef.current,
+								requestedInstanceId,
+								currentInstanceId: currentInstanceIdRef.current,
+							})
+						) {
+							return;
+						}
+						historyEntryPendingRef.current = false;
+						const confirmed = isTmuxHistoryModeConfirmed(result.output);
+						if (!result.success || !confirmed) {
+							logger.warn('tmux history entry was not confirmed', result);
+							return;
+						}
+						historyModeActiveRef.current = true;
+						setHistoryModeActive(true);
+					})
+					.catch((error: unknown) => {
+						historyEntryPendingRef.current = false;
+						logger.warn('tmux history entry failed', error);
+					});
+			},
 			toggleCommandPresets: () => {
 				setCommanderOpen(false);
 				setTextEntryOpen(false);
@@ -1288,11 +1339,20 @@ fi
 			availableKeyboardIds,
 			handleCopySelection,
 			handlePasteClipboard,
+			cancelKeyBytes,
+			clearScrollbackState,
+			connection,
+			exitSelectionMode,
 			openConfigDialog,
 			rotateKeyboard,
 			shellConfig,
 			selectKeyboardIfExists,
 			sendBytesRaw,
+			sendBytesOrdered,
+			selectionModeEnabled,
+			tmuxControlReady,
+			tmuxTarget,
+			tmuxEnabled,
 		],
 	);
 
@@ -1348,7 +1408,7 @@ fi
 			}
 
 			if (returnKeyboardId) {
-				setSelectedKeyboardId(returnKeyboardId);
+				setPreferredKeyboardId(returnKeyboardId);
 			}
 		},
 		[
@@ -1363,7 +1423,6 @@ fi
 			sendBytesWithModifiers,
 			sendTextRaw,
 			sendTextWithModifiers,
-			setSelectedKeyboardId,
 			shellConfig,
 			toggleModifier,
 		],
@@ -1507,8 +1566,45 @@ fi
 			scrollbackActiveRef.current = event.active;
 			scrollbackPhaseRef.current = event.phase;
 			setScrollbackActive(event.active);
+			if (!event.active) {
+				historyEntryPendingRef.current = false;
+				historyModeActiveRef.current = false;
+				setHistoryModeActive(false);
+			}
 		},
 		[],
+	);
+
+	const handleTmuxHistoryCommand = useCallback(
+		(commandId: TmuxHistoryCommandId) => {
+			if (commandId === 'LIVE' || commandId === 'CLOSE') {
+				if (!isValidCancelKey(cancelKeyBytes)) {
+					logger.warn('cancelKey invalid; cannot exit tmux history mode');
+					return;
+				}
+				void sendBytesOrdered(cancelKeyBytes);
+				clearScrollbackState();
+				return;
+			}
+
+			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+			const controlCommand = buildTmuxHistoryControlCommand(commandId, targetName);
+			if (!controlCommand) return;
+			void (async () => {
+				const sent = await sendTmuxControlCommand(controlCommand);
+				if (sent) return;
+				logger.warn('tmux history command unavailable without tmux control shell', {
+					commandId,
+				});
+			})();
+		},
+		[
+			cancelKeyBytes,
+			clearScrollbackState,
+			sendBytesOrdered,
+			sendTmuxControlCommand,
+			tmuxTarget,
+		],
 	);
 
 	const handleTmuxEnterCopyMode = useCallback(
@@ -1519,21 +1615,20 @@ fi
 			) {
 				return;
 			}
-			const prefixBytes = encoder.encode(tmuxPrefixKey);
-			const copyModeBytes = encoder.encode(tmuxCopyModeKey);
-			try {
-				await sendBytesQueued([prefixBytes, copyModeBytes], {
-					interSegmentDelayMs: touchEnterDelayMs,
-				});
-			} catch (error) {
-				logger.warn('tmux enter copy-mode write failed', error);
+			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+			const command = buildTmuxHistoryCopyModeCommand(targetName);
+			if (!(await sendTmuxControlCommand(command))) {
+				logger.warn(
+					'tmux touch-scroll entry unavailable without tmux control shell',
+				);
+				return;
 			}
 			xtermRef.current?.sendTmuxEnterCopyModeAck(
 				event.requestId,
 				event.instanceId,
 			);
 		},
-		[sendBytesQueued],
+		[sendTmuxControlCommand, tmuxTarget],
 	);
 
 	const handleTmuxScrollBatch = useCallback(
@@ -1551,7 +1646,7 @@ fi
 				return;
 			}
 			if (selectionModeEnabled) return;
-			if (!tmuxEnabled) return;
+			if (!tmuxEnabled || !tmuxControlReady) return;
 
 			const pages = Math.max(0, event.pages);
 			const lines = Math.max(0, event.lines);
@@ -1575,22 +1670,18 @@ fi
 			}
 			if (parts.length === 0) return;
 			const command = `tmux ${parts.join(' \\; ')}`;
-			const sent = sendTmuxControlCommand(command);
-			if (sent) return;
-
-			const pageKey = event.direction === 'up' ? tmuxPageUpKey : tmuxPageDownKey;
-			const lineKey =
-				event.direction === 'up' ? tmuxScrollUpKey : tmuxScrollDownKey;
-			let payload = '';
-			if (pages > 0) payload += pageKey.repeat(pages);
-			if (lines > 0) payload += lineKey.repeat(lines);
-			void sendBytesOrdered(encoder.encode(payload));
+			void (async () => {
+				if (await sendTmuxControlCommand(command)) return;
+				logger.warn(
+					'tmux touch-scroll batch unavailable without tmux control shell',
+				);
+			})();
 		},
 		[
 			shell,
 			selectionModeEnabled,
-			sendBytesOrdered,
 			sendTmuxControlCommand,
+			tmuxControlReady,
 			tmuxTarget,
 			tmuxEnabled,
 		],
@@ -1636,6 +1727,14 @@ fi
 		void sendBytesOrdered(cancelKeyBytes);
 		clearScrollbackState();
 	}, [cancelKeyBytes, sendBytesOrdered, clearScrollbackState]);
+
+	const writeShellChunkToTerminal = useCallback(
+		(bytesBuffer: ArrayBuffer) => {
+			const bytes = new Uint8Array(bytesBuffer);
+			xtermRef.current?.write(bytes);
+		},
+		[],
+	);
 
 	const attachShellToTerminal = useCallback(() => {
 		if (!terminalReady) return;
@@ -1691,7 +1790,7 @@ fi
 							return;
 						}
 						const chunk = ev;
-						xtermRef.current?.write(new Uint8Array(chunk.bytes));
+						writeShellChunkToTerminal(chunk.bytes);
 					},
 					{ cursor: { mode: 'seq', seq: res.nextSeq } },
 				);
@@ -1708,7 +1807,7 @@ fi
 						return;
 					}
 					const chunk = ev;
-					xtermRef.current?.write(new Uint8Array(chunk.bytes));
+					writeShellChunkToTerminal(chunk.bytes);
 				},
 				{ cursor: { mode: 'live' } },
 			);
@@ -1718,11 +1817,15 @@ fi
 
 		// Focus to pop the keyboard (iOS needs the prop we set).
 		if (Platform.OS === 'ios') xterm.focus();
-	}, [selectionModeEnabled, shell, terminalReady]);
+	}, [selectionModeEnabled, shell, terminalReady, writeShellChunkToTerminal]);
 
 	const handleTerminalInitialized = useCallback(
-		(instanceId: string) => {
+			(instanceId: string) => {
+			historyEntryRequestIdRef.current += 1;
+			historyEntryPendingRef.current = false;
 			currentInstanceIdRef.current = instanceId;
+			historyModeActiveRef.current = false;
+			setHistoryModeActive(false);
 			scrollbackActiveRef.current = false;
 			scrollbackPhaseRef.current = 'active';
 			setScrollbackActive(false);
@@ -1858,13 +1961,17 @@ fi
 						)}
 					</View>
 				</TerminalErrorBoundary>
-				<TerminalKeyboard
-					keyboard={currentKeyboard}
-					modifierKeysActive={modifierKeysActive}
-					onSlotPress={handleSlotPress}
-					selectionModeEnabled={selectionModeEnabled}
-					onCopySelection={handleCopySelection}
-				/>
+				{historyModeActive ? (
+					<TmuxHistoryKeyboard onCommand={handleTmuxHistoryCommand} />
+				) : (
+					<TerminalKeyboard
+						keyboard={currentKeyboard}
+						modifierKeysActive={modifierKeysActive}
+						onSlotPress={handleSlotPress}
+						selectionModeEnabled={selectionModeEnabled}
+						onCopySelection={handleCopySelection}
+					/>
+				)}
 				<CommandPresetsModal
 					open={commandPresetsOpen}
 					presets={shellConfig.commandMenus}
@@ -1909,8 +2016,6 @@ fi
 					}}
 					onDevServer={handleDevServer}
 					onReloadConfig={handleReloadConfig}
-					onExportBackup={handleExportBackup}
-					onImportBackup={handleImportBackup}
 					onHostConfig={handleHostConfig}
 					onOpenGitHubIssues={handleOpenGitHubIssues}
 					onOpenShellConfigDocs={handleOpenShellConfigDocs}

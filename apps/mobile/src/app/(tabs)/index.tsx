@@ -1,7 +1,7 @@
 import { type SshConnectionProgress } from '@fressh/react-native-uniffi-russh';
 import { useStore } from '@tanstack/react-form';
 import { useQuery } from '@tanstack/react-query';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import {
 	Modal,
@@ -13,8 +13,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppForm, useFieldContext } from '@/components/form-components';
-import { KeyList } from '@/components/key-manager/KeyList';
+import { KeyPickerSheet } from '@/components/key-manager/KeyPickerSheet';
 import { pickLatestConnection } from '@/lib/connection-utils';
+import {
+	getEmptyKeyPickerMessage,
+	getInitialSelectedKeyId,
+	getKeyPickerViewState,
+} from '@/lib/key-picker-state';
 import { rootLogger } from '@/lib/logger';
 import { useSshConnMutation } from '@/lib/query-fns';
 import {
@@ -297,31 +302,37 @@ function Host() {
 }
 
 function KeyIdPickerField() {
+	const router = useRouter();
 	const theme = useTheme();
 	const field = useFieldContext<string>();
 	const [open, setOpen] = React.useState(false);
 
 	const listPrivateKeysQuery = useQuery(secretsManager.keys.query.list);
-	const defaultPick = React.useMemo(() => {
-		const keys = listPrivateKeysQuery.data ?? [];
-		const def = keys.find((k) => k.metadata.isDefault);
-		return def ?? keys[0];
-	}, [listPrivateKeysQuery.data]);
-	const keys = listPrivateKeysQuery.data ?? [];
-
+	const keys = listPrivateKeysQuery.data;
 	const fieldValue = field.state.value;
-	const defaultPickId = defaultPick?.id;
 	const fieldHandleChange = field.handleChange;
+	const computedSelectedId = getInitialSelectedKeyId({
+		keys,
+		currentValue: fieldValue,
+		hasLoadedKeys: listPrivateKeysQuery.status === 'success',
+	});
+	const viewState = getKeyPickerViewState({
+		keys,
+		currentValue: fieldValue,
+		hasLoadedKeys: listPrivateKeysQuery.status === 'success',
+	});
 
 	React.useEffect(() => {
-		if (!fieldValue && defaultPickId) {
-			fieldHandleChange(defaultPickId);
-		}
-	}, [fieldValue, defaultPickId, fieldHandleChange]);
+		if (listPrivateKeysQuery.status !== 'success') return;
+		if (fieldValue === computedSelectedId) return;
+		fieldHandleChange(computedSelectedId);
+	}, [
+		computedSelectedId,
+		fieldHandleChange,
+		fieldValue,
+		listPrivateKeysQuery.status,
+	]);
 
-	const computedSelectedId = field.state.value;
-	const selected = keys.find((k) => k.id === computedSelectedId);
-	const display = selected ? (selected.metadata.label ?? selected.id) : 'None';
 	const meta = field.state.meta as { errors?: unknown[] };
 	const firstErr = meta?.errors?.[0] as { message: string } | undefined;
 	const fieldError =
@@ -361,13 +372,16 @@ function KeyIdPickerField() {
 						setOpen(true);
 					}}
 				>
-					<Text style={{ color: theme.colors.textPrimary }}>{display}</Text>
-				</Pressable>
-				{!selected && (
-					<Text style={{ color: theme.colors.muted, fontSize: 14 }}>
-						Open Key Manager to add/select a key
+					<Text style={{ color: theme.colors.textPrimary }}>
+						{viewState.display}
 					</Text>
-				)}
+				</Pressable>
+				{listPrivateKeysQuery.status === 'success' &&
+				viewState.showEmptyState ? (
+					<Text style={{ color: theme.colors.muted, fontSize: 14 }}>
+						{getEmptyKeyPickerMessage()}
+					</Text>
+				) : null}
 			</View>
 			{fieldError ? (
 				<Text
@@ -376,81 +390,22 @@ function KeyIdPickerField() {
 					{fieldError}
 				</Text>
 			) : null}
-			<Modal
-				visible={open}
-				transparent
-				animationType="slide"
-				onRequestClose={() => {
+			<KeyPickerSheet
+				open={open}
+				keys={keys ?? []}
+				selectedId={viewState.selectedId}
+				onClose={() => {
 					setOpen(false);
 				}}
-			>
-				<View
-					style={{
-						flex: 1,
-						backgroundColor: theme.colors.overlay,
-						justifyContent: 'flex-end',
-					}}
-				>
-					<View
-						style={{
-							backgroundColor: theme.colors.background,
-							borderTopLeftRadius: 16,
-							borderTopRightRadius: 16,
-							padding: 16,
-							borderColor: theme.colors.borderStrong,
-							borderWidth: 1,
-							maxHeight: '85%',
-						}}
-					>
-						<View
-							style={{
-								flexDirection: 'row',
-								justifyContent: 'space-between',
-								alignItems: 'center',
-								marginBottom: 8,
-							}}
-						>
-							<Text
-								style={{
-									color: theme.colors.textPrimary,
-									fontSize: 18,
-									fontWeight: '700',
-								}}
-							>
-								Select Key
-							</Text>
-							<Pressable
-								style={{
-									paddingHorizontal: 8,
-									paddingVertical: 6,
-									borderRadius: 8,
-									borderWidth: 1,
-									borderColor: theme.colors.border,
-								}}
-								onPress={() => {
-									setOpen(false);
-								}}
-							>
-								<Text
-									style={{
-										color: theme.colors.textSecondary,
-										fontWeight: '600',
-									}}
-								>
-									Close
-								</Text>
-							</Pressable>
-						</View>
-						<KeyList
-							mode="select"
-							onSelect={(id) => {
-								field.handleChange(id);
-								setOpen(false);
-							}}
-						/>
-					</View>
-				</View>
-			</Modal>
+				onSelect={(id) => {
+					fieldHandleChange(id);
+					setOpen(false);
+				}}
+				onManagePress={() => {
+					setOpen(false);
+					router.push('/(tabs)/settings/security-center');
+				}}
+			/>
 		</>
 	);
 }

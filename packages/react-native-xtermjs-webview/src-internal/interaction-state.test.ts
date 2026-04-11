@@ -377,6 +377,77 @@ void test('touch scroll cancels pending copy-mode entry when selection mode take
 	]);
 });
 
+void test(
+	'touch scroll clears pending copy-mode entry when scrollback is force-closed without ack',
+	(t) => {
+		installDomGlobals(t);
+
+		const root = new FakeElement('div');
+		root.setBoundingClientRect({
+			width: 320,
+			height: 200,
+			right: 320,
+			bottom: 200,
+		});
+
+		const messages: BridgeInboundMessage[] = [];
+		const controller = createTouchScrollController({
+			term: createTouchScrollTerm(root) as never,
+			root: root as never,
+			instanceId: 'instance-1',
+			sendToRn: (message) => {
+				messages.push(message);
+			},
+			isSelectionModeEnabled: () => false,
+			cancelLongPress() {},
+		});
+
+		const config: TouchScrollConfig = { enabled: true, slopPx: 8, pxPerLine: 10 };
+		controller.setConfig(config);
+
+		dispatchPointerEvent(root, 'pointerdown', {
+			pointerId: 1,
+			clientX: 40,
+			clientY: 40,
+			timeStamp: 0,
+		});
+		dispatchPointerEvent(root, 'pointermove', {
+			pointerId: 1,
+			clientX: 40,
+			clientY: 64,
+			timeStamp: 16,
+		});
+
+		controller.exitScrollback({ emitExit: false, requestId: 1 });
+
+		dispatchPointerEvent(root, 'pointerdown', {
+			pointerId: 2,
+			clientX: 48,
+			clientY: 48,
+			timeStamp: 32,
+		});
+		dispatchPointerEvent(root, 'pointermove', {
+			pointerId: 2,
+			clientX: 48,
+			clientY: 72,
+			timeStamp: 48,
+		});
+
+		const entryRequests = messages.filter(
+			(message): message is Extract<
+				BridgeInboundMessage,
+				{ type: 'tmuxEnterCopyMode' }
+			> => message.type === 'tmuxEnterCopyMode',
+		);
+
+		assert.equal(entryRequests.length, 2);
+		assert.deepEqual(
+			entryRequests.map(({ requestId }) => requestId),
+			[1, 2],
+		);
+	},
+);
+
 void test('selection overlay tap exits even when pointer releases outside the overlay', (t) => {
 	const { document } = installDomGlobals(t);
 	const originalDateNow = Date.now;

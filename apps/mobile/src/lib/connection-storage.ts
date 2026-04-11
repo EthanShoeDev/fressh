@@ -253,11 +253,21 @@ export function createConnectionStorage(params: {
 		writeEntriesById(entriesById);
 	}
 
+	async function replaceAllEntries(entries: StoredConnectionEntry[]) {
+		await ensureReady();
+		writeEntriesById(
+			Object.fromEntries(entries.map((entry) => [entry.id, entry])),
+		);
+		await params.legacyStorage.clearAllEntries();
+		params.storage.set(connectionsMigrationKey, 'done');
+	}
+
 	return {
 		ensureReady,
 		listEntriesWithValues,
 		getEntry,
 		upsertConnection,
 		deleteConnection,
+		replaceAllEntries,
 	};
 }
