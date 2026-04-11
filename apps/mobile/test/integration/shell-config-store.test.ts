@@ -44,7 +44,7 @@ void test('initial shell config state prefers cached config when it is valid', a
 	const remoteText = JSON.stringify({
 		...bundledConfig,
 		version: 'runtime-v2',
-		updatedAt: '2026-04-08T12:00:00.000Z',
+		updatedAt: '2026-04-12T12:00:00.000Z',
 	});
 
 	await reloadShellConfigFromRemote({
@@ -60,6 +60,30 @@ void test('initial shell config state prefers cached config when it is valid', a
 
 	assert.equal(state.source, 'cache');
 	assert.equal(state.config.version, 'runtime-v2');
+	assert.equal(state.lastError, null);
+});
+
+void test('initial shell config state ignores stale cached config', async () => {
+	const storage = createMemoryStorage();
+	const remoteText = JSON.stringify({
+		...bundledConfig,
+		version: 'runtime-v1',
+		updatedAt: '2026-04-08T12:00:00.000Z',
+	});
+
+	await reloadShellConfigFromRemote({
+		storage,
+		fetchText: async () => remoteText,
+		now: () => '2026-04-08T12:00:05.000Z',
+	});
+
+	const state = loadInitialShellConfigState({
+		storage,
+		bundledConfig,
+	});
+
+	assert.equal(state.source, 'bundled');
+	assert.equal(state.config.version, bundledConfig.version);
 	assert.equal(state.lastError, null);
 });
 

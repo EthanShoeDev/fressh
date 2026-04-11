@@ -28,6 +28,24 @@ function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
+function parseUpdatedAtTime(config: ShellConfig): number | null {
+	const time = Date.parse(config.updatedAt);
+	return Number.isNaN(time) ? null : time;
+}
+
+function isStaleComparedToBundled({
+	cachedConfig,
+	bundledConfig,
+}: {
+	cachedConfig: ShellConfig;
+	bundledConfig: ShellConfig;
+}): boolean {
+	const cachedTime = parseUpdatedAtTime(cachedConfig);
+	const bundledTime = parseUpdatedAtTime(bundledConfig);
+	if (cachedTime === null || bundledTime === null) return false;
+	return cachedTime < bundledTime;
+}
+
 export function loadInitialShellConfigState({
 	storage: cache,
 	bundledConfig,
@@ -41,8 +59,18 @@ export function loadInitialShellConfigState({
 
 	if (cachedText) {
 		try {
+			const cachedConfig = parseShellConfigString(cachedText);
+			if (isStaleComparedToBundled({ cachedConfig, bundledConfig })) {
+				cache.delete(cacheKeys.json);
+				return {
+					config: bundledConfig,
+					source: 'bundled',
+					lastLoadedAt,
+					lastError,
+				};
+			}
 			return {
-				config: parseShellConfigString(cachedText),
+				config: cachedConfig,
 				source: 'cache',
 				lastLoadedAt,
 				lastError,
