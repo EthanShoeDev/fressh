@@ -1,5 +1,15 @@
 export const TMUX_HISTORY_LIVE_LABEL = 'Bottom/Live';
 const encoder = new TextEncoder();
+const escapeChar = String.fromCharCode(27);
+const bellChar = String.fromCharCode(7);
+const oscSequencePattern = new RegExp(
+	`${escapeChar}\\][^${bellChar}]*(?:${bellChar}|${escapeChar}\\\\)`,
+	'g',
+);
+const csiSequencePattern = new RegExp(
+	`${escapeChar}\\[[0-?]*[ -/]*[@-~]`,
+	'g',
+);
 
 export const TMUX_HISTORY_COMMAND_IDS = [
 	'UP',
@@ -68,10 +78,16 @@ export function getTmuxHistoryFallbackSequence(
 }
 
 export function isTmuxHistoryModeConfirmed(output: string): boolean {
-	const trimmed = output.trim();
-	if (!trimmed) return false;
-	const lines = trimmed.split(/\r?\n/);
-	return lines.at(-1) === '1';
+	const meaningfulTokens = output
+		.split(/\r?\n|\r/)
+		.map((line) =>
+			line
+				.replace(oscSequencePattern, '')
+				.replace(csiSequencePattern, '')
+				.trim(),
+		)
+		.filter(Boolean);
+	return meaningfulTokens.at(-1) === '1';
 }
 
 export function shouldApplyTmuxHistoryEntryResult({

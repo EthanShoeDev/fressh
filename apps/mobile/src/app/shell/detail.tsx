@@ -1306,7 +1306,8 @@ fi
 							return;
 						}
 						historyEntryPendingRef.current = false;
-						if (!result.success || !isTmuxHistoryModeConfirmed(result.output)) {
+						const confirmed = isTmuxHistoryModeConfirmed(result.output);
+						if (!result.success || !confirmed) {
 							logger.warn('tmux history entry was not confirmed', result);
 							return;
 						}
@@ -1727,6 +1728,14 @@ fi
 		clearScrollbackState();
 	}, [cancelKeyBytes, sendBytesOrdered, clearScrollbackState]);
 
+	const writeShellChunkToTerminal = useCallback(
+		(bytesBuffer: ArrayBuffer) => {
+			const bytes = new Uint8Array(bytesBuffer);
+			xtermRef.current?.write(bytes);
+		},
+		[],
+	);
+
 	const attachShellToTerminal = useCallback(() => {
 		if (!terminalReady) return;
 		if (!shell) return;
@@ -1781,7 +1790,7 @@ fi
 							return;
 						}
 						const chunk = ev;
-						xtermRef.current?.write(new Uint8Array(chunk.bytes));
+						writeShellChunkToTerminal(chunk.bytes);
 					},
 					{ cursor: { mode: 'seq', seq: res.nextSeq } },
 				);
@@ -1798,7 +1807,7 @@ fi
 						return;
 					}
 					const chunk = ev;
-					xtermRef.current?.write(new Uint8Array(chunk.bytes));
+					writeShellChunkToTerminal(chunk.bytes);
 				},
 				{ cursor: { mode: 'live' } },
 			);
@@ -1808,7 +1817,7 @@ fi
 
 		// Focus to pop the keyboard (iOS needs the prop we set).
 		if (Platform.OS === 'ios') xterm.focus();
-	}, [selectionModeEnabled, shell, terminalReady]);
+	}, [selectionModeEnabled, shell, terminalReady, writeShellChunkToTerminal]);
 
 	const handleTerminalInitialized = useCallback(
 			(instanceId: string) => {

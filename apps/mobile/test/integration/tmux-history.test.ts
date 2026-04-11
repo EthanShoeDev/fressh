@@ -156,6 +156,12 @@ void test('isTmuxHistoryModeConfirmed requires a trailing pane_in_mode value of 
 	assert.equal(isTmuxHistoryModeConfirmed('0'), false);
 	assert.equal(isTmuxHistoryModeConfirmed('copy-mode\n1'), true);
 	assert.equal(isTmuxHistoryModeConfirmed('copy-mode\n0'), false);
+	assert.equal(
+		isTmuxHistoryModeConfirmed(
+			"tmux copy-mode -t 'background'; tmux display-message -p -t 'background' '#{pane_in_mode}'\r\n\u001b[?2004h(base) user@host:~$ tmux copy-mode -t 'background'; tmux display-message -p -t 'background' '#{pane_in_mode}'\r\n\u001b[?2004l\r1",
+		),
+		true,
+	);
 });
 
 void test('tmux history live button keeps the approved Bottom/Live label', () => {

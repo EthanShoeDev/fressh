@@ -20,23 +20,10 @@ import {
 	type TouchScrollConfig,
 } from './bridge';
 import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
+import { createDefaultXtermOptions } from './terminal-options';
 
 export { bStrToBinary, binaryToBStr };
 export type { TouchScrollConfig };
-
-let didLogHtmlFingerprint = false;
-if (__DEV__ && !didLogHtmlFingerprint) {
-	didLogHtmlFingerprint = true;
-	try {
-		console.log(
-			`[xtermjs-webview] htmlString includes light blue lollipop: ${htmlString.includes(
-				'#60a5fa',
-			)}`,
-		);
-	} catch {
-		// Ignore fingerprint logging failures
-	}
-}
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
@@ -100,17 +87,7 @@ const defaultWebViewProps: WebViewOptions = {
 	contentMode: 'mobile',
 };
 
-const defaultXtermOptions: Partial<ITerminalOptions> = {
-	allowProposedApi: true,
-	convertEol: true,
-	scrollback: 10000,
-	cursorBlink: true,
-	// Tablet focus-mode defaults (JetBrains Mono preferred).
-	// Note: WebView must have the font available or it will fall back.
-	fontFamily:
-		'"JetBrains Mono", "Roboto Mono", ui-monospace, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", monospace',
-	fontSize: 16,
-};
+const defaultXtermOptions = createDefaultXtermOptions();
 
 type UserControllableWebViewProps = StrictOmit<
 	WebViewOptions,
