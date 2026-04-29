@@ -34,6 +34,182 @@ const ACCESSIBILITY_SERVICE_XML = `<?xml version="1.0" encoding="utf-8"?>
 \tandroid:notificationTimeout="50" />
 `;
 
+const ACCESSIBILITY_SERVICE_KOTLIN = `package com.finalapp.vibe2
+
+import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
+import android.content.Context
+import android.graphics.Path
+import android.provider.Settings
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
+import java.lang.ref.WeakReference
+import java.util.Locale
+
+class WisprAutomationAccessibilityService : AccessibilityService() {
+  companion object {
+    private const val WISPR_PACKAGE = "com.wispr.flowapp"
+    private const val PREFS = "wispr_automation"
+    private const val KEY_LAST_X = "last_bubble_x"
+    private const val KEY_LAST_Y = "last_bubble_y"
+    private var activeService: WeakReference<WisprAutomationAccessibilityService>? = null
+
+    fun isEnabled(context: Context): Boolean {
+      val enabled = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+      ) ?: return false
+      val expected = "\${context.packageName}/\${WisprAutomationAccessibilityService::class.java.name}"
+      return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
+    }
+
+    fun getActive(): WisprAutomationAccessibilityService? = activeService?.get()
+  }
+
+  override fun onServiceConnected() {
+    activeService = WeakReference(this)
+  }
+
+  override fun onUnbind(intent: android.content.Intent?): Boolean {
+    activeService = null
+    return super.onUnbind(intent)
+  }
+
+  override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+    event ?: return
+    if (event.packageName?.toString() != WISPR_PACKAGE) return
+    val source = event.source ?: return
+    val bounds = android.graphics.Rect()
+    source.getBoundsInScreen(bounds)
+    if (!bounds.isEmpty) {
+      getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putFloat(KEY_LAST_X, bounds.centerX().toFloat())
+        .putFloat(KEY_LAST_Y, bounds.centerY().toFloat())
+        .apply()
+    }
+  }
+
+  override fun onInterrupt() = Unit
+
+  fun tapWisprControl(callback: (Boolean, String) -> Unit) {
+    val nodeCenter = findWisprClickableCenter()
+    val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val fallbackX = prefs.getFloat(KEY_LAST_X, -1f)
+    val fallbackY = prefs.getFloat(KEY_LAST_Y, -1f)
+
+    val target = nodeCenter ?: if (fallbackX >= 0f && fallbackY >= 0f) {
+      Point(fallbackX, fallbackY)
+    } else {
+      null
+    }
+
+    if (target == null) {
+      callback(false, "Wispr bubble not found")
+      return
+    }
+
+    dispatchTap(target.x, target.y, callback)
+  }
+
+  private fun findWisprClickableCenter(): Point? {
+    val wisprWindows = windows.filter { window ->
+      window.root?.packageName?.toString() == WISPR_PACKAGE
+    }
+    for (window in wisprWindows) {
+      val center = findClickableCenter(window)
+      if (center != null) return center
+    }
+    return null
+  }
+
+  private fun findClickableCenter(window: AccessibilityWindowInfo): Point? {
+    val root = window.root ?: return null
+    val preferred = findPreferredClickable(root)
+    if (preferred != null) return preferred
+    return findAnyClickable(root)
+  }
+
+  private fun findPreferredClickable(node: AccessibilityNodeInfo): Point? {
+    val label = listOfNotNull(
+      node.text?.toString(),
+      node.contentDescription?.toString()
+    ).joinToString(" ").lowercase(Locale.US)
+
+    val looksLikeWisprControl =
+      label.contains("dictat") ||
+        label.contains("record") ||
+        label.contains("mic") ||
+        label.contains("done") ||
+        label.contains("check") ||
+        label.contains("flow")
+
+    if (node.isClickable && looksLikeWisprControl) {
+      return centerOf(node)
+    }
+
+    for (index in 0 until node.childCount) {
+      val child = node.getChild(index) ?: continue
+      val found = findPreferredClickable(child)
+      child.recycle()
+      if (found != null) return found
+    }
+
+    return null
+  }
+
+  private fun findAnyClickable(node: AccessibilityNodeInfo): Point? {
+    if (node.isClickable) return centerOf(node)
+    for (index in 0 until node.childCount) {
+      val child = node.getChild(index) ?: continue
+      val found = findAnyClickable(child)
+      child.recycle()
+      if (found != null) return found
+    }
+    return null
+  }
+
+  private fun centerOf(node: AccessibilityNodeInfo): Point? {
+    val bounds = android.graphics.Rect()
+    node.getBoundsInScreen(bounds)
+    if (bounds.isEmpty) return null
+    return Point(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+  }
+
+  private fun dispatchTap(
+    x: Float,
+    y: Float,
+    callback: (Boolean, String) -> Unit
+  ) {
+    val path = Path().apply { moveTo(x, y) }
+    val gesture = GestureDescription.Builder()
+      .addStroke(GestureDescription.StrokeDescription(path, 0L, 80L))
+      .build()
+
+    val dispatched = dispatchGesture(
+      gesture,
+      object : GestureResultCallback() {
+        override fun onCompleted(gestureDescription: GestureDescription?) {
+          callback(true, "Tapped Wispr control")
+        }
+
+        override fun onCancelled(gestureDescription: GestureDescription?) {
+          callback(false, "Wispr tap cancelled")
+        }
+      },
+      null
+    )
+
+    if (!dispatched) {
+      callback(false, "Wispr tap dispatch failed")
+    }
+  }
+
+  data class Point(val x: Float, val y: Float)
+}
+`;
+
 type ServiceWithMetadata = NonNullable<
 	NonNullable<
 		ReturnType<typeof AndroidConfig.Manifest.getMainApplication>
@@ -123,7 +299,7 @@ const withWisprAutomationStrings: ConfigPlugin = (config) =>
 		return config;
 	});
 
-const withWisprAutomationAccessibilityXml: ConfigPlugin = (config) =>
+const withWisprAutomationNativeFiles: ConfigPlugin = (config) =>
 	withDangerousMod(config, [
 		'android',
 		async (config) => {
@@ -134,6 +310,13 @@ const withWisprAutomationAccessibilityXml: ConfigPlugin = (config) =>
 			await fs.mkdir(path.dirname(xmlPath), { recursive: true });
 			await fs.writeFile(xmlPath, ACCESSIBILITY_SERVICE_XML, 'utf8');
 
+			const servicePath = path.join(
+				config.modRequest.platformProjectRoot,
+				'app/src/main/java/com/finalapp/vibe2/WisprAutomationAccessibilityService.kt',
+			);
+			await fs.mkdir(path.dirname(servicePath), { recursive: true });
+			await fs.writeFile(servicePath, ACCESSIBILITY_SERVICE_KOTLIN, 'utf8');
+
 			return config;
 		},
 	]);
@@ -141,7 +324,7 @@ const withWisprAutomationAccessibilityXml: ConfigPlugin = (config) =>
 const withWisprAutomation: ConfigPlugin = (config) => {
 	config = withWisprAutomationManifest(config);
 	config = withWisprAutomationStrings(config);
-	config = withWisprAutomationAccessibilityXml(config);
+	config = withWisprAutomationNativeFiles(config);
 	return config;
 };
 
