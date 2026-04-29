@@ -110,6 +110,7 @@ const sleep = (ms: number) =>
 
 const WISPR_TAP_RETRY_WINDOW_MS = 2_500;
 const WISPR_TAP_RETRY_INTERVAL_MS = 200;
+const WISPR_OPENING_FALLBACK_MS = 750;
 const WISPR_TEXT_TIMEOUT_MS = 8_000;
 
 const getErrorMessage = (error: unknown) =>
@@ -694,6 +695,10 @@ function ShellDetail() {
 	});
 	const wisprTextEntryValueRef = useRef('');
 	const wisprAutomationRequestIdRef = useRef(0);
+	const wisprCloseRequestedRef = useRef(false);
+	const wisprOpeningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 	const wisprTextTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
@@ -1096,27 +1101,53 @@ function ShellDetail() {
 		wisprTextTimeoutRef.current = null;
 	}, []);
 
+	const clearWisprOpeningTimeout = useCallback(() => {
+		if (!wisprOpeningTimeoutRef.current) return;
+		clearTimeout(wisprOpeningTimeoutRef.current);
+		wisprOpeningTimeoutRef.current = null;
+	}, []);
+
+	const setWisprAutomationStateSnapshot = useCallback(
+		(nextState: WisprAutomationState) => {
+			wisprAutomationStateRef.current = nextState;
+			setWisprAutomationState(nextState);
+		},
+		[],
+	);
+
 	const applyWisprAutomationEvent = useCallback(
 		(event: WisprAutomationEvent) => {
 			const nextState = reduceWisprAutomationState(
 				wisprAutomationStateRef.current,
 				event,
 			);
-			wisprAutomationStateRef.current = nextState;
-			setWisprAutomationState(nextState);
+			setWisprAutomationStateSnapshot(nextState);
+			if (nextState.phase !== 'openingTextEntry') {
+				clearWisprOpeningTimeout();
+			}
 			if (nextState.phase !== 'waitingForText') {
 				clearWisprTextTimeout();
 			}
 			return nextState;
 		},
-		[clearWisprTextTimeout],
+		[
+			clearWisprOpeningTimeout,
+			clearWisprTextTimeout,
+			setWisprAutomationStateSnapshot,
+		],
 	);
 
 	const resetWisprAutomation = useCallback(() => {
 		wisprAutomationRequestIdRef.current += 1;
+		wisprCloseRequestedRef.current = false;
+		clearWisprOpeningTimeout();
 		clearWisprTextTimeout();
 		applyWisprAutomationEvent({ type: 'reset' });
-	}, [applyWisprAutomationEvent, clearWisprTextTimeout]);
+	}, [
+		applyWisprAutomationEvent,
+		clearWisprOpeningTimeout,
+		clearWisprTextTimeout,
+	]);
 
 	const failWisprAutomation = useCallback(
 		(reason: WisprAutomationFailureReason, message: string) => {
@@ -1135,7 +1166,10 @@ function ShellDetail() {
 	}, []);
 
 	const tapWisprControlWithRetry = useCallback(
-		async (requestId: number) => {
+		async (
+			requestId: number,
+			options?: { onCancelledSuccess?: () => void },
+		) => {
 			let lastError: unknown = new Error('Wispr bubble not found');
 			const deadline = Date.now() + WISPR_TAP_RETRY_WINDOW_MS;
 
@@ -1143,6 +1177,10 @@ function ShellDetail() {
 				if (!isWisprAutomationRequestActive(requestId)) return null;
 				try {
 					await wisprAutomationNative.tapWisprControl();
+					if (!isWisprAutomationRequestActive(requestId)) {
+						options?.onCancelledSuccess?.();
+						return null;
+					}
 					return { ok: true as const };
 				} catch (error) {
 					lastError = error;
@@ -1194,6 +1232,39 @@ function ShellDetail() {
 		],
 	);
 
+	const startWisprOpeningFallback = useCallback(
+		(requestId: number, onFallback: () => void) => {
+			clearWisprOpeningTimeout();
+			wisprOpeningTimeoutRef.current = setTimeout(() => {
+				if (
+					!isWisprAutomationRequestActive(requestId) ||
+					wisprAutomationStateRef.current.phase !== 'openingTextEntry'
+				) {
+					return;
+				}
+				onFallback();
+			}, WISPR_OPENING_FALLBACK_MS);
+		},
+		[clearWisprOpeningTimeout, isWisprAutomationRequestActive],
+	);
+
+	const stopWisprAfterCancelledStart = useCallback(() => {
+		void (async () => {
+			let lastError: unknown = new Error('Wispr bubble not found');
+			const deadline = Date.now() + WISPR_TAP_RETRY_WINDOW_MS;
+			while (Date.now() <= deadline) {
+				try {
+					await wisprAutomationNative.tapWisprControl();
+					return;
+				} catch (error) {
+					lastError = error;
+				}
+				await sleep(WISPR_TAP_RETRY_INTERVAL_MS);
+			}
+			logger.warn('Failed to stop Wispr after cancelled start', lastError);
+		})();
+	}, []);
+
 	const handleWisprTextEntryFocus = useCallback(
 		(value: string) => {
 			if (wisprAutomationStateRef.current.phase !== 'openingTextEntry') {
@@ -1201,12 +1272,15 @@ function ShellDetail() {
 			}
 
 			const requestId = wisprAutomationRequestIdRef.current;
+			clearWisprOpeningTimeout();
 			applyWisprAutomationEvent({
 				type: 'textEntryFocused',
 				textBeforeStart: value,
 			});
 
-			void tapWisprControlWithRetry(requestId).then((result) => {
+			void tapWisprControlWithRetry(requestId, {
+				onCancelledSuccess: stopWisprAfterCancelledStart,
+			}).then((result) => {
 				if (
 					!result ||
 					!isWisprAutomationRequestActive(requestId) ||
@@ -1227,7 +1301,9 @@ function ShellDetail() {
 		},
 		[
 			applyWisprAutomationEvent,
+			clearWisprOpeningTimeout,
 			isWisprAutomationRequestActive,
+			stopWisprAfterCancelledStart,
 			tapWisprControlWithRetry,
 		],
 	);
@@ -1264,7 +1340,24 @@ function ShellDetail() {
 			}
 			if (result.ok) {
 				applyWisprAutomationEvent({ type: 'wisprTapSucceeded' });
+				if (wisprCloseRequestedRef.current) {
+					wisprCloseRequestedRef.current = false;
+					applyWisprAutomationEvent({ type: 'reset' });
+					return;
+				}
 				startWisprTextTimeout(requestId);
+				return;
+			}
+			if (wisprCloseRequestedRef.current) {
+				wisprCloseRequestedRef.current = false;
+				logger.warn('Failed to stop Wispr while closing text entry', {
+					reason: result.reason,
+					message: result.message,
+				});
+				setWisprAutomationStateSnapshot({
+					phase: 'recording',
+					textBeforeStart: nextState.textBeforeStart,
+				});
 				return;
 			}
 			applyWisprAutomationEvent({
@@ -1276,9 +1369,52 @@ function ShellDetail() {
 	}, [
 		applyWisprAutomationEvent,
 		isWisprAutomationRequestActive,
+		setWisprAutomationStateSnapshot,
 		startWisprTextTimeout,
 		tapWisprControlWithRetry,
 	]);
+
+	const stopWisprRecordingForClose = useCallback(
+		(state: Extract<WisprAutomationState, { phase: 'recording' }>) => {
+			const requestId = wisprAutomationRequestIdRef.current + 1;
+			wisprAutomationRequestIdRef.current = requestId;
+			wisprCloseRequestedRef.current = true;
+			clearWisprOpeningTimeout();
+			clearWisprTextTimeout();
+			const stoppingState: WisprAutomationState = {
+				phase: 'stopping',
+				textBeforeStart: state.textBeforeStart,
+			};
+			setWisprAutomationStateSnapshot(stoppingState);
+
+			void tapWisprControlWithRetry(requestId).then((result) => {
+				if (!result || !isWisprAutomationRequestActive(requestId)) return;
+				if (result.ok) {
+					wisprCloseRequestedRef.current = false;
+					applyWisprAutomationEvent({ type: 'reset' });
+					return;
+				}
+
+				wisprCloseRequestedRef.current = false;
+				logger.warn('Failed to stop Wispr while closing text entry', {
+					reason: result.reason,
+					message: result.message,
+				});
+				setWisprAutomationStateSnapshot({
+					phase: 'recording',
+					textBeforeStart: state.textBeforeStart,
+				});
+			});
+		},
+		[
+			applyWisprAutomationEvent,
+			clearWisprOpeningTimeout,
+			clearWisprTextTimeout,
+			isWisprAutomationRequestActive,
+			setWisprAutomationStateSnapshot,
+			tapWisprControlWithRetry,
+		],
+	);
 
 	const handleToggleWisprDictation = useCallback(() => {
 		const currentState = wisprAutomationStateRef.current;
@@ -1293,6 +1429,9 @@ function ShellDetail() {
 			return;
 		}
 		if (Platform.OS !== 'android') {
+			setCommanderOpen(false);
+			setCommandPresetsOpen(false);
+			setTextEntryOpen(true);
 			failWisprAutomation(
 				'unsupported-platform',
 				'Wispr automation is only available on Android.',
@@ -1307,6 +1446,9 @@ function ShellDetail() {
 				const status = await wisprAutomationNative.getStatus();
 				if (!isWisprAutomationRequestActive(requestId)) return;
 				if (!status.serviceEnabled || !status.serviceConnected) {
+					setCommanderOpen(false);
+					setCommandPresetsOpen(false);
+					setTextEntryOpen(true);
 					applyWisprAutomationEvent({
 						type: 'failed',
 						reason: 'service-disabled',
@@ -1323,9 +1465,15 @@ function ShellDetail() {
 				setCommanderOpen(false);
 				setCommandPresetsOpen(false);
 				applyWisprAutomationEvent({ type: 'press' });
+				startWisprOpeningFallback(requestId, () => {
+					handleWisprTextEntryFocus(wisprTextEntryValueRef.current);
+				});
 				setTextEntryOpen(true);
 			} catch (error) {
 				if (!isWisprAutomationRequestActive(requestId)) return;
+				setCommanderOpen(false);
+				setCommandPresetsOpen(false);
+				setTextEntryOpen(true);
 				applyWisprAutomationEvent({
 					type: 'failed',
 					reason: 'service-disabled',
@@ -1337,21 +1485,41 @@ function ShellDetail() {
 	}, [
 		applyWisprAutomationEvent,
 		failWisprAutomation,
+		handleWisprTextEntryFocus,
 		isWisprAutomationRequestActive,
+		startWisprOpeningFallback,
 		stopWisprRecording,
 	]);
 
 	const handleCloseTextEntry = useCallback(() => {
+		const currentState = wisprAutomationStateRef.current;
 		setTextEntryOpen(false);
+		if (currentState.phase === 'recording') {
+			stopWisprRecordingForClose(currentState);
+			return;
+		}
+		if (currentState.phase === 'stopping') {
+			wisprCloseRequestedRef.current = true;
+			clearWisprOpeningTimeout();
+			clearWisprTextTimeout();
+			return;
+		}
 		resetWisprAutomation();
-	}, [resetWisprAutomation]);
+	}, [
+		clearWisprOpeningTimeout,
+		clearWisprTextTimeout,
+		resetWisprAutomation,
+		stopWisprRecordingForClose,
+	]);
 
 	useEffect(
 		() => () => {
 			wisprAutomationRequestIdRef.current += 1;
+			wisprCloseRequestedRef.current = false;
+			clearWisprOpeningTimeout();
 			clearWisprTextTimeout();
 		},
-		[clearWisprTextTimeout],
+		[clearWisprOpeningTimeout, clearWisprTextTimeout],
 	);
 
 	const handleCopySelection = useCallback(() => {
