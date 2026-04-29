@@ -63,12 +63,14 @@ export function TextEntryModal({
 	}, [bottomOffset]);
 	const [value, setValue] = useState('');
 	const [textAreaContentHeight, setTextAreaContentHeight] = useState(minHeight);
+	const valueRef = useRef('');
 	const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [qaMode, setQaMode] = useState(false);
 	const [questionNumber, setQuestionNumber] = useState(1);
 	const questionNumberRef = useRef(1);
 	const qaNudgePaddingX = 24;
 	const qaChoicePaddingX = 28;
+	const hasWisprStatusText = Boolean(wisprStatusText);
 
 	// Keep the dialog within `maxHeight: '85%'` without allowing extra controls to
 	// overflow the frame by shrinking the text area when needed.
@@ -77,11 +79,12 @@ export function TextEntryModal({
 		// - dialog padding: 32
 		// - header row + spacing: ~52
 		// - QA row + spacing (when enabled): ~56
+		// - Wispr status line + spacing (when present): ~24
 		// - bottom buttons row + spacing: ~60
-		const chrome = 32 + 52 + (qaMode ? 56 : 0) + 60;
+		const chrome = 32 + 52 + (qaMode ? 56 : 0) + (hasWisprStatusText ? 24 : 0) + 60;
 		const maxByDialog = Math.max(minHeight, dialogMaxHeight - chrome);
 		return Math.max(minHeight, Math.min(maxHeight, maxByDialog));
-	}, [dialogMaxHeight, maxHeight, minHeight, qaMode]);
+	}, [dialogMaxHeight, hasWisprStatusText, maxHeight, minHeight, qaMode]);
 
 	const textAreaHeight = useMemo(() => {
 		const nextHeight = Math.min(
@@ -198,13 +201,21 @@ export function TextEntryModal({
 		onClose();
 	}, [onClose]);
 
+	const updateValue = useCallback(
+		(nextValue: string) => {
+			valueRef.current = nextValue;
+			setValue(nextValue);
+			onValueChange?.(nextValue);
+		},
+		[onValueChange],
+	);
+
 	const handleClear = useCallback(() => {
-		setValue('');
-		onValueChange?.('');
+		updateValue('');
 		setTextAreaContentHeight(minHeight);
 		setQuestionNumberSafe(1);
 		inputRef.current?.focus();
-	}, [minHeight, onValueChange, setQuestionNumberSafe]);
+	}, [minHeight, setQuestionNumberSafe, updateValue]);
 
 	const handlePaste = useCallback(() => {
 		if (!value) return;
@@ -212,12 +223,11 @@ export function TextEntryModal({
 		Keyboard.dismiss();
 		onPaste(value);
 		// Clear text only after successful paste
-		setValue('');
-		onValueChange?.('');
+		updateValue('');
 		setTextAreaContentHeight(minHeight);
 		setQuestionNumberSafe(1);
 		onClose();
-	}, [minHeight, onClose, onPaste, onValueChange, setQuestionNumberSafe, value]);
+	}, [minHeight, onClose, onPaste, setQuestionNumberSafe, updateValue, value]);
 
 	const handleToggleQaMode = useCallback(() => {
 		const next = !qaMode;
@@ -230,29 +240,26 @@ export function TextEntryModal({
 		(answer: 'A' | 'B' | 'C') => {
 			const n = questionNumberRef.current;
 			const snippet = `${n}${answer} `;
-			setValue((prev) => {
-				const separator = prev && !/\s$/.test(prev) ? ' ' : '';
-				const nextValue = `${prev}${separator}${snippet}`;
-				onValueChange?.(nextValue);
-				return nextValue;
-			});
+			const currentValue = valueRef.current;
+			const separator = currentValue && !/\s$/.test(currentValue) ? ' ' : '';
+			updateValue(`${currentValue}${separator}${snippet}`);
 			setQuestionNumberSafe(n + 1);
 			requestAnimationFrame(() => focusInput());
 		},
-		[focusInput, onValueChange, setQuestionNumberSafe],
+		[focusInput, setQuestionNumberSafe, updateValue],
 	);
 
 	const handleChangeText = useCallback(
 		(nextValue: string) => {
-			setValue(nextValue);
-			onValueChange?.(nextValue);
+			updateValue(nextValue);
 		},
-		[onValueChange],
+		[updateValue],
 	);
 
 	const handleInputFocus = useCallback(() => {
+		if (!wisprMode) return;
 		onWisprFocus?.(value);
-	}, [onWisprFocus, value]);
+	}, [onWisprFocus, value, wisprMode]);
 
 	return (
 		<Modal
