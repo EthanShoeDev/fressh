@@ -76,17 +76,21 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
     return super.onUnbind(intent)
   }
 
+  override fun onDestroy() {
+    activeService = null
+    super.onDestroy()
+  }
+
   override fun onAccessibilityEvent(event: AccessibilityEvent?) {
     event ?: return
     if (event.packageName?.toString() != WISPR_PACKAGE) return
     val source = event.source ?: return
-    val bounds = android.graphics.Rect()
-    source.getBoundsInScreen(bounds)
-    if (!bounds.isEmpty) {
+    val center = findPreferredClickable(source)
+    if (center != null) {
       getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         .edit()
-        .putFloat(KEY_LAST_X, bounds.centerX().toFloat())
-        .putFloat(KEY_LAST_Y, bounds.centerY().toFloat())
+        .putFloat(KEY_LAST_X, center.x)
+        .putFloat(KEY_LAST_Y, center.y)
         .apply()
     }
   }
