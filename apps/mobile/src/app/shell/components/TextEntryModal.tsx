@@ -81,7 +81,8 @@ export function TextEntryModal({
 		// - QA row + spacing (when enabled): ~56
 		// - Wispr status line + spacing (when present): ~24
 		// - bottom buttons row + spacing: ~60
-		const chrome = 32 + 52 + (qaMode ? 56 : 0) + (hasWisprStatusText ? 24 : 0) + 60;
+		const chrome =
+			32 + 52 + (qaMode ? 56 : 0) + (hasWisprStatusText ? 24 : 0) + 60;
 		const maxByDialog = Math.max(minHeight, dialogMaxHeight - chrome);
 		return Math.max(minHeight, Math.min(maxHeight, maxByDialog));
 	}, [dialogMaxHeight, hasWisprStatusText, maxHeight, minHeight, qaMode]);
@@ -392,6 +393,7 @@ export function TextEntryModal({
 										color: theme.colors.textSecondary,
 										fontSize: 12,
 										fontWeight: '500',
+										lineHeight: 16,
 										marginTop: 8,
 									}}
 								>
