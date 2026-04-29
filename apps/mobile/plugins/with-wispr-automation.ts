@@ -126,9 +126,7 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
 
   private fun findClickableCenter(window: AccessibilityWindowInfo): Point? {
     val root = window.root ?: return null
-    val preferred = findPreferredClickable(root)
-    if (preferred != null) return preferred
-    return findAnyClickable(root)
+    return findPreferredClickable(root)
   }
 
   private fun findPreferredClickable(node: AccessibilityNodeInfo): Point? {
@@ -156,17 +154,6 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
       if (found != null) return found
     }
 
-    return null
-  }
-
-  private fun findAnyClickable(node: AccessibilityNodeInfo): Point? {
-    if (node.isClickable) return centerOf(node)
-    for (index in 0 until node.childCount) {
-      val child = node.getChild(index) ?: continue
-      val found = findAnyClickable(child)
-      child.recycle()
-      if (found != null) return found
-    }
     return null
   }
 
