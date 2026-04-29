@@ -30,11 +30,19 @@ export function TextEntryModal({
 	bottomOffset,
 	onClose,
 	onPaste,
+	wisprMode = false,
+	wisprStatusText,
+	onWisprFocus,
+	onValueChange,
 }: {
 	open: boolean;
 	bottomOffset: number;
 	onClose: () => void;
 	onPaste: (value: string) => void;
+	wisprMode?: boolean;
+	wisprStatusText?: string;
+	onWisprFocus?: (value: string) => void;
+	onValueChange?: (value: string) => void;
 }) {
 	const theme = useTheme();
 	const inputRef = useRef<TextInput | null>(null);
@@ -192,10 +200,11 @@ export function TextEntryModal({
 
 	const handleClear = useCallback(() => {
 		setValue('');
+		onValueChange?.('');
 		setTextAreaContentHeight(minHeight);
 		setQuestionNumberSafe(1);
 		inputRef.current?.focus();
-	}, [minHeight, setQuestionNumberSafe]);
+	}, [minHeight, onValueChange, setQuestionNumberSafe]);
 
 	const handlePaste = useCallback(() => {
 		if (!value) return;
@@ -204,10 +213,11 @@ export function TextEntryModal({
 		onPaste(value);
 		// Clear text only after successful paste
 		setValue('');
+		onValueChange?.('');
 		setTextAreaContentHeight(minHeight);
 		setQuestionNumberSafe(1);
 		onClose();
-	}, [minHeight, onClose, onPaste, setQuestionNumberSafe, value]);
+	}, [minHeight, onClose, onPaste, onValueChange, setQuestionNumberSafe, value]);
 
 	const handleToggleQaMode = useCallback(() => {
 		const next = !qaMode;
@@ -222,13 +232,27 @@ export function TextEntryModal({
 			const snippet = `${n}${answer} `;
 			setValue((prev) => {
 				const separator = prev && !/\s$/.test(prev) ? ' ' : '';
-				return `${prev}${separator}${snippet}`;
+				const nextValue = `${prev}${separator}${snippet}`;
+				onValueChange?.(nextValue);
+				return nextValue;
 			});
 			setQuestionNumberSafe(n + 1);
 			requestAnimationFrame(() => focusInput());
 		},
-		[focusInput, setQuestionNumberSafe],
+		[focusInput, onValueChange, setQuestionNumberSafe],
 	);
+
+	const handleChangeText = useCallback(
+		(nextValue: string) => {
+			setValue(nextValue);
+			onValueChange?.(nextValue);
+		},
+		[onValueChange],
+	);
+
+	const handleInputFocus = useCallback(() => {
+		onWisprFocus?.(value);
+	}, [onWisprFocus, value]);
 
 	return (
 		<Modal
@@ -323,11 +347,12 @@ export function TextEntryModal({
 							<TextInput
 								ref={inputRef}
 								value={value}
-								onChangeText={setValue}
+								onChangeText={handleChangeText}
+								onFocus={handleInputFocus}
 								placeholder="Enter text to paste..."
 								placeholderTextColor={theme.colors.muted}
 								autoFocus
-								showSoftInputOnFocus={true}
+								showSoftInputOnFocus={!wisprMode}
 								multiline
 								textAlignVertical="top"
 								style={{
@@ -352,6 +377,18 @@ export function TextEntryModal({
 								}}
 								scrollEnabled={textAreaHeight >= effectiveTextMaxHeight}
 							/>
+							{wisprStatusText ? (
+								<Text
+									style={{
+										color: theme.colors.textSecondary,
+										fontSize: 12,
+										fontWeight: '500',
+										marginTop: 8,
+									}}
+								>
+									{wisprStatusText}
+								</Text>
+							) : null}
 							{qaMode ? (
 								<View
 									style={{
