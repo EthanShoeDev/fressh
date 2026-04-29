@@ -44,7 +44,7 @@ void test('initial shell config state prefers cached config when it is valid', a
 	const remoteText = JSON.stringify({
 		...bundledConfig,
 		version: 'runtime-v2',
-		updatedAt: '2026-04-12T12:00:00.000Z',
+		updatedAt: '2026-04-30T12:00:00.000Z',
 	});
 
 	await reloadShellConfigFromRemote({

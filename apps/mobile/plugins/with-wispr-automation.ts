@@ -300,12 +300,12 @@ type ServiceWithMetadata = NonNullable<
 		'android:exported'?: 'true' | 'false';
 		'android:label'?: string;
 	};
-	'meta-data'?: Array<{
+	'meta-data'?: {
 		$: {
 			'android:name': string;
 			'android:resource': string;
 		};
-	}>;
+	}[];
 };
 
 const withWisprAutomationManifest: ConfigPlugin = (config) =>
