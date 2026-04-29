@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+	android:description="@string/wispr_automation_accessibility_description"
+	android:summary="@string/wispr_automation_accessibility_summary"
+	android:accessibilityEventTypes="typeWindowsChanged|typeWindowStateChanged|typeViewClicked|typeViewFocused|typeViewTextChanged"
+	android:accessibilityFeedbackType="feedbackGeneric"
+	android:accessibilityFlags="flagRetrieveInteractiveWindows|flagReportViewIds"
+	android:canRetrieveWindowContent="true"
+	android:canPerformGestures="true"
+	android:notificationTimeout="50" />

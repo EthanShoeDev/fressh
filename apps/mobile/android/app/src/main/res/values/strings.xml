@@ -1,0 +1,9 @@
+<resources>
+  <string name="app_name">Fressh</string>
+  <string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>
+  <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
+  <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
+  <string name="expo_runtime_version">54.0.30</string>
+  <string name="wispr_automation_accessibility_description">Fressh local Wispr automation</string>
+  <string name="wispr_automation_accessibility_summary">Lets Fressh tap the Wispr Flow bubble for local dictation automation.</string>
+</resources>
