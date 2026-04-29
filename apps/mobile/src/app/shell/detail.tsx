@@ -1248,22 +1248,45 @@ function ShellDetail() {
 		[clearWisprOpeningTimeout, isWisprAutomationRequestActive],
 	);
 
-	const stopWisprAfterCancelledStart = useCallback(() => {
-		void (async () => {
-			let lastError: unknown = new Error('Wispr bubble not found');
-			const deadline = Date.now() + WISPR_TAP_RETRY_WINDOW_MS;
-			while (Date.now() <= deadline) {
-				try {
-					await wisprAutomationNative.tapWisprControl();
-					return;
-				} catch (error) {
-					lastError = error;
+	const stopWisprNativeBestEffort = useCallback(
+		(message: string, shouldContinue: () => boolean) => {
+			if (Platform.OS !== 'android') return;
+			void (async () => {
+				let lastError: unknown = new Error('Wispr bubble not found');
+				const deadline = Date.now() + WISPR_TAP_RETRY_WINDOW_MS;
+
+				while (Date.now() <= deadline) {
+					if (!shouldContinue()) return;
+					try {
+						await wisprAutomationNative.tapWisprControl();
+						return;
+					} catch (error) {
+						lastError = error;
+					}
+					await sleep(WISPR_TAP_RETRY_INTERVAL_MS);
 				}
-				await sleep(WISPR_TAP_RETRY_INTERVAL_MS);
-			}
-			logger.warn('Failed to stop Wispr after cancelled start', lastError);
-		})();
-	}, []);
+				logger.warn(message, lastError);
+			})();
+		},
+		[],
+	);
+
+	const stopWisprAfterCancelledStart = useCallback(() => {
+		const cleanupRequestId = wisprAutomationRequestIdRef.current;
+		stopWisprNativeBestEffort('Failed to stop Wispr after cancelled start', () => {
+			return (
+				wisprAutomationRequestIdRef.current === cleanupRequestId &&
+				!isWisprAutomationBusy(wisprAutomationStateRef.current)
+			);
+		});
+	}, [stopWisprNativeBestEffort]);
+
+	const stopWisprOnUnmount = useCallback(() => {
+		stopWisprNativeBestEffort(
+			'Failed to stop Wispr while unmounting shell',
+			() => true,
+		);
+	}, [stopWisprNativeBestEffort]);
 
 	const handleWisprTextEntryFocus = useCallback(
 		(value: string) => {
@@ -1354,6 +1377,7 @@ function ShellDetail() {
 					reason: result.reason,
 					message: result.message,
 				});
+				setTextEntryOpen(true);
 				setWisprAutomationStateSnapshot({
 					phase: 'recording',
 					textBeforeStart: nextState.textBeforeStart,
@@ -1400,6 +1424,7 @@ function ShellDetail() {
 					reason: result.reason,
 					message: result.message,
 				});
+				setTextEntryOpen(true);
 				setWisprAutomationStateSnapshot({
 					phase: 'recording',
 					textBeforeStart: state.textBeforeStart,
@@ -1514,12 +1539,19 @@ function ShellDetail() {
 
 	useEffect(
 		() => () => {
+			const currentState = wisprAutomationStateRef.current;
+			if (
+				currentState.phase === 'recording' ||
+				currentState.phase === 'stopping'
+			) {
+				stopWisprOnUnmount();
+			}
 			wisprAutomationRequestIdRef.current += 1;
 			wisprCloseRequestedRef.current = false;
 			clearWisprOpeningTimeout();
 			clearWisprTextTimeout();
 		},
-		[clearWisprOpeningTimeout, clearWisprTextTimeout],
+		[clearWisprOpeningTimeout, clearWisprTextTimeout, stopWisprOnUnmount],
 	);
 
 	const handleCopySelection = useCallback(() => {
