@@ -83,6 +83,14 @@ import {
 	type TmuxHistoryCommandId,
 } from '@/lib/tmux-history';
 import { queryClient } from '@/lib/utils';
+import { wisprAutomationNative } from '@/lib/wispr-automation-native';
+import {
+	isWisprAutomationBusy,
+	reduceWisprAutomationState,
+	type WisprAutomationEvent,
+	type WisprAutomationFailureReason,
+	type WisprAutomationState,
+} from '@/lib/wispr-automation-state';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
@@ -99,6 +107,32 @@ const sleep = (ms: number) =>
 	new Promise<void>((resolve) => {
 		setTimeout(resolve, ms);
 	});
+
+const WISPR_TAP_RETRY_WINDOW_MS = 2_500;
+const WISPR_TAP_RETRY_INTERVAL_MS = 200;
+const WISPR_TEXT_TIMEOUT_MS = 8_000;
+
+const getErrorMessage = (error: unknown) =>
+	error instanceof Error ? error.message : String(error);
+
+const getWisprTapFailureReason = (
+	error: unknown,
+): WisprAutomationFailureReason => {
+	const message = getErrorMessage(error).toLowerCase();
+	return message.includes('not found') ? 'bubble-not-found' : 'tap-failed';
+};
+
+const getWisprTapFailureMessage = (
+	reason: WisprAutomationFailureReason,
+	error: unknown,
+) => {
+	if (reason === 'bubble-not-found') return 'Wispr bubble not found.';
+	if (reason === 'tap-failed') {
+		const message = getErrorMessage(error);
+		return message ? `Wispr tap failed: ${message}` : 'Wispr tap failed.';
+	}
+	return 'Wispr automation failed.';
+};
 
 // Single-writer queue that guarantees no interleaving across all PTY writes.
 class OrderedWriter {
@@ -634,6 +668,8 @@ function ShellDetail() {
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [textEntryOpen, setTextEntryOpen] = useState(false);
+	const [wisprAutomationState, setWisprAutomationState] =
+		useState<WisprAutomationState>({ phase: 'idle' });
 	const [configureOpen, setConfigureOpen] = useState(false);
 	const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
 	const [featureRequestSubmitting, setFeatureRequestSubmitting] =
@@ -653,6 +689,14 @@ function ShellDetail() {
 	const currentInstanceIdRef = useRef<string | null>(null);
 	const writerRef = useRef<OrderedWriter | null>(null);
 	const commandTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+	const wisprAutomationStateRef = useRef<WisprAutomationState>({
+		phase: 'idle',
+	});
+	const wisprTextEntryValueRef = useRef('');
+	const wisprAutomationRequestIdRef = useRef(0);
+	const wisprTextTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 	const lastSelectionRef = useRef<{ text: string; at: number } | null>(null);
 	const { width, height } = useWindowDimensions();
 	const touchScrollEnabled =
@@ -1046,6 +1090,270 @@ function ShellDetail() {
 		],
 	);
 
+	const clearWisprTextTimeout = useCallback(() => {
+		if (!wisprTextTimeoutRef.current) return;
+		clearTimeout(wisprTextTimeoutRef.current);
+		wisprTextTimeoutRef.current = null;
+	}, []);
+
+	const applyWisprAutomationEvent = useCallback(
+		(event: WisprAutomationEvent) => {
+			const nextState = reduceWisprAutomationState(
+				wisprAutomationStateRef.current,
+				event,
+			);
+			wisprAutomationStateRef.current = nextState;
+			setWisprAutomationState(nextState);
+			if (nextState.phase !== 'waitingForText') {
+				clearWisprTextTimeout();
+			}
+			return nextState;
+		},
+		[clearWisprTextTimeout],
+	);
+
+	const resetWisprAutomation = useCallback(() => {
+		wisprAutomationRequestIdRef.current += 1;
+		clearWisprTextTimeout();
+		applyWisprAutomationEvent({ type: 'reset' });
+	}, [applyWisprAutomationEvent, clearWisprTextTimeout]);
+
+	const failWisprAutomation = useCallback(
+		(reason: WisprAutomationFailureReason, message: string) => {
+			wisprAutomationRequestIdRef.current += 1;
+			applyWisprAutomationEvent({
+				type: 'failed',
+				reason,
+				message,
+			});
+		},
+		[applyWisprAutomationEvent],
+	);
+
+	const isWisprAutomationRequestActive = useCallback((requestId: number) => {
+		return requestId === wisprAutomationRequestIdRef.current;
+	}, []);
+
+	const tapWisprControlWithRetry = useCallback(
+		async (requestId: number) => {
+			let lastError: unknown = new Error('Wispr bubble not found');
+			const deadline = Date.now() + WISPR_TAP_RETRY_WINDOW_MS;
+
+			while (Date.now() <= deadline) {
+				if (!isWisprAutomationRequestActive(requestId)) return null;
+				try {
+					await wisprAutomationNative.tapWisprControl();
+					return { ok: true as const };
+				} catch (error) {
+					lastError = error;
+				}
+				await sleep(WISPR_TAP_RETRY_INTERVAL_MS);
+			}
+
+			const reason = getWisprTapFailureReason(lastError);
+			return {
+				ok: false as const,
+				reason,
+				message: getWisprTapFailureMessage(reason, lastError),
+			};
+		},
+		[isWisprAutomationRequestActive],
+	);
+
+	const startWisprTextTimeout = useCallback(
+		(requestId: number) => {
+			clearWisprTextTimeout();
+			wisprTextTimeoutRef.current = setTimeout(() => {
+				const currentState = wisprAutomationStateRef.current;
+				if (
+					!isWisprAutomationRequestActive(requestId) ||
+					currentState.phase !== 'waitingForText'
+				) {
+					return;
+				}
+				if (
+					wisprTextEntryValueRef.current !== currentState.textBeforeStart
+				) {
+					applyWisprAutomationEvent({
+						type: 'textChanged',
+						value: wisprTextEntryValueRef.current,
+					});
+					return;
+				}
+				applyWisprAutomationEvent({
+					type: 'failed',
+					reason: 'text-timeout',
+					message: 'Wispr text did not arrive.',
+				});
+			}, WISPR_TEXT_TIMEOUT_MS);
+		},
+		[
+			applyWisprAutomationEvent,
+			clearWisprTextTimeout,
+			isWisprAutomationRequestActive,
+		],
+	);
+
+	const handleWisprTextEntryFocus = useCallback(
+		(value: string) => {
+			if (wisprAutomationStateRef.current.phase !== 'openingTextEntry') {
+				return;
+			}
+
+			const requestId = wisprAutomationRequestIdRef.current;
+			applyWisprAutomationEvent({
+				type: 'textEntryFocused',
+				textBeforeStart: value,
+			});
+
+			void tapWisprControlWithRetry(requestId).then((result) => {
+				if (
+					!result ||
+					!isWisprAutomationRequestActive(requestId) ||
+					wisprAutomationStateRef.current.phase !== 'waitingForBubble'
+				) {
+					return;
+				}
+				if (result.ok) {
+					applyWisprAutomationEvent({ type: 'wisprTapSucceeded' });
+					return;
+				}
+				applyWisprAutomationEvent({
+					type: 'failed',
+					reason: result.reason,
+					message: result.message,
+				});
+			});
+		},
+		[
+			applyWisprAutomationEvent,
+			isWisprAutomationRequestActive,
+			tapWisprControlWithRetry,
+		],
+	);
+
+	const handleWisprTextEntryValueChange = useCallback(
+		(value: string) => {
+			wisprTextEntryValueRef.current = value;
+			const previousPhase = wisprAutomationStateRef.current.phase;
+			const nextState = applyWisprAutomationEvent({
+				type: 'textChanged',
+				value,
+			});
+			if (previousPhase === 'waitingForText' && nextState.phase === 'idle') {
+				wisprAutomationRequestIdRef.current += 1;
+				clearWisprTextTimeout();
+			}
+		},
+		[applyWisprAutomationEvent, clearWisprTextTimeout],
+	);
+
+	const stopWisprRecording = useCallback(() => {
+		const nextState = applyWisprAutomationEvent({ type: 'press' });
+		if (nextState.phase !== 'stopping') return;
+
+		const requestId = wisprAutomationRequestIdRef.current + 1;
+		wisprAutomationRequestIdRef.current = requestId;
+		void tapWisprControlWithRetry(requestId).then((result) => {
+			if (
+				!result ||
+				!isWisprAutomationRequestActive(requestId) ||
+				wisprAutomationStateRef.current.phase !== 'stopping'
+			) {
+				return;
+			}
+			if (result.ok) {
+				applyWisprAutomationEvent({ type: 'wisprTapSucceeded' });
+				startWisprTextTimeout(requestId);
+				return;
+			}
+			applyWisprAutomationEvent({
+				type: 'failed',
+				reason: result.reason,
+				message: result.message,
+			});
+		});
+	}, [
+		applyWisprAutomationEvent,
+		isWisprAutomationRequestActive,
+		startWisprTextTimeout,
+		tapWisprControlWithRetry,
+	]);
+
+	const handleToggleWisprDictation = useCallback(() => {
+		const currentState = wisprAutomationStateRef.current;
+		if (currentState.phase === 'recording') {
+			stopWisprRecording();
+			return;
+		}
+		if (currentState.phase !== 'idle' && currentState.phase !== 'failed') {
+			logger.info('Ignoring Wispr toggle while automation is busy', {
+				phase: currentState.phase,
+			});
+			return;
+		}
+		if (Platform.OS !== 'android') {
+			failWisprAutomation(
+				'unsupported-platform',
+				'Wispr automation is only available on Android.',
+			);
+			return;
+		}
+
+		const requestId = wisprAutomationRequestIdRef.current + 1;
+		wisprAutomationRequestIdRef.current = requestId;
+		void (async () => {
+			try {
+				const status = await wisprAutomationNative.getStatus();
+				if (!isWisprAutomationRequestActive(requestId)) return;
+				if (!status.serviceEnabled || !status.serviceConnected) {
+					applyWisprAutomationEvent({
+						type: 'failed',
+						reason: 'service-disabled',
+						message: 'Enable Fressh Wispr Automation in Accessibility.',
+					});
+					try {
+						await wisprAutomationNative.openAccessibilitySettings();
+					} catch (error) {
+						logger.warn('Failed to open accessibility settings', error);
+					}
+					return;
+				}
+
+				setCommanderOpen(false);
+				setCommandPresetsOpen(false);
+				applyWisprAutomationEvent({ type: 'press' });
+				setTextEntryOpen(true);
+			} catch (error) {
+				if (!isWisprAutomationRequestActive(requestId)) return;
+				applyWisprAutomationEvent({
+					type: 'failed',
+					reason: 'service-disabled',
+					message: 'Wispr automation is unavailable.',
+				});
+				logger.warn('Wispr automation status check failed', error);
+			}
+		})();
+	}, [
+		applyWisprAutomationEvent,
+		failWisprAutomation,
+		isWisprAutomationRequestActive,
+		stopWisprRecording,
+	]);
+
+	const handleCloseTextEntry = useCallback(() => {
+		setTextEntryOpen(false);
+		resetWisprAutomation();
+	}, [resetWisprAutomation]);
+
+	useEffect(
+		() => () => {
+			wisprAutomationRequestIdRef.current += 1;
+			clearWisprTextTimeout();
+		},
+		[clearWisprTextTimeout],
+	);
+
 	const handleCopySelection = useCallback(() => {
 		const xr = xtermRef.current;
 		if (!xr) return;
@@ -1321,29 +1629,34 @@ fi
 			},
 			toggleCommandPresets: () => {
 				setCommanderOpen(false);
-				setTextEntryOpen(false);
+				handleCloseTextEntry();
 				setCommandPresetsOpen((prev) => !prev);
 			},
 			openCommander: () => {
 				setCommandPresetsOpen(false);
-				setTextEntryOpen(false);
+				handleCloseTextEntry();
 				setCommanderOpen(true);
 			},
 			openTextEditor: () => {
+				resetWisprAutomation();
 				setCommandPresetsOpen(false);
 				setCommanderOpen(false);
 				setTextEntryOpen(true);
 			},
+			toggleWisprDictation: handleToggleWisprDictation,
 		}),
 		[
 			availableKeyboardIds,
 			handleCopySelection,
+			handleCloseTextEntry,
 			handlePasteClipboard,
+			handleToggleWisprDictation,
 			cancelKeyBytes,
 			clearScrollbackState,
 			connection,
 			exitSelectionMode,
 			openConfigDialog,
+			resetWisprAutomation,
 			rotateKeyboard,
 			shellConfig,
 			selectKeyboardIfExists,
@@ -1851,6 +2164,24 @@ fi
 		attachShellToTerminal();
 	}, [attachShellToTerminal]);
 
+	const wisprMode = isWisprAutomationBusy(wisprAutomationState);
+	const wisprStatusText = useMemo(() => {
+		switch (wisprAutomationState.phase) {
+			case 'openingTextEntry':
+			case 'waitingForBubble':
+				return 'Waiting for Wispr...';
+			case 'recording':
+				return 'Wispr recording. Press Wispr again to stop.';
+			case 'stopping':
+			case 'waitingForText':
+				return 'Waiting for Wispr text...';
+			case 'failed':
+				return wisprAutomationState.message;
+			default:
+				return undefined;
+		}
+	}, [wisprAutomationState]);
+
 	if (hasTmuxAttachError) {
 		return (
 			<TmuxAttachErrorScreen
@@ -2003,10 +2334,12 @@ fi
 				<TextEntryModal
 					open={textEntryOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={() => {
-						setTextEntryOpen(false);
-					}}
+					wisprMode={wisprMode}
+					wisprStatusText={wisprStatusText}
+					onClose={handleCloseTextEntry}
 					onPaste={handlePasteTextEntry}
+					onWisprFocus={handleWisprTextEntryFocus}
+					onValueChange={handleWisprTextEntryValueChange}
 				/>
 				<ConfigureModal
 					open={configureOpen}
