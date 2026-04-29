@@ -258,8 +258,8 @@ export function TextEntryModal({
 
 	const handleInputFocus = useCallback(() => {
 		if (!wisprMode) return;
-		onWisprFocus?.(value);
-	}, [onWisprFocus, value, wisprMode]);
+		onWisprFocus?.(valueRef.current);
+	}, [onWisprFocus, wisprMode]);
 
 	return (
 		<Modal
@@ -386,6 +386,8 @@ export function TextEntryModal({
 							/>
 							{wisprStatusText ? (
 								<Text
+									numberOfLines={1}
+									ellipsizeMode="tail"
 									style={{
 										color: theme.colors.textSecondary,
 										fontSize: 12,
