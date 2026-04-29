@@ -696,6 +696,7 @@ function ShellDetail() {
 	const wisprTextEntryValueRef = useRef('');
 	const wisprAutomationRequestIdRef = useRef(0);
 	const wisprCloseRequestedRef = useRef(false);
+	const wisprCancelledStartRequestIdRef = useRef<number | null>(null);
 	const wisprOpeningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
@@ -1115,6 +1116,14 @@ function ShellDetail() {
 		[],
 	);
 
+	const markWisprStartCancelled = useCallback(() => {
+		if (wisprAutomationStateRef.current.phase !== 'waitingForBubble') {
+			return;
+		}
+		wisprCancelledStartRequestIdRef.current =
+			wisprAutomationRequestIdRef.current;
+	}, []);
+
 	const applyWisprAutomationEvent = useCallback(
 		(event: WisprAutomationEvent) => {
 			const nextState = reduceWisprAutomationState(
@@ -1138,6 +1147,7 @@ function ShellDetail() {
 	);
 
 	const resetWisprAutomation = useCallback(() => {
+		markWisprStartCancelled();
 		wisprAutomationRequestIdRef.current += 1;
 		wisprCloseRequestedRef.current = false;
 		clearWisprOpeningTimeout();
@@ -1147,6 +1157,7 @@ function ShellDetail() {
 		applyWisprAutomationEvent,
 		clearWisprOpeningTimeout,
 		clearWisprTextTimeout,
+		markWisprStartCancelled,
 	]);
 
 	const failWisprAutomation = useCallback(
@@ -1168,7 +1179,7 @@ function ShellDetail() {
 	const tapWisprControlWithRetry = useCallback(
 		async (
 			requestId: number,
-			options?: { onCancelledSuccess?: () => void },
+			options?: { onCancelledSuccess?: (requestId: number) => void },
 		) => {
 			let lastError: unknown = new Error('Wispr bubble not found');
 			const deadline = Date.now() + WISPR_TAP_RETRY_WINDOW_MS;
@@ -1178,7 +1189,7 @@ function ShellDetail() {
 				try {
 					await wisprAutomationNative.tapWisprControl();
 					if (!isWisprAutomationRequestActive(requestId)) {
-						options?.onCancelledSuccess?.();
+						options?.onCancelledSuccess?.(requestId);
 						return null;
 					}
 					return { ok: true as const };
@@ -1271,15 +1282,18 @@ function ShellDetail() {
 		[],
 	);
 
-	const stopWisprAfterCancelledStart = useCallback(() => {
-		const cleanupRequestId = wisprAutomationRequestIdRef.current;
-		stopWisprNativeBestEffort('Failed to stop Wispr after cancelled start', () => {
-			return (
-				wisprAutomationRequestIdRef.current === cleanupRequestId &&
-				!isWisprAutomationBusy(wisprAutomationStateRef.current)
+	const stopWisprAfterCancelledStart = useCallback(
+		(cancelledRequestId: number) => {
+			if (wisprCancelledStartRequestIdRef.current !== cancelledRequestId) {
+				return;
+			}
+			stopWisprNativeBestEffort(
+				'Failed to stop Wispr after cancelled start',
+				() => wisprCancelledStartRequestIdRef.current === cancelledRequestId,
 			);
-		});
-	}, [stopWisprNativeBestEffort]);
+		},
+		[stopWisprNativeBestEffort],
+	);
 
 	const stopWisprOnUnmount = useCallback(() => {
 		stopWisprNativeBestEffort(
@@ -1384,10 +1398,14 @@ function ShellDetail() {
 				});
 				return;
 			}
-			applyWisprAutomationEvent({
-				type: 'failed',
+			logger.warn('Failed to stop Wispr recording', {
 				reason: result.reason,
 				message: result.message,
+			});
+			setTextEntryOpen(true);
+			setWisprAutomationStateSnapshot({
+				phase: 'recording',
+				textBeforeStart: nextState.textBeforeStart,
 			});
 		});
 	}, [
@@ -1465,6 +1483,7 @@ function ShellDetail() {
 		}
 
 		const requestId = wisprAutomationRequestIdRef.current + 1;
+		wisprCancelledStartRequestIdRef.current = null;
 		wisprAutomationRequestIdRef.current = requestId;
 		void (async () => {
 			try {
@@ -1540,6 +1559,9 @@ function ShellDetail() {
 	useEffect(
 		() => () => {
 			const currentState = wisprAutomationStateRef.current;
+			if (currentState.phase === 'waitingForBubble') {
+				markWisprStartCancelled();
+			}
 			if (
 				currentState.phase === 'recording' ||
 				currentState.phase === 'stopping'
@@ -1551,7 +1573,12 @@ function ShellDetail() {
 			clearWisprOpeningTimeout();
 			clearWisprTextTimeout();
 		},
-		[clearWisprOpeningTimeout, clearWisprTextTimeout, stopWisprOnUnmount],
+		[
+			clearWisprOpeningTimeout,
+			clearWisprTextTimeout,
+			markWisprStartCancelled,
+			stopWisprOnUnmount,
+		],
 	);
 
 	const handleCopySelection = useCallback(() => {
