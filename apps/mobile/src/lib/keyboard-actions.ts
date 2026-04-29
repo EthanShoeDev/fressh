@@ -21,6 +21,7 @@ export const KNOWN_ACTION_IDS = [
 	'TOGGLE_COMMAND_PRESETS',
 	'OPEN_COMMANDER',
 	'OPEN_TEXT_EDITOR',
+	'TOGGLE_WISPR_DICTATION',
 	'PASTE_CLIPBOARD',
 	'COPY_SELECTION',
 	'CYCLE_TMUX_WINDOW',
@@ -43,6 +44,7 @@ export type ActionContext = {
 	toggleCommandPresets?: () => void;
 	openCommander?: () => void;
 	openTextEditor?: () => void;
+	toggleWisprDictation?: () => void;
 };
 
 const logger = rootLogger.extend('KeyboardActions');
@@ -112,6 +114,10 @@ export async function runAction(
 		}
 		case 'OPEN_TEXT_EDITOR': {
 			context.openTextEditor?.();
+			return;
+		}
+		case 'TOGGLE_WISPR_DICTATION': {
+			context.toggleWisprDictation?.();
 			return;
 		}
 		default: {
