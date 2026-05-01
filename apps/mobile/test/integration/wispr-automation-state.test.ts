@@ -29,27 +29,21 @@ void test('first press opens and focuses text entry before starting Wispr', () =
 	});
 });
 
-void test('second press stops recording and text change returns to idle', () => {
+void test('recording ignores repeated presses and text change returns to idle', () => {
 	const recording: WisprAutomationState = {
 		phase: 'recording',
 		textBeforeStart: 'before',
 	};
 
-	const stopping = reduceWisprAutomationState(recording, { type: 'press' });
-	assert.deepEqual(stopping, {
-		phase: 'stopping',
+	const stillRecording = reduceWisprAutomationState(recording, {
+		type: 'press',
+	});
+	assert.deepEqual(stillRecording, {
+		phase: 'recording',
 		textBeforeStart: 'before',
 	});
 
-	const waiting = reduceWisprAutomationState(stopping, {
-		type: 'wisprTapSucceeded',
-	});
-	assert.deepEqual(waiting, {
-		phase: 'waitingForText',
-		textBeforeStart: 'before',
-	});
-
-	const done = reduceWisprAutomationState(waiting, {
+	const done = reduceWisprAutomationState(stillRecording, {
 		type: 'textChanged',
 		value: 'before dictated text',
 	});

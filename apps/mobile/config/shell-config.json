@@ -1,6 +1,6 @@
 {
-  "version": "2026-04-29.1",
-  "updatedAt": "2026-04-29T10:36:49.000Z",
+  "version": "2026-05-01.1",
+  "updatedAt": "2026-05-01T06:20:00.000Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -248,18 +248,13 @@
           },
           {
             "type": "action",
-            "actionId": "OPEN_TEXT_EDITOR",
+            "actionId": "OPEN_WISPR_TEXT_EDITOR",
             "label": "Text",
             "icon": "Type"
           }
         ],
         [
-          {
-            "type": "action",
-            "actionId": "TOGGLE_WISPR_DICTATION",
-            "label": "Wispr",
-            "icon": "Mic"
-          },
+          null,
           null,
           null,
           null,

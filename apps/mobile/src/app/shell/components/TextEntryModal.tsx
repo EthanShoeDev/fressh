@@ -25,6 +25,13 @@ const MIN_LINES = 6;
 const LINE_HEIGHT = 20;
 const INPUT_VERTICAL_PADDING = 12;
 
+export type TextInputScreenBounds = {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+};
+
 export function TextEntryModal({
 	open,
 	bottomOffset,
@@ -41,7 +48,7 @@ export function TextEntryModal({
 	onPaste: (value: string) => void;
 	wisprMode?: boolean;
 	wisprStatusText?: string;
-	onWisprFocus?: (value: string) => void;
+	onWisprFocus?: (value: string, bounds?: TextInputScreenBounds) => void;
 	onValueChange?: (value: string) => void;
 }) {
 	const theme = useTheme();
@@ -259,7 +266,9 @@ export function TextEntryModal({
 
 	const handleInputFocus = useCallback(() => {
 		if (!wisprMode) return;
-		onWisprFocus?.(valueRef.current);
+		inputRef.current?.measureInWindow((x, y, width, height) => {
+			onWisprFocus?.(valueRef.current, { x, y, width, height });
+		});
 	}, [onWisprFocus, wisprMode]);
 
 	return (
@@ -360,7 +369,7 @@ export function TextEntryModal({
 								placeholder="Enter text to paste..."
 								placeholderTextColor={theme.colors.muted}
 								autoFocus
-								showSoftInputOnFocus={!wisprMode}
+								showSoftInputOnFocus
 								multiline
 								textAlignVertical="top"
 								style={{

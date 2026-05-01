@@ -2,7 +2,6 @@ export type WisprAutomationFailureReason =
 	| 'service-disabled'
 	| 'bubble-not-found'
 	| 'tap-failed'
-	| 'text-timeout'
 	| 'unsupported-platform';
 
 export type WisprAutomationState =
@@ -10,8 +9,6 @@ export type WisprAutomationState =
 	| { phase: 'openingTextEntry' }
 	| { phase: 'waitingForBubble'; textBeforeStart: string }
 	| { phase: 'recording'; textBeforeStart: string }
-	| { phase: 'stopping'; textBeforeStart: string }
-	| { phase: 'waitingForText'; textBeforeStart: string }
 	| {
 			phase: 'failed';
 			reason: WisprAutomationFailureReason;
@@ -68,24 +65,6 @@ export function reduceWisprAutomationState(
 			return state;
 
 		case 'recording':
-			if (event.type === 'press') {
-				return {
-					phase: 'stopping',
-					textBeforeStart: state.textBeforeStart,
-				};
-			}
-			return state;
-
-		case 'stopping':
-			if (event.type === 'wisprTapSucceeded') {
-				return {
-					phase: 'waitingForText',
-					textBeforeStart: state.textBeforeStart,
-				};
-			}
-			return state;
-
-		case 'waitingForText':
 			if (
 				event.type === 'textChanged' &&
 				event.value !== state.textBeforeStart

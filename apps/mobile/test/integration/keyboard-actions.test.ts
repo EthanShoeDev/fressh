@@ -41,10 +41,10 @@ void test('tmux history action toggles history mode through the action context',
 	assert.equal(toggled, 1);
 });
 
-void test('Wispr dictation action delegates to the action context', async () => {
-	let toggled = 0;
+void test('Wispr text action delegates to the action context', async () => {
+	let opened = 0;
 
-	await runAction('TOGGLE_WISPR_DICTATION', {
+	await runAction('OPEN_WISPR_TEXT_EDITOR', {
 		availableKeyboardIds: new Set(),
 		selectKeyboard: () => {},
 		rotateKeyboard: () => {},
@@ -52,10 +52,10 @@ void test('Wispr dictation action delegates to the action context', async () => 
 		sendBytes: () => {},
 		pasteClipboard: async () => {},
 		copySelection: () => {},
-		toggleWisprDictation: () => {
-			toggled += 1;
+		openWisprTextEditor: () => {
+			opened += 1;
 		},
 	} as Parameters<typeof runAction>[1]);
 
-	assert.equal(toggled, 1);
+	assert.equal(opened, 1);
 });

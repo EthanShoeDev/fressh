@@ -9,6 +9,7 @@ export type WisprAutomationNativeStatus = {
 type WisprAutomationNativeModule = {
 	getStatus: () => Promise<WisprAutomationNativeStatus>;
 	openAccessibilitySettings: () => Promise<void>;
+	tapScreen: (x: number, y: number) => Promise<string>;
 	tapWisprControl: () => Promise<string>;
 };
 
@@ -33,6 +34,10 @@ export const wisprAutomationNative = {
 
 	async openAccessibilitySettings(): Promise<void> {
 		await requireAndroidModule().openAccessibilitySettings();
+	},
+
+	async tapScreen(x: number, y: number): Promise<string> {
+		return requireAndroidModule().tapScreen(x, y);
 	},
 
 	async tapWisprControl(): Promise<string> {

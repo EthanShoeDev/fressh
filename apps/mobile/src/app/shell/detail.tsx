@@ -31,6 +31,7 @@ import {
 	AppState,
 	Keyboard,
 	KeyboardAvoidingView,
+	PixelRatio,
 	Platform,
 	Pressable,
 	Text,
@@ -96,7 +97,10 @@ import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
 import { TerminalCommanderModal } from './components/TerminalCommanderModal';
 import { TerminalKeyboard } from './components/TerminalKeyboard';
-import { TextEntryModal } from './components/TextEntryModal';
+import {
+	TextEntryModal,
+	type TextInputScreenBounds,
+} from './components/TextEntryModal';
 import { TmuxHistoryKeyboard } from './components/TmuxHistoryKeyboard';
 
 const logger = rootLogger.extend('TabsShellDetail');
@@ -111,7 +115,6 @@ const sleep = (ms: number) =>
 const WISPR_TAP_RETRY_WINDOW_MS = 2_500;
 const WISPR_TAP_RETRY_INTERVAL_MS = 200;
 const WISPR_OPENING_FALLBACK_MS = 750;
-const WISPR_TEXT_TIMEOUT_MS = 8_000;
 
 const getErrorMessage = (error: unknown) =>
 	error instanceof Error ? error.message : String(error);
@@ -609,11 +612,16 @@ function ShellDetail() {
 	}, [selectedKeyboardId]);
 
 	const currentKeyboard = useMemo<KeyboardDefinition | null>(() => {
-		return selectedKeyboardId ? (keyboardsById[selectedKeyboardId] ?? null) : null;
+		return selectedKeyboardId
+			? (keyboardsById[selectedKeyboardId] ?? null)
+			: null;
 	}, [keyboardsById, selectedKeyboardId]);
 
 	const currentMacros = useMemo<MacroDef[]>(
-		() => (currentKeyboard ? (shellConfig.macrosByKeyboardId[currentKeyboard.id] ?? []) : []),
+		() =>
+			currentKeyboard
+				? (shellConfig.macrosByKeyboardId[currentKeyboard.id] ?? [])
+				: [],
 		[currentKeyboard, shellConfig],
 	);
 
@@ -695,12 +703,7 @@ function ShellDetail() {
 	});
 	const wisprTextEntryValueRef = useRef('');
 	const wisprAutomationRequestIdRef = useRef(0);
-	const wisprCloseRequestedRef = useRef(false);
-	const wisprCancelledStartRequestIdRef = useRef<number | null>(null);
 	const wisprOpeningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-		null,
-	);
-	const wisprTextTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
 	const lastSelectionRef = useRef<{ text: string; at: number } | null>(null);
@@ -823,7 +826,9 @@ function ShellDetail() {
 				if (isValidCancelKey(cancelKeyBytes)) {
 					void sendBytesOrdered(cancelKeyBytes);
 				} else {
-					logger.warn('cancelKey invalid; cannot exit tmux history after control failure');
+					logger.warn(
+						'cancelKey invalid; cannot exit tmux history after control failure',
+					);
 				}
 			}
 			clearScrollbackState();
@@ -833,7 +838,10 @@ function ShellDetail() {
 				controlShell.removeListener(listenerId);
 			}
 			controlShell.close().catch((error) => {
-				logger.warn('Failed to close tmux control shell after send failure', error);
+				logger.warn(
+					'Failed to close tmux control shell after send failure',
+					error,
+				);
 			});
 		},
 		[cancelKeyBytes, clearScrollbackState, sendBytesOrdered],
@@ -1096,12 +1104,6 @@ function ShellDetail() {
 		],
 	);
 
-	const clearWisprTextTimeout = useCallback(() => {
-		if (!wisprTextTimeoutRef.current) return;
-		clearTimeout(wisprTextTimeoutRef.current);
-		wisprTextTimeoutRef.current = null;
-	}, []);
-
 	const clearWisprOpeningTimeout = useCallback(() => {
 		if (!wisprOpeningTimeoutRef.current) return;
 		clearTimeout(wisprOpeningTimeoutRef.current);
@@ -1116,14 +1118,6 @@ function ShellDetail() {
 		[],
 	);
 
-	const markWisprStartCancelled = useCallback(() => {
-		if (wisprAutomationStateRef.current.phase !== 'waitingForBubble') {
-			return;
-		}
-		wisprCancelledStartRequestIdRef.current =
-			wisprAutomationRequestIdRef.current;
-	}, []);
-
 	const applyWisprAutomationEvent = useCallback(
 		(event: WisprAutomationEvent) => {
 			const nextState = reduceWisprAutomationState(
@@ -1134,31 +1128,16 @@ function ShellDetail() {
 			if (nextState.phase !== 'openingTextEntry') {
 				clearWisprOpeningTimeout();
 			}
-			if (nextState.phase !== 'waitingForText') {
-				clearWisprTextTimeout();
-			}
 			return nextState;
 		},
-		[
-			clearWisprOpeningTimeout,
-			clearWisprTextTimeout,
-			setWisprAutomationStateSnapshot,
-		],
+		[clearWisprOpeningTimeout, setWisprAutomationStateSnapshot],
 	);
 
 	const resetWisprAutomation = useCallback(() => {
-		markWisprStartCancelled();
 		wisprAutomationRequestIdRef.current += 1;
-		wisprCloseRequestedRef.current = false;
 		clearWisprOpeningTimeout();
-		clearWisprTextTimeout();
 		applyWisprAutomationEvent({ type: 'reset' });
-	}, [
-		applyWisprAutomationEvent,
-		clearWisprOpeningTimeout,
-		clearWisprTextTimeout,
-		markWisprStartCancelled,
-	]);
+	}, [applyWisprAutomationEvent, clearWisprOpeningTimeout]);
 
 	const failWisprAutomation = useCallback(
 		(reason: WisprAutomationFailureReason, message: string) => {
@@ -1179,19 +1158,20 @@ function ShellDetail() {
 	const tapWisprControlWithRetry = useCallback(
 		async (
 			requestId: number,
-			options?: { onCancelledSuccess?: (requestId: number) => void },
+			options?: {
+				notFoundMessage?: string;
+			},
 		) => {
-			let lastError: unknown = new Error('Wispr bubble not found');
+			let lastError: unknown = new Error(
+				options?.notFoundMessage ?? 'Wispr bubble not found',
+			);
 			const deadline = Date.now() + WISPR_TAP_RETRY_WINDOW_MS;
 
 			while (Date.now() <= deadline) {
 				if (!isWisprAutomationRequestActive(requestId)) return null;
 				try {
 					await wisprAutomationNative.tapWisprControl();
-					if (!isWisprAutomationRequestActive(requestId)) {
-						options?.onCancelledSuccess?.(requestId);
-						return null;
-					}
+					if (!isWisprAutomationRequestActive(requestId)) return null;
 					return { ok: true as const };
 				} catch (error) {
 					lastError = error;
@@ -1207,40 +1187,6 @@ function ShellDetail() {
 			};
 		},
 		[isWisprAutomationRequestActive],
-	);
-
-	const startWisprTextTimeout = useCallback(
-		(requestId: number) => {
-			clearWisprTextTimeout();
-			wisprTextTimeoutRef.current = setTimeout(() => {
-				const currentState = wisprAutomationStateRef.current;
-				if (
-					!isWisprAutomationRequestActive(requestId) ||
-					currentState.phase !== 'waitingForText'
-				) {
-					return;
-				}
-				if (
-					wisprTextEntryValueRef.current !== currentState.textBeforeStart
-				) {
-					applyWisprAutomationEvent({
-						type: 'textChanged',
-						value: wisprTextEntryValueRef.current,
-					});
-					return;
-				}
-				applyWisprAutomationEvent({
-					type: 'failed',
-					reason: 'text-timeout',
-					message: 'Wispr text did not arrive.',
-				});
-			}, WISPR_TEXT_TIMEOUT_MS);
-		},
-		[
-			applyWisprAutomationEvent,
-			clearWisprTextTimeout,
-			isWisprAutomationRequestActive,
-		],
 	);
 
 	const startWisprOpeningFallback = useCallback(
@@ -1259,51 +1205,8 @@ function ShellDetail() {
 		[clearWisprOpeningTimeout, isWisprAutomationRequestActive],
 	);
 
-	const stopWisprNativeBestEffort = useCallback(
-		(message: string, shouldContinue: () => boolean) => {
-			if (Platform.OS !== 'android') return;
-			void (async () => {
-				let lastError: unknown = new Error('Wispr bubble not found');
-				const deadline = Date.now() + WISPR_TAP_RETRY_WINDOW_MS;
-
-				while (Date.now() <= deadline) {
-					if (!shouldContinue()) return;
-					try {
-						await wisprAutomationNative.tapWisprControl();
-						return;
-					} catch (error) {
-						lastError = error;
-					}
-					await sleep(WISPR_TAP_RETRY_INTERVAL_MS);
-				}
-				logger.warn(message, lastError);
-			})();
-		},
-		[],
-	);
-
-	const stopWisprAfterCancelledStart = useCallback(
-		(cancelledRequestId: number) => {
-			if (wisprCancelledStartRequestIdRef.current !== cancelledRequestId) {
-				return;
-			}
-			stopWisprNativeBestEffort(
-				'Failed to stop Wispr after cancelled start',
-				() => wisprCancelledStartRequestIdRef.current === cancelledRequestId,
-			);
-		},
-		[stopWisprNativeBestEffort],
-	);
-
-	const stopWisprOnUnmount = useCallback(() => {
-		stopWisprNativeBestEffort(
-			'Failed to stop Wispr while unmounting shell',
-			() => true,
-		);
-	}, [stopWisprNativeBestEffort]);
-
 	const handleWisprTextEntryFocus = useCallback(
-		(value: string) => {
+		(value: string, bounds?: TextInputScreenBounds) => {
 			if (wisprAutomationStateRef.current.phase !== 'openingTextEntry') {
 				return;
 			}
@@ -1315,9 +1218,19 @@ function ShellDetail() {
 				textBeforeStart: value,
 			});
 
-			void tapWisprControlWithRetry(requestId, {
-				onCancelledSuccess: stopWisprAfterCancelledStart,
-			}).then((result) => {
+			void (async () => {
+				if (bounds && bounds.width > 0 && bounds.height > 0) {
+					const pixelRatio = PixelRatio.get();
+					const x = (bounds.x + bounds.width / 2) * pixelRatio;
+					const y = (bounds.y + Math.min(bounds.height / 2, 48)) * pixelRatio;
+					try {
+						await wisprAutomationNative.tapScreen(x, y);
+					} catch (error) {
+						logger.warn('Failed to prime Wispr text field', error);
+					}
+				}
+				return tapWisprControlWithRetry(requestId);
+			})().then((result) => {
 				if (
 					!result ||
 					!isWisprAutomationRequestActive(requestId) ||
@@ -1340,7 +1253,6 @@ function ShellDetail() {
 			applyWisprAutomationEvent,
 			clearWisprOpeningTimeout,
 			isWisprAutomationRequestActive,
-			stopWisprAfterCancelledStart,
 			tapWisprControlWithRetry,
 		],
 	);
@@ -1353,120 +1265,17 @@ function ShellDetail() {
 				type: 'textChanged',
 				value,
 			});
-			if (previousPhase === 'waitingForText' && nextState.phase === 'idle') {
+			if (previousPhase === 'recording' && nextState.phase === 'idle') {
 				wisprAutomationRequestIdRef.current += 1;
-				clearWisprTextTimeout();
 			}
 		},
-		[applyWisprAutomationEvent, clearWisprTextTimeout],
+		[applyWisprAutomationEvent],
 	);
 
-	const stopWisprRecording = useCallback(() => {
-		const nextState = applyWisprAutomationEvent({ type: 'press' });
-		if (nextState.phase !== 'stopping') return;
-
-		const requestId = wisprAutomationRequestIdRef.current + 1;
-		wisprAutomationRequestIdRef.current = requestId;
-		void tapWisprControlWithRetry(requestId).then((result) => {
-			if (
-				!result ||
-				!isWisprAutomationRequestActive(requestId) ||
-				wisprAutomationStateRef.current.phase !== 'stopping'
-			) {
-				return;
-			}
-			if (result.ok) {
-				applyWisprAutomationEvent({ type: 'wisprTapSucceeded' });
-				if (wisprCloseRequestedRef.current) {
-					wisprCloseRequestedRef.current = false;
-					applyWisprAutomationEvent({ type: 'reset' });
-					return;
-				}
-				startWisprTextTimeout(requestId);
-				return;
-			}
-			if (wisprCloseRequestedRef.current) {
-				wisprCloseRequestedRef.current = false;
-				logger.warn('Failed to stop Wispr while closing text entry', {
-					reason: result.reason,
-					message: result.message,
-				});
-				setTextEntryOpen(true);
-				setWisprAutomationStateSnapshot({
-					phase: 'recording',
-					textBeforeStart: nextState.textBeforeStart,
-				});
-				return;
-			}
-			logger.warn('Failed to stop Wispr recording', {
-				reason: result.reason,
-				message: result.message,
-			});
-			setTextEntryOpen(true);
-			setWisprAutomationStateSnapshot({
-				phase: 'recording',
-				textBeforeStart: nextState.textBeforeStart,
-			});
-		});
-	}, [
-		applyWisprAutomationEvent,
-		isWisprAutomationRequestActive,
-		setWisprAutomationStateSnapshot,
-		startWisprTextTimeout,
-		tapWisprControlWithRetry,
-	]);
-
-	const stopWisprRecordingForClose = useCallback(
-		(state: Extract<WisprAutomationState, { phase: 'recording' }>) => {
-			const requestId = wisprAutomationRequestIdRef.current + 1;
-			wisprAutomationRequestIdRef.current = requestId;
-			wisprCloseRequestedRef.current = true;
-			clearWisprOpeningTimeout();
-			clearWisprTextTimeout();
-			const stoppingState: WisprAutomationState = {
-				phase: 'stopping',
-				textBeforeStart: state.textBeforeStart,
-			};
-			setWisprAutomationStateSnapshot(stoppingState);
-
-			void tapWisprControlWithRetry(requestId).then((result) => {
-				if (!result || !isWisprAutomationRequestActive(requestId)) return;
-				if (result.ok) {
-					wisprCloseRequestedRef.current = false;
-					applyWisprAutomationEvent({ type: 'reset' });
-					return;
-				}
-
-				wisprCloseRequestedRef.current = false;
-				logger.warn('Failed to stop Wispr while closing text entry', {
-					reason: result.reason,
-					message: result.message,
-				});
-				setTextEntryOpen(true);
-				setWisprAutomationStateSnapshot({
-					phase: 'recording',
-					textBeforeStart: state.textBeforeStart,
-				});
-			});
-		},
-		[
-			applyWisprAutomationEvent,
-			clearWisprOpeningTimeout,
-			clearWisprTextTimeout,
-			isWisprAutomationRequestActive,
-			setWisprAutomationStateSnapshot,
-			tapWisprControlWithRetry,
-		],
-	);
-
-	const handleToggleWisprDictation = useCallback(() => {
+	const handleOpenWisprTextEditor = useCallback(() => {
 		const currentState = wisprAutomationStateRef.current;
-		if (currentState.phase === 'recording') {
-			stopWisprRecording();
-			return;
-		}
 		if (currentState.phase !== 'idle' && currentState.phase !== 'failed') {
-			logger.info('Ignoring Wispr toggle while automation is busy', {
+			logger.info('Ignoring Wispr text entry while automation is busy', {
 				phase: currentState.phase,
 			});
 			return;
@@ -1483,7 +1292,6 @@ function ShellDetail() {
 		}
 
 		const requestId = wisprAutomationRequestIdRef.current + 1;
-		wisprCancelledStartRequestIdRef.current = null;
 		wisprAutomationRequestIdRef.current = requestId;
 		void (async () => {
 			try {
@@ -1532,53 +1340,19 @@ function ShellDetail() {
 		handleWisprTextEntryFocus,
 		isWisprAutomationRequestActive,
 		startWisprOpeningFallback,
-		stopWisprRecording,
 	]);
 
 	const handleCloseTextEntry = useCallback(() => {
-		const currentState = wisprAutomationStateRef.current;
 		setTextEntryOpen(false);
-		if (currentState.phase === 'recording') {
-			stopWisprRecordingForClose(currentState);
-			return;
-		}
-		if (currentState.phase === 'stopping') {
-			wisprCloseRequestedRef.current = true;
-			clearWisprOpeningTimeout();
-			clearWisprTextTimeout();
-			return;
-		}
 		resetWisprAutomation();
-	}, [
-		clearWisprOpeningTimeout,
-		clearWisprTextTimeout,
-		resetWisprAutomation,
-		stopWisprRecordingForClose,
-	]);
+	}, [resetWisprAutomation]);
 
 	useEffect(
 		() => () => {
-			const currentState = wisprAutomationStateRef.current;
-			if (currentState.phase === 'waitingForBubble') {
-				markWisprStartCancelled();
-			}
-			if (
-				currentState.phase === 'recording' ||
-				currentState.phase === 'stopping'
-			) {
-				stopWisprOnUnmount();
-			}
 			wisprAutomationRequestIdRef.current += 1;
-			wisprCloseRequestedRef.current = false;
 			clearWisprOpeningTimeout();
-			clearWisprTextTimeout();
 		},
-		[
-			clearWisprOpeningTimeout,
-			clearWisprTextTimeout,
-			markWisprStartCancelled,
-			stopWisprOnUnmount,
-		],
+		[clearWisprOpeningTimeout],
 	);
 
 	const handleCopySelection = useCallback(() => {
@@ -1637,10 +1411,7 @@ function ShellDetail() {
 				...current,
 				lastError: message,
 			}));
-			Alert.alert(
-				'Config reload failed',
-				message,
-			);
+			Alert.alert('Config reload failed', message);
 		}
 	}, []);
 
@@ -1822,7 +1593,9 @@ fi
 					);
 					return;
 				}
-				const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+				const targetName = tmuxTarget.trim().length
+					? tmuxTarget.trim()
+					: 'main';
 				const command = buildTmuxHistoryEnterCommand(targetName);
 				const requestId = historyEntryRequestIdRef.current + 1;
 				historyEntryRequestIdRef.current = requestId;
@@ -1864,26 +1637,19 @@ fi
 				handleCloseTextEntry();
 				setCommanderOpen(true);
 			},
-			openTextEditor: () => {
-				resetWisprAutomation();
-				setCommandPresetsOpen(false);
-				setCommanderOpen(false);
-				setTextEntryOpen(true);
-			},
-			toggleWisprDictation: handleToggleWisprDictation,
+			openWisprTextEditor: handleOpenWisprTextEditor,
 		}),
 		[
 			availableKeyboardIds,
 			handleCopySelection,
 			handleCloseTextEntry,
 			handlePasteClipboard,
-			handleToggleWisprDictation,
+			handleOpenWisprTextEditor,
 			cancelKeyBytes,
 			clearScrollbackState,
 			connection,
 			exitSelectionMode,
 			openConfigDialog,
-			resetWisprAutomation,
 			rotateKeyboard,
 			shellConfig,
 			selectKeyboardIfExists,
@@ -1929,7 +1695,9 @@ fi
 					sendBytesWithModifiers(new Uint8Array(slot.bytes));
 					break;
 				case 'macro': {
-					const macro = currentMacros.find((entry) => entry.id === slot.macroId);
+					const macro = currentMacros.find(
+						(entry) => entry.id === slot.macroId,
+					);
 					if (macro) {
 						runMacro(macro, {
 							sendBytes: sendBytesRaw,
@@ -2128,14 +1896,20 @@ fi
 			}
 
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-			const controlCommand = buildTmuxHistoryControlCommand(commandId, targetName);
+			const controlCommand = buildTmuxHistoryControlCommand(
+				commandId,
+				targetName,
+			);
 			if (!controlCommand) return;
 			void (async () => {
 				const sent = await sendTmuxControlCommand(controlCommand);
 				if (sent) return;
-				logger.warn('tmux history command unavailable without tmux control shell', {
-					commandId,
-				});
+				logger.warn(
+					'tmux history command unavailable without tmux control shell',
+					{
+						commandId,
+					},
+				);
 			})();
 		},
 		[
@@ -2199,14 +1973,10 @@ fi
 			const lineCmd = event.direction === 'up' ? 'scroll-up' : 'scroll-down';
 			const parts: string[] = [];
 			if (pages > 0) {
-				parts.push(
-					`send-keys -t ${targetArg} -N ${pages} -X ${pageCmd}`,
-				);
+				parts.push(`send-keys -t ${targetArg} -N ${pages} -X ${pageCmd}`);
 			}
 			if (lines > 0) {
-				parts.push(
-					`send-keys -t ${targetArg} -N ${lines} -X ${lineCmd}`,
-				);
+				parts.push(`send-keys -t ${targetArg} -N ${lines} -X ${lineCmd}`);
 			}
 			if (parts.length === 0) return;
 			const command = `tmux ${parts.join(' \\; ')}`;
@@ -2268,13 +2038,10 @@ fi
 		clearScrollbackState();
 	}, [cancelKeyBytes, sendBytesOrdered, clearScrollbackState]);
 
-	const writeShellChunkToTerminal = useCallback(
-		(bytesBuffer: ArrayBuffer) => {
-			const bytes = new Uint8Array(bytesBuffer);
-			xtermRef.current?.write(bytes);
-		},
-		[],
-	);
+	const writeShellChunkToTerminal = useCallback((bytesBuffer: ArrayBuffer) => {
+		const bytes = new Uint8Array(bytesBuffer);
+		xtermRef.current?.write(bytes);
+	}, []);
 
 	const attachShellToTerminal = useCallback(() => {
 		if (!terminalReady) return;
@@ -2360,7 +2127,7 @@ fi
 	}, [selectionModeEnabled, shell, terminalReady, writeShellChunkToTerminal]);
 
 	const handleTerminalInitialized = useCallback(
-			(instanceId: string) => {
+		(instanceId: string) => {
 			historyEntryRequestIdRef.current += 1;
 			historyEntryPendingRef.current = false;
 			currentInstanceIdRef.current = instanceId;
@@ -2398,10 +2165,7 @@ fi
 			case 'waitingForBubble':
 				return 'Waiting for Wispr...';
 			case 'recording':
-				return 'Wispr recording. Press Wispr again to stop.';
-			case 'stopping':
-			case 'waitingForText':
-				return 'Waiting for Wispr text...';
+				return 'Wispr recording.';
 			case 'failed':
 				return wisprAutomationState.message;
 			default:
@@ -2423,7 +2187,8 @@ fi
 		);
 	}
 
-	const shouldRenderTerminal = hasRenderedTerminal || Boolean(shell && connection);
+	const shouldRenderTerminal =
+		hasRenderedTerminal || Boolean(shell && connection);
 	const scrollbackVisible = scrollbackActive;
 	const showReconnectOverlay =
 		(isAutoConnecting || isReconnecting) && (!shell || !connection);

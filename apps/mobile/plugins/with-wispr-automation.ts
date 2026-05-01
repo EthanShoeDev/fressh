@@ -54,8 +54,10 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
   companion object {
     private const val WISPR_PACKAGE = "com.wispr.flowapp"
     private const val PREFS = "wispr_automation"
+    private const val CACHE_VERSION = 2
     private const val KEY_LAST_X = "last_bubble_x"
     private const val KEY_LAST_Y = "last_bubble_y"
+    private const val KEY_LAST_CACHE_VERSION = "last_bubble_cache_version"
     private var activeService: WeakReference<WisprAutomationAccessibilityService>? = null
 
     fun isEnabled(context: Context): Boolean {
@@ -94,6 +96,7 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
         .edit()
         .putFloat(KEY_LAST_X, center.x)
         .putFloat(KEY_LAST_Y, center.y)
+        .putInt(KEY_LAST_CACHE_VERSION, CACHE_VERSION)
         .apply()
     }
   }
@@ -105,8 +108,14 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
     val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     val fallbackX = prefs.getFloat(KEY_LAST_X, -1f)
     val fallbackY = prefs.getFloat(KEY_LAST_Y, -1f)
+    val fallbackIsCurrent =
+      prefs.getInt(KEY_LAST_CACHE_VERSION, -1) == CACHE_VERSION
 
-    val target = nodeCenter ?: if (fallbackX >= 0f && fallbackY >= 0f) {
+    val target = nodeCenter ?: if (
+      fallbackIsCurrent &&
+      fallbackX >= 0f &&
+      fallbackY >= 0f
+    ) {
       Point(fallbackX, fallbackY)
     } else {
       null
@@ -117,7 +126,11 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
       return
     }
 
-    dispatchTap(target.x, target.y, callback)
+    dispatchTap(target.x, target.y, callback = callback)
+  }
+
+  fun tapScreen(x: Float, y: Float, callback: (Boolean, String) -> Unit) {
+    dispatchTap(x, y, "Tapped screen", callback)
   }
 
   private fun findWisprClickableCenter(): Point? {
@@ -133,7 +146,18 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
 
   private fun findClickableCenter(window: AccessibilityWindowInfo): Point? {
     val root = window.root ?: return null
-    return findPreferredClickable(root)
+    return findPreferredClickable(root) ?: centerOfBubbleWindow(window)
+  }
+
+  private fun centerOfBubbleWindow(window: AccessibilityWindowInfo): Point? {
+    val bounds = android.graphics.Rect()
+    window.getBoundsInScreen(bounds)
+    if (bounds.isEmpty) return null
+    val width = bounds.width()
+    val height = bounds.height()
+    val looksLikeBubble = width in 48..260 && height in 48..260
+    if (!looksLikeBubble) return null
+    return Point(bounds.centerX().toFloat(), bounds.centerY().toFloat())
   }
 
   private fun findPreferredClickable(node: AccessibilityNodeInfo): Point? {
@@ -146,8 +170,6 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
       label.contains("dictat") ||
         label.contains("record") ||
         label.contains("mic") ||
-        label.contains("done") ||
-        label.contains("check") ||
         label.contains("flow")
 
     if (node.isClickable && looksLikeWisprControl) {
@@ -174,6 +196,7 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
   private fun dispatchTap(
     x: Float,
     y: Float,
+    successMessage: String = "Tapped Wispr control",
     callback: (Boolean, String) -> Unit
   ) {
     val path = Path().apply { moveTo(x, y) }
@@ -185,7 +208,7 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
       gesture,
       object : GestureResultCallback() {
         override fun onCompleted(gestureDescription: GestureDescription?) {
-          callback(true, "Tapped Wispr control")
+          callback(true, successMessage)
         }
 
         override fun onCancelled(gestureDescription: GestureDescription?) {
@@ -244,6 +267,26 @@ class WisprAutomationModule(
       promise.resolve(null)
     } catch (e: Exception) {
       promise.reject("ACCESSIBILITY_SETTINGS_FAILED", e)
+    }
+  }
+
+  @ReactMethod
+  fun tapScreen(x: Double, y: Double, promise: Promise) {
+    val service = WisprAutomationAccessibilityService.getActive()
+    if (service == null) {
+      promise.reject(
+        "WISPR_AUTOMATION_SERVICE_DISABLED",
+        "Fressh Wispr Automation accessibility service is not enabled"
+      )
+      return
+    }
+
+    service.tapScreen(x.toFloat(), y.toFloat()) { success, message ->
+      if (success) {
+        promise.resolve(message)
+      } else {
+        promise.reject("WISPR_AUTOMATION_TAP_FAILED", message)
+      }
     }
   }
 
