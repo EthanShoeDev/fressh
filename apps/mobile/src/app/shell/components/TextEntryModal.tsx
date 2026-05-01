@@ -19,6 +19,7 @@ import {
 	TextInput,
 	View,
 } from 'react-native';
+import { closeThenDismissKeyboard } from '@/lib/deferred-keyboard-dismiss';
 import { useTheme } from '@/lib/theme';
 
 const MIN_LINES = 6;
@@ -199,14 +200,15 @@ export function TextEntryModal({
 	);
 
 	const handleClose = useCallback(() => {
-		// Ensure the OS keyboard is dismissed when leaving the dialog.
-		Keyboard.dismiss();
 		if (focusTimeoutRef.current) {
 			clearTimeout(focusTimeoutRef.current);
 			focusTimeoutRef.current = null;
 		}
 		// Preserve text when closing - user can reopen and continue editing
-		onClose();
+		closeThenDismissKeyboard({
+			close: onClose,
+			dismissKeyboard: () => Keyboard.dismiss(),
+		});
 	}, [onClose]);
 
 	const updateValue = useCallback(
@@ -227,14 +229,16 @@ export function TextEntryModal({
 
 	const handlePaste = useCallback(() => {
 		if (!value) return;
-		// Hide the OS keyboard after pasting to avoid it reopening under the terminal.
-		Keyboard.dismiss();
-		onPaste(value);
-		// Clear text only after successful paste
+		const pasteValue = value;
+		closeThenDismissKeyboard({
+			close: onClose,
+			dismissKeyboard: () => Keyboard.dismiss(),
+		});
+		onPaste(pasteValue);
+		// Clear local text after handing the paste off to the shell.
 		updateValue('');
 		setTextAreaContentHeight(minHeight);
 		setQuestionNumberSafe(1);
-		onClose();
 	}, [minHeight, onClose, onPaste, setQuestionNumberSafe, updateValue, value]);
 
 	const handleToggleQaMode = useCallback(() => {
