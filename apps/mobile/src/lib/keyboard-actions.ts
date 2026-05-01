@@ -17,7 +17,6 @@ export const KNOWN_ACTION_IDS = [
 	'ROTATE_KEYBOARD',
 	'OPEN_KEYBOARD_SETTINGS',
 	...KEYBOARD_TARGET_ACTION_IDS,
-	'OPEN_TMUX_HISTORY',
 	'TOGGLE_COMMAND_PRESETS',
 	'OPEN_COMMANDER',
 	'OPEN_WISPR_TEXT_EDITOR',
@@ -42,7 +41,6 @@ export type ActionContext = {
 	sendBytes: (bytes: Uint8Array<ArrayBuffer>) => void;
 	pasteClipboard: () => Promise<void>;
 	copySelection: () => void;
-	toggleTmuxHistory?: () => void;
 	toggleCommandPresets?: () => void;
 	openCommander?: () => void;
 	openWisprTextEditor?: () => void;
@@ -95,10 +93,6 @@ export async function runAction(
 		}
 		case 'COPY_SELECTION': {
 			context.copySelection();
-			return;
-		}
-		case 'OPEN_TMUX_HISTORY': {
-			context.toggleTmuxHistory?.();
 			return;
 		}
 		case 'CYCLE_TMUX_WINDOW': {
