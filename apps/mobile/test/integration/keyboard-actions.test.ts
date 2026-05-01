@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { runAction } from '../../src/lib/keyboard-actions';
+import { KNOWN_ACTION_IDS, runAction } from '../../src/lib/keyboard-actions';
 
 void test('keyboard navigation actions use runtime-configured targets instead of hardcoded ids', async () => {
 	const selectedKeyboardIds: string[] = [];
@@ -22,23 +22,13 @@ void test('keyboard navigation actions use runtime-configured targets instead of
 	assert.deepEqual(selectedKeyboardIds, ['custom_advanced']);
 });
 
-void test('tmux history action toggles history mode through the action context', async () => {
-	let toggled = 0;
-
-	await runAction('OPEN_TMUX_HISTORY', {
-		availableKeyboardIds: new Set(),
-		selectKeyboard: () => {},
-		rotateKeyboard: () => {},
-		openConfigurator: () => {},
-		sendBytes: () => {},
-		pasteClipboard: async () => {},
-		copySelection: () => {},
-		toggleTmuxHistory: () => {
-			toggled += 1;
-		},
-	} as Parameters<typeof runAction>[1]);
-
-	assert.equal(toggled, 1);
+void test('tmux history is not a known keyboard action', () => {
+	assert.equal(
+		KNOWN_ACTION_IDS.includes(
+			'OPEN_TMUX_HISTORY' as (typeof KNOWN_ACTION_IDS)[number],
+		),
+		false,
+	);
 });
 
 void test('Wispr text action delegates to the action context', async () => {

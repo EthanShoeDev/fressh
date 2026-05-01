@@ -72,17 +72,11 @@ import { executeSideChannelCommand } from '@/lib/ssh-side-channel';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
 import {
-	buildTmuxHistoryCopyModeCommand,
-	buildTmuxHistoryControlCommand,
-	buildTmuxHistoryEnterCommand,
-	getTmuxHistoryControlFailurePolicy,
-	getTmuxHistoryLiveInputPolicy,
-	getTmuxHistoryToggleAction,
-	isTmuxHistoryModeConfirmed,
+	buildTmuxScrollbackCopyModeCommand,
+	getTmuxScrollbackControlFailurePolicy,
+	getTmuxScrollbackLiveInputPolicy,
 	runTmuxControlCommand,
-	shouldApplyTmuxHistoryEntryResult,
-	type TmuxHistoryCommandId,
-} from '@/lib/tmux-history';
+} from '@/lib/tmux-scrollback';
 import { queryClient } from '@/lib/utils';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
 import {
@@ -101,7 +95,6 @@ import {
 	TextEntryModal,
 	type TextInputScreenBounds,
 } from './components/TextEntryModal';
-import { TmuxHistoryKeyboard } from './components/TmuxHistoryKeyboard';
 
 const logger = rootLogger.extend('TabsShellDetail');
 
@@ -673,7 +666,6 @@ function ShellDetail() {
 	const lastKeyboardVisibleRef = useRef(false);
 	const appStateRef = useRef(AppState.currentState);
 	const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
-	const [historyModeActive, setHistoryModeActive] = useState(false);
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [textEntryOpen, setTextEntryOpen] = useState(false);
@@ -689,9 +681,6 @@ function ShellDetail() {
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
-	const historyModeActiveRef = useRef(false);
-	const historyEntryPendingRef = useRef(false);
-	const historyEntryRequestIdRef = useRef(0);
 	const shellConfigRef = useRef(shellConfig);
 	const availableKeyboardIdsRef = useRef(availableKeyboardIds);
 	const selectedKeyboardIdRef = useRef(selectedKeyboardId);
@@ -793,15 +782,7 @@ function ShellDetail() {
 		[],
 	);
 
-	useEffect(() => {
-		historyModeActiveRef.current = historyModeActive;
-	}, [historyModeActive]);
-
 	const clearScrollbackState = useCallback(() => {
-		historyEntryRequestIdRef.current += 1;
-		historyEntryPendingRef.current = false;
-		historyModeActiveRef.current = false;
-		setHistoryModeActive(false);
 		scrollbackActiveRef.current = false;
 		scrollbackPhaseRef.current = 'active';
 		setScrollbackActive(false);
@@ -811,10 +792,8 @@ function ShellDetail() {
 	const handleTmuxControlUnavailable = useCallback(
 		(reason: string) => {
 			logger.warn(reason);
-			const failurePolicy = getTmuxHistoryControlFailurePolicy({
-				historyModeActive: historyModeActiveRef.current,
+			const failurePolicy = getTmuxScrollbackControlFailurePolicy({
 				scrollbackActive: scrollbackActiveRef.current,
-				pendingEnter: historyEntryPendingRef.current,
 			});
 			const controlShell = tmuxControlShellRef.current;
 			const listenerId = tmuxControlListenerRef.current;
@@ -822,12 +801,12 @@ function ShellDetail() {
 			tmuxControlListenerRef.current = null;
 			tmuxControlWriterRef.current = null;
 			setTmuxControlReady(false);
-			if (failurePolicy === 'exit-browse-and-restart-control') {
+			if (failurePolicy === 'exit-scrollback-and-restart-control') {
 				if (isValidCancelKey(cancelKeyBytes)) {
 					void sendBytesOrdered(cancelKeyBytes);
 				} else {
 					logger.warn(
-						'cancelKey invalid; cannot exit tmux history after control failure',
+						'cancelKey invalid; cannot exit scrollback after control failure',
 					);
 				}
 			}
@@ -861,19 +840,11 @@ function ShellDetail() {
 
 	const sendInputEnsuringLive = useCallback(
 		(bytes: Uint8Array<ArrayBuffer>) => {
-			const inputPolicy = getTmuxHistoryLiveInputPolicy({
-				historyModeActive: historyModeActiveRef.current,
+			const inputPolicy = getTmuxScrollbackLiveInputPolicy({
 				scrollbackActive: scrollbackActiveRef.current,
-				pendingEnter: historyEntryPendingRef.current,
 			});
 			if (inputPolicy === 'pass-through') {
 				void sendBytesOrdered(bytes);
-				return;
-			}
-			if (inputPolicy === 'block-pending-entry') {
-				logger.info(
-					'Blocking live input while tmux history entry confirmation is pending',
-				);
 				return;
 			}
 
@@ -1066,17 +1037,9 @@ function ShellDetail() {
 			const textBytes = encoder.encode(value);
 			const enterBytes = encoder.encode('\r');
 
-			const inputPolicy = getTmuxHistoryLiveInputPolicy({
-				historyModeActive: historyModeActiveRef.current,
+			const inputPolicy = getTmuxScrollbackLiveInputPolicy({
 				scrollbackActive: scrollbackActiveRef.current,
-				pendingEnter: historyEntryPendingRef.current,
 			});
-			if (inputPolicy === 'block-pending-entry') {
-				logger.info(
-					'Blocking text-entry paste while tmux history entry confirmation is pending',
-				);
-				return;
-			}
 			if (inputPolicy === 'exit-before-send') {
 				if (!isValidCancelKey(cancelKeyBytes)) {
 					logger.warn('cancelKey invalid; cannot auto-exit scrollback');
@@ -1551,82 +1514,6 @@ fi
 			sendBytes: sendBytesRaw,
 			pasteClipboard: handlePasteClipboard,
 			copySelection: handleCopySelection,
-			toggleTmuxHistory: () => {
-				const nextAction = getTmuxHistoryToggleAction({
-					tmuxEnabled,
-					tmuxControlReady,
-					historyModeActive: historyModeActiveRef.current,
-					scrollbackActive: scrollbackActiveRef.current,
-					pendingEnter: historyEntryPendingRef.current,
-				});
-				if (nextAction === 'noop-disabled') {
-					logger.info('Ignoring tmux history toggle because tmux is not ready');
-					return;
-				}
-				if (nextAction === 'noop-pending') {
-					logger.info(
-						'Ignoring tmux history toggle while entry confirmation is pending',
-					);
-					return;
-				}
-				if (selectionModeEnabled) {
-					exitSelectionMode();
-				}
-				if (nextAction === 'exit') {
-					if (!isValidCancelKey(cancelKeyBytes)) {
-						logger.warn('cancelKey invalid; cannot exit tmux history mode');
-						return;
-					}
-					void sendBytesOrdered(cancelKeyBytes);
-					clearScrollbackState();
-					return;
-				}
-				if (nextAction === 'adopt') {
-					historyEntryPendingRef.current = false;
-					historyModeActiveRef.current = true;
-					setHistoryModeActive(true);
-					return;
-				}
-				if (!connection) {
-					logger.warn(
-						'tmux history entry skipped because connection is unavailable',
-					);
-					return;
-				}
-				const targetName = tmuxTarget.trim().length
-					? tmuxTarget.trim()
-					: 'main';
-				const command = buildTmuxHistoryEnterCommand(targetName);
-				const requestId = historyEntryRequestIdRef.current + 1;
-				historyEntryRequestIdRef.current = requestId;
-				historyEntryPendingRef.current = true;
-				const requestedInstanceId = currentInstanceIdRef.current;
-				void executeSideChannelCommand(connection, command, 5_000)
-					.then((result) => {
-						if (
-							!shouldApplyTmuxHistoryEntryResult({
-								requestId,
-								activeRequestId: historyEntryRequestIdRef.current,
-								requestedInstanceId,
-								currentInstanceId: currentInstanceIdRef.current,
-							})
-						) {
-							return;
-						}
-						historyEntryPendingRef.current = false;
-						const confirmed = isTmuxHistoryModeConfirmed(result.output);
-						if (!result.success || !confirmed) {
-							logger.warn('tmux history entry was not confirmed', result);
-							return;
-						}
-						historyModeActiveRef.current = true;
-						setHistoryModeActive(true);
-					})
-					.catch((error: unknown) => {
-						historyEntryPendingRef.current = false;
-						logger.warn('tmux history entry failed', error);
-					});
-			},
 			toggleCommandPresets: () => {
 				setCommanderOpen(false);
 				handleCloseTextEntry();
@@ -1645,20 +1532,11 @@ fi
 			handleCloseTextEntry,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
-			cancelKeyBytes,
-			clearScrollbackState,
-			connection,
-			exitSelectionMode,
 			openConfigDialog,
 			rotateKeyboard,
 			shellConfig,
 			selectKeyboardIfExists,
 			sendBytesRaw,
-			sendBytesOrdered,
-			selectionModeEnabled,
-			tmuxControlReady,
-			tmuxTarget,
-			tmuxEnabled,
 		],
 	);
 
@@ -1874,51 +1752,8 @@ fi
 			scrollbackActiveRef.current = event.active;
 			scrollbackPhaseRef.current = event.phase;
 			setScrollbackActive(event.active);
-			if (!event.active) {
-				historyEntryPendingRef.current = false;
-				historyModeActiveRef.current = false;
-				setHistoryModeActive(false);
-			}
 		},
 		[],
-	);
-
-	const handleTmuxHistoryCommand = useCallback(
-		(commandId: TmuxHistoryCommandId) => {
-			if (commandId === 'LIVE' || commandId === 'CLOSE') {
-				if (!isValidCancelKey(cancelKeyBytes)) {
-					logger.warn('cancelKey invalid; cannot exit tmux history mode');
-					return;
-				}
-				void sendBytesOrdered(cancelKeyBytes);
-				clearScrollbackState();
-				return;
-			}
-
-			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-			const controlCommand = buildTmuxHistoryControlCommand(
-				commandId,
-				targetName,
-			);
-			if (!controlCommand) return;
-			void (async () => {
-				const sent = await sendTmuxControlCommand(controlCommand);
-				if (sent) return;
-				logger.warn(
-					'tmux history command unavailable without tmux control shell',
-					{
-						commandId,
-					},
-				);
-			})();
-		},
-		[
-			cancelKeyBytes,
-			clearScrollbackState,
-			sendBytesOrdered,
-			sendTmuxControlCommand,
-			tmuxTarget,
-		],
 	);
 
 	const handleTmuxEnterCopyMode = useCallback(
@@ -1930,7 +1765,7 @@ fi
 				return;
 			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-			const command = buildTmuxHistoryCopyModeCommand(targetName);
+			const command = buildTmuxScrollbackCopyModeCommand(targetName);
 			if (!(await sendTmuxControlCommand(command))) {
 				logger.warn(
 					'tmux touch-scroll entry unavailable without tmux control shell',
@@ -2128,11 +1963,7 @@ fi
 
 	const handleTerminalInitialized = useCallback(
 		(instanceId: string) => {
-			historyEntryRequestIdRef.current += 1;
-			historyEntryPendingRef.current = false;
 			currentInstanceIdRef.current = instanceId;
-			historyModeActiveRef.current = false;
-			setHistoryModeActive(false);
 			scrollbackActiveRef.current = false;
 			scrollbackPhaseRef.current = 'active';
 			setScrollbackActive(false);
@@ -2284,17 +2115,13 @@ fi
 						)}
 					</View>
 				</TerminalErrorBoundary>
-				{historyModeActive ? (
-					<TmuxHistoryKeyboard onCommand={handleTmuxHistoryCommand} />
-				) : (
-					<TerminalKeyboard
-						keyboard={currentKeyboard}
-						modifierKeysActive={modifierKeysActive}
-						onSlotPress={handleSlotPress}
-						selectionModeEnabled={selectionModeEnabled}
-						onCopySelection={handleCopySelection}
-					/>
-				)}
+				<TerminalKeyboard
+					keyboard={currentKeyboard}
+					modifierKeysActive={modifierKeysActive}
+					onSlotPress={handleSlotPress}
+					selectionModeEnabled={selectionModeEnabled}
+					onCopySelection={handleCopySelection}
+				/>
 				<CommandPresetsModal
 					open={commandPresetsOpen}
 					presets={shellConfig.commandMenus}

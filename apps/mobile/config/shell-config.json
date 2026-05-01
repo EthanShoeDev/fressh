@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-01.1",
-  "updatedAt": "2026-05-01T06:20:00.000Z",
+  "version": "2026-05-01.2",
+  "updatedAt": "2026-05-01T07:30:00.000Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -30,12 +30,7 @@
             "label": "Advanced",
             "icon": "Keyboard"
           },
-          {
-            "type": "action",
-            "actionId": "OPEN_TMUX_HISTORY",
-            "label": "History",
-            "icon": "History"
-          },
+          null,
           {
             "type": "action",
             "actionId": "PASTE_CLIPBOARD",
@@ -288,12 +283,7 @@
             "label": "Config",
             "icon": "Settings"
           },
-          {
-            "type": "action",
-            "actionId": "OPEN_TMUX_HISTORY",
-            "label": "History",
-            "icon": "History"
-          },
+          null,
           null,
           null,
           null,
