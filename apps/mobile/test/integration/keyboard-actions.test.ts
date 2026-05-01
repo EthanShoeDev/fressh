@@ -40,3 +40,22 @@ void test('tmux history action toggles history mode through the action context',
 
 	assert.equal(toggled, 1);
 });
+
+void test('Wispr text action delegates to the action context', async () => {
+	let opened = 0;
+
+	await runAction('OPEN_WISPR_TEXT_EDITOR', {
+		availableKeyboardIds: new Set(),
+		selectKeyboard: () => {},
+		rotateKeyboard: () => {},
+		openConfigurator: () => {},
+		sendBytes: () => {},
+		pasteClipboard: async () => {},
+		copySelection: () => {},
+		openWisprTextEditor: () => {
+			opened += 1;
+		},
+	} as Parameters<typeof runAction>[1]);
+
+	assert.equal(opened, 1);
+});

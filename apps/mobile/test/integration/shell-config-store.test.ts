@@ -44,7 +44,9 @@ void test('initial shell config state prefers cached config when it is valid', a
 	const remoteText = JSON.stringify({
 		...bundledConfig,
 		version: 'runtime-v2',
-		updatedAt: '2026-04-12T12:00:00.000Z',
+		updatedAt: new Date(
+			Date.parse(bundledConfig.updatedAt) + 1_000,
+		).toISOString(),
 	});
 
 	await reloadShellConfigFromRemote({
@@ -91,35 +93,36 @@ void test('remote reload keeps the current config when fetched json is invalid',
 	const storage = createMemoryStorage();
 	const firstVersion = bundledConfig.version;
 
-	await assert.rejects(() =>
-		reloadShellConfigFromRemote({
-			storage,
-			fetchText: async () =>
-				JSON.stringify({
-					...bundledConfig,
-					keyboards: bundledConfig.keyboards.map((keyboard, index) =>
-						index === 0
-							? {
-									...keyboard,
-									grid: keyboard.grid.map((row, rowIndex) =>
-										rowIndex === 0
-											? [
-													{
-														type: 'action',
-														actionId: 'BROKEN_ACTION',
-														label: 'Broken',
-														icon: null,
-													},
-													...row.slice(1),
-												]
-											: row,
-									),
-								}
-							: keyboard,
-					),
-				}),
-			now: () => '2026-04-08T12:01:00.000Z',
-		}),
+	await assert.rejects(
+		() =>
+			reloadShellConfigFromRemote({
+				storage,
+				fetchText: async () =>
+					JSON.stringify({
+						...bundledConfig,
+						keyboards: bundledConfig.keyboards.map((keyboard, index) =>
+							index === 0
+								? {
+										...keyboard,
+										grid: keyboard.grid.map((row, rowIndex) =>
+											rowIndex === 0
+												? [
+														{
+															type: 'action',
+															actionId: 'BROKEN_ACTION',
+															label: 'Broken',
+															icon: null,
+														},
+														...row.slice(1),
+													]
+												: row,
+										),
+									}
+								: keyboard,
+						),
+					}),
+				now: () => '2026-04-08T12:01:00.000Z',
+			}),
 		/BROKEN_ACTION/,
 	);
 

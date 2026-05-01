@@ -31,6 +31,7 @@ import {
 	AppState,
 	Keyboard,
 	KeyboardAvoidingView,
+	PixelRatio,
 	Platform,
 	Pressable,
 	Text,
@@ -83,12 +84,23 @@ import {
 	type TmuxHistoryCommandId,
 } from '@/lib/tmux-history';
 import { queryClient } from '@/lib/utils';
+import { wisprAutomationNative } from '@/lib/wispr-automation-native';
+import {
+	isWisprAutomationBusy,
+	reduceWisprAutomationState,
+	type WisprAutomationEvent,
+	type WisprAutomationFailureReason,
+	type WisprAutomationState,
+} from '@/lib/wispr-automation-state';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
 import { TerminalCommanderModal } from './components/TerminalCommanderModal';
 import { TerminalKeyboard } from './components/TerminalKeyboard';
-import { TextEntryModal } from './components/TextEntryModal';
+import {
+	TextEntryModal,
+	type TextInputScreenBounds,
+} from './components/TextEntryModal';
 import { TmuxHistoryKeyboard } from './components/TmuxHistoryKeyboard';
 
 const logger = rootLogger.extend('TabsShellDetail');
@@ -99,6 +111,32 @@ const sleep = (ms: number) =>
 	new Promise<void>((resolve) => {
 		setTimeout(resolve, ms);
 	});
+
+const WISPR_TAP_RETRY_WINDOW_MS = 2_500;
+const WISPR_TAP_RETRY_INTERVAL_MS = 200;
+const WISPR_OPENING_FALLBACK_MS = 750;
+
+const getErrorMessage = (error: unknown) =>
+	error instanceof Error ? error.message : String(error);
+
+const getWisprTapFailureReason = (
+	error: unknown,
+): WisprAutomationFailureReason => {
+	const message = getErrorMessage(error).toLowerCase();
+	return message.includes('not found') ? 'bubble-not-found' : 'tap-failed';
+};
+
+const getWisprTapFailureMessage = (
+	reason: WisprAutomationFailureReason,
+	error: unknown,
+) => {
+	if (reason === 'bubble-not-found') return 'Wispr bubble not found.';
+	if (reason === 'tap-failed') {
+		const message = getErrorMessage(error);
+		return message ? `Wispr tap failed: ${message}` : 'Wispr tap failed.';
+	}
+	return 'Wispr automation failed.';
+};
 
 // Single-writer queue that guarantees no interleaving across all PTY writes.
 class OrderedWriter {
@@ -574,11 +612,16 @@ function ShellDetail() {
 	}, [selectedKeyboardId]);
 
 	const currentKeyboard = useMemo<KeyboardDefinition | null>(() => {
-		return selectedKeyboardId ? (keyboardsById[selectedKeyboardId] ?? null) : null;
+		return selectedKeyboardId
+			? (keyboardsById[selectedKeyboardId] ?? null)
+			: null;
 	}, [keyboardsById, selectedKeyboardId]);
 
 	const currentMacros = useMemo<MacroDef[]>(
-		() => (currentKeyboard ? (shellConfig.macrosByKeyboardId[currentKeyboard.id] ?? []) : []),
+		() =>
+			currentKeyboard
+				? (shellConfig.macrosByKeyboardId[currentKeyboard.id] ?? [])
+				: [],
 		[currentKeyboard, shellConfig],
 	);
 
@@ -634,6 +677,8 @@ function ShellDetail() {
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [textEntryOpen, setTextEntryOpen] = useState(false);
+	const [wisprAutomationState, setWisprAutomationState] =
+		useState<WisprAutomationState>({ phase: 'idle' });
 	const [configureOpen, setConfigureOpen] = useState(false);
 	const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
 	const [featureRequestSubmitting, setFeatureRequestSubmitting] =
@@ -653,6 +698,14 @@ function ShellDetail() {
 	const currentInstanceIdRef = useRef<string | null>(null);
 	const writerRef = useRef<OrderedWriter | null>(null);
 	const commandTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+	const wisprAutomationStateRef = useRef<WisprAutomationState>({
+		phase: 'idle',
+	});
+	const wisprTextEntryValueRef = useRef('');
+	const wisprAutomationRequestIdRef = useRef(0);
+	const wisprOpeningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 	const lastSelectionRef = useRef<{ text: string; at: number } | null>(null);
 	const { width, height } = useWindowDimensions();
 	const touchScrollEnabled =
@@ -773,7 +826,9 @@ function ShellDetail() {
 				if (isValidCancelKey(cancelKeyBytes)) {
 					void sendBytesOrdered(cancelKeyBytes);
 				} else {
-					logger.warn('cancelKey invalid; cannot exit tmux history after control failure');
+					logger.warn(
+						'cancelKey invalid; cannot exit tmux history after control failure',
+					);
 				}
 			}
 			clearScrollbackState();
@@ -783,7 +838,10 @@ function ShellDetail() {
 				controlShell.removeListener(listenerId);
 			}
 			controlShell.close().catch((error) => {
-				logger.warn('Failed to close tmux control shell after send failure', error);
+				logger.warn(
+					'Failed to close tmux control shell after send failure',
+					error,
+				);
 			});
 		},
 		[cancelKeyBytes, clearScrollbackState, sendBytesOrdered],
@@ -1046,6 +1104,257 @@ function ShellDetail() {
 		],
 	);
 
+	const clearWisprOpeningTimeout = useCallback(() => {
+		if (!wisprOpeningTimeoutRef.current) return;
+		clearTimeout(wisprOpeningTimeoutRef.current);
+		wisprOpeningTimeoutRef.current = null;
+	}, []);
+
+	const setWisprAutomationStateSnapshot = useCallback(
+		(nextState: WisprAutomationState) => {
+			wisprAutomationStateRef.current = nextState;
+			setWisprAutomationState(nextState);
+		},
+		[],
+	);
+
+	const applyWisprAutomationEvent = useCallback(
+		(event: WisprAutomationEvent) => {
+			const nextState = reduceWisprAutomationState(
+				wisprAutomationStateRef.current,
+				event,
+			);
+			setWisprAutomationStateSnapshot(nextState);
+			if (nextState.phase !== 'openingTextEntry') {
+				clearWisprOpeningTimeout();
+			}
+			return nextState;
+		},
+		[clearWisprOpeningTimeout, setWisprAutomationStateSnapshot],
+	);
+
+	const resetWisprAutomation = useCallback(() => {
+		wisprAutomationRequestIdRef.current += 1;
+		clearWisprOpeningTimeout();
+		applyWisprAutomationEvent({ type: 'reset' });
+	}, [applyWisprAutomationEvent, clearWisprOpeningTimeout]);
+
+	const failWisprAutomation = useCallback(
+		(reason: WisprAutomationFailureReason, message: string) => {
+			wisprAutomationRequestIdRef.current += 1;
+			applyWisprAutomationEvent({
+				type: 'failed',
+				reason,
+				message,
+			});
+		},
+		[applyWisprAutomationEvent],
+	);
+
+	const isWisprAutomationRequestActive = useCallback((requestId: number) => {
+		return requestId === wisprAutomationRequestIdRef.current;
+	}, []);
+
+	const tapWisprControlWithRetry = useCallback(
+		async (
+			requestId: number,
+			options?: {
+				notFoundMessage?: string;
+			},
+		) => {
+			let lastError: unknown = new Error(
+				options?.notFoundMessage ?? 'Wispr bubble not found',
+			);
+			const deadline = Date.now() + WISPR_TAP_RETRY_WINDOW_MS;
+
+			while (Date.now() <= deadline) {
+				if (!isWisprAutomationRequestActive(requestId)) return null;
+				try {
+					await wisprAutomationNative.tapWisprControl();
+					if (!isWisprAutomationRequestActive(requestId)) return null;
+					return { ok: true as const };
+				} catch (error) {
+					lastError = error;
+				}
+				await sleep(WISPR_TAP_RETRY_INTERVAL_MS);
+			}
+
+			const reason = getWisprTapFailureReason(lastError);
+			return {
+				ok: false as const,
+				reason,
+				message: getWisprTapFailureMessage(reason, lastError),
+			};
+		},
+		[isWisprAutomationRequestActive],
+	);
+
+	const startWisprOpeningFallback = useCallback(
+		(requestId: number, onFallback: () => void) => {
+			clearWisprOpeningTimeout();
+			wisprOpeningTimeoutRef.current = setTimeout(() => {
+				if (
+					!isWisprAutomationRequestActive(requestId) ||
+					wisprAutomationStateRef.current.phase !== 'openingTextEntry'
+				) {
+					return;
+				}
+				onFallback();
+			}, WISPR_OPENING_FALLBACK_MS);
+		},
+		[clearWisprOpeningTimeout, isWisprAutomationRequestActive],
+	);
+
+	const handleWisprTextEntryFocus = useCallback(
+		(value: string, bounds?: TextInputScreenBounds) => {
+			if (wisprAutomationStateRef.current.phase !== 'openingTextEntry') {
+				return;
+			}
+
+			const requestId = wisprAutomationRequestIdRef.current;
+			clearWisprOpeningTimeout();
+			applyWisprAutomationEvent({
+				type: 'textEntryFocused',
+				textBeforeStart: value,
+			});
+
+			void (async () => {
+				if (bounds && bounds.width > 0 && bounds.height > 0) {
+					const pixelRatio = PixelRatio.get();
+					const x = (bounds.x + bounds.width / 2) * pixelRatio;
+					const y = (bounds.y + Math.min(bounds.height / 2, 48)) * pixelRatio;
+					try {
+						await wisprAutomationNative.tapScreen(x, y);
+					} catch (error) {
+						logger.warn('Failed to prime Wispr text field', error);
+					}
+				}
+				return tapWisprControlWithRetry(requestId);
+			})().then((result) => {
+				if (
+					!result ||
+					!isWisprAutomationRequestActive(requestId) ||
+					wisprAutomationStateRef.current.phase !== 'waitingForBubble'
+				) {
+					return;
+				}
+				if (result.ok) {
+					applyWisprAutomationEvent({ type: 'wisprTapSucceeded' });
+					return;
+				}
+				applyWisprAutomationEvent({
+					type: 'failed',
+					reason: result.reason,
+					message: result.message,
+				});
+			});
+		},
+		[
+			applyWisprAutomationEvent,
+			clearWisprOpeningTimeout,
+			isWisprAutomationRequestActive,
+			tapWisprControlWithRetry,
+		],
+	);
+
+	const handleWisprTextEntryValueChange = useCallback(
+		(value: string) => {
+			wisprTextEntryValueRef.current = value;
+			const previousPhase = wisprAutomationStateRef.current.phase;
+			const nextState = applyWisprAutomationEvent({
+				type: 'textChanged',
+				value,
+			});
+			if (previousPhase === 'recording' && nextState.phase === 'idle') {
+				wisprAutomationRequestIdRef.current += 1;
+			}
+		},
+		[applyWisprAutomationEvent],
+	);
+
+	const handleOpenWisprTextEditor = useCallback(() => {
+		const currentState = wisprAutomationStateRef.current;
+		if (currentState.phase !== 'idle' && currentState.phase !== 'failed') {
+			logger.info('Ignoring Wispr text entry while automation is busy', {
+				phase: currentState.phase,
+			});
+			return;
+		}
+		if (Platform.OS !== 'android') {
+			setCommanderOpen(false);
+			setCommandPresetsOpen(false);
+			setTextEntryOpen(true);
+			failWisprAutomation(
+				'unsupported-platform',
+				'Wispr automation is only available on Android.',
+			);
+			return;
+		}
+
+		const requestId = wisprAutomationRequestIdRef.current + 1;
+		wisprAutomationRequestIdRef.current = requestId;
+		void (async () => {
+			try {
+				const status = await wisprAutomationNative.getStatus();
+				if (!isWisprAutomationRequestActive(requestId)) return;
+				if (!status.serviceEnabled || !status.serviceConnected) {
+					setCommanderOpen(false);
+					setCommandPresetsOpen(false);
+					setTextEntryOpen(true);
+					applyWisprAutomationEvent({
+						type: 'failed',
+						reason: 'service-disabled',
+						message: 'Enable Fressh Wispr Automation in Accessibility.',
+					});
+					try {
+						await wisprAutomationNative.openAccessibilitySettings();
+					} catch (error) {
+						logger.warn('Failed to open accessibility settings', error);
+					}
+					return;
+				}
+
+				setCommanderOpen(false);
+				setCommandPresetsOpen(false);
+				applyWisprAutomationEvent({ type: 'press' });
+				startWisprOpeningFallback(requestId, () => {
+					handleWisprTextEntryFocus(wisprTextEntryValueRef.current);
+				});
+				setTextEntryOpen(true);
+			} catch (error) {
+				if (!isWisprAutomationRequestActive(requestId)) return;
+				setCommanderOpen(false);
+				setCommandPresetsOpen(false);
+				setTextEntryOpen(true);
+				applyWisprAutomationEvent({
+					type: 'failed',
+					reason: 'service-disabled',
+					message: 'Wispr automation is unavailable.',
+				});
+				logger.warn('Wispr automation status check failed', error);
+			}
+		})();
+	}, [
+		applyWisprAutomationEvent,
+		failWisprAutomation,
+		handleWisprTextEntryFocus,
+		isWisprAutomationRequestActive,
+		startWisprOpeningFallback,
+	]);
+
+	const handleCloseTextEntry = useCallback(() => {
+		setTextEntryOpen(false);
+		resetWisprAutomation();
+	}, [resetWisprAutomation]);
+
+	useEffect(
+		() => () => {
+			wisprAutomationRequestIdRef.current += 1;
+			clearWisprOpeningTimeout();
+		},
+		[clearWisprOpeningTimeout],
+	);
+
 	const handleCopySelection = useCallback(() => {
 		const xr = xtermRef.current;
 		if (!xr) return;
@@ -1102,10 +1411,7 @@ function ShellDetail() {
 				...current,
 				lastError: message,
 			}));
-			Alert.alert(
-				'Config reload failed',
-				message,
-			);
+			Alert.alert('Config reload failed', message);
 		}
 	}, []);
 
@@ -1287,7 +1593,9 @@ fi
 					);
 					return;
 				}
-				const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+				const targetName = tmuxTarget.trim().length
+					? tmuxTarget.trim()
+					: 'main';
 				const command = buildTmuxHistoryEnterCommand(targetName);
 				const requestId = historyEntryRequestIdRef.current + 1;
 				historyEntryRequestIdRef.current = requestId;
@@ -1321,24 +1629,22 @@ fi
 			},
 			toggleCommandPresets: () => {
 				setCommanderOpen(false);
-				setTextEntryOpen(false);
+				handleCloseTextEntry();
 				setCommandPresetsOpen((prev) => !prev);
 			},
 			openCommander: () => {
 				setCommandPresetsOpen(false);
-				setTextEntryOpen(false);
+				handleCloseTextEntry();
 				setCommanderOpen(true);
 			},
-			openTextEditor: () => {
-				setCommandPresetsOpen(false);
-				setCommanderOpen(false);
-				setTextEntryOpen(true);
-			},
+			openWisprTextEditor: handleOpenWisprTextEditor,
 		}),
 		[
 			availableKeyboardIds,
 			handleCopySelection,
+			handleCloseTextEntry,
 			handlePasteClipboard,
+			handleOpenWisprTextEditor,
 			cancelKeyBytes,
 			clearScrollbackState,
 			connection,
@@ -1389,7 +1695,9 @@ fi
 					sendBytesWithModifiers(new Uint8Array(slot.bytes));
 					break;
 				case 'macro': {
-					const macro = currentMacros.find((entry) => entry.id === slot.macroId);
+					const macro = currentMacros.find(
+						(entry) => entry.id === slot.macroId,
+					);
 					if (macro) {
 						runMacro(macro, {
 							sendBytes: sendBytesRaw,
@@ -1588,14 +1896,20 @@ fi
 			}
 
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-			const controlCommand = buildTmuxHistoryControlCommand(commandId, targetName);
+			const controlCommand = buildTmuxHistoryControlCommand(
+				commandId,
+				targetName,
+			);
 			if (!controlCommand) return;
 			void (async () => {
 				const sent = await sendTmuxControlCommand(controlCommand);
 				if (sent) return;
-				logger.warn('tmux history command unavailable without tmux control shell', {
-					commandId,
-				});
+				logger.warn(
+					'tmux history command unavailable without tmux control shell',
+					{
+						commandId,
+					},
+				);
 			})();
 		},
 		[
@@ -1659,14 +1973,10 @@ fi
 			const lineCmd = event.direction === 'up' ? 'scroll-up' : 'scroll-down';
 			const parts: string[] = [];
 			if (pages > 0) {
-				parts.push(
-					`send-keys -t ${targetArg} -N ${pages} -X ${pageCmd}`,
-				);
+				parts.push(`send-keys -t ${targetArg} -N ${pages} -X ${pageCmd}`);
 			}
 			if (lines > 0) {
-				parts.push(
-					`send-keys -t ${targetArg} -N ${lines} -X ${lineCmd}`,
-				);
+				parts.push(`send-keys -t ${targetArg} -N ${lines} -X ${lineCmd}`);
 			}
 			if (parts.length === 0) return;
 			const command = `tmux ${parts.join(' \\; ')}`;
@@ -1728,13 +2038,10 @@ fi
 		clearScrollbackState();
 	}, [cancelKeyBytes, sendBytesOrdered, clearScrollbackState]);
 
-	const writeShellChunkToTerminal = useCallback(
-		(bytesBuffer: ArrayBuffer) => {
-			const bytes = new Uint8Array(bytesBuffer);
-			xtermRef.current?.write(bytes);
-		},
-		[],
-	);
+	const writeShellChunkToTerminal = useCallback((bytesBuffer: ArrayBuffer) => {
+		const bytes = new Uint8Array(bytesBuffer);
+		xtermRef.current?.write(bytes);
+	}, []);
 
 	const attachShellToTerminal = useCallback(() => {
 		if (!terminalReady) return;
@@ -1820,7 +2127,7 @@ fi
 	}, [selectionModeEnabled, shell, terminalReady, writeShellChunkToTerminal]);
 
 	const handleTerminalInitialized = useCallback(
-			(instanceId: string) => {
+		(instanceId: string) => {
 			historyEntryRequestIdRef.current += 1;
 			historyEntryPendingRef.current = false;
 			currentInstanceIdRef.current = instanceId;
@@ -1851,6 +2158,21 @@ fi
 		attachShellToTerminal();
 	}, [attachShellToTerminal]);
 
+	const wisprMode = isWisprAutomationBusy(wisprAutomationState);
+	const wisprStatusText = useMemo(() => {
+		switch (wisprAutomationState.phase) {
+			case 'openingTextEntry':
+			case 'waitingForBubble':
+				return 'Waiting for Wispr...';
+			case 'recording':
+				return 'Wispr recording.';
+			case 'failed':
+				return wisprAutomationState.message;
+			default:
+				return undefined;
+		}
+	}, [wisprAutomationState]);
+
 	if (hasTmuxAttachError) {
 		return (
 			<TmuxAttachErrorScreen
@@ -1865,7 +2187,8 @@ fi
 		);
 	}
 
-	const shouldRenderTerminal = hasRenderedTerminal || Boolean(shell && connection);
+	const shouldRenderTerminal =
+		hasRenderedTerminal || Boolean(shell && connection);
 	const scrollbackVisible = scrollbackActive;
 	const showReconnectOverlay =
 		(isAutoConnecting || isReconnecting) && (!shell || !connection);
@@ -2003,10 +2326,12 @@ fi
 				<TextEntryModal
 					open={textEntryOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={() => {
-						setTextEntryOpen(false);
-					}}
+					wisprMode={wisprMode}
+					wisprStatusText={wisprStatusText}
+					onClose={handleCloseTextEntry}
 					onPaste={handlePasteTextEntry}
+					onWisprFocus={handleWisprTextEntryFocus}
+					onValueChange={handleWisprTextEntryValueChange}
 				/>
 				<ConfigureModal
 					open={configureOpen}

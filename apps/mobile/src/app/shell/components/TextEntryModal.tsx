@@ -25,16 +25,31 @@ const MIN_LINES = 6;
 const LINE_HEIGHT = 20;
 const INPUT_VERTICAL_PADDING = 12;
 
+export type TextInputScreenBounds = {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+};
+
 export function TextEntryModal({
 	open,
 	bottomOffset,
 	onClose,
 	onPaste,
+	wisprMode = false,
+	wisprStatusText,
+	onWisprFocus,
+	onValueChange,
 }: {
 	open: boolean;
 	bottomOffset: number;
 	onClose: () => void;
 	onPaste: (value: string) => void;
+	wisprMode?: boolean;
+	wisprStatusText?: string;
+	onWisprFocus?: (value: string, bounds?: TextInputScreenBounds) => void;
+	onValueChange?: (value: string) => void;
 }) {
 	const theme = useTheme();
 	const inputRef = useRef<TextInput | null>(null);
@@ -55,12 +70,14 @@ export function TextEntryModal({
 	}, [bottomOffset]);
 	const [value, setValue] = useState('');
 	const [textAreaContentHeight, setTextAreaContentHeight] = useState(minHeight);
+	const valueRef = useRef('');
 	const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [qaMode, setQaMode] = useState(false);
 	const [questionNumber, setQuestionNumber] = useState(1);
 	const questionNumberRef = useRef(1);
 	const qaNudgePaddingX = 24;
 	const qaChoicePaddingX = 28;
+	const hasWisprStatusText = Boolean(wisprStatusText);
 
 	// Keep the dialog within `maxHeight: '85%'` without allowing extra controls to
 	// overflow the frame by shrinking the text area when needed.
@@ -69,11 +86,13 @@ export function TextEntryModal({
 		// - dialog padding: 32
 		// - header row + spacing: ~52
 		// - QA row + spacing (when enabled): ~56
+		// - Wispr status line + spacing (when present): ~24
 		// - bottom buttons row + spacing: ~60
-		const chrome = 32 + 52 + (qaMode ? 56 : 0) + 60;
+		const chrome =
+			32 + 52 + (qaMode ? 56 : 0) + (hasWisprStatusText ? 24 : 0) + 60;
 		const maxByDialog = Math.max(minHeight, dialogMaxHeight - chrome);
 		return Math.max(minHeight, Math.min(maxHeight, maxByDialog));
-	}, [dialogMaxHeight, maxHeight, minHeight, qaMode]);
+	}, [dialogMaxHeight, hasWisprStatusText, maxHeight, minHeight, qaMode]);
 
 	const textAreaHeight = useMemo(() => {
 		const nextHeight = Math.min(
@@ -190,12 +209,21 @@ export function TextEntryModal({
 		onClose();
 	}, [onClose]);
 
+	const updateValue = useCallback(
+		(nextValue: string) => {
+			valueRef.current = nextValue;
+			setValue(nextValue);
+			onValueChange?.(nextValue);
+		},
+		[onValueChange],
+	);
+
 	const handleClear = useCallback(() => {
-		setValue('');
+		updateValue('');
 		setTextAreaContentHeight(minHeight);
 		setQuestionNumberSafe(1);
 		inputRef.current?.focus();
-	}, [minHeight, setQuestionNumberSafe]);
+	}, [minHeight, setQuestionNumberSafe, updateValue]);
 
 	const handlePaste = useCallback(() => {
 		if (!value) return;
@@ -203,11 +231,11 @@ export function TextEntryModal({
 		Keyboard.dismiss();
 		onPaste(value);
 		// Clear text only after successful paste
-		setValue('');
+		updateValue('');
 		setTextAreaContentHeight(minHeight);
 		setQuestionNumberSafe(1);
 		onClose();
-	}, [minHeight, onClose, onPaste, setQuestionNumberSafe, value]);
+	}, [minHeight, onClose, onPaste, setQuestionNumberSafe, updateValue, value]);
 
 	const handleToggleQaMode = useCallback(() => {
 		const next = !qaMode;
@@ -220,15 +248,28 @@ export function TextEntryModal({
 		(answer: 'A' | 'B' | 'C') => {
 			const n = questionNumberRef.current;
 			const snippet = `${n}${answer} `;
-			setValue((prev) => {
-				const separator = prev && !/\s$/.test(prev) ? ' ' : '';
-				return `${prev}${separator}${snippet}`;
-			});
+			const currentValue = valueRef.current;
+			const separator = currentValue && !/\s$/.test(currentValue) ? ' ' : '';
+			updateValue(`${currentValue}${separator}${snippet}`);
 			setQuestionNumberSafe(n + 1);
 			requestAnimationFrame(() => focusInput());
 		},
-		[focusInput, setQuestionNumberSafe],
+		[focusInput, setQuestionNumberSafe, updateValue],
 	);
+
+	const handleChangeText = useCallback(
+		(nextValue: string) => {
+			updateValue(nextValue);
+		},
+		[updateValue],
+	);
+
+	const handleInputFocus = useCallback(() => {
+		if (!wisprMode) return;
+		inputRef.current?.measureInWindow((x, y, width, height) => {
+			onWisprFocus?.(valueRef.current, { x, y, width, height });
+		});
+	}, [onWisprFocus, wisprMode]);
 
 	return (
 		<Modal
@@ -323,11 +364,12 @@ export function TextEntryModal({
 							<TextInput
 								ref={inputRef}
 								value={value}
-								onChangeText={setValue}
+								onChangeText={handleChangeText}
+								onFocus={handleInputFocus}
 								placeholder="Enter text to paste..."
 								placeholderTextColor={theme.colors.muted}
 								autoFocus
-								showSoftInputOnFocus={true}
+								showSoftInputOnFocus
 								multiline
 								textAlignVertical="top"
 								style={{
@@ -352,6 +394,21 @@ export function TextEntryModal({
 								}}
 								scrollEnabled={textAreaHeight >= effectiveTextMaxHeight}
 							/>
+							{wisprStatusText ? (
+								<Text
+									numberOfLines={1}
+									ellipsizeMode="tail"
+									style={{
+										color: theme.colors.textSecondary,
+										fontSize: 12,
+										fontWeight: '500',
+										lineHeight: 16,
+										marginTop: 8,
+									}}
+								>
+									{wisprStatusText}
+								</Text>
+							) : null}
 							{qaMode ? (
 								<View
 									style={{

@@ -20,20 +20,23 @@ export const KNOWN_ACTION_IDS = [
 	'OPEN_TMUX_HISTORY',
 	'TOGGLE_COMMAND_PRESETS',
 	'OPEN_COMMANDER',
-	'OPEN_TEXT_EDITOR',
+	'OPEN_WISPR_TEXT_EDITOR',
 	'PASTE_CLIPBOARD',
 	'COPY_SELECTION',
 	'CYCLE_TMUX_WINDOW',
 ] as const;
 
 export type KnownActionId = (typeof KNOWN_ACTION_IDS)[number];
-export type KeyboardTargetActionId = (typeof KEYBOARD_TARGET_ACTION_IDS)[number];
+export type KeyboardTargetActionId =
+	(typeof KEYBOARD_TARGET_ACTION_IDS)[number];
 export type ActionId = KnownActionId | (string & {});
 
 export type ActionContext = {
 	availableKeyboardIds: Set<string>;
 	selectKeyboard: (id: string) => void;
-	resolveKeyboardActionTarget?: (actionId: KeyboardTargetActionId) => string | null;
+	resolveKeyboardActionTarget?: (
+		actionId: KeyboardTargetActionId,
+	) => string | null;
 	rotateKeyboard: () => void;
 	openConfigurator: () => void;
 	sendBytes: (bytes: Uint8Array<ArrayBuffer>) => void;
@@ -42,7 +45,7 @@ export type ActionContext = {
 	toggleTmuxHistory?: () => void;
 	toggleCommandPresets?: () => void;
 	openCommander?: () => void;
-	openTextEditor?: () => void;
+	openWisprTextEditor?: () => void;
 };
 
 const logger = rootLogger.extend('KeyboardActions');
@@ -110,8 +113,8 @@ export async function runAction(
 			context.openCommander?.();
 			return;
 		}
-		case 'OPEN_TEXT_EDITOR': {
-			context.openTextEditor?.();
+		case 'OPEN_WISPR_TEXT_EDITOR': {
+			context.openWisprTextEditor?.();
 			return;
 		}
 		default: {

@@ -94,6 +94,7 @@ const config: ExpoConfig = {
 		'expo-font',
 		'expo-dev-client',
 		'./plugins/with-foreground-service',
+		'./plugins/with-wispr-automation',
 	],
 	experiments: { typedRoutes: true, reactCompiler: true },
 	extra: {
