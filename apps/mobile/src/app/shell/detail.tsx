@@ -86,6 +86,7 @@ import {
 	type WisprAutomationFailureReason,
 	type WisprAutomationState,
 } from '@/lib/wispr-automation-state';
+import { resolveWisprTextEditorAvailability } from '@/lib/wispr-text-editor-flow';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
@@ -1260,20 +1261,16 @@ function ShellDetail() {
 			try {
 				const status = await wisprAutomationNative.getStatus();
 				if (!isWisprAutomationRequestActive(requestId)) return;
-				if (!status.serviceEnabled || !status.serviceConnected) {
+				const availability = resolveWisprTextEditorAvailability(status);
+				if (availability.type === 'setup-required') {
 					setCommanderOpen(false);
 					setCommandPresetsOpen(false);
 					setTextEntryOpen(true);
 					applyWisprAutomationEvent({
 						type: 'failed',
-						reason: 'service-disabled',
-						message: 'Enable Fressh Wispr Automation in Accessibility.',
+						reason: availability.reason,
+						message: availability.message,
 					});
-					try {
-						await wisprAutomationNative.openAccessibilitySettings();
-					} catch (error) {
-						logger.warn('Failed to open accessibility settings', error);
-					}
 					return;
 				}
 
@@ -1304,6 +1301,13 @@ function ShellDetail() {
 		isWisprAutomationRequestActive,
 		startWisprOpeningFallback,
 	]);
+
+	const handleOpenWisprAutomationSettings = useCallback(() => {
+		if (Platform.OS !== 'android') return;
+		void wisprAutomationNative.openAccessibilitySettings().catch((error) => {
+			logger.warn('Failed to open accessibility settings', error);
+		});
+	}, []);
 
 	const handleCloseTextEntry = useCallback(() => {
 		setTextEntryOpen(false);
@@ -2155,6 +2159,12 @@ fi
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
 					wisprMode={wisprMode}
 					wisprStatusText={wisprStatusText}
+					onWisprSetup={
+						wisprAutomationState.phase === 'failed' &&
+						wisprAutomationState.reason === 'service-disabled'
+							? handleOpenWisprAutomationSettings
+							: undefined
+					}
 					onClose={handleCloseTextEntry}
 					onPaste={handlePasteTextEntry}
 					onWisprFocus={handleWisprTextEntryFocus}

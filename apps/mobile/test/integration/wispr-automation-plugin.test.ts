@@ -7,31 +7,37 @@ function extractAccessibilityServiceTemplate(pluginSource: string): string {
 		/const ACCESSIBILITY_SERVICE_KOTLIN = `([\s\S]*?)`;/,
 	);
 	assert.ok(match, 'ACCESSIBILITY_SERVICE_KOTLIN template exists');
-	return match[1];
+	const template = match[1];
+	if (template === undefined) {
+		throw new Error('ACCESSIBILITY_SERVICE_KOTLIN template body exists');
+	}
+	return template;
 }
 
-void test('Wispr automation cached bubble coordinates are versioned', async () => {
+void test('Wispr automation only taps a live Wispr control', async () => {
 	const pluginSource = await readFile(
-		new URL('../../plugins/with-wispr-automation.ts', import.meta.url),
+		new URL('../../plugins/with-wispr-automation.ts', import.meta.url).pathname,
 		'utf8',
 	);
 	const serviceTemplate = extractAccessibilityServiceTemplate(pluginSource);
 
-	assert.match(serviceTemplate, /private const val CACHE_VERSION = \d+/);
-	assert.match(serviceTemplate, /KEY_LAST_CACHE_VERSION/);
-	assert.match(
-		serviceTemplate,
-		/putInt\(KEY_LAST_CACHE_VERSION, CACHE_VERSION\)/,
-	);
-	assert.match(
-		serviceTemplate,
-		/val fallbackIsCurrent =\s*prefs\.getInt\(KEY_LAST_CACHE_VERSION, -1\) == CACHE_VERSION/,
-	);
-	assert.match(
-		serviceTemplate,
-		/val target = nodeCenter \?: if \(\s*fallbackIsCurrent &&\s*fallbackX >= 0f &&\s*fallbackY >= 0f\s*\)/,
-	);
+	assert.doesNotMatch(serviceTemplate, /KEY_LAST_X/);
+	assert.doesNotMatch(serviceTemplate, /KEY_LAST_Y/);
+	assert.doesNotMatch(serviceTemplate, /fallbackX/);
+	assert.doesNotMatch(serviceTemplate, /fallbackY/);
+	assert.match(serviceTemplate, /val target = findWisprClickableCenter\(\)/);
 	assert.doesNotMatch(serviceTemplate, /tapWisprStopControl/);
 	assert.doesNotMatch(serviceTemplate, /label\.contains\("done"\)/);
 	assert.doesNotMatch(serviceTemplate, /label\.contains\("check"\)/);
+});
+
+void test('Wispr accessibility service describes its gesture capability', async () => {
+	const pluginSource = await readFile(
+		new URL('../../plugins/with-wispr-automation.ts', import.meta.url).pathname,
+		'utf8',
+	);
+
+	assert.match(pluginSource, /find the Wispr Flow control/);
+	assert.match(pluginSource, /perform a tap gesture/);
+	assert.doesNotMatch(pluginSource, /Lets Fressh/);
 });

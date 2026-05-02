@@ -40,6 +40,7 @@ export function TextEntryModal({
 	onPaste,
 	wisprMode = false,
 	wisprStatusText,
+	onWisprSetup,
 	onWisprFocus,
 	onValueChange,
 }: {
@@ -49,6 +50,7 @@ export function TextEntryModal({
 	onPaste: (value: string) => void;
 	wisprMode?: boolean;
 	wisprStatusText?: string;
+	onWisprSetup?: () => void;
 	onWisprFocus?: (value: string, bounds?: TextInputScreenBounds) => void;
 	onValueChange?: (value: string) => void;
 }) {
@@ -399,19 +401,50 @@ export function TextEntryModal({
 								scrollEnabled={textAreaHeight >= effectiveTextMaxHeight}
 							/>
 							{wisprStatusText ? (
-								<Text
-									numberOfLines={1}
-									ellipsizeMode="tail"
+								<View
 									style={{
-										color: theme.colors.textSecondary,
-										fontSize: 12,
-										fontWeight: '500',
-										lineHeight: 16,
+										flexDirection: 'row',
+										alignItems: 'center',
+										gap: 8,
 										marginTop: 8,
 									}}
 								>
-									{wisprStatusText}
-								</Text>
+									<Text
+										numberOfLines={1}
+										ellipsizeMode="tail"
+										style={{
+											color: theme.colors.textSecondary,
+											flex: 1,
+											fontSize: 12,
+											fontWeight: '500',
+											lineHeight: 16,
+										}}
+									>
+										{wisprStatusText}
+									</Text>
+									{onWisprSetup ? (
+										<Pressable
+											onPress={onWisprSetup}
+											style={{
+												borderRadius: 8,
+												paddingVertical: 6,
+												paddingHorizontal: 10,
+												borderWidth: 1,
+												borderColor: theme.colors.border,
+											}}
+										>
+											<Text
+												style={{
+													color: theme.colors.textSecondary,
+													fontSize: 12,
+													fontWeight: '700',
+												}}
+											>
+												Enable
+											</Text>
+										</Pressable>
+									) : null}
+								</View>
 							) : null}
 							{qaMode ? (
 								<View

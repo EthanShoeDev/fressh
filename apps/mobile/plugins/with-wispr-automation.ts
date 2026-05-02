@@ -18,10 +18,10 @@ const ACCESSIBILITY_SERVICE_RESOURCE =
 	'@xml/wispr_automation_accessibility_service';
 
 const DESCRIPTION_RESOURCE = 'wispr_automation_accessibility_description';
-const DESCRIPTION_TEXT = 'Fressh local Wispr automation';
+const DESCRIPTION_TEXT = 'Fressh Wispr Flow dictation automation';
 const SUMMARY_RESOURCE = 'wispr_automation_accessibility_summary';
 const SUMMARY_TEXT =
-	'Lets Fressh tap the Wispr Flow bubble for local dictation automation.';
+	'Allows Fressh to find the Wispr Flow control and perform a tap gesture only when you start Wispr dictation from Fressh.';
 const FOREGROUND_SERVICE_PACKAGE_REGISTRATION =
 	'add(ForegroundServicePackage())';
 
@@ -53,11 +53,6 @@ import java.util.Locale
 class WisprAutomationAccessibilityService : AccessibilityService() {
   companion object {
     private const val WISPR_PACKAGE = "com.wispr.flowapp"
-    private const val PREFS = "wispr_automation"
-    private const val CACHE_VERSION = 2
-    private const val KEY_LAST_X = "last_bubble_x"
-    private const val KEY_LAST_Y = "last_bubble_y"
-    private const val KEY_LAST_CACHE_VERSION = "last_bubble_cache_version"
     private var activeService: WeakReference<WisprAutomationAccessibilityService>? = null
 
     fun isEnabled(context: Context): Boolean {
@@ -86,41 +81,12 @@ class WisprAutomationAccessibilityService : AccessibilityService() {
     super.onDestroy()
   }
 
-  override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-    event ?: return
-    if (event.packageName?.toString() != WISPR_PACKAGE) return
-    val source = event.source ?: return
-    val center = findPreferredClickable(source)
-    if (center != null) {
-      getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        .edit()
-        .putFloat(KEY_LAST_X, center.x)
-        .putFloat(KEY_LAST_Y, center.y)
-        .putInt(KEY_LAST_CACHE_VERSION, CACHE_VERSION)
-        .apply()
-    }
-  }
+  override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
 
   override fun onInterrupt() = Unit
 
   fun tapWisprControl(callback: (Boolean, String) -> Unit) {
-    val nodeCenter = findWisprClickableCenter()
-    val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    val fallbackX = prefs.getFloat(KEY_LAST_X, -1f)
-    val fallbackY = prefs.getFloat(KEY_LAST_Y, -1f)
-    val fallbackIsCurrent =
-      prefs.getInt(KEY_LAST_CACHE_VERSION, -1) == CACHE_VERSION
-
-    val target = nodeCenter ?: if (
-      fallbackIsCurrent &&
-      fallbackX >= 0f &&
-      fallbackY >= 0f
-    ) {
-      Point(fallbackX, fallbackY)
-    } else {
-      null
-    }
-
+    val target = findWisprClickableCenter()
     if (target == null) {
       callback(false, "Wispr bubble not found")
       return
