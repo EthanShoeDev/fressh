@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-01.2",
-  "updatedAt": "2026-05-01T07:30:00.000Z",
+  "version": "2026-05-02.1",
+  "updatedAt": "2026-05-02T07:11:04.000Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -111,17 +111,7 @@
             "label": "ARROW_RIGHT",
             "icon": "ArrowRight"
           },
-          {
-            "type": "bytes",
-            "bytes": [
-              27,
-              91,
-              53,
-              126
-            ],
-            "label": "PAGE_UP",
-            "icon": "ChevronsUp"
-          },
+          null,
           {
             "type": "macro",
             "macroId": "cmd_approve",
@@ -194,17 +184,7 @@
             "label": "ARROW_DOWN",
             "icon": "ArrowDown"
           },
-          {
-            "type": "bytes",
-            "bytes": [
-              27,
-              91,
-              54,
-              126
-            ],
-            "label": "PAGE_DOWN",
-            "icon": "ChevronsDown"
-          },
+          null,
           {
             "type": "macro",
             "macroId": "cmd_fix",
@@ -300,8 +280,28 @@
           }
         ],
         [
-          null,
-          null,
+          {
+            "type": "bytes",
+            "bytes": [
+              27,
+              91,
+              53,
+              126
+            ],
+            "label": "PAGE_UP",
+            "icon": "ChevronsUp"
+          },
+          {
+            "type": "bytes",
+            "bytes": [
+              27,
+              91,
+              54,
+              126
+            ],
+            "label": "PAGE_DOWN",
+            "icon": "ChevronsDown"
+          },
           null,
           null,
           null,
