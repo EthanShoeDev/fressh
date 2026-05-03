@@ -27,6 +27,22 @@ import {
 } from '@/lib/shell-config';
 import { useTheme } from '@/lib/theme';
 
+type LongPressPopupState = {
+	slot: KeyboardSlot;
+	options: readonly KeyboardLongPressOption[];
+	layout: LongPressPopupLayout;
+	highlightedIndex: number | null;
+};
+
+type LongPressGestureState = {
+	slot: KeyboardSlot;
+	keyRef: React.RefObject<View | null>;
+	startPageX: number;
+	startPageY: number;
+	movedBeyondTapSlop: boolean;
+	longPressFired: boolean;
+};
+
 export function TerminalKeyboard({
 	keyboard,
 	modifierKeysActive,
@@ -46,20 +62,22 @@ export function TerminalKeyboard({
 	const keyHeight = 48;
 	const repeatDelayMs = 320;
 	const repeatIntervalMs = 70;
+	const longPressDelayMs = 500;
+	const tapSlopPx = 8;
 	const repeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const repeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const repeatSlotRef = useRef<KeyboardSlot | null>(null);
+	const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+	const longPressGestureRef = useRef<LongPressGestureState | null>(null);
 	const keyboardRootRef = useRef<View | null>(null);
 	const keyboardRootWindowRef = useRef({ x: 0, y: 0 });
 	const keyboardWidthRef = useRef(0);
-	const suppressNextPressRef = useRef(false);
 	const activeLongPressSlotRef = useRef<KeyboardSlot | null>(null);
-	const [longPressPopup, setLongPressPopup] = useState<{
-		slot: KeyboardSlot;
-		options: readonly KeyboardLongPressOption[];
-		layout: LongPressPopupLayout;
-		highlightedIndex: number | null;
-	} | null>(null);
+	const longPressPopupRef = useRef<LongPressPopupState | null>(null);
+	const [longPressPopup, setLongPressPopup] =
+		useState<LongPressPopupState | null>(null);
 	const iconOnlyLabels = useMemo(
 		() =>
 			new Set([
@@ -89,6 +107,13 @@ export function TerminalKeyboard({
 		repeatSlotRef.current = null;
 	}, []);
 
+	const clearLongPressTimer = useCallback(() => {
+		if (longPressTimeoutRef.current) {
+			clearTimeout(longPressTimeoutRef.current);
+			longPressTimeoutRef.current = null;
+		}
+	}, []);
+
 	const startRepeat = useCallback(
 		(slot: KeyboardSlot) => {
 			clearRepeat();
@@ -105,10 +130,17 @@ export function TerminalKeyboard({
 		[clearRepeat, onSlotPress, repeatDelayMs, repeatIntervalMs],
 	);
 
-	useEffect(() => clearRepeat, [clearRepeat]);
+	useEffect(
+		() => () => {
+			clearRepeat();
+			clearLongPressTimer();
+		},
+		[clearLongPressTimer, clearRepeat],
+	);
 
 	const closeLongPressPopup = useCallback(() => {
 		activeLongPressSlotRef.current = null;
+		longPressPopupRef.current = null;
 		setLongPressPopup(null);
 	}, []);
 
@@ -143,8 +175,13 @@ export function TerminalKeyboard({
 					localX,
 					localY,
 				});
-				if (highlightedIndex === current.highlightedIndex) return current;
-				return { ...current, highlightedIndex };
+				if (highlightedIndex === current.highlightedIndex) {
+					longPressPopupRef.current = current;
+					return current;
+				}
+				const next = { ...current, highlightedIndex };
+				longPressPopupRef.current = next;
+				return next;
 			});
 		},
 		[getLocalPoint],
@@ -156,10 +193,18 @@ export function TerminalKeyboard({
 			if (!options?.length) return;
 
 			clearRepeat();
-			suppressNextPressRef.current = true;
 			activeLongPressSlotRef.current = slot;
 			updateKeyboardRootMetrics();
 			keyRef.current?.measureInWindow((x, y, width) => {
+				const gesture = longPressGestureRef.current;
+				if (
+					!gesture ||
+					gesture.slot !== slot ||
+					gesture.keyRef !== keyRef ||
+					!gesture.longPressFired
+				) {
+					return;
+				}
 				const root = keyboardRootWindowRef.current;
 				const layout = getLongPressPopupLayout({
 					keyboardWidth: keyboardWidthRef.current,
@@ -168,35 +213,149 @@ export function TerminalKeyboard({
 					anchorWidth: width,
 					optionCount: options.length,
 				});
-				setLongPressPopup({
+				const nextPopup = {
 					slot,
 					options,
 					layout,
 					highlightedIndex: null,
-				});
+				};
+				longPressPopupRef.current = nextPopup;
+				setLongPressPopup(nextPopup);
 			});
 		},
 		[clearRepeat, updateKeyboardRootMetrics],
 	);
 
-	const releaseLongPressPopup = useCallback(
-		(event: GestureResponderEvent) => {
-			const current = longPressPopup;
-			if (!current) return false;
-			const { localX, localY } = getLocalPoint(event);
-			const optionIndex = getLongPressOptionIndexAtPoint({
-				layout: current.layout,
-				localX,
-				localY,
-			});
-			suppressNextPressRef.current = false;
+	const startLongPressGesture = useCallback(
+		(
+			slot: KeyboardSlot,
+			keyRef: React.RefObject<View | null>,
+			event: GestureResponderEvent,
+		) => {
+			clearLongPressTimer();
 			closeLongPressPopup();
-			if (optionIndex == null) return true;
-			const option = current.options[optionIndex];
-			if (option) onSlotPress(option);
-			return true;
+			longPressGestureRef.current = {
+				slot,
+				keyRef,
+				startPageX: event.nativeEvent.pageX,
+				startPageY: event.nativeEvent.pageY,
+				movedBeyondTapSlop: false,
+				longPressFired: false,
+			};
+			longPressTimeoutRef.current = setTimeout(() => {
+				const current = longPressGestureRef.current;
+				if (!current || current.slot !== slot || current.keyRef !== keyRef) {
+					return;
+				}
+				current.longPressFired = true;
+				openLongPressPopup(slot, keyRef);
+			}, longPressDelayMs);
 		},
-		[closeLongPressPopup, getLocalPoint, longPressPopup, onSlotPress],
+		[
+			clearLongPressTimer,
+			closeLongPressPopup,
+			longPressDelayMs,
+			openLongPressPopup,
+		],
+	);
+
+	const moveLongPressGesture = useCallback(
+		(event: GestureResponderEvent) => {
+			const gesture = longPressGestureRef.current;
+			if (!gesture) return;
+
+			if (gesture.longPressFired) {
+				updateLongPressHighlight(event);
+				return;
+			}
+
+			const dx = event.nativeEvent.pageX - gesture.startPageX;
+			const dy = event.nativeEvent.pageY - gesture.startPageY;
+			if (Math.hypot(dx, dy) > tapSlopPx) {
+				gesture.movedBeyondTapSlop = true;
+				clearLongPressTimer();
+			}
+		},
+		[clearLongPressTimer, tapSlopPx, updateLongPressHighlight],
+	);
+
+	const releaseLongPressGesture = useCallback(
+		(
+			slot: KeyboardSlot,
+			isSelectionCopySlot: boolean,
+			event: GestureResponderEvent,
+		) => {
+			const gesture = longPressGestureRef.current;
+			longPressGestureRef.current = null;
+			clearLongPressTimer();
+
+			if (!gesture) {
+				closeLongPressPopup();
+				return;
+			}
+
+			if (gesture.longPressFired) {
+				const current = longPressPopupRef.current;
+				if (!current) {
+					closeLongPressPopup();
+					return;
+				}
+				const { localX, localY } = getLocalPoint(event);
+				const optionIndex = getLongPressOptionIndexAtPoint({
+					layout: current.layout,
+					localX,
+					localY,
+				});
+				closeLongPressPopup();
+				if (optionIndex == null) return;
+				const option = current.options[optionIndex];
+				if (option) onSlotPress(option);
+				return;
+			}
+
+			const { localX, localY } = getLocalPoint(event);
+			closeLongPressPopup();
+			const releaseDx =
+				localX - (gesture.startPageX - keyboardRootWindowRef.current.x);
+			const releaseDy =
+				localY - (gesture.startPageY - keyboardRootWindowRef.current.y);
+			if (
+				gesture.movedBeyondTapSlop ||
+				Math.hypot(releaseDx, releaseDy) > tapSlopPx
+			) {
+				return;
+			}
+			if (isSelectionCopySlot) {
+				onCopySelection();
+				return;
+			}
+			onSlotPress(slot);
+		},
+		[
+			clearLongPressTimer,
+			closeLongPressPopup,
+			getLocalPoint,
+			onCopySelection,
+			onSlotPress,
+			tapSlopPx,
+		],
+	);
+
+	const cancelLongPressGesture = useCallback(() => {
+		longPressGestureRef.current = null;
+		clearLongPressTimer();
+		closeLongPressPopup();
+	}, [clearLongPressTimer, closeLongPressPopup]);
+
+	const runMainSlot = useCallback(
+		(slot: KeyboardSlot, isSelectionCopySlot: boolean) => {
+			if (isSelectionCopySlot) {
+				onCopySelection();
+				return;
+			}
+			onSlotPress(slot);
+		},
+		[onCopySelection, onSlotPress],
 	);
 
 	if (!keyboard) {
@@ -255,59 +414,24 @@ export function TerminalKeyboard({
 				!hasLongPressOptions &&
 				slot.type === 'bytes' &&
 				repeatableLabels.has(slot.label);
-
-			cells.push(
-				<Pressable
-					key={`slot-${rowIndex}-${col}`}
-					ref={keyRef}
-					onPress={
-						isRepeatable || hasLongPressOptions
-							? undefined
-							: isSelectionCopySlot
-								? onCopySelection
-								: () => onSlotPress(slot)
-					}
-					onLongPress={
-						hasLongPressOptions
-							? () => openLongPressPopup(slot, keyRef)
-							: undefined
-					}
-					onPressIn={isRepeatable ? () => startRepeat(slot) : undefined}
-					onPressOut={(event) => {
-						if (releaseLongPressPopup(event)) return;
-						if (isRepeatable) clearRepeat();
-						if (hasLongPressOptions) {
-							if (suppressNextPressRef.current) {
-								suppressNextPressRef.current = false;
-								return;
-							}
-							if (isSelectionCopySlot) {
-								onCopySelection();
-								return;
-							}
-							onSlotPress(slot);
-						}
-					}}
-					onTouchMove={
-						hasLongPressOptions ? updateLongPressHighlight : undefined
-					}
-					style={[
-						{
-							flex: span,
-							margin: 2,
-							height: keyHeight,
-							paddingVertical: 6,
-							borderRadius: 8,
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							alignItems: 'center',
-							justifyContent: 'center',
-						},
-						modifierActive && {
-							backgroundColor: theme.colors.primary,
-						},
-					]}
-				>
+			const keyStyle = [
+				{
+					flex: span,
+					margin: 2,
+					height: keyHeight,
+					paddingVertical: 6,
+					borderRadius: 8,
+					borderWidth: 1,
+					borderColor: theme.colors.border,
+					alignItems: 'center' as const,
+					justifyContent: 'center' as const,
+				},
+				modifierActive && {
+					backgroundColor: theme.colors.primary,
+				},
+			];
+			const keyContent = (
+				<>
 					{Icon ? <Icon color={theme.colors.textPrimary} size={18} /> : null}
 					{showLabel ? (
 						<Text
@@ -336,6 +460,53 @@ export function TerminalKeyboard({
 							}}
 						/>
 					) : null}
+				</>
+			);
+
+			if (hasLongPressOptions) {
+				cells.push(
+					<View
+						key={`slot-${rowIndex}-${col}`}
+						ref={keyRef}
+						accessible
+						accessibilityRole="button"
+						accessibilityLabel={effectiveLabel}
+						onAccessibilityTap={() => runMainSlot(slot, isSelectionCopySlot)}
+						onStartShouldSetResponder={() => true}
+						onResponderGrant={(event) =>
+							startLongPressGesture(slot, keyRef, event)
+						}
+						onResponderMove={moveLongPressGesture}
+						onResponderRelease={(event) =>
+							releaseLongPressGesture(slot, isSelectionCopySlot, event)
+						}
+						onResponderTerminate={cancelLongPressGesture}
+						style={keyStyle}
+					>
+						{keyContent}
+					</View>,
+				);
+
+				col += span;
+				continue;
+			}
+
+			cells.push(
+				<Pressable
+					key={`slot-${rowIndex}-${col}`}
+					ref={keyRef}
+					onPress={
+						isRepeatable
+							? undefined
+							: isSelectionCopySlot
+								? onCopySelection
+								: () => onSlotPress(slot)
+					}
+					onPressIn={isRepeatable ? () => startRepeat(slot) : undefined}
+					onPressOut={isRepeatable ? clearRepeat : undefined}
+					style={keyStyle}
+				>
+					{keyContent}
 				</Pressable>,
 			);
 
