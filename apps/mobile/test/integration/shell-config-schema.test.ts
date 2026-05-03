@@ -23,12 +23,17 @@ void test('bundled runtime shell config parses with keyboards and command menus'
 	assert.ok(config.commandMenus.length > 0);
 	assert.ok(rawConfig.keyboardRouting);
 	assert.deepEqual(
-		(rawConfig.keyboardRouting as {
-			oneShotReturnByKeyboardId?: Record<string, string>;
-		}).oneShotReturnByKeyboardId,
+		(
+			rawConfig.keyboardRouting as {
+				oneShotReturnByKeyboardId?: Record<string, string>;
+			}
+		).oneShotReturnByKeyboardId,
 		{ advanced_keyboard: 'phone_base' },
 	);
-	assert.equal(resolveSelectedKeyboardId(config, 'missing-keyboard'), config.defaultKeyboardId);
+	assert.equal(
+		resolveSelectedKeyboardId(config, 'missing-keyboard'),
+		config.defaultKeyboardId,
+	);
 });
 
 void test('runtime shell config falls back to default when selected keyboard is inactive', () => {
@@ -41,7 +46,10 @@ void test('runtime shell config falls back to default when selected keyboard is 
 
 	const parsed = parseShellConfigData(config);
 
-	assert.equal(resolveSelectedKeyboardId(parsed, 'advanced_keyboard'), 'phone_base');
+	assert.equal(
+		resolveSelectedKeyboardId(parsed, 'advanced_keyboard'),
+		'phone_base',
+	);
 });
 
 void test('runtime shell config rejects duplicate active keyboard ids', () => {
@@ -52,15 +60,21 @@ void test('runtime shell config rejects duplicate active keyboard ids', () => {
 		oneShotReturnByKeyboardId: {},
 	};
 
-	assert.throws(() => parseShellConfigData(config), /Duplicate active keyboard id phone_base/);
+	assert.throws(
+		() => parseShellConfigData(config),
+		/Duplicate active keyboard id phone_base/,
+	);
 });
 
-	void test('runtime shell config rejects missing macro references', () => {
-		const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
-		const keyboards = structuredClone(config.keyboards) as Record<string, unknown>[];
-		const firstKeyboard = keyboards[0];
-		assert.ok(firstKeyboard);
-		const grid = structuredClone(firstKeyboard.grid) as unknown[][];
+void test('runtime shell config rejects missing macro references', () => {
+	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
+	const keyboards = structuredClone(config.keyboards) as Record<
+		string,
+		unknown
+	>[];
+	const firstKeyboard = keyboards[0];
+	assert.ok(firstKeyboard);
+	const grid = structuredClone(firstKeyboard.grid) as unknown[][];
 	grid[0]![0] = {
 		type: 'macro',
 		macroId: 'missing_macro',
@@ -75,10 +89,13 @@ void test('runtime shell config rejects duplicate active keyboard ids', () => {
 
 void test('runtime shell config rejects unknown action ids', () => {
 	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
-	const keyboards = structuredClone(config.keyboards) as Record<string, unknown>[];
+	const keyboards = structuredClone(config.keyboards) as Record<
+		string,
+		unknown
+	>[];
 	const firstKeyboard = keyboards[0];
-		assert.ok(firstKeyboard);
-		const grid = structuredClone(firstKeyboard.grid) as unknown[][];
+	assert.ok(firstKeyboard);
+	const grid = structuredClone(firstKeyboard.grid) as unknown[][];
 	grid[0]![0] = {
 		type: 'action',
 		actionId: 'NOT_A_REAL_ACTION',
@@ -93,7 +110,10 @@ void test('runtime shell config rejects unknown action ids', () => {
 
 void test('runtime shell config accepts long-press macro options on a key', () => {
 	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
-	const keyboards = structuredClone(config.keyboards) as Record<string, unknown>[];
+	const keyboards = structuredClone(config.keyboards) as Record<
+		string,
+		unknown
+	>[];
 	const firstKeyboard = keyboards[0];
 	assert.ok(firstKeyboard);
 	const grid = structuredClone(firstKeyboard.grid) as unknown[][];
@@ -135,7 +155,10 @@ void test('runtime shell config accepts long-press macro options on a key', () =
 
 void test('runtime shell config rejects missing macro references in long-press options', () => {
 	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
-	const keyboards = structuredClone(config.keyboards) as Record<string, unknown>[];
+	const keyboards = structuredClone(config.keyboards) as Record<
+		string,
+		unknown
+	>[];
 	const firstKeyboard = keyboards[0];
 	assert.ok(firstKeyboard);
 	const grid = structuredClone(firstKeyboard.grid) as unknown[][];
@@ -158,15 +181,15 @@ void test('runtime shell config rejects missing macro references in long-press o
 	firstKeyboard.grid = grid;
 	config.keyboards = keyboards;
 
-	assert.throws(
-		() => parseShellConfigData(config),
-		/missing_long_press_macro/,
-	);
+	assert.throws(() => parseShellConfigData(config), /missing_long_press_macro/);
 });
 
 void test('runtime shell config rejects unknown action ids in long-press options', () => {
 	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
-	const keyboards = structuredClone(config.keyboards) as Record<string, unknown>[];
+	const keyboards = structuredClone(config.keyboards) as Record<
+		string,
+		unknown
+	>[];
 	const firstKeyboard = keyboards[0];
 	assert.ok(firstKeyboard);
 	const grid = structuredClone(firstKeyboard.grid) as unknown[][];
