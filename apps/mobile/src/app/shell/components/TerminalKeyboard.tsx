@@ -311,10 +311,9 @@ export function TerminalKeyboard({
 	}, []);
 
 	const updateLongPressHighlight = useCallback(
-		(event: GestureResponderEvent) => {
+		({ localX, localY }: { localX: number; localY: number }) => {
 			setLongPressPopup((current) => {
 				if (!current) return current;
-				const { localX, localY } = getLocalPoint(event);
 				const highlightedIndex = getLongPressOptionIndexAtPoint({
 					layout: current.layout,
 					localX,
@@ -329,7 +328,7 @@ export function TerminalKeyboard({
 				return next;
 			});
 		},
-		[getLocalPoint],
+		[],
 	);
 
 	const openLongPressPopup = useCallback(
@@ -409,7 +408,7 @@ export function TerminalKeyboard({
 			if (!gesture) return;
 
 			if (gesture.longPressFired) {
-				updateLongPressHighlight(event);
+				updateLongPressHighlight(getLocalPoint(event));
 				return;
 			}
 
@@ -420,7 +419,7 @@ export function TerminalKeyboard({
 				clearLongPressTimer();
 			}
 		},
-		[clearLongPressTimer, tapSlopPx, updateLongPressHighlight],
+		[clearLongPressTimer, getLocalPoint, tapSlopPx, updateLongPressHighlight],
 	);
 
 	const releaseLongPressGesture = useCallback(
