@@ -13,6 +13,7 @@ import {
 	View,
 } from 'react-native';
 import {
+	getLongPressMoveState,
 	getLongPressOptionIndexAtPoint,
 	getLongPressPopupLayout,
 	getLongPressReleaseDecision,
@@ -40,6 +41,8 @@ type LongPressGestureState = {
 	keyRef: React.RefObject<View | null>;
 	startPageX: number;
 	startPageY: number;
+	currentPageX: number;
+	currentPageY: number;
 	movedBeyondTapSlop: boolean;
 	longPressFired: boolean;
 };
@@ -164,6 +167,7 @@ function TerminalKeyboardKey({
 					releaseLongPressGesture(slot, isSelectionCopySlot, event)
 				}
 				onResponderTerminate={cancelLongPressGesture}
+				onResponderTerminationRequest={() => false}
 				style={keyStyle}
 			>
 				{keyContent}
@@ -360,7 +364,11 @@ export function TerminalKeyboard({
 					slot,
 					options,
 					layout,
-					highlightedIndex: null,
+					highlightedIndex: getLongPressOptionIndexAtPoint({
+						layout,
+						localX: gesture.currentPageX - root.x,
+						localY: gesture.currentPageY - root.y,
+					}),
 				};
 				longPressPopupRef.current = nextPopup;
 				setLongPressPopup(nextPopup);
@@ -382,6 +390,8 @@ export function TerminalKeyboard({
 				keyRef,
 				startPageX: event.nativeEvent.pageX,
 				startPageY: event.nativeEvent.pageY,
+				currentPageX: event.nativeEvent.pageX,
+				currentPageY: event.nativeEvent.pageY,
 				movedBeyondTapSlop: false,
 				longPressFired: false,
 			};
@@ -406,20 +416,26 @@ export function TerminalKeyboard({
 		(event: GestureResponderEvent) => {
 			const gesture = longPressGestureRef.current;
 			if (!gesture) return;
+			gesture.currentPageX = event.nativeEvent.pageX;
+			gesture.currentPageY = event.nativeEvent.pageY;
 
 			if (gesture.longPressFired) {
 				updateLongPressHighlight(getLocalPoint(event));
 				return;
 			}
 
-			const dx = event.nativeEvent.pageX - gesture.startPageX;
-			const dy = event.nativeEvent.pageY - gesture.startPageY;
-			if (Math.hypot(dx, dy) > tapSlopPx) {
-				gesture.movedBeyondTapSlop = true;
-				clearLongPressTimer();
-			}
+			const next = getLongPressMoveState({
+				longPressFired: gesture.longPressFired,
+				movedBeyondTapSlop: gesture.movedBeyondTapSlop,
+				startPageX: gesture.startPageX,
+				startPageY: gesture.startPageY,
+				currentPageX: gesture.currentPageX,
+				currentPageY: gesture.currentPageY,
+				tapSlopPx,
+			});
+			gesture.movedBeyondTapSlop = next.movedBeyondTapSlop;
 		},
-		[clearLongPressTimer, getLocalPoint, tapSlopPx, updateLongPressHighlight],
+		[getLocalPoint, tapSlopPx, updateLongPressHighlight],
 	);
 
 	const releaseLongPressGesture = useCallback(

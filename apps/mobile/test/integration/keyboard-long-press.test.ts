@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+	getLongPressMoveState,
 	getLongPressReleaseDecision,
 	getLongPressOptionIndexAtPoint,
 	getLongPressPopupLayout,
@@ -134,5 +135,46 @@ void test('long press release decision keeps tap, option, and cancel paths disti
 			popupLayout: layout,
 		}),
 		{ type: 'cancel' },
+	);
+});
+
+void test('long press movement before popup preserves timer but cancels tap', () => {
+	assert.deepEqual(
+		getLongPressMoveState({
+			longPressFired: false,
+			movedBeyondTapSlop: false,
+			startPageX: 100,
+			startPageY: 200,
+			currentPageX: 102,
+			currentPageY: 204,
+			tapSlopPx: 8,
+		}),
+		{ movedBeyondTapSlop: false, keepLongPressTimer: true },
+	);
+
+	assert.deepEqual(
+		getLongPressMoveState({
+			longPressFired: false,
+			movedBeyondTapSlop: false,
+			startPageX: 100,
+			startPageY: 200,
+			currentPageX: 100,
+			currentPageY: 160,
+			tapSlopPx: 8,
+		}),
+		{ movedBeyondTapSlop: true, keepLongPressTimer: true },
+	);
+
+	assert.deepEqual(
+		getLongPressMoveState({
+			longPressFired: true,
+			movedBeyondTapSlop: true,
+			startPageX: 100,
+			startPageY: 200,
+			currentPageX: 100,
+			currentPageY: 160,
+			tapSlopPx: 8,
+		}),
+		{ movedBeyondTapSlop: true, keepLongPressTimer: false },
 	);
 });

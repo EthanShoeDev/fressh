@@ -11,6 +11,11 @@ export type LongPressReleaseDecision =
 	| { type: 'option'; optionIndex: number }
 	| { type: 'cancel' };
 
+export type LongPressMoveState = {
+	movedBeyondTapSlop: boolean;
+	keepLongPressTimer: boolean;
+};
+
 const horizontalMargin = 6;
 const optionWidth = 86;
 const popupHeight = 44;
@@ -70,6 +75,36 @@ export function getLongPressOptionIndexAtPoint({
 	const index = Math.floor((localX - layout.left) / layout.optionWidth);
 	const optionCount = Math.floor(layout.width / layout.optionWidth);
 	return index >= 0 && index < optionCount ? index : null;
+}
+
+export function getLongPressMoveState({
+	longPressFired,
+	movedBeyondTapSlop,
+	startPageX,
+	startPageY,
+	currentPageX,
+	currentPageY,
+	tapSlopPx,
+}: {
+	longPressFired: boolean;
+	movedBeyondTapSlop: boolean;
+	startPageX: number;
+	startPageY: number;
+	currentPageX: number;
+	currentPageY: number;
+	tapSlopPx: number;
+}): LongPressMoveState {
+	if (longPressFired) {
+		return { movedBeyondTapSlop, keepLongPressTimer: false };
+	}
+
+	return {
+		movedBeyondTapSlop:
+			movedBeyondTapSlop ||
+			Math.hypot(currentPageX - startPageX, currentPageY - startPageY) >
+				tapSlopPx,
+		keepLongPressTimer: true,
+	};
 }
 
 export function getLongPressReleaseDecision({
