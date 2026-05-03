@@ -77,6 +77,33 @@ export function getLongPressOptionIndexAtPoint({
 	return index >= 0 && index < optionCount ? index : null;
 }
 
+export function getLongPressTrackedOptionIndex({
+	layout,
+	localX,
+	localY,
+	previousIndex,
+}: {
+	layout: LongPressPopupLayout;
+	localX: number;
+	localY: number;
+	previousIndex: number | null;
+}): number | null {
+	const optionIndex = getLongPressOptionIndexAtPoint({
+		layout,
+		localX,
+		localY,
+	});
+	if (optionIndex != null || previousIndex == null) {
+		return optionIndex;
+	}
+
+	const previousLeft = layout.left + previousIndex * layout.optionWidth;
+	const previousRight = previousLeft + layout.optionWidth;
+	return localX >= previousLeft && localX < previousRight
+		? previousIndex
+		: null;
+}
+
 export function getLongPressMoveState({
 	longPressFired,
 	movedBeyondTapSlop,

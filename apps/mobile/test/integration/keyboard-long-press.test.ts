@@ -5,6 +5,7 @@ import {
 	getLongPressReleaseDecision,
 	getLongPressOptionIndexAtPoint,
 	getLongPressPopupLayout,
+	getLongPressTrackedOptionIndex,
 } from '../../src/lib/keyboard-long-press';
 
 void test('long press popup centers above the anchor and clamps to keyboard bounds', () => {
@@ -60,6 +61,44 @@ void test('long press hit testing returns selected option or null outside popup'
 	);
 	assert.equal(
 		getLongPressOptionIndexAtPoint({ layout, localX: 260, localY: 160 }),
+		null,
+	);
+});
+
+void test('long press tracking keeps highlighted option when finger moves vertically', () => {
+	const layout = {
+		left: 74,
+		top: 146,
+		width: 172,
+		height: 44,
+		optionWidth: 86,
+	};
+
+	assert.equal(
+		getLongPressTrackedOptionIndex({
+			layout,
+			localX: 180,
+			localY: 160,
+			previousIndex: null,
+		}),
+		1,
+	);
+	assert.equal(
+		getLongPressTrackedOptionIndex({
+			layout,
+			localX: 180,
+			localY: 120,
+			previousIndex: 1,
+		}),
+		1,
+	);
+	assert.equal(
+		getLongPressTrackedOptionIndex({
+			layout,
+			localX: 20,
+			localY: 120,
+			previousIndex: 1,
+		}),
 		null,
 	);
 });

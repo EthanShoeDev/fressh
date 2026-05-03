@@ -17,6 +17,7 @@ import {
 	getLongPressOptionIndexAtPoint,
 	getLongPressPopupLayout,
 	getLongPressReleaseDecision,
+	getLongPressTrackedOptionIndex,
 	type LongPressPopupLayout,
 } from '@/lib/keyboard-long-press';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
@@ -318,10 +319,11 @@ export function TerminalKeyboard({
 		({ localX, localY }: { localX: number; localY: number }) => {
 			setLongPressPopup((current) => {
 				if (!current) return current;
-				const highlightedIndex = getLongPressOptionIndexAtPoint({
+				const highlightedIndex = getLongPressTrackedOptionIndex({
 					layout: current.layout,
 					localX,
 					localY,
+					previousIndex: current.highlightedIndex,
 				});
 				if (highlightedIndex === current.highlightedIndex) {
 					longPressPopupRef.current = current;
