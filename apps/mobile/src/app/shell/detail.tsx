@@ -60,7 +60,7 @@ import {
 	type CommandPreset,
 	type CommandStep,
 	type KeyboardDefinition,
-	type KeyboardSlot,
+	type KeyboardExecutableItem,
 	type MacroDef,
 	type ModifierKey,
 } from '@/lib/shell-config';
@@ -1552,7 +1552,7 @@ fi
 	);
 
 	const handleSlotPress = useCallback(
-		(slot: KeyboardSlot) => {
+		(slot: KeyboardExecutableItem) => {
 			if (
 				selectionModeEnabled &&
 				!(slot.type === 'action' && slot.actionId === 'COPY_SELECTION')
