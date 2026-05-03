@@ -6,6 +6,11 @@ export type LongPressPopupLayout = {
 	optionWidth: number;
 };
 
+export type LongPressReleaseDecision =
+	| { type: 'tap' }
+	| { type: 'option'; optionIndex: number }
+	| { type: 'cancel' };
+
 const horizontalMargin = 6;
 const optionWidth = 86;
 const popupHeight = 44;
@@ -65,4 +70,51 @@ export function getLongPressOptionIndexAtPoint({
 	const index = Math.floor((localX - layout.left) / layout.optionWidth);
 	const optionCount = Math.floor(layout.width / layout.optionWidth);
 	return index >= 0 && index < optionCount ? index : null;
+}
+
+export function getLongPressReleaseDecision({
+	longPressFired,
+	movedBeyondTapSlop,
+	startPageX,
+	startPageY,
+	releasePageX,
+	releasePageY,
+	tapSlopPx,
+	rootX,
+	rootY,
+	popupLayout,
+}: {
+	longPressFired: boolean;
+	movedBeyondTapSlop: boolean;
+	startPageX: number;
+	startPageY: number;
+	releasePageX: number;
+	releasePageY: number;
+	tapSlopPx: number;
+	rootX: number;
+	rootY: number;
+	popupLayout: LongPressPopupLayout | null;
+}): LongPressReleaseDecision {
+	if (longPressFired) {
+		if (!popupLayout) return { type: 'cancel' };
+
+		const optionIndex = getLongPressOptionIndexAtPoint({
+			layout: popupLayout,
+			localX: releasePageX - rootX,
+			localY: releasePageY - rootY,
+		});
+
+		return optionIndex == null
+			? { type: 'cancel' }
+			: { type: 'option', optionIndex };
+	}
+
+	if (
+		movedBeyondTapSlop ||
+		Math.hypot(releasePageX - startPageX, releasePageY - startPageY) > tapSlopPx
+	) {
+		return { type: 'cancel' };
+	}
+
+	return { type: 'tap' };
 }

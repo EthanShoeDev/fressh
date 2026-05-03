@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+	getLongPressReleaseDecision,
 	getLongPressOptionIndexAtPoint,
 	getLongPressPopupLayout,
 } from '../../src/lib/keyboard-long-press';
@@ -59,5 +60,79 @@ void test('long press hit testing returns selected option or null outside popup'
 	assert.equal(
 		getLongPressOptionIndexAtPoint({ layout, localX: 260, localY: 160 }),
 		null,
+	);
+});
+
+void test('long press release decision keeps tap, option, and cancel paths distinct', () => {
+	const layout = {
+		left: 74,
+		top: 146,
+		width: 172,
+		height: 44,
+		optionWidth: 86,
+	};
+
+	assert.deepEqual(
+		getLongPressReleaseDecision({
+			longPressFired: false,
+			movedBeyondTapSlop: false,
+			startPageX: 100,
+			startPageY: 200,
+			releasePageX: 104,
+			releasePageY: 203,
+			tapSlopPx: 8,
+			rootX: 0,
+			rootY: 0,
+			popupLayout: null,
+		}),
+		{ type: 'tap' },
+	);
+
+	assert.deepEqual(
+		getLongPressReleaseDecision({
+			longPressFired: false,
+			movedBeyondTapSlop: true,
+			startPageX: 100,
+			startPageY: 200,
+			releasePageX: 120,
+			releasePageY: 203,
+			tapSlopPx: 8,
+			rootX: 0,
+			rootY: 0,
+			popupLayout: null,
+		}),
+		{ type: 'cancel' },
+	);
+
+	assert.deepEqual(
+		getLongPressReleaseDecision({
+			longPressFired: true,
+			movedBeyondTapSlop: false,
+			startPageX: 100,
+			startPageY: 200,
+			releasePageX: 180,
+			releasePageY: 160,
+			tapSlopPx: 8,
+			rootX: 0,
+			rootY: 0,
+			popupLayout: layout,
+		}),
+		{ type: 'option', optionIndex: 1 },
+	);
+
+	assert.deepEqual(
+		getLongPressReleaseDecision({
+			longPressFired: true,
+			movedBeyondTapSlop: false,
+			startPageX: 100,
+			startPageY: 200,
+			releasePageX: 180,
+			releasePageY: 220,
+			tapSlopPx: 8,
+			rootX: 0,
+			rootY: 0,
+			popupLayout: layout,
+		}),
+		{ type: 'cancel' },
 	);
 });
