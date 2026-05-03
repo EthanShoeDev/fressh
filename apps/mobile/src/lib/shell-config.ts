@@ -25,12 +25,31 @@ export type CommandPresetMenu = {
 
 export type CommandPresetEntry = CommandPreset | CommandPresetMenu;
 
+export type KeyboardLongPressOption =
+	| { type: 'text'; text: string; label: string; icon: string | null }
+	| { type: 'bytes'; bytes: readonly number[]; label: string; icon: string | null }
+	| { type: 'macro'; macroId: string; label: string; icon: string | null }
+	| { type: 'action'; actionId: ActionId; label: string; icon: string | null };
+
+export type KeyboardLongPressConfig = {
+	options: readonly KeyboardLongPressOption[];
+};
+
+type KeyboardSlotBase = {
+	label: string;
+	icon: string | null;
+	span?: number;
+	longPress?: KeyboardLongPressConfig;
+};
+
 export type KeyboardSlot =
-	| { type: 'text'; text: string; label: string; icon: string | null; span?: number }
-	| { type: 'bytes'; bytes: readonly number[]; label: string; icon: string | null; span?: number }
-	| { type: 'modifier'; modifier: ModifierKey; label: string; icon: string | null; span?: number }
-	| { type: 'macro'; macroId: string; label: string; icon: string | null; span?: number }
-	| { type: 'action'; actionId: ActionId; label: string; icon: string | null; span?: number };
+	| ({ type: 'text'; text: string } & KeyboardSlotBase)
+	| ({ type: 'bytes'; bytes: readonly number[] } & KeyboardSlotBase)
+	| ({ type: 'modifier'; modifier: ModifierKey } & KeyboardSlotBase)
+	| ({ type: 'macro'; macroId: string } & KeyboardSlotBase)
+	| ({ type: 'action'; actionId: ActionId } & KeyboardSlotBase);
+
+export type KeyboardExecutableItem = KeyboardSlot | KeyboardLongPressOption;
 
 export type MacroDef = {
 	id: string;
@@ -126,6 +145,41 @@ const commandPresetEntrySchema: z.ZodType<CommandPresetEntry> = z.lazy(() =>
 	]),
 );
 
+const keyboardLongPressOptionSchema: z.ZodType<KeyboardLongPressOption> =
+	z.discriminatedUnion('type', [
+		z.object({
+			type: z.literal('text'),
+			text: z.string(),
+			label: z.string(),
+			icon: iconSchema,
+		}),
+		z.object({
+			type: z.literal('bytes'),
+			bytes: z.array(z.number().int().min(0).max(255)),
+			label: z.string(),
+			icon: iconSchema,
+		}),
+		z.object({
+			type: z.literal('macro'),
+			macroId: z.string().min(1),
+			label: z.string(),
+			icon: iconSchema,
+		}),
+		z.object({
+			type: z.literal('action'),
+			actionId: z.string().min(1),
+			label: z.string(),
+			icon: iconSchema,
+		}),
+	]);
+
+const keyboardLongPressConfigSchema: z.ZodType<KeyboardLongPressConfig> =
+	z.object({
+		options: z.array(keyboardLongPressOptionSchema).min(1),
+	});
+
+const longPressSchema = keyboardLongPressConfigSchema.optional();
+
 const keyboardSlotSchema: z.ZodType<KeyboardSlot> = z.discriminatedUnion('type', [
 	z.object({
 		type: z.literal('text'),
@@ -133,6 +187,7 @@ const keyboardSlotSchema: z.ZodType<KeyboardSlot> = z.discriminatedUnion('type',
 		label: z.string(),
 		icon: iconSchema,
 		span: spanSchema,
+		longPress: longPressSchema,
 	}),
 	z.object({
 		type: z.literal('bytes'),
@@ -140,6 +195,7 @@ const keyboardSlotSchema: z.ZodType<KeyboardSlot> = z.discriminatedUnion('type',
 		label: z.string(),
 		icon: iconSchema,
 		span: spanSchema,
+		longPress: longPressSchema,
 	}),
 	z.object({
 		type: z.literal('modifier'),
@@ -147,6 +203,7 @@ const keyboardSlotSchema: z.ZodType<KeyboardSlot> = z.discriminatedUnion('type',
 		label: z.string(),
 		icon: iconSchema,
 		span: spanSchema,
+		longPress: longPressSchema,
 	}),
 	z.object({
 		type: z.literal('macro'),
@@ -154,6 +211,7 @@ const keyboardSlotSchema: z.ZodType<KeyboardSlot> = z.discriminatedUnion('type',
 		label: z.string(),
 		icon: iconSchema,
 		span: spanSchema,
+		longPress: longPressSchema,
 	}),
 	z.object({
 		type: z.literal('action'),
@@ -161,6 +219,7 @@ const keyboardSlotSchema: z.ZodType<KeyboardSlot> = z.discriminatedUnion('type',
 		label: z.string(),
 		icon: iconSchema,
 		span: spanSchema,
+		longPress: longPressSchema,
 	}),
 ]);
 
@@ -180,6 +239,35 @@ const keyboardDefinitionSchema = z.object({
 	rotationOrder: z.number().int().optional(),
 	grid: z.array(z.array(keyboardSlotSchema.nullable())),
 });
+
+function validateExecutableItemReferences({
+	item,
+	macroIds,
+	path,
+	ctx,
+	keyboardId,
+}: {
+	item: KeyboardExecutableItem;
+	macroIds: Set<string>;
+	path: (string | number)[];
+	ctx: z.RefinementCtx;
+	keyboardId: string;
+}) {
+	if (item.type === 'macro' && !macroIds.has(item.macroId)) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: [...path, 'macroId'],
+			message: `Keyboard ${keyboardId} references missing macro ${item.macroId}`,
+		});
+	}
+	if (item.type === 'action' && !supportedActionIds.has(item.actionId)) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: [...path, 'actionId'],
+			message: `Unsupported actionId ${item.actionId}`,
+		});
+	}
+}
 
 const shellConfigSchema: z.ZodType<ShellConfig> = z
 	.object({
@@ -337,21 +425,32 @@ const shellConfigSchema: z.ZodType<ShellConfig> = z
 			for (const [rowIndex, row] of keyboard.grid.entries()) {
 				for (const [colIndex, slot] of row.entries()) {
 					if (!slot) continue;
-					if (slot.type === 'macro' && !macroIds.has(slot.macroId)) {
-						ctx.addIssue({
-							code: z.ZodIssueCode.custom,
-							path: ['keyboards', keyboardIndex, 'grid', rowIndex, colIndex, 'macroId'],
-							message: `Keyboard ${keyboard.id} references missing macro ${slot.macroId}`,
-						});
-					}
-					if (
-						slot.type === 'action' &&
-						!supportedActionIds.has(slot.actionId)
-					) {
-						ctx.addIssue({
-							code: z.ZodIssueCode.custom,
-							path: ['keyboards', keyboardIndex, 'grid', rowIndex, colIndex, 'actionId'],
-							message: `Unsupported actionId ${slot.actionId}`,
+					validateExecutableItemReferences({
+						item: slot,
+						macroIds,
+						path: ['keyboards', keyboardIndex, 'grid', rowIndex, colIndex],
+						ctx,
+						keyboardId: keyboard.id,
+					});
+
+					for (const [optionIndex, option] of (
+						slot.longPress?.options ?? []
+					).entries()) {
+						validateExecutableItemReferences({
+							item: option,
+							macroIds,
+							path: [
+								'keyboards',
+								keyboardIndex,
+								'grid',
+								rowIndex,
+								colIndex,
+								'longPress',
+								'options',
+								optionIndex,
+							],
+							ctx,
+							keyboardId: keyboard.id,
 						});
 					}
 				}
