@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-02.1",
-  "updatedAt": "2026-05-02T07:11:04.000Z",
+  "version": "2026-05-03.1",
+  "updatedAt": "2026-05-03T07:21:08Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -207,7 +207,23 @@
             "type": "macro",
             "macroId": "cmd_rloop_code_fix",
             "label": "Review",
-            "icon": null
+            "icon": null,
+            "longPress": {
+              "options": [
+                {
+                  "type": "macro",
+                  "macroId": "cmd_rloop_code_fix",
+                  "label": "$rloop-code-fix2",
+                  "icon": null
+                },
+                {
+                  "type": "macro",
+                  "macroId": "cmd_rloop_code_fix_3",
+                  "label": "$rloop-code-fix3",
+                  "icon": null
+                }
+              ]
+            }
           },
           {
             "type": "macro",
@@ -399,10 +415,17 @@
       },
       {
         "id": "cmd_rloop_code_fix",
-        "name": "Command: rloop code fix",
-        "label": "$rloop-code-fix",
+        "name": "Command: rloop code fix 2",
+        "label": "$rloop-code-fix2",
         "category": "Commands",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"$rloop-code-fix2\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "cmd_rloop_code_fix_3",
+        "name": "Command: rloop code fix 3",
+        "label": "$rloop-code-fix3",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"$rloop-code-fix3\",\n  \"enter\": true\n}"
       },
       {
         "id": "cmd_continue",

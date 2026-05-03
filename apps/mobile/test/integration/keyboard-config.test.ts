@@ -39,7 +39,7 @@ void test('phone base keyboard exposes a continue command key between approve an
 	assert.equal(secondRow[5]?.label, 'S-Tab');
 });
 
-void test('phone base keyboard review key runs $rloop-code-fix2 and keeps the Review label', () => {
+void test('phone base keyboard review key taps code fix 2 and long-presses code fix 2 or 3', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -52,14 +52,25 @@ void test('phone base keyboard review key runs $rloop-code-fix2 and keeps the Re
 	const reviewMacro = phoneBaseMacros.find(
 		(macro) => macro.id === 'cmd_rloop_code_fix',
 	);
+	const reviewMacro3 = phoneBaseMacros.find(
+		(macro) => macro.id === 'cmd_rloop_code_fix_3',
+	);
 
 	assert.deepEqual(reviewMacro, {
 		id: 'cmd_rloop_code_fix',
-		name: 'Command: rloop code fix',
-		label: '$rloop-code-fix',
+		name: 'Command: rloop code fix 2',
+		label: '$rloop-code-fix2',
 		category: 'Commands',
 		script:
 			'{\n  "type": "command",\n  "value": "$rloop-code-fix2",\n  "enter": true\n}',
+	});
+	assert.deepEqual(reviewMacro3, {
+		id: 'cmd_rloop_code_fix_3',
+		name: 'Command: rloop code fix 3',
+		label: '$rloop-code-fix3',
+		category: 'Commands',
+		script:
+			'{\n  "type": "command",\n  "value": "$rloop-code-fix3",\n  "enter": true\n}',
 	});
 
 	const thirdRow = phoneBaseKeyboard.grid[2];
@@ -69,6 +80,22 @@ void test('phone base keyboard review key runs $rloop-code-fix2 and keeps the Re
 		macroId: 'cmd_rloop_code_fix',
 		label: 'Review',
 		icon: null,
+		longPress: {
+			options: [
+				{
+					type: 'macro',
+					macroId: 'cmd_rloop_code_fix',
+					label: '$rloop-code-fix2',
+					icon: null,
+				},
+				{
+					type: 'macro',
+					macroId: 'cmd_rloop_code_fix_3',
+					label: '$rloop-code-fix3',
+					icon: null,
+				},
+			],
+		},
 	});
 });
 
