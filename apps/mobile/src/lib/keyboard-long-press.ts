@@ -118,6 +118,7 @@ export function getLongPressReleaseDecision({
 	rootX,
 	rootY,
 	popupLayout,
+	highlightedIndex,
 }: {
 	longPressFired: boolean;
 	movedBeyondTapSlop: boolean;
@@ -129,19 +130,32 @@ export function getLongPressReleaseDecision({
 	rootX: number;
 	rootY: number;
 	popupLayout: LongPressPopupLayout | null;
+	highlightedIndex?: number | null;
 }): LongPressReleaseDecision {
 	if (longPressFired) {
 		if (!popupLayout) return { type: 'cancel' };
 
+		const localX = releasePageX - rootX;
 		const optionIndex = getLongPressOptionIndexAtPoint({
 			layout: popupLayout,
-			localX: releasePageX - rootX,
+			localX,
 			localY: releasePageY - rootY,
 		});
 
-		return optionIndex == null
-			? { type: 'cancel' }
-			: { type: 'option', optionIndex };
+		if (optionIndex != null) {
+			return { type: 'option', optionIndex };
+		}
+
+		if (highlightedIndex != null) {
+			const highlightedLeft =
+				popupLayout.left + highlightedIndex * popupLayout.optionWidth;
+			const highlightedRight = highlightedLeft + popupLayout.optionWidth;
+			if (localX >= highlightedLeft && localX < highlightedRight) {
+				return { type: 'option', optionIndex: highlightedIndex };
+			}
+		}
+
+		return { type: 'cancel' };
 	}
 
 	if (

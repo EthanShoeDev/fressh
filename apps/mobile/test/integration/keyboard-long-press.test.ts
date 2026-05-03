@@ -117,6 +117,7 @@ void test('long press release decision keeps tap, option, and cancel paths disti
 			rootX: 0,
 			rootY: 0,
 			popupLayout: layout,
+			highlightedIndex: null,
 		}),
 		{ type: 'option', optionIndex: 1 },
 	);
@@ -133,6 +134,51 @@ void test('long press release decision keeps tap, option, and cancel paths disti
 			rootX: 0,
 			rootY: 0,
 			popupLayout: layout,
+			highlightedIndex: null,
+		}),
+		{ type: 'cancel' },
+	);
+});
+
+void test('long press release keeps highlighted option when finger lifts vertically out of row', () => {
+	const layout = {
+		left: 74,
+		top: 146,
+		width: 172,
+		height: 44,
+		optionWidth: 86,
+	};
+
+	assert.deepEqual(
+		getLongPressReleaseDecision({
+			longPressFired: true,
+			movedBeyondTapSlop: false,
+			startPageX: 100,
+			startPageY: 200,
+			releasePageX: 180,
+			releasePageY: 120,
+			tapSlopPx: 8,
+			rootX: 0,
+			rootY: 0,
+			popupLayout: layout,
+			highlightedIndex: 1,
+		}),
+		{ type: 'option', optionIndex: 1 },
+	);
+
+	assert.deepEqual(
+		getLongPressReleaseDecision({
+			longPressFired: true,
+			movedBeyondTapSlop: false,
+			startPageX: 100,
+			startPageY: 200,
+			releasePageX: 20,
+			releasePageY: 120,
+			tapSlopPx: 8,
+			rootX: 0,
+			rootY: 0,
+			popupLayout: layout,
+			highlightedIndex: 1,
 		}),
 		{ type: 'cancel' },
 	);

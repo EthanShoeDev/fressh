@@ -465,6 +465,7 @@ export function TerminalKeyboard({
 				rootX: keyboardRootWindowRef.current.x,
 				rootY: keyboardRootWindowRef.current.y,
 				popupLayout: current?.layout ?? null,
+				highlightedIndex: current?.highlightedIndex ?? null,
 			});
 			closeLongPressPopup();
 
