@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-04.1",
-  "updatedAt": "2026-05-04T00:00:00Z",
+  "version": "2026-05-04.2",
+  "updatedAt": "2026-05-04T00:00:01Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -76,7 +76,48 @@
             ],
             "label": "Window",
             "icon": "AppWindow",
-            "span": 2
+            "span": 2,
+            "longPress": {
+              "options": [
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    91,
+                    49,
+                    59,
+                    53,
+                    67
+                  ],
+                  "label": "Window",
+                  "icon": "AppWindow"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    2,
+                    112
+                  ],
+                  "label": "Prev all",
+                  "icon": null
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    2,
+                    110
+                  ],
+                  "label": "Next all",
+                  "icon": null
+                },
+                {
+                  "type": "macro",
+                  "macroId": "alt_w",
+                  "label": "Alt-w",
+                  "icon": null
+                }
+              ]
+            }
           },
           null,
           {
@@ -97,7 +138,41 @@
               68
             ],
             "label": "ARROW_LEFT",
-            "icon": "ArrowLeft"
+            "icon": "ArrowLeft",
+            "longPress": {
+              "options": [
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    91,
+                    68
+                  ],
+                  "label": "ARROW_LEFT",
+                  "icon": "ArrowLeft"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    91,
+                    53,
+                    126
+                  ],
+                  "label": "PAGE_UP",
+                  "icon": "ChevronsUp"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    2,
+                    112
+                  ],
+                  "label": "Prev all",
+                  "icon": null
+                }
+              ]
+            }
           },
           {
             "type": "bytes",
@@ -107,7 +182,41 @@
               67
             ],
             "label": "ARROW_RIGHT",
-            "icon": "ArrowRight"
+            "icon": "ArrowRight",
+            "longPress": {
+              "options": [
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    91,
+                    67
+                  ],
+                  "label": "ARROW_RIGHT",
+                  "icon": "ArrowRight"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    91,
+                    54,
+                    126
+                  ],
+                  "label": "PAGE_DOWN",
+                  "icon": "ChevronsDown"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    2,
+                    110
+                  ],
+                  "label": "Next all",
+                  "icon": null
+                }
+              ]
+            }
           },
           null,
           {
@@ -445,6 +554,13 @@
         "label": "2",
         "category": "Replies",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"2\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "alt_w",
+        "name": "Meta: Alt-w",
+        "label": "Alt-w",
+        "category": "Navigation",
+        "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
       }
     ],
     "advanced_keyboard": [
