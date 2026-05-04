@@ -26,7 +26,7 @@ void test('bundled runtime shell config parses with keyboards and command menus'
 		(rawConfig.keyboardRouting as {
 			oneShotReturnByKeyboardId?: Record<string, string>;
 		}).oneShotReturnByKeyboardId,
-		{ advanced_keyboard: 'phone_base' },
+		{},
 	);
 	assert.equal(resolveSelectedKeyboardId(config, 'missing-keyboard'), config.defaultKeyboardId);
 });
