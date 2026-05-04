@@ -99,6 +99,113 @@ void test('phone base keyboard review key taps code fix 2 and long-presses code 
 	});
 });
 
+void test('phone base keyboard exposes long-press navigation options on arrows and window', () => {
+	const config = getBundledShellConfig();
+	const phoneBaseKeyboard = config.keyboards.find(
+		(keyboard) => keyboard.id === 'phone_base',
+	);
+	assert.ok(phoneBaseKeyboard);
+
+	const secondRow = phoneBaseKeyboard.grid[1];
+	const thirdRow = phoneBaseKeyboard.grid[2];
+	assert.ok(secondRow);
+	assert.ok(thirdRow);
+
+	assert.deepEqual(secondRow[0], {
+		type: 'bytes',
+		bytes: [27, 91, 68],
+		label: 'ARROW_LEFT',
+		icon: 'ArrowLeft',
+		longPress: {
+			options: [
+				{
+					type: 'bytes',
+					bytes: [27, 91, 68],
+					label: 'ARROW_LEFT',
+					icon: 'ArrowLeft',
+				},
+				{
+					type: 'bytes',
+					bytes: [27, 91, 53, 126],
+					label: 'PAGE_UP',
+					icon: 'ChevronsUp',
+				},
+				{
+					type: 'bytes',
+					bytes: [2, 112],
+					label: 'Prev all',
+					icon: null,
+				},
+			],
+		},
+	});
+
+	assert.deepEqual(secondRow[1], {
+		type: 'bytes',
+		bytes: [27, 91, 67],
+		label: 'ARROW_RIGHT',
+		icon: 'ArrowRight',
+		longPress: {
+			options: [
+				{
+					type: 'bytes',
+					bytes: [27, 91, 67],
+					label: 'ARROW_RIGHT',
+					icon: 'ArrowRight',
+				},
+				{
+					type: 'bytes',
+					bytes: [27, 91, 54, 126],
+					label: 'PAGE_DOWN',
+					icon: 'ChevronsDown',
+				},
+				{
+					type: 'bytes',
+					bytes: [2, 110],
+					label: 'Next all',
+					icon: null,
+				},
+			],
+		},
+	});
+
+	assert.deepEqual(phoneBaseKeyboard.grid[0]?.[6], {
+		type: 'bytes',
+		bytes: [27, 91, 49, 59, 53, 67],
+		label: 'Window',
+		icon: 'AppWindow',
+		span: 2,
+		longPress: {
+			options: [
+				{
+					type: 'bytes',
+					bytes: [27, 91, 49, 59, 53, 67],
+					label: 'Window',
+					icon: 'AppWindow',
+				},
+				{
+					type: 'bytes',
+					bytes: [2, 112],
+					label: 'Prev all',
+					icon: null,
+				},
+				{
+					type: 'bytes',
+					bytes: [2, 110],
+					label: 'Next all',
+					icon: null,
+				},
+				{
+					type: 'macro',
+					macroId: 'alt_w',
+					label: 'Alt-w',
+					icon: null,
+				},
+			],
+		},
+	});
+});
+
 void test('bundled keyboards do not expose tmux history actions', () => {
 	const config = getBundledShellConfig();
 
