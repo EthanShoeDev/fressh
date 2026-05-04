@@ -74,7 +74,7 @@ void test('keyboard-bounded lane hit testing clamps x and rejects y outside keyb
 		height: 44,
 		optionWidth: 86,
 	};
-	const keyboardBounds = { top: 100, height: 180 };
+	const keyboardBounds = { left: 0, top: 100, width: 320, height: 180 };
 
 	assert.equal(
 		getLongPressKeyboardBoundedOptionIndex({
@@ -98,7 +98,7 @@ void test('keyboard-bounded lane hit testing clamps x and rejects y outside keyb
 		getLongPressKeyboardBoundedOptionIndex({
 			layout,
 			keyboardBounds,
-			localX: 400,
+			localX: 319,
 			localY: 240,
 		}),
 		1,
@@ -123,6 +123,45 @@ void test('keyboard-bounded lane hit testing clamps x and rejects y outside keyb
 	);
 });
 
+void test('keyboard-bounded lane hit testing rejects x outside keyboard', () => {
+	const layout = {
+		left: 74,
+		top: 146,
+		width: 172,
+		height: 44,
+		optionWidth: 86,
+	};
+	const keyboardBounds = { left: 0, top: 100, width: 320, height: 180 };
+
+	assert.equal(
+		getLongPressKeyboardBoundedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: -1,
+			localY: 240,
+		}),
+		null,
+	);
+	assert.equal(
+		getLongPressKeyboardBoundedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: 320,
+			localY: 240,
+		}),
+		null,
+	);
+	assert.equal(
+		getLongPressKeyboardBoundedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: 319,
+			localY: 240,
+		}),
+		1,
+	);
+});
+
 void test('long press tracking selects by horizontal lane inside keyboard bounds', () => {
 	const layout = {
 		left: 74,
@@ -131,7 +170,7 @@ void test('long press tracking selects by horizontal lane inside keyboard bounds
 		height: 44,
 		optionWidth: 86,
 	};
-	const keyboardBounds = { top: 100, height: 180 };
+	const keyboardBounds = { left: 0, top: 100, width: 320, height: 180 };
 
 	assert.equal(
 		getLongPressTrackedOptionIndex({
@@ -203,7 +242,7 @@ void test('long press release decision keeps tap, option, and cancel paths disti
 		height: 44,
 		optionWidth: 86,
 	};
-	const keyboardBounds = { top: 100, height: 180 };
+	const keyboardBounds = { left: 0, top: 100, width: 320, height: 180 };
 
 	assert.deepEqual(
 		getLongPressReleaseDecision({
@@ -309,7 +348,7 @@ void test('long press release selects by horizontal lane inside keyboard bounds'
 		height: 44,
 		optionWidth: 86,
 	};
-	const keyboardBounds = { top: 100, height: 180 };
+	const keyboardBounds = { left: 0, top: 100, width: 320, height: 180 };
 
 	assert.deepEqual(
 		getLongPressReleaseDecision({
@@ -362,7 +401,7 @@ void test('long press release selects by horizontal lane inside keyboard bounds'
 			keyboardBounds,
 			highlightedIndex: 1,
 		}),
-		{ type: 'option', optionIndex: 1 },
+		{ type: 'cancel' },
 	);
 
 	assert.deepEqual(

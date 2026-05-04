@@ -17,7 +17,9 @@ export type LongPressMoveState = {
 };
 
 export type LongPressKeyboardBounds = {
+	left: number;
 	top: number;
+	width: number;
 	height: number;
 };
 
@@ -108,6 +110,8 @@ export function getLongPressKeyboardBoundedOptionIndex({
 	localY: number;
 }): number | null {
 	if (
+		localX < keyboardBounds.left ||
+		localX >= keyboardBounds.left + keyboardBounds.width ||
 		localY < keyboardBounds.top ||
 		localY >= keyboardBounds.top + keyboardBounds.height
 	) {

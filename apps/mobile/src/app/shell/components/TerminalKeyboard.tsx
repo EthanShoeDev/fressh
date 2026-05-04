@@ -14,10 +14,10 @@ import {
 } from 'react-native';
 import {
 	getLongPressMoveState,
-	getLongPressOptionIndexAtPoint,
 	getLongPressPopupLayout,
 	getLongPressReleaseDecision,
 	getLongPressTrackedOptionIndex,
+	type LongPressKeyboardBounds,
 	type LongPressPopupLayout,
 } from '@/lib/keyboard-long-press';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
@@ -225,6 +225,7 @@ export function TerminalKeyboard({
 	const longPressGestureRef = useRef<LongPressGestureState | null>(null);
 	const keyboardRootRef = useRef<View | null>(null);
 	const keyboardRootWindowRef = useRef({ x: 0, y: 0 });
+	const keyboardBoundsRef = useRef<LongPressKeyboardBounds | null>(null);
 	const keyboardWidthRef = useRef(0);
 	const longPressPopupRef = useRef<LongPressPopupState | null>(null);
 	const [longPressPopup, setLongPressPopup] =
@@ -295,8 +296,10 @@ export function TerminalKeyboard({
 	}, []);
 
 	const updateKeyboardRootMetrics = useCallback(() => {
-		keyboardRootRef.current?.measureInWindow((x, y, width) => {
+		keyboardRootRef.current?.measureInWindow((x, y, width, height) => {
 			keyboardRootWindowRef.current = { x, y };
+			keyboardBoundsRef.current =
+				width > 0 && height > 0 ? { left: 0, top: 0, width, height } : null;
 			keyboardWidthRef.current = width;
 		});
 	}, []);
@@ -321,6 +324,7 @@ export function TerminalKeyboard({
 				if (!current) return current;
 				const highlightedIndex = getLongPressTrackedOptionIndex({
 					layout: current.layout,
+					keyboardBounds: keyboardBoundsRef.current,
 					localX,
 					localY,
 					previousIndex: current.highlightedIndex,
@@ -362,14 +366,18 @@ export function TerminalKeyboard({
 					anchorWidth: width,
 					optionCount: options.length,
 				});
+				const localX = gesture.currentPageX - root.x;
+				const localY = gesture.currentPageY - root.y;
 				const nextPopup = {
 					slot,
 					options,
 					layout,
-					highlightedIndex: getLongPressOptionIndexAtPoint({
+					highlightedIndex: getLongPressTrackedOptionIndex({
 						layout,
-						localX: gesture.currentPageX - root.x,
-						localY: gesture.currentPageY - root.y,
+						keyboardBounds: keyboardBoundsRef.current,
+						localX,
+						localY,
+						previousIndex: null,
 					}),
 				};
 				longPressPopupRef.current = nextPopup;
@@ -466,6 +474,7 @@ export function TerminalKeyboard({
 				tapSlopPx,
 				rootX: keyboardRootWindowRef.current.x,
 				rootY: keyboardRootWindowRef.current.y,
+				keyboardBounds: keyboardBoundsRef.current,
 				popupLayout: current?.layout ?? null,
 				highlightedIndex: current?.highlightedIndex ?? null,
 			});
