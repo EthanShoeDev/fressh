@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-01.2",
-  "updatedAt": "2026-05-01T07:30:00.000Z",
+  "version": "2026-05-04.1",
+  "updatedAt": "2026-05-04T00:00:00Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -11,9 +11,7 @@
       "OPEN_ADVANCED_KEYBOARD": "advanced_keyboard",
       "OPEN_MAIN_MENU": "phone_base"
     },
-    "oneShotReturnByKeyboardId": {
-      "advanced_keyboard": "phone_base"
-    }
+    "oneShotReturnByKeyboardId": {}
   },
   "keyboards": [
     {
