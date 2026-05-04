@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+	getLongPressKeyboardBoundedOptionIndex,
 	getLongPressMoveState,
-	getLongPressReleaseDecision,
 	getLongPressOptionIndexAtPoint,
 	getLongPressPopupLayout,
+	getLongPressReleaseDecision,
 	getLongPressTrackedOptionIndex,
 } from '../../src/lib/keyboard-long-press';
 
@@ -65,7 +66,7 @@ void test('long press hit testing returns selected option or null outside popup'
 	);
 });
 
-void test('long press tracking keeps highlighted option when finger moves vertically', () => {
+void test('keyboard-bounded lane hit testing clamps x and rejects y outside keyboard', () => {
 	const layout = {
 		left: 74,
 		top: 146,
@@ -73,10 +74,69 @@ void test('long press tracking keeps highlighted option when finger moves vertic
 		height: 44,
 		optionWidth: 86,
 	};
+	const keyboardBounds = { top: 100, height: 180 };
+
+	assert.equal(
+		getLongPressKeyboardBoundedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: 180,
+			localY: 240,
+		}),
+		1,
+	);
+	assert.equal(
+		getLongPressKeyboardBoundedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: 20,
+			localY: 240,
+		}),
+		0,
+	);
+	assert.equal(
+		getLongPressKeyboardBoundedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: 400,
+			localY: 240,
+		}),
+		1,
+	);
+	assert.equal(
+		getLongPressKeyboardBoundedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: 180,
+			localY: 90,
+		}),
+		null,
+	);
+	assert.equal(
+		getLongPressKeyboardBoundedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: 180,
+			localY: 280,
+		}),
+		null,
+	);
+});
+
+void test('long press tracking selects by horizontal lane inside keyboard bounds', () => {
+	const layout = {
+		left: 74,
+		top: 146,
+		width: 172,
+		height: 44,
+		optionWidth: 86,
+	};
+	const keyboardBounds = { top: 100, height: 180 };
 
 	assert.equal(
 		getLongPressTrackedOptionIndex({
 			layout,
+			keyboardBounds,
 			localX: 180,
 			localY: 160,
 			previousIndex: null,
@@ -86,8 +146,9 @@ void test('long press tracking keeps highlighted option when finger moves vertic
 	assert.equal(
 		getLongPressTrackedOptionIndex({
 			layout,
+			keyboardBounds,
 			localX: 180,
-			localY: 120,
+			localY: 240,
 			previousIndex: 1,
 		}),
 		1,
@@ -95,8 +156,39 @@ void test('long press tracking keeps highlighted option when finger moves vertic
 	assert.equal(
 		getLongPressTrackedOptionIndex({
 			layout,
+			keyboardBounds,
 			localX: 20,
-			localY: 120,
+			localY: 240,
+			previousIndex: 1,
+		}),
+		0,
+	);
+	assert.equal(
+		getLongPressTrackedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: 260,
+			localY: 240,
+			previousIndex: 1,
+		}),
+		1,
+	);
+	assert.equal(
+		getLongPressTrackedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: 180,
+			localY: 90,
+			previousIndex: 1,
+		}),
+		null,
+	);
+	assert.equal(
+		getLongPressTrackedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX: 180,
+			localY: 300,
 			previousIndex: 1,
 		}),
 		null,
@@ -111,6 +203,7 @@ void test('long press release decision keeps tap, option, and cancel paths disti
 		height: 44,
 		optionWidth: 86,
 	};
+	const keyboardBounds = { top: 100, height: 180 };
 
 	assert.deepEqual(
 		getLongPressReleaseDecision({
@@ -156,6 +249,7 @@ void test('long press release decision keeps tap, option, and cancel paths disti
 			rootX: 0,
 			rootY: 0,
 			popupLayout: layout,
+			keyboardBounds,
 			highlightedIndex: null,
 		}),
 		{ type: 'option', optionIndex: 1 },
@@ -173,13 +267,14 @@ void test('long press release decision keeps tap, option, and cancel paths disti
 			rootX: 0,
 			rootY: 0,
 			popupLayout: layout,
+			keyboardBounds,
 			highlightedIndex: null,
 		}),
-		{ type: 'cancel' },
+		{ type: 'option', optionIndex: 1 },
 	);
 });
 
-void test('long press release keeps highlighted option when finger lifts vertically out of row', () => {
+void test('long press release without keyboard bounds preserves highlighted lane fallback', () => {
 	const layout = {
 		left: 74,
 		top: 146,
@@ -195,11 +290,40 @@ void test('long press release keeps highlighted option when finger lifts vertica
 			startPageX: 100,
 			startPageY: 200,
 			releasePageX: 180,
-			releasePageY: 120,
+			releasePageY: 220,
 			tapSlopPx: 8,
 			rootX: 0,
 			rootY: 0,
 			popupLayout: layout,
+			highlightedIndex: 1,
+		}),
+		{ type: 'option', optionIndex: 1 },
+	);
+});
+
+void test('long press release selects by horizontal lane inside keyboard bounds', () => {
+	const layout = {
+		left: 74,
+		top: 146,
+		width: 172,
+		height: 44,
+		optionWidth: 86,
+	};
+	const keyboardBounds = { top: 100, height: 180 };
+
+	assert.deepEqual(
+		getLongPressReleaseDecision({
+			longPressFired: true,
+			movedBeyondTapSlop: false,
+			startPageX: 100,
+			startPageY: 200,
+			releasePageX: 180,
+			releasePageY: 240,
+			tapSlopPx: 8,
+			rootX: 0,
+			rootY: 0,
+			popupLayout: layout,
+			keyboardBounds,
 			highlightedIndex: 1,
 		}),
 		{ type: 'option', optionIndex: 1 },
@@ -212,11 +336,48 @@ void test('long press release keeps highlighted option when finger lifts vertica
 			startPageX: 100,
 			startPageY: 200,
 			releasePageX: 20,
-			releasePageY: 120,
+			releasePageY: 240,
 			tapSlopPx: 8,
 			rootX: 0,
 			rootY: 0,
 			popupLayout: layout,
+			keyboardBounds,
+			highlightedIndex: 1,
+		}),
+		{ type: 'option', optionIndex: 0 },
+	);
+
+	assert.deepEqual(
+		getLongPressReleaseDecision({
+			longPressFired: true,
+			movedBeyondTapSlop: false,
+			startPageX: 100,
+			startPageY: 200,
+			releasePageX: 400,
+			releasePageY: 240,
+			tapSlopPx: 8,
+			rootX: 0,
+			rootY: 0,
+			popupLayout: layout,
+			keyboardBounds,
+			highlightedIndex: 1,
+		}),
+		{ type: 'option', optionIndex: 1 },
+	);
+
+	assert.deepEqual(
+		getLongPressReleaseDecision({
+			longPressFired: true,
+			movedBeyondTapSlop: false,
+			startPageX: 100,
+			startPageY: 200,
+			releasePageX: 180,
+			releasePageY: 300,
+			tapSlopPx: 8,
+			rootX: 0,
+			rootY: 0,
+			popupLayout: layout,
+			keyboardBounds,
 			highlightedIndex: 1,
 		}),
 		{ type: 'cancel' },

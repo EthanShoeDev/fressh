@@ -16,6 +16,11 @@ export type LongPressMoveState = {
 	keepLongPressTimer: boolean;
 };
 
+export type LongPressKeyboardBounds = {
+	top: number;
+	height: number;
+};
+
 const horizontalMargin = 6;
 const optionWidth = 86;
 const popupHeight = 44;
@@ -77,17 +82,63 @@ export function getLongPressOptionIndexAtPoint({
 	return index >= 0 && index < optionCount ? index : null;
 }
 
+export function getLongPressOptionIndexAtX({
+	layout,
+	localX,
+}: {
+	layout: LongPressPopupLayout;
+	localX: number;
+}): number | null {
+	const optionCount = Math.floor(layout.width / layout.optionWidth);
+	if (optionCount <= 0) return null;
+
+	const rawIndex = Math.floor((localX - layout.left) / layout.optionWidth);
+	return clamp(rawIndex, 0, optionCount - 1);
+}
+
+export function getLongPressKeyboardBoundedOptionIndex({
+	layout,
+	keyboardBounds,
+	localX,
+	localY,
+}: {
+	layout: LongPressPopupLayout;
+	keyboardBounds: LongPressKeyboardBounds;
+	localX: number;
+	localY: number;
+}): number | null {
+	if (
+		localY < keyboardBounds.top ||
+		localY >= keyboardBounds.top + keyboardBounds.height
+	) {
+		return null;
+	}
+
+	return getLongPressOptionIndexAtX({ layout, localX });
+}
+
 export function getLongPressTrackedOptionIndex({
 	layout,
+	keyboardBounds,
 	localX,
 	localY,
 	previousIndex,
 }: {
 	layout: LongPressPopupLayout;
+	keyboardBounds?: LongPressKeyboardBounds | null;
 	localX: number;
 	localY: number;
 	previousIndex: number | null;
 }): number | null {
+	if (keyboardBounds) {
+		return getLongPressKeyboardBoundedOptionIndex({
+			layout,
+			keyboardBounds,
+			localX,
+			localY,
+		});
+	}
+
 	const optionIndex = getLongPressOptionIndexAtPoint({
 		layout,
 		localX,
@@ -145,6 +196,7 @@ export function getLongPressReleaseDecision({
 	rootX,
 	rootY,
 	popupLayout,
+	keyboardBounds,
 	highlightedIndex,
 }: {
 	longPressFired: boolean;
@@ -157,23 +209,32 @@ export function getLongPressReleaseDecision({
 	rootX: number;
 	rootY: number;
 	popupLayout: LongPressPopupLayout | null;
+	keyboardBounds?: LongPressKeyboardBounds | null;
 	highlightedIndex?: number | null;
 }): LongPressReleaseDecision {
 	if (longPressFired) {
 		if (!popupLayout) return { type: 'cancel' };
 
 		const localX = releasePageX - rootX;
-		const optionIndex = getLongPressOptionIndexAtPoint({
-			layout: popupLayout,
-			localX,
-			localY: releasePageY - rootY,
-		});
+		const localY = releasePageY - rootY;
+		const optionIndex = keyboardBounds
+			? getLongPressKeyboardBoundedOptionIndex({
+					layout: popupLayout,
+					keyboardBounds,
+					localX,
+					localY,
+				})
+			: getLongPressOptionIndexAtPoint({
+					layout: popupLayout,
+					localX,
+					localY,
+				});
 
 		if (optionIndex != null) {
 			return { type: 'option', optionIndex };
 		}
 
-		if (highlightedIndex != null) {
+		if (!keyboardBounds && highlightedIndex != null) {
 			const highlightedLeft =
 				popupLayout.left + highlightedIndex * popupLayout.optionWidth;
 			const highlightedRight = highlightedLeft + popupLayout.optionWidth;
