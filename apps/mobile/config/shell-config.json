@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-04.2",
-  "updatedAt": "2026-05-04T00:00:01Z",
+  "version": "2026-05-13.1",
+  "updatedAt": "2026-05-13T10:59:45Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -312,7 +312,7 @@
           },
           {
             "type": "macro",
-            "macroId": "cmd_rloop_code_fix",
+            "macroId": "cmd_code_review",
             "label": "Review",
             "icon": null,
             "longPress": {
@@ -519,6 +519,13 @@
         "label": "approve",
         "category": "Commands",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"approve\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "cmd_code_review",
+        "name": "Command: code review",
+        "label": "$code-review",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"$code-review\",\n  \"enter\": true\n}"
       },
       {
         "id": "cmd_rloop_code_fix",

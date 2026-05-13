@@ -39,7 +39,7 @@ void test('phone base keyboard exposes a continue command key between approve an
 	assert.equal(secondRow[5]?.label, 'S-Tab');
 });
 
-void test('phone base keyboard review key taps code fix 2 and long-presses code fix 2 or 3', () => {
+void test('phone base keyboard review key taps code review and long-presses code fix 2 or 3', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -49,6 +49,9 @@ void test('phone base keyboard review key taps code fix 2 and long-presses code 
 	const phoneBaseMacros = config.macrosByKeyboardId[phoneBaseKeyboard.id];
 	assert.ok(phoneBaseMacros);
 
+	const codeReviewMacro = phoneBaseMacros.find(
+		(macro) => macro.id === 'cmd_code_review',
+	);
 	const reviewMacro = phoneBaseMacros.find(
 		(macro) => macro.id === 'cmd_rloop_code_fix',
 	);
@@ -56,6 +59,14 @@ void test('phone base keyboard review key taps code fix 2 and long-presses code 
 		(macro) => macro.id === 'cmd_rloop_code_fix_3',
 	);
 
+	assert.deepEqual(codeReviewMacro, {
+		id: 'cmd_code_review',
+		name: 'Command: code review',
+		label: '$code-review',
+		category: 'Commands',
+		script:
+			'{\n  "type": "command",\n  "value": "$code-review",\n  "enter": true\n}',
+	});
 	assert.deepEqual(reviewMacro, {
 		id: 'cmd_rloop_code_fix',
 		name: 'Command: rloop code fix 2',
@@ -77,7 +88,7 @@ void test('phone base keyboard review key taps code fix 2 and long-presses code 
 	assert.ok(thirdRow);
 	assert.deepEqual(thirdRow[6], {
 		type: 'macro',
-		macroId: 'cmd_rloop_code_fix',
+		macroId: 'cmd_code_review',
 		label: 'Review',
 		icon: null,
 		longPress: {
