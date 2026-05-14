@@ -239,6 +239,13 @@ void test('phone base keyboard exposes browser and status actions', () => {
 	);
 	assert.ok(phoneBaseKeyboard);
 
+	assert.ok(config.activeKeyboardIds.includes('browser_keyboard'));
+	assert.deepEqual(phoneBaseKeyboard.grid[3]?.[0], {
+		type: 'macro',
+		macroId: 'cmd_plain_language',
+		label: 'Explain',
+		icon: null,
+	});
 	assert.deepEqual(phoneBaseKeyboard.grid[3]?.[1], {
 		type: 'action',
 		actionId: 'OPEN_BROWSER_KEYBOARD',
@@ -260,6 +267,14 @@ void test('browser keyboard exposes host navigation actions', () => {
 	);
 	assert.ok(browserKeyboard);
 
+	assert.equal(browserKeyboard.builtIn, true);
+	assert.equal(browserKeyboard.active, true);
+	assert.equal(browserKeyboard.rotationOrder, 2);
+	assert.equal(browserKeyboard.grid.length, 4);
+	assert.deepEqual(
+		browserKeyboard.grid.map((row) => row.length),
+		[10, 10, 10, 10],
+	);
 	assert.deepEqual(browserKeyboard.grid[0]?.slice(0, 6), [
 		{
 			type: 'action',
@@ -298,6 +313,27 @@ void test('browser keyboard exposes host navigation actions', () => {
 			icon: 'PanelTop',
 		},
 	]);
+	assert.deepEqual(browserKeyboard.grid[0]?.slice(6, 10), [
+		null,
+		null,
+		null,
+		null,
+	]);
+	for (const row of browserKeyboard.grid.slice(1, 4)) {
+		assert.deepEqual(row, [
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+		]);
+	}
+	assert.deepEqual(config.macrosByKeyboardId.browser_keyboard, []);
 });
 
 void test('advanced keyboard exposes host URL setter actions', () => {
