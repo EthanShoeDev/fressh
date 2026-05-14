@@ -718,6 +718,7 @@ function ShellDetail() {
 	});
 	const wisprTextEntryValueRef = useRef('');
 	const wisprAutomationRequestIdRef = useRef(0);
+	const hostUrlReadRequestIdRef = useRef(0);
 	const wisprOpeningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
@@ -1618,6 +1619,7 @@ fi
 
 	const handleOpenHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
+			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
 				try {
 					const panePath = await resolveHostBrowserPanePath();
@@ -1625,6 +1627,7 @@ fi
 						buildTmuxWindowConfigGetCommand(slot, panePath),
 						10_000,
 					);
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
 					if (value.trim()) {
 						await openAndroidUrl(value.trim());
 						return;
@@ -1637,6 +1640,7 @@ fi
 						initialValue: '',
 					});
 				} catch (error) {
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
 					showHostBrowserError(
 						`${getHostBrowserUrlSlotLabel(slot)} failed`,
 						getErrorMessage(error),
@@ -1654,6 +1658,7 @@ fi
 
 	const handleEditHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
+			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
 				try {
 					const panePath = await resolveHostBrowserPanePath();
@@ -1661,6 +1666,7 @@ fi
 						buildTmuxWindowConfigGetCommand(slot, panePath),
 						10_000,
 					);
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
 					setHostUrlModalError(null);
 					setHostUrlModalState({
 						mode: 'edit',
@@ -1669,6 +1675,7 @@ fi
 						initialValue: value.trim(),
 					});
 				} catch (error) {
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
 					showHostBrowserError(
 						`Edit ${getHostBrowserUrlSlotLabel(slot)} failed`,
 						getErrorMessage(error),
@@ -1712,10 +1719,10 @@ fi
 						),
 						10_000,
 					);
-					setHostUrlModalState(null);
 					if (state.mode === 'open-missing') {
 						await openAndroidUrl(parsed.url);
 					}
+					setHostUrlModalState(null);
 				} catch (error) {
 					setHostUrlModalError(getErrorMessage(error));
 				} finally {
