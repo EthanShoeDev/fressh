@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-13.1",
-  "updatedAt": "2026-05-13T10:59:45Z",
+  "version": "2026-05-14.1",
+  "updatedAt": "2026-05-14T10:39:16Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -352,7 +352,12 @@
           }
         ],
         [
-          null,
+          {
+            "type": "macro",
+            "macroId": "cmd_plain_language",
+            "label": "Explain",
+            "icon": null
+          },
           null,
           null,
           null,
@@ -547,6 +552,13 @@
         "label": "continue",
         "category": "Commands",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"continue\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "cmd_plain_language",
+        "name": "Command: plain language",
+        "label": "Explain",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"$plain-language\",\n  \"enter\": true\n}"
       },
       {
         "id": "reply_1",
