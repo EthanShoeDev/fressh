@@ -231,3 +231,106 @@ void test('bundled keyboards do not expose tmux history actions', () => {
 
 	assert.deepEqual(historySlots, []);
 });
+
+void test('phone base keyboard exposes browser and status actions', () => {
+	const config = getBundledShellConfig();
+	const phoneBaseKeyboard = config.keyboards.find(
+		(keyboard) => keyboard.id === 'phone_base',
+	);
+	assert.ok(phoneBaseKeyboard);
+
+	assert.deepEqual(phoneBaseKeyboard.grid[3]?.[1], {
+		type: 'action',
+		actionId: 'OPEN_BROWSER_KEYBOARD',
+		label: 'Browser',
+		icon: 'ExternalLink',
+	});
+	assert.deepEqual(phoneBaseKeyboard.grid[3]?.[2], {
+		type: 'action',
+		actionId: 'CYCLE_WORKMUX_STATUS',
+		label: 'Status',
+		icon: 'Clock',
+	});
+});
+
+void test('browser keyboard exposes host navigation actions', () => {
+	const config = getBundledShellConfig();
+	const browserKeyboard = config.keyboards.find(
+		(keyboard) => keyboard.id === 'browser_keyboard',
+	);
+	assert.ok(browserKeyboard);
+
+	assert.deepEqual(browserKeyboard.grid[0]?.slice(0, 6), [
+		{
+			type: 'action',
+			actionId: 'OPEN_MAIN_MENU',
+			label: 'Back',
+			icon: 'X',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_DIFFITY',
+			label: 'Diff',
+			icon: 'GitCompare',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_URL_WINDOW',
+			label: 'URL',
+			icon: 'Link',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_URL_DEV_SERVER',
+			label: 'Web',
+			icon: 'Globe',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_URL_STORYBOOK',
+			label: 'Story',
+			icon: 'BookOpen',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_URL_APP',
+			label: 'App',
+			icon: 'PanelTop',
+		},
+	]);
+});
+
+void test('advanced keyboard exposes host URL setter actions', () => {
+	const config = getBundledShellConfig();
+	const advancedKeyboard = config.keyboards.find(
+		(keyboard) => keyboard.id === 'advanced_keyboard',
+	);
+	assert.ok(advancedKeyboard);
+
+	assert.deepEqual(advancedKeyboard.grid[3]?.slice(0, 4), [
+		{
+			type: 'action',
+			actionId: 'EDIT_HOST_URL_WINDOW',
+			label: 'Set URL',
+			icon: 'Link',
+		},
+		{
+			type: 'action',
+			actionId: 'EDIT_HOST_URL_DEV_SERVER',
+			label: 'Set Web',
+			icon: 'Globe',
+		},
+		{
+			type: 'action',
+			actionId: 'EDIT_HOST_URL_STORYBOOK',
+			label: 'Set Story',
+			icon: 'BookOpen',
+		},
+		{
+			type: 'action',
+			actionId: 'EDIT_HOST_URL_APP',
+			label: 'Set App',
+			icon: 'PanelTop',
+		},
+	]);
+});
