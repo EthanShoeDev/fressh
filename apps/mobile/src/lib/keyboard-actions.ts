@@ -1,4 +1,5 @@
 import { rootLogger } from '@/lib/logger';
+import { type HostBrowserUrlSlot } from '@/lib/host-browser-actions';
 
 // Action IDs emitted by runtime config are handled here at runtime.
 
@@ -11,6 +12,7 @@ export const KEYBOARD_TARGET_ACTION_IDS = [
 	'OPEN_SECONDARY_MENU',
 	'OPEN_KEYBOARD_MENU',
 	'OPEN_ADVANCED_KEYBOARD',
+	'OPEN_BROWSER_KEYBOARD',
 ] as const;
 
 export const KNOWN_ACTION_IDS = [
@@ -23,6 +25,16 @@ export const KNOWN_ACTION_IDS = [
 	'PASTE_CLIPBOARD',
 	'COPY_SELECTION',
 	'CYCLE_TMUX_WINDOW',
+	'OPEN_HOST_DIFFITY',
+	'OPEN_HOST_URL_WINDOW',
+	'OPEN_HOST_URL_DEV_SERVER',
+	'OPEN_HOST_URL_STORYBOOK',
+	'OPEN_HOST_URL_APP',
+	'EDIT_HOST_URL_WINDOW',
+	'EDIT_HOST_URL_DEV_SERVER',
+	'EDIT_HOST_URL_STORYBOOK',
+	'EDIT_HOST_URL_APP',
+	'CYCLE_WORKMUX_STATUS',
 ] as const;
 
 export type KnownActionId = (typeof KNOWN_ACTION_IDS)[number];
@@ -44,6 +56,10 @@ export type ActionContext = {
 	toggleCommandPresets?: () => void;
 	openCommander?: () => void;
 	openWisprTextEditor?: () => void;
+	openHostDiffity?: () => void;
+	openHostUrlSlot?: (slot: HostBrowserUrlSlot) => void;
+	editHostUrlSlot?: (slot: HostBrowserUrlSlot) => void;
+	cycleWorkmuxStatus?: () => void;
 };
 
 const logger = rootLogger.extend('KeyboardActions');
@@ -79,6 +95,10 @@ export async function runAction(
 			selectKeyboardForAction('OPEN_ADVANCED_KEYBOARD', context);
 			return;
 		}
+		case 'OPEN_BROWSER_KEYBOARD': {
+			selectKeyboardForAction('OPEN_BROWSER_KEYBOARD', context);
+			return;
+		}
 		case 'ROTATE_KEYBOARD': {
 			context.rotateKeyboard();
 			return;
@@ -97,6 +117,46 @@ export async function runAction(
 		}
 		case 'CYCLE_TMUX_WINDOW': {
 			context.sendBytes(new Uint8Array([27, 91, 49, 56, 126]));
+			return;
+		}
+		case 'OPEN_HOST_DIFFITY': {
+			context.openHostDiffity?.();
+			return;
+		}
+		case 'OPEN_HOST_URL_WINDOW': {
+			context.openHostUrlSlot?.('window-url');
+			return;
+		}
+		case 'OPEN_HOST_URL_DEV_SERVER': {
+			context.openHostUrlSlot?.('dev-web-server-url');
+			return;
+		}
+		case 'OPEN_HOST_URL_STORYBOOK': {
+			context.openHostUrlSlot?.('storybook-url');
+			return;
+		}
+		case 'OPEN_HOST_URL_APP': {
+			context.openHostUrlSlot?.('app-url');
+			return;
+		}
+		case 'EDIT_HOST_URL_WINDOW': {
+			context.editHostUrlSlot?.('window-url');
+			return;
+		}
+		case 'EDIT_HOST_URL_DEV_SERVER': {
+			context.editHostUrlSlot?.('dev-web-server-url');
+			return;
+		}
+		case 'EDIT_HOST_URL_STORYBOOK': {
+			context.editHostUrlSlot?.('storybook-url');
+			return;
+		}
+		case 'EDIT_HOST_URL_APP': {
+			context.editHostUrlSlot?.('app-url');
+			return;
+		}
+		case 'CYCLE_WORKMUX_STATUS': {
+			context.cycleWorkmuxStatus?.();
 			return;
 		}
 		case 'TOGGLE_COMMAND_PRESETS': {

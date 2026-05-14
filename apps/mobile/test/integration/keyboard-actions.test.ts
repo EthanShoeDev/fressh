@@ -49,3 +49,62 @@ void test('Wispr text action delegates to the action context', async () => {
 
 	assert.equal(opened, 1);
 });
+
+void test('host browser actions delegate to action context callbacks', async () => {
+	const openedSlots: string[] = [];
+	const editedSlots: string[] = [];
+	let diffityOpened = 0;
+	let statusCycled = 0;
+
+	const context = {
+		availableKeyboardIds: new Set(),
+		selectKeyboard: () => {},
+		rotateKeyboard: () => {},
+		openConfigurator: () => {},
+		sendBytes: () => {},
+		pasteClipboard: async () => {},
+		copySelection: () => {},
+		openHostDiffity: () => {
+			diffityOpened += 1;
+		},
+		openHostUrlSlot: (slot: string) => {
+			openedSlots.push(slot);
+		},
+		editHostUrlSlot: (slot: string) => {
+			editedSlots.push(slot);
+		},
+		cycleWorkmuxStatus: () => {
+			statusCycled += 1;
+		},
+	} as Parameters<typeof runAction>[1];
+
+	await runAction('OPEN_HOST_DIFFITY', context);
+	await runAction('OPEN_HOST_URL_WINDOW', context);
+	await runAction('OPEN_HOST_URL_DEV_SERVER', context);
+	await runAction('OPEN_HOST_URL_STORYBOOK', context);
+	await runAction('OPEN_HOST_URL_APP', context);
+	await runAction('EDIT_HOST_URL_WINDOW', context);
+	await runAction('EDIT_HOST_URL_DEV_SERVER', context);
+	await runAction('EDIT_HOST_URL_STORYBOOK', context);
+	await runAction('EDIT_HOST_URL_APP', context);
+	await runAction('CYCLE_WORKMUX_STATUS', context);
+
+	assert.equal(diffityOpened, 1);
+	assert.deepEqual(openedSlots, [
+		'window-url',
+		'dev-web-server-url',
+		'storybook-url',
+		'app-url',
+	]);
+	assert.deepEqual(editedSlots, [
+		'window-url',
+		'dev-web-server-url',
+		'storybook-url',
+		'app-url',
+	]);
+	assert.equal(statusCycled, 1);
+});
+
+void test('browser keyboard is a target keyboard action', () => {
+	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_BROWSER_KEYBOARD'), true);
+});
