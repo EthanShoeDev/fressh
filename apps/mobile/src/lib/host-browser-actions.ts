@@ -57,7 +57,7 @@ export function parseHostBrowserUrlInput(
 			message: 'Enter an http:// or https:// URL.',
 		};
 	}
-	return { type: 'valid', url: trimmed };
+	return { type: 'valid', url: parsed.href };
 }
 
 export function buildHostBrowserPanePathCommand(

@@ -8,6 +8,7 @@ import {
 	buildTmuxWindowConfigSetCommand,
 	extractLastHttpsUrl,
 	getHostBrowserUrlSlotLabel,
+	isHostBrowserUrlSlot,
 	parseHostBrowserUrlInput,
 } from '../../src/lib/host-browser-actions';
 
@@ -58,6 +59,13 @@ void test('host browser URL slots have user-facing labels', () => {
 	assert.equal(getHostBrowserUrlSlotLabel('app-url'), 'App');
 });
 
+void test('isHostBrowserUrlSlot identifies supported URL slots', () => {
+	assert.equal(isHostBrowserUrlSlot('window-url'), true);
+	assert.equal(isHostBrowserUrlSlot('dev-web-server-url'), true);
+	assert.equal(isHostBrowserUrlSlot('unknown-url'), false);
+	assert.equal(isHostBrowserUrlSlot(''), false);
+});
+
 void test('parseHostBrowserUrlInput trims and validates http URLs', () => {
 	assert.deepEqual(parseHostBrowserUrlInput('   '), { type: 'empty' });
 	assert.deepEqual(parseHostBrowserUrlInput('ftp://example.com'), {
@@ -71,5 +79,9 @@ void test('parseHostBrowserUrlInput trims and validates http URLs', () => {
 	assert.deepEqual(parseHostBrowserUrlInput(' https://example.com/path '), {
 		type: 'valid',
 		url: 'https://example.com/path',
+	});
+	assert.deepEqual(parseHostBrowserUrlInput('https://example.com/foo bar'), {
+		type: 'valid',
+		url: 'https://example.com/foo%20bar',
 	});
 });
