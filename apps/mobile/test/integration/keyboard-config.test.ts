@@ -215,7 +215,7 @@ void test('bundled keyboards do not expose tmux history actions', () => {
 	assert.deepEqual(historySlots, []);
 });
 
-void test('phone base keyboard exposes browser and status actions', () => {
+void test('phone base keyboard exposes explain, browser and status actions', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -223,12 +223,13 @@ void test('phone base keyboard exposes browser and status actions', () => {
 	assert.ok(phoneBaseKeyboard);
 
 	assert.ok(config.activeKeyboardIds.includes('browser_keyboard'));
-	assert.deepEqual(phoneBaseKeyboard.grid[3]?.[0], {
+	assert.deepEqual(phoneBaseKeyboard.grid[2]?.[2], {
 		type: 'macro',
 		macroId: 'cmd_plain_language',
 		label: 'Explain',
 		icon: null,
 	});
+	assert.equal(phoneBaseKeyboard.grid[3]?.[0], null);
 	assert.deepEqual(phoneBaseKeyboard.grid[3]?.[1], {
 		type: 'action',
 		actionId: 'OPEN_BROWSER_KEYBOARD',

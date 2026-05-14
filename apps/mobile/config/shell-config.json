@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-14.3",
-  "updatedAt": "2026-05-14T15:51:46Z",
+  "version": "2026-05-14.4",
+  "updatedAt": "2026-05-14T18:09:26Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -293,7 +293,12 @@
             "label": "ARROW_DOWN",
             "icon": "ArrowDown"
           },
-          null,
+          {
+            "type": "macro",
+            "macroId": "cmd_plain_language",
+            "label": "Explain",
+            "icon": null
+          },
           {
             "type": "macro",
             "macroId": "cmd_fix",
@@ -348,12 +353,7 @@
           }
         ],
         [
-          {
-            "type": "macro",
-            "macroId": "cmd_plain_language",
-            "label": "Explain",
-            "icon": null
-          },
+          null,
           {
             "type": "action",
             "actionId": "OPEN_BROWSER_KEYBOARD",
