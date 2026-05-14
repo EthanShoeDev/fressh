@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-14.2",
-  "updatedAt": "2026-05-14T12:59:33Z",
+  "version": "2026-05-14.3",
+  "updatedAt": "2026-05-14T15:51:46Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -321,14 +321,8 @@
               "options": [
                 {
                   "type": "macro",
-                  "macroId": "cmd_rloop_code_fix",
-                  "label": "$rloop-code-fix2",
-                  "icon": null
-                },
-                {
-                  "type": "macro",
-                  "macroId": "cmd_rloop_code_fix_3",
-                  "label": "$rloop-code-fix3",
+                  "macroId": "cmd_requesting_code_review",
+                  "label": "$requesting-code-review",
                   "icon": null
                 }
               ]
@@ -650,6 +644,13 @@
         "label": "$code-review",
         "category": "Commands",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"$code-review\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "cmd_requesting_code_review",
+        "name": "Command: requesting code review",
+        "label": "$requesting-code-review",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"$requesting-code-review\",\n  \"enter\": true\n}"
       },
       {
         "id": "cmd_rloop_code_fix",

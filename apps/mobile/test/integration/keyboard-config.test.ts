@@ -39,7 +39,7 @@ void test('phone base keyboard exposes a continue command key between approve an
 	assert.equal(secondRow[5]?.label, 'S-Tab');
 });
 
-void test('phone base keyboard review key taps code review and long-presses code fix 2 or 3', () => {
+void test('phone base keyboard review key sends code review and long-presses requesting review', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -52,11 +52,8 @@ void test('phone base keyboard review key taps code review and long-presses code
 	const codeReviewMacro = phoneBaseMacros.find(
 		(macro) => macro.id === 'cmd_code_review',
 	);
-	const reviewMacro = phoneBaseMacros.find(
-		(macro) => macro.id === 'cmd_rloop_code_fix',
-	);
-	const reviewMacro3 = phoneBaseMacros.find(
-		(macro) => macro.id === 'cmd_rloop_code_fix_3',
+	const requestingCodeReviewMacro = phoneBaseMacros.find(
+		(macro) => macro.id === 'cmd_requesting_code_review',
 	);
 
 	assert.deepEqual(codeReviewMacro, {
@@ -67,21 +64,13 @@ void test('phone base keyboard review key taps code review and long-presses code
 		script:
 			'{\n  "type": "command",\n  "value": "$code-review",\n  "enter": true\n}',
 	});
-	assert.deepEqual(reviewMacro, {
-		id: 'cmd_rloop_code_fix',
-		name: 'Command: rloop code fix 2',
-		label: '$rloop-code-fix2',
+	assert.deepEqual(requestingCodeReviewMacro, {
+		id: 'cmd_requesting_code_review',
+		name: 'Command: requesting code review',
+		label: '$requesting-code-review',
 		category: 'Commands',
 		script:
-			'{\n  "type": "command",\n  "value": "$rloop-code-fix2",\n  "enter": true\n}',
-	});
-	assert.deepEqual(reviewMacro3, {
-		id: 'cmd_rloop_code_fix_3',
-		name: 'Command: rloop code fix 3',
-		label: '$rloop-code-fix3',
-		category: 'Commands',
-		script:
-			'{\n  "type": "command",\n  "value": "$rloop-code-fix3",\n  "enter": true\n}',
+			'{\n  "type": "command",\n  "value": "$requesting-code-review",\n  "enter": true\n}',
 	});
 
 	const thirdRow = phoneBaseKeyboard.grid[2];
@@ -95,14 +84,8 @@ void test('phone base keyboard review key taps code review and long-presses code
 			options: [
 				{
 					type: 'macro',
-					macroId: 'cmd_rloop_code_fix',
-					label: '$rloop-code-fix2',
-					icon: null,
-				},
-				{
-					type: 'macro',
-					macroId: 'cmd_rloop_code_fix_3',
-					label: '$rloop-code-fix3',
+					macroId: 'cmd_requesting_code_review',
+					label: '$requesting-code-review',
 					icon: null,
 				},
 			],
