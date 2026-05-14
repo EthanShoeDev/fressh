@@ -85,6 +85,8 @@ export function buildTmuxWindowConfigSetCommand(
 	return `TMUX_PANE_PATH=${quoteShell(panePath)} tmux-window-config-url set-value ${quoteShell(slot)} ${quoteShell(url)}`;
 }
 
-export function buildHostBrowserStatusCycleCommand(): string {
-	return 'tmux-nav.sh cycle';
+export function buildHostBrowserStatusCycleCommand(
+	tmuxSessionName: string,
+): string {
+	return `tmux-nav.sh cycle ${quoteShell(`${tmuxSessionName}:`)}`;
 }

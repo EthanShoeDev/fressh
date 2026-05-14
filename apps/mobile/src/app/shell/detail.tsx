@@ -1628,8 +1628,21 @@ fi
 						10_000,
 					);
 					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					if (value.trim()) {
-						await openAndroidUrl(value.trim());
+					const savedUrl = value.trim();
+					if (savedUrl) {
+						const parsed = parseHostBrowserUrlInput(savedUrl);
+						if (parsed.type === 'invalid') {
+							setHostUrlModalState({
+								mode: 'edit',
+								slot,
+								panePath,
+								initialValue: savedUrl,
+							});
+							setHostUrlModalError(parsed.message);
+							return;
+						}
+						if (parsed.type === 'empty') return;
+						await openAndroidUrl(parsed.url);
 						return;
 					}
 					setHostUrlModalError(null);
@@ -1739,15 +1752,16 @@ fi
 				if (!tmuxEnabled) {
 					throw new Error('Status cycle requires a tmux-enabled connection.');
 				}
+				const sessionName = tmuxTarget.trim() || 'main';
 				await runHostBrowserCommand(
-					buildHostBrowserStatusCycleCommand(),
+					buildHostBrowserStatusCycleCommand(sessionName),
 					10_000,
 				);
 			} catch (error) {
 				showHostBrowserError('Status cycle failed', getErrorMessage(error));
 			}
 		})();
-	}, [runHostBrowserCommand, showHostBrowserError, tmuxEnabled]);
+	}, [runHostBrowserCommand, showHostBrowserError, tmuxEnabled, tmuxTarget]);
 
 	const actionContext = useMemo<ActionContext>(
 		() => ({

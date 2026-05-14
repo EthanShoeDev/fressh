@@ -49,7 +49,10 @@ void test('host browser command builders shell-quote dynamic values', () => {
 		),
 		"TMUX_PANE_PATH='/tmp/work repo' tmux-window-config-url set-value 'dev-web-server-url' 'https://example.com/app?q=1'",
 	);
-	assert.equal(buildHostBrowserStatusCycleCommand(), 'tmux-nav.sh cycle');
+	assert.equal(
+		buildHostBrowserStatusCycleCommand("main'quoted"),
+		"tmux-nav.sh cycle 'main'\\''quoted:'",
+	);
 });
 
 void test('host browser URL slots have user-facing labels', () => {
