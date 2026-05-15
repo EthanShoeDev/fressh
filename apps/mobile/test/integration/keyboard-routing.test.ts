@@ -29,6 +29,10 @@ void test('bundled advanced keyboard stays selected until explicit back action',
 		getKeyboardActionTarget(config, 'OPEN_ADVANCED_KEYBOARD'),
 		'advanced_keyboard',
 	);
+	assert.equal(
+		getKeyboardActionTarget(config, 'OPEN_BROWSER_KEYBOARD'),
+		'browser_keyboard',
+	);
 	assert.equal(getKeyboardActionTarget(config, 'OPEN_MAIN_MENU'), 'phone_base');
 });
 

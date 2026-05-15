@@ -1,15 +1,17 @@
 {
-  "version": "2026-05-04.1",
-  "updatedAt": "2026-05-04T00:00:00Z",
+  "version": "2026-05-14.4",
+  "updatedAt": "2026-05-14T18:09:26Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
-    "advanced_keyboard"
+    "advanced_keyboard",
+    "browser_keyboard"
   ],
   "keyboardRouting": {
     "actionTargets": {
       "OPEN_ADVANCED_KEYBOARD": "advanced_keyboard",
-      "OPEN_MAIN_MENU": "phone_base"
+      "OPEN_MAIN_MENU": "phone_base",
+      "OPEN_BROWSER_KEYBOARD": "browser_keyboard"
     },
     "oneShotReturnByKeyboardId": {}
   },
@@ -76,7 +78,48 @@
             ],
             "label": "Window",
             "icon": "AppWindow",
-            "span": 2
+            "span": 2,
+            "longPress": {
+              "options": [
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    91,
+                    49,
+                    59,
+                    53,
+                    67
+                  ],
+                  "label": "Window",
+                  "icon": "AppWindow"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    2,
+                    112
+                  ],
+                  "label": "Prev all",
+                  "icon": null
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    2,
+                    110
+                  ],
+                  "label": "Next all",
+                  "icon": null
+                },
+                {
+                  "type": "macro",
+                  "macroId": "alt_w",
+                  "label": "Alt-w",
+                  "icon": null
+                }
+              ]
+            }
           },
           null,
           {
@@ -97,7 +140,41 @@
               68
             ],
             "label": "ARROW_LEFT",
-            "icon": "ArrowLeft"
+            "icon": "ArrowLeft",
+            "longPress": {
+              "options": [
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    91,
+                    68
+                  ],
+                  "label": "ARROW_LEFT",
+                  "icon": "ArrowLeft"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    91,
+                    53,
+                    126
+                  ],
+                  "label": "PAGE_UP",
+                  "icon": "ChevronsUp"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    2,
+                    112
+                  ],
+                  "label": "Prev all",
+                  "icon": null
+                }
+              ]
+            }
           },
           {
             "type": "bytes",
@@ -107,19 +184,43 @@
               67
             ],
             "label": "ARROW_RIGHT",
-            "icon": "ArrowRight"
+            "icon": "ArrowRight",
+            "longPress": {
+              "options": [
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    91,
+                    67
+                  ],
+                  "label": "ARROW_RIGHT",
+                  "icon": "ArrowRight"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    91,
+                    54,
+                    126
+                  ],
+                  "label": "PAGE_DOWN",
+                  "icon": "ChevronsDown"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    2,
+                    110
+                  ],
+                  "label": "Next all",
+                  "icon": null
+                }
+              ]
+            }
           },
-          {
-            "type": "bytes",
-            "bytes": [
-              27,
-              91,
-              53,
-              126
-            ],
-            "label": "PAGE_UP",
-            "icon": "ChevronsUp"
-          },
+          null,
           {
             "type": "macro",
             "macroId": "cmd_approve",
@@ -193,15 +294,10 @@
             "icon": "ArrowDown"
           },
           {
-            "type": "bytes",
-            "bytes": [
-              27,
-              91,
-              54,
-              126
-            ],
-            "label": "PAGE_DOWN",
-            "icon": "ChevronsDown"
+            "type": "macro",
+            "macroId": "cmd_plain_language",
+            "label": "Explain",
+            "icon": null
           },
           {
             "type": "macro",
@@ -223,9 +319,19 @@
           },
           {
             "type": "macro",
-            "macroId": "cmd_rloop_code_fix",
+            "macroId": "cmd_code_review",
             "label": "Review",
-            "icon": null
+            "icon": null,
+            "longPress": {
+              "options": [
+                {
+                  "type": "macro",
+                  "macroId": "cmd_requesting_code_review",
+                  "label": "$requesting-code-review",
+                  "icon": null
+                }
+              ]
+            }
           },
           {
             "type": "macro",
@@ -248,8 +354,18 @@
         ],
         [
           null,
-          null,
-          null,
+          {
+            "type": "action",
+            "actionId": "OPEN_BROWSER_KEYBOARD",
+            "label": "Browser",
+            "icon": "ExternalLink"
+          },
+          {
+            "type": "action",
+            "actionId": "CYCLE_WORKMUX_STATUS",
+            "label": "Status",
+            "icon": "Clock"
+          },
           null,
           null,
           null,
@@ -298,8 +414,28 @@
           }
         ],
         [
-          null,
-          null,
+          {
+            "type": "bytes",
+            "bytes": [
+              27,
+              91,
+              53,
+              126
+            ],
+            "label": "PAGE_UP",
+            "icon": "ChevronsUp"
+          },
+          {
+            "type": "bytes",
+            "bytes": [
+              27,
+              91,
+              54,
+              126
+            ],
+            "label": "PAGE_DOWN",
+            "icon": "ChevronsDown"
+          },
           null,
           null,
           null,
@@ -351,6 +487,113 @@
           }
         ],
         [
+          {
+            "type": "action",
+            "actionId": "EDIT_HOST_URL_WINDOW",
+            "label": "Set URL",
+            "icon": "Link"
+          },
+          {
+            "type": "action",
+            "actionId": "EDIT_HOST_URL_DEV_SERVER",
+            "label": "Set Web",
+            "icon": "Globe"
+          },
+          {
+            "type": "action",
+            "actionId": "EDIT_HOST_URL_STORYBOOK",
+            "label": "Set Story",
+            "icon": "BookOpen"
+          },
+          {
+            "type": "action",
+            "actionId": "EDIT_HOST_URL_APP",
+            "label": "Set App",
+            "icon": "PanelTop"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "id": "browser_keyboard",
+      "name": "Browser Keyboard",
+      "builtIn": true,
+      "active": true,
+      "rotationOrder": 2,
+      "grid": [
+        [
+          {
+            "type": "action",
+            "actionId": "OPEN_MAIN_MENU",
+            "label": "Back",
+            "icon": "X"
+          },
+          {
+            "type": "action",
+            "actionId": "OPEN_HOST_DIFFITY",
+            "label": "Diff",
+            "icon": "GitCompare"
+          },
+          {
+            "type": "action",
+            "actionId": "OPEN_HOST_URL_WINDOW",
+            "label": "URL",
+            "icon": "Link"
+          },
+          {
+            "type": "action",
+            "actionId": "OPEN_HOST_URL_DEV_SERVER",
+            "label": "Web",
+            "icon": "Globe"
+          },
+          {
+            "type": "action",
+            "actionId": "OPEN_HOST_URL_STORYBOOK",
+            "label": "Story",
+            "icon": "BookOpen"
+          },
+          {
+            "type": "action",
+            "actionId": "OPEN_HOST_URL_APP",
+            "label": "App",
+            "icon": "PanelTop"
+          },
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
           null,
           null,
           null,
@@ -396,11 +639,32 @@
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"approve\",\n  \"enter\": true\n}"
       },
       {
+        "id": "cmd_code_review",
+        "name": "Command: code review",
+        "label": "$code-review",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"$code-review\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "cmd_requesting_code_review",
+        "name": "Command: requesting code review",
+        "label": "$requesting-code-review",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"$requesting-code-review\",\n  \"enter\": true\n}"
+      },
+      {
         "id": "cmd_rloop_code_fix",
-        "name": "Command: rloop code fix",
-        "label": "$rloop-code-fix",
+        "name": "Command: rloop code fix 2",
+        "label": "$rloop-code-fix2",
         "category": "Commands",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"$rloop-code-fix2\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "cmd_rloop_code_fix_3",
+        "name": "Command: rloop code fix 3",
+        "label": "$rloop-code-fix3",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"$rloop-code-fix3\",\n  \"enter\": true\n}"
       },
       {
         "id": "cmd_continue",
@@ -408,6 +672,13 @@
         "label": "continue",
         "category": "Commands",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"continue\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "cmd_plain_language",
+        "name": "Command: plain language",
+        "label": "Explain",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"$plain-language\",\n  \"enter\": true\n}"
       },
       {
         "id": "reply_1",
@@ -422,6 +693,13 @@
         "label": "2",
         "category": "Replies",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"2\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "alt_w",
+        "name": "Meta: Alt-w",
+        "label": "Alt-w",
+        "category": "Navigation",
+        "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
       }
     ],
     "advanced_keyboard": [
@@ -432,7 +710,8 @@
         "category": "Navigation",
         "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
       }
-    ]
+    ],
+    "browser_keyboard": []
   },
   "commandMenus": [
     {
