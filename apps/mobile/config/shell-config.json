@@ -1,15 +1,17 @@
 {
-  "version": "2026-05-14.1",
-  "updatedAt": "2026-05-14T10:39:16Z",
+  "version": "2026-05-14.4",
+  "updatedAt": "2026-05-14T18:09:26Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
-    "advanced_keyboard"
+    "advanced_keyboard",
+    "browser_keyboard"
   ],
   "keyboardRouting": {
     "actionTargets": {
       "OPEN_ADVANCED_KEYBOARD": "advanced_keyboard",
-      "OPEN_MAIN_MENU": "phone_base"
+      "OPEN_MAIN_MENU": "phone_base",
+      "OPEN_BROWSER_KEYBOARD": "browser_keyboard"
     },
     "oneShotReturnByKeyboardId": {}
   },
@@ -291,7 +293,12 @@
             "label": "ARROW_DOWN",
             "icon": "ArrowDown"
           },
-          null,
+          {
+            "type": "macro",
+            "macroId": "cmd_plain_language",
+            "label": "Explain",
+            "icon": null
+          },
           {
             "type": "macro",
             "macroId": "cmd_fix",
@@ -319,14 +326,8 @@
               "options": [
                 {
                   "type": "macro",
-                  "macroId": "cmd_rloop_code_fix",
-                  "label": "$rloop-code-fix2",
-                  "icon": null
-                },
-                {
-                  "type": "macro",
-                  "macroId": "cmd_rloop_code_fix_3",
-                  "label": "$rloop-code-fix3",
+                  "macroId": "cmd_requesting_code_review",
+                  "label": "$requesting-code-review",
                   "icon": null
                 }
               ]
@@ -352,14 +353,19 @@
           }
         ],
         [
+          null,
           {
-            "type": "macro",
-            "macroId": "cmd_plain_language",
-            "label": "Explain",
-            "icon": null
+            "type": "action",
+            "actionId": "OPEN_BROWSER_KEYBOARD",
+            "label": "Browser",
+            "icon": "ExternalLink"
           },
-          null,
-          null,
+          {
+            "type": "action",
+            "actionId": "CYCLE_WORKMUX_STATUS",
+            "label": "Status",
+            "icon": "Clock"
+          },
           null,
           null,
           null,
@@ -481,6 +487,113 @@
           }
         ],
         [
+          {
+            "type": "action",
+            "actionId": "EDIT_HOST_URL_WINDOW",
+            "label": "Set URL",
+            "icon": "Link"
+          },
+          {
+            "type": "action",
+            "actionId": "EDIT_HOST_URL_DEV_SERVER",
+            "label": "Set Web",
+            "icon": "Globe"
+          },
+          {
+            "type": "action",
+            "actionId": "EDIT_HOST_URL_STORYBOOK",
+            "label": "Set Story",
+            "icon": "BookOpen"
+          },
+          {
+            "type": "action",
+            "actionId": "EDIT_HOST_URL_APP",
+            "label": "Set App",
+            "icon": "PanelTop"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "id": "browser_keyboard",
+      "name": "Browser Keyboard",
+      "builtIn": true,
+      "active": true,
+      "rotationOrder": 2,
+      "grid": [
+        [
+          {
+            "type": "action",
+            "actionId": "OPEN_MAIN_MENU",
+            "label": "Back",
+            "icon": "X"
+          },
+          {
+            "type": "action",
+            "actionId": "OPEN_HOST_DIFFITY",
+            "label": "Diff",
+            "icon": "GitCompare"
+          },
+          {
+            "type": "action",
+            "actionId": "OPEN_HOST_URL_WINDOW",
+            "label": "URL",
+            "icon": "Link"
+          },
+          {
+            "type": "action",
+            "actionId": "OPEN_HOST_URL_DEV_SERVER",
+            "label": "Web",
+            "icon": "Globe"
+          },
+          {
+            "type": "action",
+            "actionId": "OPEN_HOST_URL_STORYBOOK",
+            "label": "Story",
+            "icon": "BookOpen"
+          },
+          {
+            "type": "action",
+            "actionId": "OPEN_HOST_URL_APP",
+            "label": "App",
+            "icon": "PanelTop"
+          },
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
           null,
           null,
           null,
@@ -531,6 +644,13 @@
         "label": "$code-review",
         "category": "Commands",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"$code-review\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "cmd_requesting_code_review",
+        "name": "Command: requesting code review",
+        "label": "$requesting-code-review",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"$requesting-code-review\",\n  \"enter\": true\n}"
       },
       {
         "id": "cmd_rloop_code_fix",
@@ -590,7 +710,8 @@
         "category": "Navigation",
         "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
       }
-    ]
+    ],
+    "browser_keyboard": []
   },
   "commandMenus": [
     {

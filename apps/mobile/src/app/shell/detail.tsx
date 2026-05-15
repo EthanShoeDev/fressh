@@ -42,6 +42,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
 import {
+	buildDiffityShareCommand,
+	buildHostBrowserPanePathCommand,
+	buildHostBrowserStatusCycleCommand,
+	buildTmuxWindowConfigGetCommand,
+	buildTmuxWindowConfigSetCommand,
+	extractLastHttpsUrl,
+	getHostBrowserUrlSlotLabel,
+	parseHostBrowserUrlInput,
+	type HostBrowserUrlSlot,
+} from '@/lib/host-browser-actions';
+import {
 	HANDLE_DEV_SERVER_URL,
 	runAction,
 	type ActionContext,
@@ -90,6 +101,7 @@ import { resolveWisprTextEditorAvailability } from '@/lib/wispr-text-editor-flow
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
+import { HostUrlModal, type HostUrlModalMode } from './components/HostUrlModal';
 import { TerminalCommanderModal } from './components/TerminalCommanderModal';
 import { TerminalKeyboard } from './components/TerminalKeyboard';
 import {
@@ -321,6 +333,13 @@ type TerminalErrorBoundaryProps = {
 
 type TerminalErrorBoundaryState = {
 	hasError: boolean;
+};
+
+type HostUrlModalState = {
+	mode: HostUrlModalMode;
+	slot: HostBrowserUrlSlot;
+	panePath: string;
+	initialValue: string;
 };
 
 class TerminalErrorBoundary extends React.Component<
@@ -679,6 +698,12 @@ function ShellDetail() {
 	const [featureRequestError, setFeatureRequestError] = useState<
 		string | undefined
 	>(undefined);
+	const [hostUrlModalState, setHostUrlModalState] =
+		useState<HostUrlModalState | null>(null);
+	const [hostUrlModalSubmitting, setHostUrlModalSubmitting] = useState(false);
+	const [hostUrlModalError, setHostUrlModalError] = useState<string | null>(
+		null,
+	);
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
@@ -693,6 +718,7 @@ function ShellDetail() {
 	});
 	const wisprTextEntryValueRef = useRef('');
 	const wisprAutomationRequestIdRef = useRef(0);
+	const hostUrlReadRequestIdRef = useRef(0);
 	const wisprOpeningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
@@ -1507,6 +1533,236 @@ fi
 		[connection],
 	);
 
+	const showHostBrowserError = useCallback((title: string, message: string) => {
+		Alert.alert(title, message);
+	}, []);
+
+	const runHostBrowserCommand = useCallback(
+		async (command: string, timeoutMs = 30_000) => {
+			if (!connection) {
+				throw new Error('No SSH connection available.');
+			}
+			const result = await executeSideChannelCommand(
+				connection,
+				command,
+				timeoutMs,
+			);
+			if (!result.success) {
+				throw new Error(
+					result.error || result.output || 'Remote command failed.',
+				);
+			}
+			return result.output.trim();
+		},
+		[connection],
+	);
+
+	const resolveHostBrowserPanePath = useCallback(async () => {
+		if (!tmuxEnabled) {
+			throw new Error(
+				'Host browser actions require a tmux-enabled connection.',
+			);
+		}
+		const sessionName = tmuxTarget.trim() || 'main';
+		const output = await runHostBrowserCommand(
+			buildHostBrowserPanePathCommand(sessionName),
+			10_000,
+		);
+		const panePath = output
+			.split(/\r?\n/)
+			.map((line) => line.trim())
+			.filter(Boolean)
+			.at(-1);
+		if (!panePath) {
+			throw new Error(
+				`Could not resolve pane path for tmux session ${sessionName}.`,
+			);
+		}
+		return panePath;
+	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
+
+	const openAndroidUrl = useCallback(async (url: string) => {
+		try {
+			await Linking.openURL(url);
+		} catch (error) {
+			throw new Error(
+				`Android could not open ${url}: ${getErrorMessage(error)}`,
+			);
+		}
+	}, []);
+
+	const handleOpenHostDiffity = useCallback(() => {
+		void (async () => {
+			try {
+				const panePath = await resolveHostBrowserPanePath();
+				const output = await runHostBrowserCommand(
+					buildDiffityShareCommand(panePath),
+					60_000,
+				);
+				const url = extractLastHttpsUrl(output);
+				if (!url) {
+					throw new Error(
+						output || 'diffity-share did not return an HTTPS URL.',
+					);
+				}
+				await openAndroidUrl(url);
+			} catch (error) {
+				showHostBrowserError('Diffity failed', getErrorMessage(error));
+			}
+		})();
+	}, [
+		openAndroidUrl,
+		resolveHostBrowserPanePath,
+		runHostBrowserCommand,
+		showHostBrowserError,
+	]);
+
+	const handleOpenHostUrlSlot = useCallback(
+		(slot: HostBrowserUrlSlot) => {
+			const requestId = ++hostUrlReadRequestIdRef.current;
+			void (async () => {
+				try {
+					const panePath = await resolveHostBrowserPanePath();
+					const value = await runHostBrowserCommand(
+						buildTmuxWindowConfigGetCommand(slot, panePath),
+						10_000,
+					);
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
+					const savedUrl = value.trim();
+					if (savedUrl) {
+						const parsed = parseHostBrowserUrlInput(savedUrl);
+						if (parsed.type === 'invalid') {
+							setHostUrlModalState({
+								mode: 'edit',
+								slot,
+								panePath,
+								initialValue: savedUrl,
+							});
+							setHostUrlModalError(parsed.message);
+							return;
+						}
+						if (parsed.type === 'empty') return;
+						await openAndroidUrl(parsed.url);
+						return;
+					}
+					setHostUrlModalError(null);
+					setHostUrlModalState({
+						mode: 'open-missing',
+						slot,
+						panePath,
+						initialValue: '',
+					});
+				} catch (error) {
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
+					showHostBrowserError(
+						`${getHostBrowserUrlSlotLabel(slot)} failed`,
+						getErrorMessage(error),
+					);
+				}
+			})();
+		},
+		[
+			openAndroidUrl,
+			resolveHostBrowserPanePath,
+			runHostBrowserCommand,
+			showHostBrowserError,
+		],
+	);
+
+	const handleEditHostUrlSlot = useCallback(
+		(slot: HostBrowserUrlSlot) => {
+			const requestId = ++hostUrlReadRequestIdRef.current;
+			void (async () => {
+				try {
+					const panePath = await resolveHostBrowserPanePath();
+					const value = await runHostBrowserCommand(
+						buildTmuxWindowConfigGetCommand(slot, panePath),
+						10_000,
+					);
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
+					setHostUrlModalError(null);
+					setHostUrlModalState({
+						mode: 'edit',
+						slot,
+						panePath,
+						initialValue: value.trim(),
+					});
+				} catch (error) {
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
+					showHostBrowserError(
+						`Edit ${getHostBrowserUrlSlotLabel(slot)} failed`,
+						getErrorMessage(error),
+					);
+				}
+			})();
+		},
+		[resolveHostBrowserPanePath, runHostBrowserCommand, showHostBrowserError],
+	);
+
+	const handleCloseHostUrlModal = useCallback(() => {
+		if (hostUrlModalSubmitting) return;
+		setHostUrlModalState(null);
+		setHostUrlModalError(null);
+	}, [hostUrlModalSubmitting]);
+
+	const handleSubmitHostUrlModal = useCallback(
+		(value: string) => {
+			const state = hostUrlModalState;
+			if (!state) return;
+			const parsed = parseHostBrowserUrlInput(value);
+			if (parsed.type === 'empty') {
+				setHostUrlModalState(null);
+				setHostUrlModalError(null);
+				return;
+			}
+			if (parsed.type === 'invalid') {
+				setHostUrlModalError(parsed.message);
+				return;
+			}
+
+			void (async () => {
+				setHostUrlModalSubmitting(true);
+				setHostUrlModalError(null);
+				try {
+					await runHostBrowserCommand(
+						buildTmuxWindowConfigSetCommand(
+							state.slot,
+							state.panePath,
+							parsed.url,
+						),
+						10_000,
+					);
+					if (state.mode === 'open-missing') {
+						await openAndroidUrl(parsed.url);
+					}
+					setHostUrlModalState(null);
+				} catch (error) {
+					setHostUrlModalError(getErrorMessage(error));
+				} finally {
+					setHostUrlModalSubmitting(false);
+				}
+			})();
+		},
+		[hostUrlModalState, openAndroidUrl, runHostBrowserCommand],
+	);
+
+	const handleCycleWorkmuxStatus = useCallback(() => {
+		void (async () => {
+			try {
+				if (!tmuxEnabled) {
+					throw new Error('Status cycle requires a tmux-enabled connection.');
+				}
+				const sessionName = tmuxTarget.trim() || 'main';
+				await runHostBrowserCommand(
+					buildHostBrowserStatusCycleCommand(sessionName),
+					10_000,
+				);
+			} catch (error) {
+				showHostBrowserError('Status cycle failed', getErrorMessage(error));
+			}
+		})();
+	}, [runHostBrowserCommand, showHostBrowserError, tmuxEnabled, tmuxTarget]);
+
 	const actionContext = useMemo<ActionContext>(
 		() => ({
 			availableKeyboardIds,
@@ -1529,11 +1785,19 @@ fi
 				setCommanderOpen(true);
 			},
 			openWisprTextEditor: handleOpenWisprTextEditor,
+			openHostDiffity: handleOpenHostDiffity,
+			openHostUrlSlot: handleOpenHostUrlSlot,
+			editHostUrlSlot: handleEditHostUrlSlot,
+			cycleWorkmuxStatus: handleCycleWorkmuxStatus,
 		}),
 		[
 			availableKeyboardIds,
+			handleCycleWorkmuxStatus,
 			handleCopySelection,
 			handleCloseTextEntry,
+			handleEditHostUrlSlot,
+			handleOpenHostDiffity,
+			handleOpenHostUrlSlot,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
 			openConfigDialog,
@@ -2169,6 +2433,21 @@ fi
 					onPaste={handlePasteTextEntry}
 					onWisprFocus={handleWisprTextEntryFocus}
 					onValueChange={handleWisprTextEntryValueChange}
+				/>
+				<HostUrlModal
+					open={hostUrlModalState != null}
+					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
+					slotLabel={
+						hostUrlModalState
+							? getHostBrowserUrlSlotLabel(hostUrlModalState.slot)
+							: 'URL'
+					}
+					initialValue={hostUrlModalState?.initialValue ?? ''}
+					mode={hostUrlModalState?.mode ?? 'edit'}
+					isSubmitting={hostUrlModalSubmitting}
+					error={hostUrlModalError}
+					onClose={handleCloseHostUrlModal}
+					onSubmit={handleSubmitHostUrlModal}
 				/>
 				<ConfigureModal
 					open={configureOpen}

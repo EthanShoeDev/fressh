@@ -39,7 +39,7 @@ void test('phone base keyboard exposes a continue command key between approve an
 	assert.equal(secondRow[5]?.label, 'S-Tab');
 });
 
-void test('phone base keyboard review key taps code review and long-presses code fix 2 or 3', () => {
+void test('phone base keyboard review key sends code review and long-presses requesting review', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -52,11 +52,8 @@ void test('phone base keyboard review key taps code review and long-presses code
 	const codeReviewMacro = phoneBaseMacros.find(
 		(macro) => macro.id === 'cmd_code_review',
 	);
-	const reviewMacro = phoneBaseMacros.find(
-		(macro) => macro.id === 'cmd_rloop_code_fix',
-	);
-	const reviewMacro3 = phoneBaseMacros.find(
-		(macro) => macro.id === 'cmd_rloop_code_fix_3',
+	const requestingCodeReviewMacro = phoneBaseMacros.find(
+		(macro) => macro.id === 'cmd_requesting_code_review',
 	);
 
 	assert.deepEqual(codeReviewMacro, {
@@ -67,21 +64,13 @@ void test('phone base keyboard review key taps code review and long-presses code
 		script:
 			'{\n  "type": "command",\n  "value": "$code-review",\n  "enter": true\n}',
 	});
-	assert.deepEqual(reviewMacro, {
-		id: 'cmd_rloop_code_fix',
-		name: 'Command: rloop code fix 2',
-		label: '$rloop-code-fix2',
+	assert.deepEqual(requestingCodeReviewMacro, {
+		id: 'cmd_requesting_code_review',
+		name: 'Command: requesting code review',
+		label: '$requesting-code-review',
 		category: 'Commands',
 		script:
-			'{\n  "type": "command",\n  "value": "$rloop-code-fix2",\n  "enter": true\n}',
-	});
-	assert.deepEqual(reviewMacro3, {
-		id: 'cmd_rloop_code_fix_3',
-		name: 'Command: rloop code fix 3',
-		label: '$rloop-code-fix3',
-		category: 'Commands',
-		script:
-			'{\n  "type": "command",\n  "value": "$rloop-code-fix3",\n  "enter": true\n}',
+			'{\n  "type": "command",\n  "value": "$requesting-code-review",\n  "enter": true\n}',
 	});
 
 	const thirdRow = phoneBaseKeyboard.grid[2];
@@ -95,14 +84,8 @@ void test('phone base keyboard review key taps code review and long-presses code
 			options: [
 				{
 					type: 'macro',
-					macroId: 'cmd_rloop_code_fix',
-					label: '$rloop-code-fix2',
-					icon: null,
-				},
-				{
-					type: 'macro',
-					macroId: 'cmd_rloop_code_fix_3',
-					label: '$rloop-code-fix3',
+					macroId: 'cmd_requesting_code_review',
+					label: '$requesting-code-review',
 					icon: null,
 				},
 			],
@@ -230,4 +213,144 @@ void test('bundled keyboards do not expose tmux history actions', () => {
 	);
 
 	assert.deepEqual(historySlots, []);
+});
+
+void test('phone base keyboard exposes explain, browser and status actions', () => {
+	const config = getBundledShellConfig();
+	const phoneBaseKeyboard = config.keyboards.find(
+		(keyboard) => keyboard.id === 'phone_base',
+	);
+	assert.ok(phoneBaseKeyboard);
+
+	assert.ok(config.activeKeyboardIds.includes('browser_keyboard'));
+	assert.deepEqual(phoneBaseKeyboard.grid[2]?.[2], {
+		type: 'macro',
+		macroId: 'cmd_plain_language',
+		label: 'Explain',
+		icon: null,
+	});
+	assert.equal(phoneBaseKeyboard.grid[3]?.[0], null);
+	assert.deepEqual(phoneBaseKeyboard.grid[3]?.[1], {
+		type: 'action',
+		actionId: 'OPEN_BROWSER_KEYBOARD',
+		label: 'Browser',
+		icon: 'ExternalLink',
+	});
+	assert.deepEqual(phoneBaseKeyboard.grid[3]?.[2], {
+		type: 'action',
+		actionId: 'CYCLE_WORKMUX_STATUS',
+		label: 'Status',
+		icon: 'Clock',
+	});
+});
+
+void test('browser keyboard exposes host navigation actions', () => {
+	const config = getBundledShellConfig();
+	const browserKeyboard = config.keyboards.find(
+		(keyboard) => keyboard.id === 'browser_keyboard',
+	);
+	assert.ok(browserKeyboard);
+
+	assert.equal(browserKeyboard.builtIn, true);
+	assert.equal(browserKeyboard.active, true);
+	assert.equal(browserKeyboard.rotationOrder, 2);
+	assert.equal(browserKeyboard.grid.length, 4);
+	assert.deepEqual(
+		browserKeyboard.grid.map((row) => row.length),
+		[10, 10, 10, 10],
+	);
+	assert.deepEqual(browserKeyboard.grid[0]?.slice(0, 6), [
+		{
+			type: 'action',
+			actionId: 'OPEN_MAIN_MENU',
+			label: 'Back',
+			icon: 'X',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_DIFFITY',
+			label: 'Diff',
+			icon: 'GitCompare',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_URL_WINDOW',
+			label: 'URL',
+			icon: 'Link',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_URL_DEV_SERVER',
+			label: 'Web',
+			icon: 'Globe',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_URL_STORYBOOK',
+			label: 'Story',
+			icon: 'BookOpen',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_URL_APP',
+			label: 'App',
+			icon: 'PanelTop',
+		},
+	]);
+	assert.deepEqual(browserKeyboard.grid[0]?.slice(6, 10), [
+		null,
+		null,
+		null,
+		null,
+	]);
+	for (const row of browserKeyboard.grid.slice(1, 4)) {
+		assert.deepEqual(row, [
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+		]);
+	}
+	assert.deepEqual(config.macrosByKeyboardId.browser_keyboard, []);
+});
+
+void test('advanced keyboard exposes host URL setter actions', () => {
+	const config = getBundledShellConfig();
+	const advancedKeyboard = config.keyboards.find(
+		(keyboard) => keyboard.id === 'advanced_keyboard',
+	);
+	assert.ok(advancedKeyboard);
+
+	assert.deepEqual(advancedKeyboard.grid[3]?.slice(0, 4), [
+		{
+			type: 'action',
+			actionId: 'EDIT_HOST_URL_WINDOW',
+			label: 'Set URL',
+			icon: 'Link',
+		},
+		{
+			type: 'action',
+			actionId: 'EDIT_HOST_URL_DEV_SERVER',
+			label: 'Set Web',
+			icon: 'Globe',
+		},
+		{
+			type: 'action',
+			actionId: 'EDIT_HOST_URL_STORYBOOK',
+			label: 'Set Story',
+			icon: 'BookOpen',
+		},
+		{
+			type: 'action',
+			actionId: 'EDIT_HOST_URL_APP',
+			label: 'Set App',
+			icon: 'PanelTop',
+		},
+	]);
 });
