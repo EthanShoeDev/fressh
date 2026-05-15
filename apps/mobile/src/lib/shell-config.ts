@@ -25,12 +25,36 @@ export type CommandPresetMenu = {
 
 export type CommandPresetEntry = CommandPreset | CommandPresetMenu;
 
+export type KeyboardLongPressOption =
+	| { type: 'text'; text: string; label: string; icon: string | null }
+	| {
+			type: 'bytes';
+			bytes: readonly number[];
+			label: string;
+			icon: string | null;
+	  }
+	| { type: 'macro'; macroId: string; label: string; icon: string | null }
+	| { type: 'action'; actionId: ActionId; label: string; icon: string | null };
+
+export type KeyboardLongPressConfig = {
+	options: readonly KeyboardLongPressOption[];
+};
+
+type KeyboardSlotBase = {
+	label: string;
+	icon: string | null;
+	span?: number;
+	longPress?: KeyboardLongPressConfig;
+};
+
 export type KeyboardSlot =
-	| { type: 'text'; text: string; label: string; icon: string | null; span?: number }
-	| { type: 'bytes'; bytes: readonly number[]; label: string; icon: string | null; span?: number }
-	| { type: 'modifier'; modifier: ModifierKey; label: string; icon: string | null; span?: number }
-	| { type: 'macro'; macroId: string; label: string; icon: string | null; span?: number }
-	| { type: 'action'; actionId: ActionId; label: string; icon: string | null; span?: number };
+	| ({ type: 'text'; text: string } & KeyboardSlotBase)
+	| ({ type: 'bytes'; bytes: readonly number[] } & KeyboardSlotBase)
+	| ({ type: 'modifier'; modifier: ModifierKey } & KeyboardSlotBase)
+	| ({ type: 'macro'; macroId: string } & KeyboardSlotBase)
+	| ({ type: 'action'; actionId: ActionId } & KeyboardSlotBase);
+
+export type KeyboardExecutableItem = KeyboardSlot | KeyboardLongPressOption;
 
 export type MacroDef = {
 	id: string;
@@ -126,43 +150,86 @@ const commandPresetEntrySchema: z.ZodType<CommandPresetEntry> = z.lazy(() =>
 	]),
 );
 
-const keyboardSlotSchema: z.ZodType<KeyboardSlot> = z.discriminatedUnion('type', [
+const keyboardLongPressOptionSchema: z.ZodType<KeyboardLongPressOption> =
+	z.discriminatedUnion('type', [
+		z.object({
+			type: z.literal('text'),
+			text: z.string(),
+			label: z.string(),
+			icon: iconSchema,
+		}),
+		z.object({
+			type: z.literal('bytes'),
+			bytes: z.array(z.number().int().min(0).max(255)),
+			label: z.string(),
+			icon: iconSchema,
+		}),
+		z.object({
+			type: z.literal('macro'),
+			macroId: z.string().min(1),
+			label: z.string(),
+			icon: iconSchema,
+		}),
+		z.object({
+			type: z.literal('action'),
+			actionId: z.string().min(1),
+			label: z.string(),
+			icon: iconSchema,
+		}),
+	]);
+
+const keyboardLongPressConfigSchema: z.ZodType<KeyboardLongPressConfig> =
 	z.object({
-		type: z.literal('text'),
-		text: z.string(),
-		label: z.string(),
-		icon: iconSchema,
-		span: spanSchema,
-	}),
-	z.object({
-		type: z.literal('bytes'),
-		bytes: z.array(z.number().int().min(0).max(255)),
-		label: z.string(),
-		icon: iconSchema,
-		span: spanSchema,
-	}),
-	z.object({
-		type: z.literal('modifier'),
-		modifier: modifierKeySchema,
-		label: z.string(),
-		icon: iconSchema,
-		span: spanSchema,
-	}),
-	z.object({
-		type: z.literal('macro'),
-		macroId: z.string().min(1),
-		label: z.string(),
-		icon: iconSchema,
-		span: spanSchema,
-	}),
-	z.object({
-		type: z.literal('action'),
-		actionId: z.string().min(1),
-		label: z.string(),
-		icon: iconSchema,
-		span: spanSchema,
-	}),
-]);
+		options: z.array(keyboardLongPressOptionSchema).min(1),
+	});
+
+const longPressSchema = keyboardLongPressConfigSchema.optional();
+
+const keyboardSlotSchema: z.ZodType<KeyboardSlot> = z.discriminatedUnion(
+	'type',
+	[
+		z.object({
+			type: z.literal('text'),
+			text: z.string(),
+			label: z.string(),
+			icon: iconSchema,
+			span: spanSchema,
+			longPress: longPressSchema,
+		}),
+		z.object({
+			type: z.literal('bytes'),
+			bytes: z.array(z.number().int().min(0).max(255)),
+			label: z.string(),
+			icon: iconSchema,
+			span: spanSchema,
+			longPress: longPressSchema,
+		}),
+		z.object({
+			type: z.literal('modifier'),
+			modifier: modifierKeySchema,
+			label: z.string(),
+			icon: iconSchema,
+			span: spanSchema,
+			longPress: longPressSchema,
+		}),
+		z.object({
+			type: z.literal('macro'),
+			macroId: z.string().min(1),
+			label: z.string(),
+			icon: iconSchema,
+			span: spanSchema,
+			longPress: longPressSchema,
+		}),
+		z.object({
+			type: z.literal('action'),
+			actionId: z.string().min(1),
+			label: z.string(),
+			icon: iconSchema,
+			span: spanSchema,
+			longPress: longPressSchema,
+		}),
+	],
+);
 
 const macroDefSchema = z.object({
 	id: z.string().min(1),
@@ -181,26 +248,55 @@ const keyboardDefinitionSchema = z.object({
 	grid: z.array(z.array(keyboardSlotSchema.nullable())),
 });
 
+function validateExecutableItemReferences({
+	item,
+	macroIds,
+	path,
+	ctx,
+	keyboardId,
+}: {
+	item: KeyboardExecutableItem;
+	macroIds: Set<string>;
+	path: (string | number)[];
+	ctx: z.RefinementCtx;
+	keyboardId: string;
+}) {
+	if (item.type === 'macro' && !macroIds.has(item.macroId)) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: [...path, 'macroId'],
+			message: `Keyboard ${keyboardId} references missing macro ${item.macroId}`,
+		});
+	}
+	if (item.type === 'action' && !supportedActionIds.has(item.actionId)) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: [...path, 'actionId'],
+			message: `Unsupported actionId ${item.actionId}`,
+		});
+	}
+}
+
 const shellConfigSchema: z.ZodType<ShellConfig> = z
 	.object({
-			version: z.string().min(1),
-			updatedAt: z.string().datetime(),
-			defaultKeyboardId: z.string().min(1),
-			activeKeyboardIds: z.array(z.string().min(1)).min(1),
-			keyboardRouting: z.object({
-				actionTargets: z.record(z.string(), z.string().min(1)),
-				oneShotReturnByKeyboardId: z.record(z.string(), z.string().min(1)),
-			}),
-			keyboards: z.array(keyboardDefinitionSchema).min(1),
-			macrosByKeyboardId: z.record(z.string(), z.array(macroDefSchema)),
-			commandMenus: z.array(commandPresetEntrySchema),
-		})
-		.superRefine((config, ctx) => {
-			const keyboardIds = new Set<string>();
-			const activeKeyboardIds = new Set(config.activeKeyboardIds);
-			for (const [index, keyboard] of config.keyboards.entries()) {
-				if (keyboardIds.has(keyboard.id)) {
-					ctx.addIssue({
+		version: z.string().min(1),
+		updatedAt: z.string().datetime(),
+		defaultKeyboardId: z.string().min(1),
+		activeKeyboardIds: z.array(z.string().min(1)).min(1),
+		keyboardRouting: z.object({
+			actionTargets: z.record(z.string(), z.string().min(1)),
+			oneShotReturnByKeyboardId: z.record(z.string(), z.string().min(1)),
+		}),
+		keyboards: z.array(keyboardDefinitionSchema).min(1),
+		macrosByKeyboardId: z.record(z.string(), z.array(macroDefSchema)),
+		commandMenus: z.array(commandPresetEntrySchema),
+	})
+	.superRefine((config, ctx) => {
+		const keyboardIds = new Set<string>();
+		const activeKeyboardIds = new Set(config.activeKeyboardIds);
+		for (const [index, keyboard] of config.keyboards.entries()) {
+			if (keyboardIds.has(keyboard.id)) {
+				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ['keyboards', index, 'id'],
 					message: `Duplicate keyboard id ${keyboard.id}`,
@@ -217,89 +313,91 @@ const shellConfigSchema: z.ZodType<ShellConfig> = z
 			});
 		}
 
-			for (const [index, keyboardId] of config.activeKeyboardIds.entries()) {
-				if (config.activeKeyboardIds.indexOf(keyboardId) !== index) {
-					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
-						path: ['activeKeyboardIds', index],
-						message: `Duplicate active keyboard id ${keyboardId}`,
-					});
-				}
-				if (!keyboardIds.has(keyboardId)) {
-					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
-						path: ['activeKeyboardIds', index],
+		for (const [index, keyboardId] of config.activeKeyboardIds.entries()) {
+			if (config.activeKeyboardIds.indexOf(keyboardId) !== index) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['activeKeyboardIds', index],
+					message: `Duplicate active keyboard id ${keyboardId}`,
+				});
+			}
+			if (!keyboardIds.has(keyboardId)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['activeKeyboardIds', index],
 					message: `Unknown active keyboard ${keyboardId}`,
 				});
 			}
 		}
 
-			if (!config.activeKeyboardIds.includes(config.defaultKeyboardId)) {
+		if (!config.activeKeyboardIds.includes(config.defaultKeyboardId)) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['defaultKeyboardId'],
+				message: `Default keyboard ${config.defaultKeyboardId} must be active`,
+			});
+		}
+
+		for (const [actionId, targetKeyboardId] of Object.entries(
+			config.keyboardRouting.actionTargets,
+		)) {
+			if (!keyboardTargetActionIds.has(actionId)) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
-					path: ['defaultKeyboardId'],
-					message: `Default keyboard ${config.defaultKeyboardId} must be active`,
+					path: ['keyboardRouting', 'actionTargets', actionId],
+					message: `Unsupported keyboard routing action ${actionId}`,
 				});
 			}
-
-			for (const [actionId, targetKeyboardId] of Object.entries(
-				config.keyboardRouting.actionTargets,
-			)) {
-				if (!keyboardTargetActionIds.has(actionId)) {
-					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
-						path: ['keyboardRouting', 'actionTargets', actionId],
-						message: `Unsupported keyboard routing action ${actionId}`,
-					});
-				}
-				if (!keyboardIds.has(targetKeyboardId)) {
-					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
-						path: ['keyboardRouting', 'actionTargets', actionId],
-						message: `Keyboard routing action ${actionId} targets unknown keyboard ${targetKeyboardId}`,
-					});
-				} else if (!activeKeyboardIds.has(targetKeyboardId)) {
-					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
-						path: ['keyboardRouting', 'actionTargets', actionId],
-						message: `Keyboard routing action ${actionId} must target an active keyboard`,
-					});
-				}
+			if (!keyboardIds.has(targetKeyboardId)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['keyboardRouting', 'actionTargets', actionId],
+					message: `Keyboard routing action ${actionId} targets unknown keyboard ${targetKeyboardId}`,
+				});
+			} else if (!activeKeyboardIds.has(targetKeyboardId)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['keyboardRouting', 'actionTargets', actionId],
+					message: `Keyboard routing action ${actionId} must target an active keyboard`,
+				});
 			}
+		}
 
-			for (const [keyboardId, returnKeyboardId] of Object.entries(
-				config.keyboardRouting.oneShotReturnByKeyboardId,
-			)) {
-				if (!keyboardIds.has(keyboardId)) {
-					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
-						path: ['keyboardRouting', 'oneShotReturnByKeyboardId', keyboardId],
-						message: `One-shot return configured for unknown keyboard ${keyboardId}`,
-					});
-				} else if (!activeKeyboardIds.has(keyboardId)) {
-					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
-						path: ['keyboardRouting', 'oneShotReturnByKeyboardId', keyboardId],
-						message: `One-shot return source keyboard ${keyboardId} must be active`,
-					});
-				}
-				if (!keyboardIds.has(returnKeyboardId)) {
-					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
-						path: ['keyboardRouting', 'oneShotReturnByKeyboardId', keyboardId],
-						message: `One-shot return keyboard ${returnKeyboardId} is unknown`,
-					});
-				} else if (!activeKeyboardIds.has(returnKeyboardId)) {
-					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
-						path: ['keyboardRouting', 'oneShotReturnByKeyboardId', keyboardId],
-						message: `One-shot return keyboard ${returnKeyboardId} must be active`,
-					});
-				}
+		for (const [keyboardId, returnKeyboardId] of Object.entries(
+			config.keyboardRouting.oneShotReturnByKeyboardId,
+		)) {
+			if (!keyboardIds.has(keyboardId)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['keyboardRouting', 'oneShotReturnByKeyboardId', keyboardId],
+					message: `One-shot return configured for unknown keyboard ${keyboardId}`,
+				});
+			} else if (!activeKeyboardIds.has(keyboardId)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['keyboardRouting', 'oneShotReturnByKeyboardId', keyboardId],
+					message: `One-shot return source keyboard ${keyboardId} must be active`,
+				});
 			}
+			if (!keyboardIds.has(returnKeyboardId)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['keyboardRouting', 'oneShotReturnByKeyboardId', keyboardId],
+					message: `One-shot return keyboard ${returnKeyboardId} is unknown`,
+				});
+			} else if (!activeKeyboardIds.has(returnKeyboardId)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['keyboardRouting', 'oneShotReturnByKeyboardId', keyboardId],
+					message: `One-shot return keyboard ${returnKeyboardId} must be active`,
+				});
+			}
+		}
 
-			for (const [keyboardId, macros] of Object.entries(config.macrosByKeyboardId)) {
-				if (!keyboardIds.has(keyboardId)) {
+		for (const [keyboardId, macros] of Object.entries(
+			config.macrosByKeyboardId,
+		)) {
+			if (!keyboardIds.has(keyboardId)) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ['macrosByKeyboardId', keyboardId],
@@ -337,21 +435,32 @@ const shellConfigSchema: z.ZodType<ShellConfig> = z
 			for (const [rowIndex, row] of keyboard.grid.entries()) {
 				for (const [colIndex, slot] of row.entries()) {
 					if (!slot) continue;
-					if (slot.type === 'macro' && !macroIds.has(slot.macroId)) {
-						ctx.addIssue({
-							code: z.ZodIssueCode.custom,
-							path: ['keyboards', keyboardIndex, 'grid', rowIndex, colIndex, 'macroId'],
-							message: `Keyboard ${keyboard.id} references missing macro ${slot.macroId}`,
-						});
-					}
-					if (
-						slot.type === 'action' &&
-						!supportedActionIds.has(slot.actionId)
-					) {
-						ctx.addIssue({
-							code: z.ZodIssueCode.custom,
-							path: ['keyboards', keyboardIndex, 'grid', rowIndex, colIndex, 'actionId'],
-							message: `Unsupported actionId ${slot.actionId}`,
+					validateExecutableItemReferences({
+						item: slot,
+						macroIds,
+						path: ['keyboards', keyboardIndex, 'grid', rowIndex, colIndex],
+						ctx,
+						keyboardId: keyboard.id,
+					});
+
+					for (const [optionIndex, option] of (
+						slot.longPress?.options ?? []
+					).entries()) {
+						validateExecutableItemReferences({
+							item: option,
+							macroIds,
+							path: [
+								'keyboards',
+								keyboardIndex,
+								'grid',
+								rowIndex,
+								colIndex,
+								'longPress',
+								'options',
+								optionIndex,
+							],
+							ctx,
+							keyboardId: keyboard.id,
 						});
 					}
 				}
@@ -371,7 +480,9 @@ export function getBundledShellConfig(): ShellConfig {
 	return parseShellConfigData(bundledShellConfigData);
 }
 
-export function getKeyboardsById(config: ShellConfig): Record<string, KeyboardDefinition> {
+export function getKeyboardsById(
+	config: ShellConfig,
+): Record<string, KeyboardDefinition> {
 	return Object.fromEntries(
 		config.keyboards.map((keyboard) => [keyboard.id, keyboard]),
 	);

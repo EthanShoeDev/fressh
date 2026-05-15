@@ -1,9 +1,6 @@
 import { type ActionId } from '@/lib/keyboard-actions';
 import { parseMacroScript, type MacroStep } from '@/lib/macro-scripts';
-import {
-	type KeyboardSlot,
-	type MacroDef,
-} from '@/lib/shell-config';
+import { type KeyboardExecutableItem, type MacroDef } from '@/lib/shell-config';
 
 export { parseMacroScript } from '@/lib/macro-scripts';
 
@@ -25,7 +22,7 @@ export function runMacro(
 		sendText: (value: string) => void;
 		runSteps?: (steps: MacroStep[]) => void;
 		onAction: (actionId: ActionId) => void;
-		},
+	},
 ) {
 	const parsed = parseMacroScript(macro.script);
 	if (!parsed) {
@@ -62,7 +59,7 @@ export function runMacro(
 }
 
 export function runSlotItem(
-	item: KeyboardSlot,
+	item: KeyboardExecutableItem,
 	macros: MacroDef[],
 	{
 		sendBytes,
