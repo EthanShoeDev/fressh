@@ -1,0 +1,4 @@
+interface:
+  display_name: "Modify Mobile Keyboard"
+  short_description: "Change Fressh keyboard config end to end"
+  default_prompt: "Use $modify-mobile-keyboard to change the Fressh mobile terminal keyboard layout."
