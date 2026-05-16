@@ -39,6 +39,24 @@ void test('initial shell config state uses bundled config when cache is empty', 
 	assert.equal(state.lastError, null);
 });
 
+void test('initial shell config state clears stale errors when bundled config loads', () => {
+	const storage = createMemoryStorage();
+	storage.set('shellConfig.lastError', 'Unsupported actionId OLD_ACTION');
+	storage.set('shellConfig.lastLoadedAt', '2026-05-14T18:10:08.605Z');
+
+	const state = loadInitialShellConfigState({
+		storage,
+		bundledConfig,
+	});
+
+	assert.equal(state.source, 'bundled');
+	assert.equal(state.config.version, bundledConfig.version);
+	assert.equal(state.lastLoadedAt, null);
+	assert.equal(state.lastError, null);
+	assert.equal(storage.getString('shellConfig.lastLoadedAt'), undefined);
+	assert.equal(storage.getString('shellConfig.lastError'), undefined);
+});
+
 void test('initial shell config state prefers cached config when it is valid', async () => {
 	const storage = createMemoryStorage();
 	const remoteText = JSON.stringify({
