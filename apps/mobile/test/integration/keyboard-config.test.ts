@@ -223,25 +223,25 @@ void test('phone base keyboard exposes explain, browser and status actions', () 
 	assert.ok(phoneBaseKeyboard);
 
 	assert.ok(config.activeKeyboardIds.includes('browser_keyboard'));
+	assert.deepEqual(phoneBaseKeyboard.grid[0]?.[1], {
+		type: 'action',
+		actionId: 'OPEN_BROWSER_KEYBOARD',
+		label: 'Browser',
+		icon: 'ExternalLink',
+	});
+	assert.deepEqual(phoneBaseKeyboard.grid[1]?.[2], {
+		type: 'action',
+		actionId: 'CYCLE_WORKMUX_STATUS',
+		label: 'Status',
+		icon: 'Clock',
+	});
 	assert.deepEqual(phoneBaseKeyboard.grid[2]?.[2], {
 		type: 'macro',
 		macroId: 'cmd_plain_language',
 		label: 'Explain',
 		icon: null,
 	});
-	assert.equal(phoneBaseKeyboard.grid[3]?.[0], null);
-	assert.deepEqual(phoneBaseKeyboard.grid[3]?.[1], {
-		type: 'action',
-		actionId: 'OPEN_BROWSER_KEYBOARD',
-		label: 'Browser',
-		icon: 'ExternalLink',
-	});
-	assert.deepEqual(phoneBaseKeyboard.grid[3]?.[2], {
-		type: 'action',
-		actionId: 'CYCLE_WORKMUX_STATUS',
-		label: 'Status',
-		icon: 'Clock',
-	});
+	assert.equal(phoneBaseKeyboard.grid.length, 3);
 });
 
 void test('browser keyboard exposes host navigation actions', () => {

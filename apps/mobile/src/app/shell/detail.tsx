@@ -1602,7 +1602,7 @@ fi
 				const url = extractLastHttpsUrl(output);
 				if (!url) {
 					throw new Error(
-						output || 'diffity-share did not return an HTTPS URL.',
+						output || 'mdev diffity share did not return an HTTPS URL.',
 					);
 				}
 				await openAndroidUrl(url);

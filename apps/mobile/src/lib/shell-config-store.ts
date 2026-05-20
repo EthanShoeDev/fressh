@@ -46,6 +46,25 @@ function isStaleComparedToBundled({
 	return cachedTime < bundledTime;
 }
 
+function clearCachedRuntimeMetadata(cache: ShellConfigCacheStorage) {
+	cache.delete(cacheKeys.lastLoadedAt);
+	cache.delete(cacheKeys.lastError);
+}
+
+function isRuntimeMetadataStaleComparedToBundled({
+	lastLoadedAt,
+	bundledConfig,
+}: {
+	lastLoadedAt: string | null;
+	bundledConfig: ShellConfig;
+}): boolean {
+	if (!lastLoadedAt) return false;
+	const loadedTime = Date.parse(lastLoadedAt);
+	const bundledTime = parseUpdatedAtTime(bundledConfig);
+	if (Number.isNaN(loadedTime) || bundledTime === null) return false;
+	return loadedTime < bundledTime;
+}
+
 export function loadInitialShellConfigState({
 	storage: cache,
 	bundledConfig,
@@ -62,11 +81,12 @@ export function loadInitialShellConfigState({
 			const cachedConfig = parseShellConfigString(cachedText);
 			if (isStaleComparedToBundled({ cachedConfig, bundledConfig })) {
 				cache.delete(cacheKeys.json);
+				clearCachedRuntimeMetadata(cache);
 				return {
 					config: bundledConfig,
 					source: 'bundled',
-					lastLoadedAt,
-					lastError,
+					lastLoadedAt: null,
+					lastError: null,
 				};
 			}
 			return {
@@ -77,15 +97,31 @@ export function loadInitialShellConfigState({
 			};
 		} catch (error) {
 			cache.delete(cacheKeys.json);
+			cache.delete(cacheKeys.lastLoadedAt);
 			const message = toErrorMessage(error);
 			cache.set(cacheKeys.lastError, message);
 			return {
 				config: bundledConfig,
 				source: 'bundled',
-				lastLoadedAt,
+				lastLoadedAt: null,
 				lastError: message,
 			};
 		}
+	}
+
+	if (
+		isRuntimeMetadataStaleComparedToBundled({
+			lastLoadedAt,
+			bundledConfig,
+		})
+	) {
+		clearCachedRuntimeMetadata(cache);
+		return {
+			config: bundledConfig,
+			source: 'bundled',
+			lastLoadedAt: null,
+			lastError: null,
+		};
 	}
 
 	return {

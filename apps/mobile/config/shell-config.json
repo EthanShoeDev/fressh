@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-14.4",
-  "updatedAt": "2026-05-14T18:09:26Z",
+  "version": "2026-05-16.1",
+  "updatedAt": "2026-05-16T11:11:22Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -30,7 +30,12 @@
             "label": "Advanced",
             "icon": "Keyboard"
           },
-          null,
+          {
+            "type": "action",
+            "actionId": "OPEN_BROWSER_KEYBOARD",
+            "label": "Browser",
+            "icon": "ExternalLink"
+          },
           {
             "type": "action",
             "actionId": "PASTE_CLIPBOARD",
@@ -220,7 +225,12 @@
               ]
             }
           },
-          null,
+          {
+            "type": "action",
+            "actionId": "CYCLE_WORKMUX_STATUS",
+            "label": "Status",
+            "icon": "Clock"
+          },
           {
             "type": "macro",
             "macroId": "cmd_approve",
@@ -351,28 +361,6 @@
             "label": "Text",
             "icon": "Type"
           }
-        ],
-        [
-          null,
-          {
-            "type": "action",
-            "actionId": "OPEN_BROWSER_KEYBOARD",
-            "label": "Browser",
-            "icon": "ExternalLink"
-          },
-          {
-            "type": "action",
-            "actionId": "CYCLE_WORKMUX_STATUS",
-            "label": "Status",
-            "icon": "Clock"
-          },
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
         ]
       ]
     },

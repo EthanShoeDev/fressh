@@ -35,11 +35,11 @@ void test('host browser command builders shell-quote dynamic values', () => {
 	);
 	assert.equal(
 		buildDiffityShareCommand("/home/muly/work folder/repo's"),
-		"cd '/home/muly/work folder/repo'\\''s' && diffity-share",
+		"cd '/home/muly/work folder/repo'\\''s' && mdev diffity share",
 	);
 	assert.equal(
 		buildTmuxWindowConfigGetCommand('window-url', '/tmp/work repo'),
-		"TMUX_PANE_PATH='/tmp/work repo' tmux-window-config-url get 'window-url'",
+		"TMUX_PANE_PATH='/tmp/work repo' mdev tmux url get 'window-url'",
 	);
 	assert.equal(
 		buildTmuxWindowConfigSetCommand(
@@ -47,11 +47,18 @@ void test('host browser command builders shell-quote dynamic values', () => {
 			'/tmp/work repo',
 			'https://example.com/app?q=1',
 		),
-		"TMUX_PANE_PATH='/tmp/work repo' tmux-window-config-url set-value 'dev-web-server-url' 'https://example.com/app?q=1'",
+		"TMUX_PANE_PATH='/tmp/work repo' mdev tmux url set-value 'dev-web-server-url' 'https://example.com/app?q=1'",
 	);
 	assert.equal(
 		buildHostBrowserStatusCycleCommand("main'quoted"),
-		"tmux-nav.sh cycle 'main'\\''quoted:'",
+		"mdev tmux nav cycle 'main'\\''quoted:'",
+	);
+});
+
+void test('status cycle command uses mdev tmux nav cycle for main session', () => {
+	assert.equal(
+		buildHostBrowserStatusCycleCommand('main'),
+		"mdev tmux nav cycle 'main:'",
 	);
 });
 
