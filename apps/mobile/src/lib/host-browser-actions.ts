@@ -67,14 +67,14 @@ export function buildHostBrowserPanePathCommand(
 }
 
 export function buildDiffityShareCommand(panePath: string): string {
-	return `cd ${quoteShell(panePath)} && diffity-share`;
+	return `cd ${quoteShell(panePath)} && mdev diffity share`;
 }
 
 export function buildTmuxWindowConfigGetCommand(
 	slot: HostBrowserUrlSlot,
 	panePath: string,
 ): string {
-	return `TMUX_PANE_PATH=${quoteShell(panePath)} tmux-window-config-url get ${quoteShell(slot)}`;
+	return `TMUX_PANE_PATH=${quoteShell(panePath)} mdev tmux url get ${quoteShell(slot)}`;
 }
 
 export function buildTmuxWindowConfigSetCommand(
@@ -82,11 +82,11 @@ export function buildTmuxWindowConfigSetCommand(
 	panePath: string,
 	url: string,
 ): string {
-	return `TMUX_PANE_PATH=${quoteShell(panePath)} tmux-window-config-url set-value ${quoteShell(slot)} ${quoteShell(url)}`;
+	return `TMUX_PANE_PATH=${quoteShell(panePath)} mdev tmux url set-value ${quoteShell(slot)} ${quoteShell(url)}`;
 }
 
 export function buildHostBrowserStatusCycleCommand(
 	tmuxSessionName: string,
 ): string {
-	return `tmux-nav.sh cycle ${quoteShell(`${tmuxSessionName}:`)}`;
+	return `mdev tmux nav cycle ${quoteShell(`${tmuxSessionName}:`)}`;
 }
