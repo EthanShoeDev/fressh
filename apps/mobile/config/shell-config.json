@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-21.1",
-  "updatedAt": "2026-05-21T04:12:11Z",
+  "version": "2026-05-21.2",
+  "updatedAt": "2026-05-21T07:20:18Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -31,50 +31,10 @@
             "icon": "Keyboard"
           },
           {
-            "type": "action",
-            "actionId": "OPEN_BROWSER_KEYBOARD",
-            "label": "Browser",
-            "icon": "ExternalLink",
-            "longPress": {
-              "options": [
-                {
-                  "type": "action",
-                  "actionId": "OPEN_BROWSER_KEYBOARD",
-                  "label": "Browser",
-                  "icon": "ExternalLink"
-                },
-                {
-                  "type": "action",
-                  "actionId": "OPEN_HOST_DIFFITY",
-                  "label": "Diff",
-                  "icon": "GitCompare"
-                },
-                {
-                  "type": "action",
-                  "actionId": "OPEN_HOST_URL_WINDOW",
-                  "label": "URL",
-                  "icon": "Link"
-                },
-                {
-                  "type": "action",
-                  "actionId": "OPEN_HOST_URL_DEV_SERVER",
-                  "label": "Web",
-                  "icon": "Globe"
-                },
-                {
-                  "type": "action",
-                  "actionId": "OPEN_HOST_URL_STORYBOOK",
-                  "label": "Story",
-                  "icon": "BookOpen"
-                },
-                {
-                  "type": "action",
-                  "actionId": "OPEN_HOST_URL_APP",
-                  "label": "App",
-                  "icon": "PanelTop"
-                }
-              ]
-            }
+            "type": "macro",
+            "macroId": "cmd_plain_language",
+            "label": "Explain",
+            "icon": null
           },
           {
             "type": "action",
@@ -344,10 +304,50 @@
             "icon": "ArrowDown"
           },
           {
-            "type": "macro",
-            "macroId": "cmd_plain_language",
-            "label": "Explain",
-            "icon": null
+            "type": "action",
+            "actionId": "OPEN_BROWSER_KEYBOARD",
+            "label": "Browser",
+            "icon": "ExternalLink",
+            "longPress": {
+              "options": [
+                {
+                  "type": "action",
+                  "actionId": "OPEN_BROWSER_KEYBOARD",
+                  "label": "Browser",
+                  "icon": "ExternalLink"
+                },
+                {
+                  "type": "action",
+                  "actionId": "OPEN_HOST_DIFFITY",
+                  "label": "Diff",
+                  "icon": "GitCompare"
+                },
+                {
+                  "type": "action",
+                  "actionId": "OPEN_HOST_URL_WINDOW",
+                  "label": "URL",
+                  "icon": "Link"
+                },
+                {
+                  "type": "action",
+                  "actionId": "OPEN_HOST_URL_DEV_SERVER",
+                  "label": "Web",
+                  "icon": "Globe"
+                },
+                {
+                  "type": "action",
+                  "actionId": "OPEN_HOST_URL_STORYBOOK",
+                  "label": "Story",
+                  "icon": "BookOpen"
+                },
+                {
+                  "type": "action",
+                  "actionId": "OPEN_HOST_URL_APP",
+                  "label": "App",
+                  "icon": "PanelTop"
+                }
+              ]
+            }
           },
           {
             "type": "macro",

@@ -224,6 +224,12 @@ void test('phone base keyboard exposes explain, browser long press, and status a
 
 	assert.ok(config.activeKeyboardIds.includes('browser_keyboard'));
 	assert.deepEqual(phoneBaseKeyboard.grid[0]?.[1], {
+		type: 'macro',
+		macroId: 'cmd_plain_language',
+		label: 'Explain',
+		icon: null,
+	});
+	assert.deepEqual(phoneBaseKeyboard.grid[2]?.[2], {
 		type: 'action',
 		actionId: 'OPEN_BROWSER_KEYBOARD',
 		label: 'Browser',
@@ -274,12 +280,6 @@ void test('phone base keyboard exposes explain, browser long press, and status a
 		actionId: 'CYCLE_WORKMUX_STATUS',
 		label: 'Status',
 		icon: 'Clock',
-	});
-	assert.deepEqual(phoneBaseKeyboard.grid[2]?.[2], {
-		type: 'macro',
-		macroId: 'cmd_plain_language',
-		label: 'Explain',
-		icon: null,
 	});
 	assert.equal(phoneBaseKeyboard.grid.length, 3);
 });
