@@ -17,8 +17,8 @@ The app already has a separate `browser_keyboard` with host browser actions:
 - `OPEN_HOST_URL_STORYBOOK`
 - `OPEN_HOST_URL_APP`
 
-The `Browser` key keeps its current short-tap action behavior and also
-offer a long-press popup for these browser actions.
+The `Browser` key keeps its current short-tap action behavior and also offers a
+long-press popup for these browser actions.
 
 ## Goals
 
@@ -71,7 +71,7 @@ Add `longPress.options` to that same action slot:
       "type": "action",
       "actionId": "OPEN_HOST_URL_WINDOW",
       "label": "URL",
-      "icon": "ExternalLink"
+      "icon": "Link"
     },
     {
       "type": "action",
@@ -89,7 +89,7 @@ Add `longPress.options` to that same action slot:
       "type": "action",
       "actionId": "OPEN_HOST_URL_APP",
       "label": "App",
-      "icon": "AppWindow"
+      "icon": "PanelTop"
     }
   ]
 }
