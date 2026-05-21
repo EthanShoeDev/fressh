@@ -1,25 +1,41 @@
 ---
-description: Create intelligent, token-optimized context packages for external LLM review
-allowed-tools: Write(.ai/context/**), Write(.ai/tmp/**), Write(.ai/cache/**), Write(.ai/checkpoints/**), Bash(./.ai/scripts/ast-discover.sh:*), Bash(./.ai/scripts/token-budget.sh:*), Bash(./.ai/scripts/validate-context.sh:*), Bash(./scripts/generate-context-template.mjs:*), Bash(./.ai/context/generate-context.mjs:*), Bash(ast-grep:*), Bash(rg:*), Bash(zx:*), Bash(jq:*), Bash(wc:*), Bash(find:*), Bash(ls:*), Bash(grep:*), Bash(repomix:*), Bash(git status), Bash(git rev-parse:*), Bash(git diff:*), Bash(git log:*), Bash(mkdir:*), Bash(chmod:*), Bash(cat:*), Bash(command:*)
+description:
+  Create intelligent, token-optimized context packages for external LLM review
+allowed-tools:
+  Write(.ai/context/**), Write(.ai/tmp/**), Write(.ai/cache/**),
+  Write(.ai/checkpoints/**), Bash(./.ai/scripts/ast-discover.sh:*),
+  Bash(./.ai/scripts/token-budget.sh:*),
+  Bash(./.ai/scripts/validate-context.sh:*),
+  Bash(./scripts/generate-context-template.mjs:*),
+  Bash(./.ai/context/generate-context.mjs:*), Bash(ast-grep:*), Bash(rg:*),
+  Bash(zx:*), Bash(jq:*), Bash(wc:*), Bash(find:*), Bash(ls:*), Bash(grep:*),
+  Bash(repomix:*), Bash(git status), Bash(git rev-parse:*), Bash(git diff:*),
+  Bash(git log:*), Bash(mkdir:*), Bash(chmod:*), Bash(cat:*), Bash(command:*)
 ---
 
 # Intelligent Context Collection for GPT-5 Pro Review
 
-You are activating the **Cube9 Context Collector** to create intelligent, token-optimized context packages for external LLM review.
+You are activating the **context-collector** workflow to create intelligent,
+token-optimized context packages for external LLM review.
 
 ## About XML-Like Tags (Important!)
 
-We use XML-like tags (`<tag>...</tag>`) purely as **delimiters to structure context for LLMs**. This is a proven prompting technique - NOT actual XML.
+We use XML-like tags (`<tag>...</tag>`) purely as **delimiters to structure
+context for LLMs**. This is a proven prompting technique - NOT actual XML.
 
 **What this means:**
+
 - Tags are just markers to help the LLM understand context boundaries
 - We do NOT need valid XML syntax
 - No XML declaration header (`<?xml version="1.0"?>`) needed
 - No CDATA wrappers (`<![CDATA[...]]>`) needed
-- No entity encoding (`&lt;`, `&gt;`, `&amp;`) needed - LLMs handle raw `<`, `>`, `&` fine
-- File extension can be `.xml` for convenience, but content is just tagged plain text
+- No entity encoding (`&lt;`, `&gt;`, `&amp;`) needed - LLMs handle raw `<`,
+  `>`, `&` fine
+- File extension can be `.xml` for convenience, but content is just tagged plain
+  text
 
 **Why this matters:**
+
 - Cleaner, more readable output
 - Fewer tokens wasted on XML boilerplate
 - LLMs process the content exactly the same way
@@ -30,11 +46,13 @@ We use XML-like tags (`<tag>...</tag>`) purely as **delimiters to structure cont
 Before starting the collection process, verify the environment:
 
 1. **Directory Structure**: Ensure required directories exist
+
    ```bash
    mkdir -p .ai/{context,tmp,cache,checkpoints,scripts}
    ```
 
 2. **Git Repository**: Check if in a git repository
+
    ```bash
    git rev-parse --git-dir >/dev/null 2>&1 || echo "Not a git repo - will use filesystem mode"
    ```
@@ -57,6 +75,7 @@ Before starting the collection process, verify the environment:
 ## Your Role
 
 Follow the comprehensive workflow to:
+
 1. Run pre-flight checks and setup environment
 2. Auto-detect context source (PR, uncommitted, or topic)
 3. Run AST-aware discovery with automatic fallbacks
@@ -71,17 +90,20 @@ Follow the comprehensive workflow to:
 Parse the following from the user's command:
 
 **Mode Detection:**
+
 - `--pr [branch]` - PR mode (compare branch to main)
 - `--uncommitted` - Uncommitted mode (staged + unstaged changes)
 - Topic mode (default if neither flag present) - Extract from user description
 
 **Configuration:**
+
 - `--tokens [limit]` - Token budget (default: 160K)
 - `--output [path]` - Custom output path (default: .ai/context/context.xml)
 - `--encoding [name]` - Token encoding (default: o200k_base for GPT-5 Pro)
 - `--format [xml|markdown]` - Output format (default: xml)
 
 **Examples:**
+
 ```bash
 /collect-context --pr feat/commission-dashboard
 /collect-context --uncommitted --tokens 160000
@@ -91,68 +113,40 @@ Parse the following from the user's command:
 
 ## Workflow
 
-Follow the 5-phase workflow from the cube9-context-collector skill:
+Follow the 7-step workflow from the `context-collector` skill:
 
-### Phase 1: Auto-Detection
-- Detect mode from parameters
-- Extract changed files (PR/uncommitted) or keywords (topic)
-- Run AST-grep semantic discovery
-- Build initial file categorization
-- Estimate token counts
-- **Present findings to user for confirmation**
+1. Detect mode from flags or user intent.
+2. Run AST-aware discovery first, then fall back to `rg` or plain-text
+   heuristics.
+3. Categorize files into critical and supporting sets, estimate token cost, and
+   present findings before generation.
+4. Expand the set with import/dependency tracing and repo-specific
+   business-domain hints. Prefer 1-2 dependency hops.
+5. Enforce budget by compressing supporting files, stripping low-signal content
+   where safe, removing low-signal files, and asking the user to trim scope only
+   if automated reduction is still insufficient.
+6. Generate an editable `.ai/context/generate-context.mjs` and final context
+   package with XML-like tags.
+7. Validate the package before declaring success.
 
-### Phase 2: User Confirmation
-- Show categorized file lists with token estimates
-- Accept / Review / Customize paths
-- Semi-automated: user reviews before proceeding
+### XML Artifact Cleanup (Required)
 
-### Phase 3: Dependency Analysis
-- Trace import graphs using AST-grep
-- Resolve TypeScript path aliases
-- Apply Cube9 business domain intelligence
-- Expand dependencies (1-2 hops)
-
-### Phase 4: Token Budget Enforcement
-- Calculate accurate token counts
-- Apply optimization if over budget:
-  1. Compress supporting files
-  2. Remove comments/empty lines
-  3. Drop low-signal files
-  4. Reduce Prisma schema
-  5. Notify user if still over budget
-
-### Phase 5: Generation
-- Create `.ai/context/generate-context.mjs` with editable file arrays
-- Generate context package with XML-like tags (NOT actual XML)
-- Include metadata, instructions, diffs, file contents
-- **Clean up any XML artifacts** (see cleanup step below)
-- Validate and report
-
-### Phase 5b: XML Artifact Cleanup (Required)
-
-After generating the context file, **always clean up XML artifacts** that tools like repomix may add:
+After generating the context file, remove XML boilerplate that wastes tokens. Do
+not globally decode `&lt;`, `&gt;`, `&amp;`, `&quot;`, or similar entity
+strings; source files may legitimately contain those literal strings, and the
+context package should preserve captured source content.
 
 ```bash
-# Remove XML declaration header
-sed -i '1{/^<?xml/d}' .ai/context/<filename>.xml
-
-# Remove CDATA wrappers
-sed -i 's/<!\[CDATA\[//g; s/\]\]>//g' .ai/context/<filename>.xml
-
-# Decode XML entities back to raw characters
-sed -i 's/&lt;/</g; s/&gt;/>/g; s/&amp;/\&/g; s/&quot;/"/g; s/&apos;/'"'"'/g' .ai/context/<filename>.xml
+sed -i '1{/^<?xml/d}; s/<!\[CDATA\[//g; s/\]\]>//g' .ai/context/<filename>.xml
 ```
 
-Or use this combined one-liner:
-```bash
-sed -i '1{/^<?xml/d}; s/<!\[CDATA\[//g; s/\]\]>//g; s/&lt;/</g; s/&gt;/>/g; s/&amp;/\&/g; s/&quot;/"/g' .ai/context/<filename>.xml
-```
-
-**Why:** LLMs don't need XML encoding. Raw `<`, `>`, `&` characters work perfectly fine. CDATA and entity encoding just waste tokens.
+If a generator entity-encodes the whole artifact, regenerate with raw text
+instead of mutating captured source content.
 
 ## Key Capabilities
 
 **AST-Aware Discovery:**
+
 - tRPC routers and procedures
 - React components
 - Trigger.dev tasks
@@ -161,17 +155,21 @@ sed -i '1{/^<?xml/d}; s/<!\[CDATA\[//g; s/\]\]>//g; s/&lt;/</g; s/&gt;/>/g; s/&a
 - Import dependencies
 
 **Smart Compression:**
+
 - Critical files: full content, no compression
 - Supporting files: Tree-sitter structure extraction
 - Optimization levels based on budget
 
 **Business Domain Intelligence:**
-- Invoice context: routers, integrations, Stripe, Prisma models
-- Deal context: deal routers, components, opportunity handling
-- Commission context: calculation logic, domain code, plans
-- Integration context: webhooks, OAuth, sync operations
+
+- Use repo-local naming, architecture, and domain hints discovered during file
+  search
+- Prefer domain-specific source files over generic utilities when budget is
+  tight
+- Avoid hard-coded project assumptions unless this repository documents them
 
 **Security:**
+
 - Always-on repomix security checks
 - Never include secrets in context
 - Validate before sending to external LLMs
@@ -210,17 +208,24 @@ Always inform the user which fallback strategies are being used.
 Generate a slugified filename based on the context source:
 
 **Branch-based naming:**
-- Use the current git branch name, slugified (lowercase, hyphens, no special chars)
+
+- Use the current git branch name, slugified (lowercase, hyphens, no special
+  chars)
 - Example: `feat/commission-dashboard` → `feat-commission-dashboard.xml`
 - Example: `bug/7321-deal-import-queue` → `bug-7321-deal-import-queue.xml`
 
 **Generic branch fallback:**
-- If on a generic branch (`main`, `master`, `develop`, `dev`), use the topic/task name instead
-- Slugify the topic: lowercase, replace spaces/special chars with hyphens, max 50 chars
+
+- If on a generic branch (`main`, `master`, `develop`, `dev`), use the
+  topic/task name instead
+- Slugify the topic: lowercase, replace spaces/special chars with hyphens, max
+  50 chars
 - Example: topic "How does invoice generation work?" → `invoice-generation.xml`
-- Example: topic "Commission import CSV parsing" → `commission-import-csv-parsing.xml`
+- Example: topic "Commission import CSV parsing" →
+  `commission-import-csv-parsing.xml`
 
 **Slugify rules:**
+
 1. Convert to lowercase
 2. Replace spaces and underscores with hyphens
 3. Remove special characters except hyphens
@@ -233,6 +238,7 @@ Output path: `.ai/context/<slugified-name>.xml`
 ## Output Contents
 
 Generate `.ai/context/<slugified-name>.xml` with:
+
 - Metadata (mode, tokens, file counts)
 - Instructions for GPT-5 Pro reviewer
 - Repository structure
@@ -243,7 +249,8 @@ Generate `.ai/context/<slugified-name>.xml` with:
 
 ### Full-Context Diffs
 
-When including diffs for PR or uncommitted changes, use **unified diff with maximum context**:
+When including diffs for PR or uncommitted changes, use **unified diff with
+maximum context**:
 
 ```bash
 # For PR mode (compare to main)
@@ -253,7 +260,9 @@ git diff -U9999 main...HEAD
 git diff -U9999 HEAD
 ```
 
-**Why `-U9999`:** This shows the entire file with +/- markers, not just isolated hunks. The LLM gets:
+**Why `-U9999`:** This shows the entire file with +/- markers, not just isolated
+hunks. The LLM gets:
+
 - Full file structure and surrounding code
 - Clear visibility of what changed (+/-) markers
 - Context needed to generate correct code
@@ -262,12 +271,10 @@ This is much more useful for code generation than fragmented diff hunks.
 
 ## Success Criteria
 
-✓ Context generated within token budget
-✓ All critical files included with full content
-✓ Supporting files compressed appropriately
-✓ No secrets or sensitive data leaked
-✓ XML artifacts cleaned up (no CDATA, no entity encoding)
-✓ Ready for GPT-5 Pro review
+✓ Context generated within token budget ✓ All critical files included with full
+content ✓ Supporting files compressed appropriately ✓ No secrets or sensitive
+data leaked ✓ XML artifacts cleaned up (no CDATA, no entity encoding) ✓ Ready
+for GPT-5 Pro review
 
 ## Progress Tracking
 
@@ -295,7 +302,8 @@ Update the user at each step to maintain transparency.
 
 ## Remember
 
-- **Semi-automated**: Always present findings and ask for confirmation before generating
+- **Semi-automated**: Always present findings and ask for confirmation before
+  generating
 - **Security first**: Never skip security checks, even for speed
 - **Graceful degradation**: Use fallback strategies when tools are missing
 - **Error recovery**: Save checkpoints to enable resumption
@@ -314,11 +322,13 @@ Update the user at each step to maintain transparency.
 6. Validate output (`.ai/scripts/validate-context.sh`)
 7. Report results with next steps
 
-Begin by running pre-flight checks and detecting the mode. Present your findings to the user before proceeding with generation.
+Begin by running pre-flight checks and detecting the mode. Present your findings
+to the user before proceeding with generation.
 
 ## File Transfer
 
-After successful generation, automatically transfer the context file to the Windows desktop using Tailscale:
+After successful generation, automatically transfer the context file to the
+Windows desktop using Tailscale:
 
 ```bash
 sudo tailscale file cp .ai/context/<slugified-name>.xml desktop:
