@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-21.3",
-  "updatedAt": "2026-05-21T07:29:06Z",
+  "version": "2026-05-21.4",
+  "updatedAt": "2026-05-21T07:36:05Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -470,15 +470,7 @@
           null,
           null,
           null,
-          {
-            "type": "bytes",
-            "bytes": [
-              27,
-              115
-            ],
-            "label": "~",
-            "icon": "LineSquiggle"
-          },
+          null,
           null
         ],
         [
@@ -527,12 +519,7 @@
             "label": "Next all",
             "icon": null
           },
-          {
-            "type": "macro",
-            "macroId": "alt_w",
-            "label": "Alt-w",
-            "icon": null
-          }
+          null
         ]
       ]
     },
@@ -718,15 +705,7 @@
         "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
       }
     ],
-    "advanced_keyboard": [
-      {
-        "id": "alt_w",
-        "name": "Meta: Alt-w",
-        "label": "Alt-w",
-        "category": "Navigation",
-        "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
-      }
-    ],
+    "advanced_keyboard": [],
     "browser_keyboard": []
   },
   "commandMenus": [
