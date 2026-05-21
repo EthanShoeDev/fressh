@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-21.2",
-  "updatedAt": "2026-05-21T07:20:18Z",
+  "version": "2026-05-21.3",
+  "updatedAt": "2026-05-21T07:29:06Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -482,39 +482,6 @@
           null
         ],
         [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          {
-            "type": "bytes",
-            "bytes": [
-              2,
-              112
-            ],
-            "label": "Prev all",
-            "icon": null
-          },
-          {
-            "type": "bytes",
-            "bytes": [
-              2,
-              110
-            ],
-            "label": "Next all",
-            "icon": null
-          },
-          {
-            "type": "macro",
-            "macroId": "alt_w",
-            "label": "Alt-w",
-            "icon": null
-          }
-        ],
-        [
           {
             "type": "action",
             "actionId": "EDIT_HOST_URL_WINDOW",
@@ -542,9 +509,30 @@
           null,
           null,
           null,
-          null,
-          null,
-          null
+          {
+            "type": "bytes",
+            "bytes": [
+              2,
+              112
+            ],
+            "label": "Prev all",
+            "icon": null
+          },
+          {
+            "type": "bytes",
+            "bytes": [
+              2,
+              110
+            ],
+            "label": "Next all",
+            "icon": null
+          },
+          {
+            "type": "macro",
+            "macroId": "alt_w",
+            "label": "Alt-w",
+            "icon": null
+          }
         ]
       ]
     },

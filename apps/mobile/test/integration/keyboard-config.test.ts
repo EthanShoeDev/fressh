@@ -367,7 +367,8 @@ void test('advanced keyboard exposes host URL setter actions', () => {
 	);
 	assert.ok(advancedKeyboard);
 
-	assert.deepEqual(advancedKeyboard.grid[3]?.slice(0, 4), [
+	assert.equal(advancedKeyboard.grid.length, 3);
+	assert.deepEqual(advancedKeyboard.grid[2]?.slice(0, 4), [
 		{
 			type: 'action',
 			actionId: 'EDIT_HOST_URL_WINDOW',
