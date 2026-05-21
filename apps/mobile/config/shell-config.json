@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-21.4",
-  "updatedAt": "2026-05-21T07:36:05Z",
+  "version": "2026-05-21.5",
+  "updatedAt": "2026-05-21T07:46:34Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -359,7 +359,17 @@
             "type": "macro",
             "macroId": "cmd_yes",
             "label": "yes",
-            "icon": null
+            "icon": null,
+            "longPress": {
+              "options": [
+                {
+                  "type": "macro",
+                  "macroId": "cmd_do",
+                  "label": "do",
+                  "icon": null
+                }
+              ]
+            }
           },
           {
             "type": "macro",
@@ -626,6 +636,13 @@
         "label": "yes",
         "category": "Commands",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"yes\"\n}"
+      },
+      {
+        "id": "cmd_do",
+        "name": "Command: do",
+        "label": "do",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"do\",\n  \"enter\": true\n}"
       },
       {
         "id": "cmd_skip",
