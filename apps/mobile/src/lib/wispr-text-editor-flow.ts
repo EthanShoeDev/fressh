@@ -25,6 +25,21 @@ export type TextEntryWisprControl =
 			label: 'Wispr disabled';
 	  };
 
+export type WisprAutoCloseDecision =
+	| { type: 'none' }
+	| { type: 'close-now' }
+	| { type: 'close-after-start'; requestId: number };
+
+export type WisprPendingAutoCloseRequest = {
+	requestId: number;
+	retryClose: boolean;
+};
+
+export type WisprPendingAutoCloseRequestResolution = {
+	pendingRequests: WisprPendingAutoCloseRequest[];
+	closeNow: boolean;
+};
+
 export function resolveWisprTextEditorAvailability(
 	status: WisprTextEditorStatus,
 ): WisprTextEditorAvailability {
@@ -68,4 +83,88 @@ export function resolveTextEntryWisprControl({
 		type: 'setup-pill',
 		label: 'Wispr disabled',
 	};
+}
+
+export function resolveWisprAutoCloseOnTextEntryClose({
+	autoStartedRequestId,
+	automationState,
+	controlTapStartedRequestId,
+	timedOutStartRequestId,
+}: {
+	autoStartedRequestId: number | null;
+	automationState: WisprAutomationState;
+	controlTapStartedRequestId?: number | null;
+	timedOutStartRequestId?: number | null;
+}): WisprAutoCloseDecision {
+	const noClose = { type: 'none' } as const;
+	if (autoStartedRequestId == null) return noClose;
+
+	if (
+		automationState.phase === 'waitingForBubble' &&
+		controlTapStartedRequestId === autoStartedRequestId
+	) {
+		return {
+			type: 'close-after-start',
+			requestId: autoStartedRequestId,
+		};
+	}
+
+	if (
+		automationState.phase === 'failed' &&
+		timedOutStartRequestId === autoStartedRequestId
+	) {
+		return {
+			type: 'close-after-start',
+			requestId: autoStartedRequestId,
+		};
+	}
+
+	if (
+		automationState.phase === 'idle' ||
+		automationState.phase === 'recording'
+	) {
+		return {
+			type: 'close-now',
+		};
+	}
+
+	return noClose;
+}
+
+export function resolveWisprPendingAutoCloseRequests({
+	pendingRequests,
+	decision,
+	retryClose,
+}: {
+	pendingRequests: readonly WisprPendingAutoCloseRequest[];
+	decision: WisprAutoCloseDecision;
+	retryClose: boolean;
+}): WisprPendingAutoCloseRequestResolution {
+	const closeAfterStartRequestId =
+		decision.type === 'close-after-start' ? decision.requestId : null;
+	const nextRequests = pendingRequests.filter(
+		(request) => request.requestId !== closeAfterStartRequestId,
+	);
+
+	if (closeAfterStartRequestId != null) {
+		nextRequests.push({
+			requestId: closeAfterStartRequestId,
+			retryClose,
+		});
+	}
+
+	return {
+		pendingRequests: nextRequests,
+		closeNow: decision.type === 'close-now',
+	};
+}
+
+export function canStartWisprTextEntryAutomation({
+	closeInFlight,
+	pendingRequests,
+}: {
+	closeInFlight: boolean;
+	pendingRequests: readonly WisprPendingAutoCloseRequest[];
+}): boolean {
+	return !closeInFlight && pendingRequests.length === 0;
 }
