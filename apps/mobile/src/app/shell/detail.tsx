@@ -97,7 +97,11 @@ import {
 	type WisprAutomationFailureReason,
 	type WisprAutomationState,
 } from '@/lib/wispr-automation-state';
-import { resolveWisprTextEditorAvailability } from '@/lib/wispr-text-editor-flow';
+import {
+	resolveTextEntryWisprControl,
+	resolveWisprTextEditorAvailability,
+	type WisprTextEditorAvailability,
+} from '@/lib/wispr-text-editor-flow';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
@@ -689,6 +693,9 @@ function ShellDetail() {
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [textEntryOpen, setTextEntryOpen] = useState(false);
+	const [autoWisprEnabled, setAutoWisprEnabled] = useState(false);
+	const [wisprTextEditorAvailability, setWisprTextEditorAvailability] =
+		useState<WisprTextEditorAvailability>({ type: 'ready' });
 	const [wisprAutomationState, setWisprAutomationState] =
 		useState<WisprAutomationState>({ phase: 'idle' });
 	const [configureOpen, setConfigureOpen] = useState(false);
@@ -1262,6 +1269,43 @@ function ShellDetail() {
 		[applyWisprAutomationEvent],
 	);
 
+	const startWisprTextEntryAutomation = useCallback(
+		(requestId: number) => {
+			applyWisprAutomationEvent({ type: 'press' });
+			startWisprOpeningFallback(requestId, () => {
+				handleWisprTextEntryFocus(wisprTextEntryValueRef.current);
+			});
+		},
+		[
+			applyWisprAutomationEvent,
+			handleWisprTextEntryFocus,
+			startWisprOpeningFallback,
+		],
+	);
+
+	const handleWisprAutoStartChange = useCallback(
+		(enabled: boolean) => {
+			setAutoWisprEnabled(enabled);
+			if (
+				!enabled ||
+				!textEntryOpen ||
+				wisprTextEditorAvailability.type !== 'ready'
+			) {
+				return;
+			}
+
+			const currentState = wisprAutomationStateRef.current;
+			if (currentState.phase !== 'idle' && currentState.phase !== 'failed') {
+				return;
+			}
+
+			const requestId = wisprAutomationRequestIdRef.current + 1;
+			wisprAutomationRequestIdRef.current = requestId;
+			startWisprTextEntryAutomation(requestId);
+		},
+		[startWisprTextEntryAutomation, textEntryOpen, wisprTextEditorAvailability],
+	);
+
 	const handleOpenWisprTextEditor = useCallback(() => {
 		const currentState = wisprAutomationStateRef.current;
 		if (currentState.phase !== 'idle' && currentState.phase !== 'failed') {
@@ -1273,6 +1317,12 @@ function ShellDetail() {
 		if (Platform.OS !== 'android') {
 			setCommanderOpen(false);
 			setCommandPresetsOpen(false);
+			setWisprTextEditorAvailability({
+				type: 'setup-required',
+				reason: 'service-disabled',
+				message: 'Wispr automation is only available on Android.',
+				openAccessibilitySettings: false,
+			});
 			setTextEntryOpen(true);
 			failWisprAutomation(
 				'unsupported-platform',
@@ -1288,6 +1338,7 @@ function ShellDetail() {
 				const status = await wisprAutomationNative.getStatus();
 				if (!isWisprAutomationRequestActive(requestId)) return;
 				const availability = resolveWisprTextEditorAvailability(status);
+				setWisprTextEditorAvailability(availability);
 				if (availability.type === 'setup-required') {
 					setCommanderOpen(false);
 					setCommandPresetsOpen(false);
@@ -1302,15 +1353,20 @@ function ShellDetail() {
 
 				setCommanderOpen(false);
 				setCommandPresetsOpen(false);
-				applyWisprAutomationEvent({ type: 'press' });
-				startWisprOpeningFallback(requestId, () => {
-					handleWisprTextEntryFocus(wisprTextEntryValueRef.current);
-				});
+				if (availability.type === 'ready' && autoWisprEnabled) {
+					startWisprTextEntryAutomation(requestId);
+				}
 				setTextEntryOpen(true);
 			} catch (error) {
 				if (!isWisprAutomationRequestActive(requestId)) return;
 				setCommanderOpen(false);
 				setCommandPresetsOpen(false);
+				setWisprTextEditorAvailability({
+					type: 'setup-required',
+					reason: 'service-disabled',
+					message: 'Wispr automation is unavailable.',
+					openAccessibilitySettings: false,
+				});
 				setTextEntryOpen(true);
 				applyWisprAutomationEvent({
 					type: 'failed',
@@ -1322,10 +1378,10 @@ function ShellDetail() {
 		})();
 	}, [
 		applyWisprAutomationEvent,
+		autoWisprEnabled,
 		failWisprAutomation,
-		handleWisprTextEntryFocus,
 		isWisprAutomationRequestActive,
-		startWisprOpeningFallback,
+		startWisprTextEntryAutomation,
 	]);
 
 	const handleOpenWisprAutomationSettings = useCallback(() => {
@@ -2258,19 +2314,15 @@ fi
 	}, [attachShellToTerminal]);
 
 	const wisprMode = isWisprAutomationBusy(wisprAutomationState);
-	const wisprStatusText = useMemo(() => {
-		switch (wisprAutomationState.phase) {
-			case 'openingTextEntry':
-			case 'waitingForBubble':
-				return 'Waiting for Wispr...';
-			case 'recording':
-				return 'Wispr recording.';
-			case 'failed':
-				return wisprAutomationState.message;
-			default:
-				return undefined;
-		}
-	}, [wisprAutomationState]);
+	const wisprControl = useMemo(
+		() =>
+			resolveTextEntryWisprControl({
+				availability: wisprTextEditorAvailability,
+				autoStartEnabled: autoWisprEnabled,
+				automationState: wisprAutomationState,
+			}),
+		[autoWisprEnabled, wisprAutomationState, wisprTextEditorAvailability],
+	);
 
 	if (hasTmuxAttachError) {
 		return (
@@ -2422,13 +2474,9 @@ fi
 					open={textEntryOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
 					wisprMode={wisprMode}
-					wisprStatusText={wisprStatusText}
-					onWisprSetup={
-						wisprAutomationState.phase === 'failed' &&
-						wisprAutomationState.reason === 'service-disabled'
-							? handleOpenWisprAutomationSettings
-							: undefined
-					}
+					wisprControl={wisprControl}
+					onWisprSetup={handleOpenWisprAutomationSettings}
+					onWisprAutoStartChange={handleWisprAutoStartChange}
 					onClose={handleCloseTextEntry}
 					onPaste={handlePasteTextEntry}
 					onWisprFocus={handleWisprTextEntryFocus}

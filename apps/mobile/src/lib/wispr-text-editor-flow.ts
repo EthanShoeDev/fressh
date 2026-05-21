@@ -1,3 +1,5 @@
+import { type WisprAutomationState } from '@/lib/wispr-automation-state';
+
 export type WisprTextEditorAvailability =
 	| { type: 'ready' }
 	| {
@@ -12,6 +14,17 @@ export type WisprTextEditorStatus = {
 	serviceConnected: boolean;
 };
 
+export type TextEntryWisprControl =
+	| {
+			type: 'switch';
+			label: 'Wispr';
+			enabled: boolean;
+	  }
+	| {
+			type: 'setup-pill';
+			label: 'Wispr disabled';
+	  };
+
 export function resolveWisprTextEditorAvailability(
 	status: WisprTextEditorStatus,
 ): WisprTextEditorAvailability {
@@ -24,5 +37,35 @@ export function resolveWisprTextEditorAvailability(
 		reason: 'service-disabled',
 		message: 'Wispr automation is disabled. Text entry is still available.',
 		openAccessibilitySettings: false,
+	};
+}
+
+export function resolveTextEntryWisprControl({
+	availability,
+	autoStartEnabled,
+	automationState,
+}: {
+	availability: WisprTextEditorAvailability;
+	autoStartEnabled: boolean;
+	automationState?: WisprAutomationState;
+}): TextEntryWisprControl {
+	if (automationState?.phase === 'failed') {
+		return {
+			type: 'setup-pill',
+			label: 'Wispr disabled',
+		};
+	}
+
+	if (availability.type === 'ready') {
+		return {
+			type: 'switch',
+			label: 'Wispr',
+			enabled: autoStartEnabled,
+		};
+	}
+
+	return {
+		type: 'setup-pill',
+		label: 'Wispr disabled',
 	};
 }
