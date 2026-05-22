@@ -15,12 +15,14 @@ import {
 	PanResponder,
 	Platform,
 	Pressable,
+	Switch,
 	Text,
 	TextInput,
 	View,
 } from 'react-native';
 import { closeThenDismissKeyboard } from '@/lib/deferred-keyboard-dismiss';
 import { useTheme } from '@/lib/theme';
+import { type TextEntryWisprControl } from '@/lib/wispr-text-editor-flow';
 
 const MIN_LINES = 6;
 const LINE_HEIGHT = 20;
@@ -39,8 +41,9 @@ export function TextEntryModal({
 	onClose,
 	onPaste,
 	wisprMode = false,
-	wisprStatusText,
+	wisprControl,
 	onWisprSetup,
+	onWisprAutoStartChange,
 	onWisprFocus,
 	onValueChange,
 }: {
@@ -49,8 +52,9 @@ export function TextEntryModal({
 	onClose: () => void;
 	onPaste: (value: string) => void;
 	wisprMode?: boolean;
-	wisprStatusText?: string;
+	wisprControl?: TextEntryWisprControl;
 	onWisprSetup?: () => void;
+	onWisprAutoStartChange?: (enabled: boolean) => void;
 	onWisprFocus?: (value: string, bounds?: TextInputScreenBounds) => void;
 	onValueChange?: (value: string) => void;
 }) {
@@ -75,12 +79,6 @@ export function TextEntryModal({
 	const [textAreaContentHeight, setTextAreaContentHeight] = useState(minHeight);
 	const valueRef = useRef('');
 	const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const [qaMode, setQaMode] = useState(false);
-	const [questionNumber, setQuestionNumber] = useState(1);
-	const questionNumberRef = useRef(1);
-	const qaNudgePaddingX = 24;
-	const qaChoicePaddingX = 28;
-	const hasWisprStatusText = Boolean(wisprStatusText);
 
 	// Keep the dialog within `maxHeight: '85%'` without allowing extra controls to
 	// overflow the frame by shrinking the text area when needed.
@@ -88,14 +86,11 @@ export function TextEntryModal({
 		// Rough chrome height budget:
 		// - dialog padding: 32
 		// - header row + spacing: ~52
-		// - QA row + spacing (when enabled): ~56
-		// - Wispr status line + spacing (when present): ~24
 		// - bottom buttons row + spacing: ~60
-		const chrome =
-			32 + 52 + (qaMode ? 56 : 0) + (hasWisprStatusText ? 24 : 0) + 60;
+		const chrome = 32 + 52 + 60;
 		const maxByDialog = Math.max(minHeight, dialogMaxHeight - chrome);
 		return Math.max(minHeight, Math.min(maxHeight, maxByDialog));
-	}, [dialogMaxHeight, hasWisprStatusText, maxHeight, minHeight, qaMode]);
+	}, [dialogMaxHeight, maxHeight, minHeight]);
 
 	const textAreaHeight = useMemo(() => {
 		const nextHeight = Math.min(
@@ -104,12 +99,6 @@ export function TextEntryModal({
 		);
 		return nextHeight;
 	}, [effectiveTextMaxHeight, minHeight, textAreaContentHeight]);
-
-	const setQuestionNumberSafe = useCallback((next: number) => {
-		const normalized = Math.max(1, Math.floor(next));
-		questionNumberRef.current = normalized;
-		setQuestionNumber(normalized);
-	}, []);
 
 	const drag = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
 	const dragStartRef = useRef({ x: 0, y: 0 });
@@ -225,9 +214,8 @@ export function TextEntryModal({
 	const handleClear = useCallback(() => {
 		updateValue('');
 		setTextAreaContentHeight(minHeight);
-		setQuestionNumberSafe(1);
 		inputRef.current?.focus();
-	}, [minHeight, setQuestionNumberSafe, updateValue]);
+	}, [minHeight, updateValue]);
 
 	const handlePaste = useCallback(() => {
 		if (!value) return;
@@ -240,28 +228,7 @@ export function TextEntryModal({
 		// Clear local text after handing the paste off to the shell.
 		updateValue('');
 		setTextAreaContentHeight(minHeight);
-		setQuestionNumberSafe(1);
-	}, [minHeight, onClose, onPaste, setQuestionNumberSafe, updateValue, value]);
-
-	const handleToggleQaMode = useCallback(() => {
-		const next = !qaMode;
-		setQaMode(next);
-		if (next) setQuestionNumberSafe(1);
-		requestAnimationFrame(() => focusInput());
-	}, [focusInput, qaMode, setQuestionNumberSafe]);
-
-	const insertAnswer = useCallback(
-		(answer: 'A' | 'B' | 'C') => {
-			const n = questionNumberRef.current;
-			const snippet = `${n}${answer} `;
-			const currentValue = valueRef.current;
-			const separator = currentValue && !/\s$/.test(currentValue) ? ' ' : '';
-			updateValue(`${currentValue}${separator}${snippet}`);
-			setQuestionNumberSafe(n + 1);
-			requestAnimationFrame(() => focusInput());
-		},
-		[focusInput, setQuestionNumberSafe, updateValue],
-	);
+	}, [minHeight, onClose, onPaste, updateValue, value]);
 
 	const handleChangeText = useCallback(
 		(nextValue: string) => {
@@ -340,32 +307,68 @@ export function TextEntryModal({
 								>
 									Text
 								</Text>
-								<Pressable
-									onPress={handleToggleQaMode}
-									style={{
-										borderRadius: 10,
-										paddingVertical: 8,
-										paddingHorizontal: 12,
-										borderWidth: 1,
-										borderColor: qaMode
-											? theme.colors.primary
-											: theme.colors.border,
-										backgroundColor: qaMode
-											? theme.colors.primary
-											: 'transparent',
-									}}
-								>
-									<Text
+								{wisprControl?.type === 'switch' ? (
+									<View
 										style={{
-											color: qaMode
-												? theme.colors.buttonTextOnPrimary
-												: theme.colors.textSecondary,
-											fontWeight: '800',
+											flexDirection: 'row',
+											alignItems: 'center',
+											gap: 8,
+											borderRadius: 999,
+											paddingVertical: 4,
+											paddingLeft: 12,
+											paddingRight: 6,
+											borderWidth: 1,
+											borderColor: wisprControl.enabled
+												? theme.colors.primary
+												: theme.colors.border,
+											backgroundColor: wisprControl.enabled
+												? theme.colors.surface
+												: 'transparent',
 										}}
 									>
-										QA
-									</Text>
-								</Pressable>
+										<Text
+											style={{
+												color: theme.colors.textPrimary,
+												fontSize: 12,
+												fontWeight: '700',
+											}}
+										>
+											{wisprControl.label}
+										</Text>
+										<Switch
+											value={wisprControl.enabled}
+											onValueChange={onWisprAutoStartChange}
+											trackColor={{
+												false: theme.colors.border,
+												true: theme.colors.primary,
+											}}
+											thumbColor={theme.colors.textPrimary}
+										/>
+									</View>
+								) : null}
+								{wisprControl?.type === 'setup-pill' ? (
+									<Pressable
+										onPress={onWisprSetup}
+										style={{
+											borderRadius: 999,
+											paddingVertical: 8,
+											paddingHorizontal: 12,
+											borderWidth: 1,
+											borderColor: theme.colors.border,
+											backgroundColor: theme.colors.surface,
+										}}
+									>
+										<Text
+											style={{
+												color: theme.colors.textSecondary,
+												fontSize: 12,
+												fontWeight: '700',
+											}}
+										>
+											{wisprControl.label}
+										</Text>
+									</Pressable>
+								) : null}
 							</View>
 							<TextInput
 								ref={inputRef}
@@ -400,157 +403,6 @@ export function TextEntryModal({
 								}}
 								scrollEnabled={textAreaHeight >= effectiveTextMaxHeight}
 							/>
-							{wisprStatusText ? (
-								<View
-									style={{
-										flexDirection: 'row',
-										alignItems: 'center',
-										gap: 8,
-										marginTop: 8,
-									}}
-								>
-									<Text
-										numberOfLines={1}
-										ellipsizeMode="tail"
-										style={{
-											color: theme.colors.textSecondary,
-											flex: 1,
-											fontSize: 12,
-											fontWeight: '500',
-											lineHeight: 16,
-										}}
-									>
-										{wisprStatusText}
-									</Text>
-									{onWisprSetup ? (
-										<Pressable
-											onPress={onWisprSetup}
-											style={{
-												borderRadius: 8,
-												paddingVertical: 6,
-												paddingHorizontal: 10,
-												borderWidth: 1,
-												borderColor: theme.colors.border,
-											}}
-										>
-											<Text
-												style={{
-													color: theme.colors.textSecondary,
-													fontSize: 12,
-													fontWeight: '700',
-												}}
-											>
-												Enable
-											</Text>
-										</Pressable>
-									) : null}
-								</View>
-							) : null}
-							{qaMode ? (
-								<View
-									style={{
-										flexDirection: 'row',
-										alignItems: 'center',
-										justifyContent: 'space-between',
-										marginTop: 12,
-										gap: 8,
-									}}
-								>
-									<View
-										style={{
-											flexDirection: 'row',
-											alignItems: 'center',
-											gap: 6,
-										}}
-									>
-										<Pressable
-											onPress={() => {
-												setQuestionNumberSafe(questionNumberRef.current - 1);
-												requestAnimationFrame(() => focusInput());
-											}}
-											style={{
-												borderRadius: 10,
-												paddingVertical: 10,
-												paddingHorizontal: qaNudgePaddingX,
-												borderWidth: 1,
-												borderColor: theme.colors.border,
-											}}
-										>
-											<Text
-												style={{
-													color: theme.colors.textSecondary,
-													fontWeight: '700',
-												}}
-											>
-												-
-											</Text>
-										</Pressable>
-										<Text
-											style={{
-												color: theme.colors.textPrimary,
-												fontWeight: '700',
-												minWidth: 42,
-												textAlign: 'center',
-											}}
-										>
-											Q{questionNumber}
-										</Text>
-										<Pressable
-											onPress={() => {
-												setQuestionNumberSafe(questionNumberRef.current + 1);
-												requestAnimationFrame(() => focusInput());
-											}}
-											style={{
-												borderRadius: 10,
-												paddingVertical: 10,
-												paddingHorizontal: qaNudgePaddingX,
-												borderWidth: 1,
-												borderColor: theme.colors.border,
-											}}
-										>
-											<Text
-												style={{
-													color: theme.colors.textSecondary,
-													fontWeight: '700',
-												}}
-											>
-												+
-											</Text>
-										</Pressable>
-									</View>
-									<View
-										style={{
-											flexDirection: 'row',
-											alignItems: 'center',
-											gap: 6,
-										}}
-									>
-										{(['A', 'B', 'C'] as const).map((answer) => (
-											<Pressable
-												key={answer}
-												onPress={() => insertAnswer(answer)}
-												style={{
-													borderRadius: 10,
-													paddingVertical: 10,
-													paddingHorizontal: qaChoicePaddingX,
-													backgroundColor: theme.colors.surface,
-													borderWidth: 1,
-													borderColor: theme.colors.border,
-												}}
-											>
-												<Text
-													style={{
-														color: theme.colors.textPrimary,
-														fontWeight: '800',
-													}}
-												>
-													{answer}
-												</Text>
-											</Pressable>
-										))}
-									</View>
-								</View>
-							) : null}
 							<View
 								style={{
 									flexDirection: 'row',

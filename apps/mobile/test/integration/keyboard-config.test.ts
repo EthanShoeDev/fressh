@@ -224,6 +224,12 @@ void test('phone base keyboard exposes explain, browser long press, and status a
 
 	assert.ok(config.activeKeyboardIds.includes('browser_keyboard'));
 	assert.deepEqual(phoneBaseKeyboard.grid[0]?.[1], {
+		type: 'macro',
+		macroId: 'cmd_plain_language',
+		label: 'Explain',
+		icon: null,
+	});
+	assert.deepEqual(phoneBaseKeyboard.grid[2]?.[2], {
 		type: 'action',
 		actionId: 'OPEN_BROWSER_KEYBOARD',
 		label: 'Browser',
@@ -274,12 +280,6 @@ void test('phone base keyboard exposes explain, browser long press, and status a
 		actionId: 'CYCLE_WORKMUX_STATUS',
 		label: 'Status',
 		icon: 'Clock',
-	});
-	assert.deepEqual(phoneBaseKeyboard.grid[2]?.[2], {
-		type: 'macro',
-		macroId: 'cmd_plain_language',
-		label: 'Explain',
-		icon: null,
 	});
 	assert.equal(phoneBaseKeyboard.grid.length, 3);
 });
@@ -367,7 +367,8 @@ void test('advanced keyboard exposes host URL setter actions', () => {
 	);
 	assert.ok(advancedKeyboard);
 
-	assert.deepEqual(advancedKeyboard.grid[3]?.slice(0, 4), [
+	assert.equal(advancedKeyboard.grid.length, 3);
+	assert.deepEqual(advancedKeyboard.grid[2]?.slice(0, 4), [
 		{
 			type: 'action',
 			actionId: 'EDIT_HOST_URL_WINDOW',

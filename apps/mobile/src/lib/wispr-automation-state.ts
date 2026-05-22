@@ -42,6 +42,9 @@ export function reduceWisprAutomationState(
 
 	switch (state.phase) {
 		case 'idle':
+			if (event.type === 'press') return { phase: 'openingTextEntry' };
+			return state;
+
 		case 'failed':
 			if (event.type === 'press') return { phase: 'openingTextEntry' };
 			return state;

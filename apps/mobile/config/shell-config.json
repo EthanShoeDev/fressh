@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-21.1",
-  "updatedAt": "2026-05-21T04:12:11Z",
+  "version": "2026-05-21.6",
+  "updatedAt": "2026-05-21T10:02:48Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -31,50 +31,10 @@
             "icon": "Keyboard"
           },
           {
-            "type": "action",
-            "actionId": "OPEN_BROWSER_KEYBOARD",
-            "label": "Browser",
-            "icon": "ExternalLink",
-            "longPress": {
-              "options": [
-                {
-                  "type": "action",
-                  "actionId": "OPEN_BROWSER_KEYBOARD",
-                  "label": "Browser",
-                  "icon": "ExternalLink"
-                },
-                {
-                  "type": "action",
-                  "actionId": "OPEN_HOST_DIFFITY",
-                  "label": "Diff",
-                  "icon": "GitCompare"
-                },
-                {
-                  "type": "action",
-                  "actionId": "OPEN_HOST_URL_WINDOW",
-                  "label": "URL",
-                  "icon": "Link"
-                },
-                {
-                  "type": "action",
-                  "actionId": "OPEN_HOST_URL_DEV_SERVER",
-                  "label": "Web",
-                  "icon": "Globe"
-                },
-                {
-                  "type": "action",
-                  "actionId": "OPEN_HOST_URL_STORYBOOK",
-                  "label": "Story",
-                  "icon": "BookOpen"
-                },
-                {
-                  "type": "action",
-                  "actionId": "OPEN_HOST_URL_APP",
-                  "label": "App",
-                  "icon": "PanelTop"
-                }
-              ]
-            }
+            "type": "macro",
+            "macroId": "cmd_plain_language",
+            "label": "Explain",
+            "icon": null
           },
           {
             "type": "action",
@@ -344,10 +304,50 @@
             "icon": "ArrowDown"
           },
           {
-            "type": "macro",
-            "macroId": "cmd_plain_language",
-            "label": "Explain",
-            "icon": null
+            "type": "action",
+            "actionId": "OPEN_BROWSER_KEYBOARD",
+            "label": "Browser",
+            "icon": "ExternalLink",
+            "longPress": {
+              "options": [
+                {
+                  "type": "action",
+                  "actionId": "OPEN_BROWSER_KEYBOARD",
+                  "label": "Browser",
+                  "icon": "ExternalLink"
+                },
+                {
+                  "type": "action",
+                  "actionId": "OPEN_HOST_DIFFITY",
+                  "label": "Diff",
+                  "icon": "GitCompare"
+                },
+                {
+                  "type": "action",
+                  "actionId": "OPEN_HOST_URL_WINDOW",
+                  "label": "URL",
+                  "icon": "Link"
+                },
+                {
+                  "type": "action",
+                  "actionId": "OPEN_HOST_URL_DEV_SERVER",
+                  "label": "Web",
+                  "icon": "Globe"
+                },
+                {
+                  "type": "action",
+                  "actionId": "OPEN_HOST_URL_STORYBOOK",
+                  "label": "Story",
+                  "icon": "BookOpen"
+                },
+                {
+                  "type": "action",
+                  "actionId": "OPEN_HOST_URL_APP",
+                  "label": "App",
+                  "icon": "PanelTop"
+                }
+              ]
+            }
           },
           {
             "type": "macro",
@@ -359,7 +359,17 @@
             "type": "macro",
             "macroId": "cmd_yes",
             "label": "yes",
-            "icon": null
+            "icon": null,
+            "longPress": {
+              "options": [
+                {
+                  "type": "macro",
+                  "macroId": "cmd_do",
+                  "label": "do",
+                  "icon": null
+                }
+              ]
+            }
           },
           {
             "type": "macro",
@@ -474,45 +484,12 @@
             "type": "bytes",
             "bytes": [
               27,
-              115
-            ],
-            "label": "~",
-            "icon": "LineSquiggle"
-          },
-          null
-        ],
-        [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          {
-            "type": "bytes",
-            "bytes": [
-              2,
               112
             ],
-            "label": "Prev all",
-            "icon": null
+            "label": "Palette",
+            "icon": "Command"
           },
-          {
-            "type": "bytes",
-            "bytes": [
-              2,
-              110
-            ],
-            "label": "Next all",
-            "icon": null
-          },
-          {
-            "type": "macro",
-            "macroId": "alt_w",
-            "label": "Alt-w",
-            "icon": null
-          }
+          null
         ],
         [
           {
@@ -542,8 +519,24 @@
           null,
           null,
           null,
-          null,
-          null,
+          {
+            "type": "bytes",
+            "bytes": [
+              2,
+              112
+            ],
+            "label": "Prev all",
+            "icon": null
+          },
+          {
+            "type": "bytes",
+            "bytes": [
+              2,
+              110
+            ],
+            "label": "Next all",
+            "icon": null
+          },
           null
         ]
       ]
@@ -653,6 +646,13 @@
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"yes\"\n}"
       },
       {
+        "id": "cmd_do",
+        "name": "Command: do",
+        "label": "do",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"command\",\n  \"value\": \"do\",\n  \"enter\": true\n}"
+      },
+      {
         "id": "cmd_skip",
         "name": "Command: skip",
         "label": "skip",
@@ -730,15 +730,7 @@
         "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
       }
     ],
-    "advanced_keyboard": [
-      {
-        "id": "alt_w",
-        "name": "Meta: Alt-w",
-        "label": "Alt-w",
-        "category": "Navigation",
-        "script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
-      }
-    ],
+    "advanced_keyboard": [],
     "browser_keyboard": []
   },
   "commandMenus": [
