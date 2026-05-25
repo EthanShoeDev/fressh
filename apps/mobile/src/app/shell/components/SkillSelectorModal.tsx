@@ -49,7 +49,7 @@ export function SkillSelectorModal({
 			windowHeight - bottomOffset - androidBottomInset,
 		);
 		const comfortableHeight = Math.floor(usableHeight * 0.85);
-		return Math.max(120, Math.min(comfortableHeight, usableHeight));
+		return Math.min(usableHeight, Math.max(120, comfortableHeight));
 	}, [androidBottomInset, bottomOffset, windowHeight]);
 
 	useEffect(() => {
