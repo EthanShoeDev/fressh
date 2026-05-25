@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	ActivityIndicator,
-	Dimensions,
 	Keyboard,
 	KeyboardAvoidingView,
 	Modal,
@@ -10,6 +9,7 @@ import {
 	ScrollView,
 	Text,
 	TextInput,
+	useWindowDimensions,
 	View,
 } from 'react-native';
 import {
@@ -38,15 +38,19 @@ export function SkillSelectorModal({
 	onSelect: (skill: DiscoveredSkill) => void;
 }) {
 	const theme = useTheme();
+	const { height: windowHeight } = useWindowDimensions();
 	const [query, setQuery] = useState('');
 	const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
 	const androidBottomInset =
 		Platform.OS === 'android' ? androidKeyboardHeight : 0;
 	const dialogMaxHeight = useMemo(() => {
-		const windowHeight = Dimensions.get('window').height;
-		const usableHeight = windowHeight - bottomOffset - androidBottomInset;
-		return Math.floor(Math.max(240, usableHeight) * 0.85);
-	}, [androidBottomInset, bottomOffset]);
+		const usableHeight = Math.max(
+			0,
+			windowHeight - bottomOffset - androidBottomInset,
+		);
+		const comfortableHeight = Math.floor(usableHeight * 0.85);
+		return Math.max(120, Math.min(comfortableHeight, usableHeight));
+	}, [androidBottomInset, bottomOffset, windowHeight]);
 
 	useEffect(() => {
 		if (!open) {
