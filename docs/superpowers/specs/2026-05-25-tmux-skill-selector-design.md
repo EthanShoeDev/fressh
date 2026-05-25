@@ -31,6 +31,9 @@ On open, the app resolves the active tmux pane path, runs a side-channel command
 to inspect repo-local skill files, and shows a searchable list. The user can
 type a few characters to filter by skill name or description.
 
+The first version does not cache skill lists. Each time the selector opens, it
+discovers skills from the active tmux pane cwd again.
+
 Selecting a skill closes the selector and sends `$skill-name ` to the terminal.
 The selector never sends Enter automatically. Canceling closes the selector
 without sending input.
@@ -111,6 +114,9 @@ an empty state rather than an alert.
 
 If the remote command fails unexpectedly, show an inline error and keep Retry
 available.
+
+Retry reruns discovery for the currently open selector. It is not a persistent
+refresh or cache invalidation control because the first version has no cache.
 
 ## Testing
 
