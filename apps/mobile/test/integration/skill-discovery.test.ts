@@ -223,6 +223,39 @@ void test('buildSkillDiscoveryCommand executes and discovers only repo-local cod
 	}
 });
 
+void test('buildSkillDiscoveryCommand resolves skills from a git repo root', async () => {
+	const tempRepo = await mkdtemp(join(tmpdir(), 'skill-discovery-git-root-'));
+	try {
+		const nestedCwd = join(tempRepo, 'apps', 'mobile');
+		const demoSkill = join(tempRepo, '.codex', 'skills', 'demo', 'SKILL.md');
+		await mkdir(nestedCwd, { recursive: true });
+		await mkdir(join(tempRepo, '.codex', 'skills', 'demo'), {
+			recursive: true,
+		});
+		await execFileAsync('git', ['init'], { cwd: tempRepo });
+		await writeFile(
+			demoSkill,
+			'---\nname: demo\ndescription: repo root\n---\n# Demo\n',
+		);
+
+		const { stdout } = await execFileAsync(
+			'bash',
+			['-lc', buildSkillDiscoveryCommand(nestedCwd)],
+			{ cwd: nestedCwd },
+		);
+
+		assert.deepEqual(parseSkillDiscoveryOutput(stdout), [
+			{
+				name: 'demo',
+				path: demoSkill,
+				description: 'repo root',
+			},
+		]);
+	} finally {
+		await rm(tempRepo, { recursive: true, force: true });
+	}
+});
+
 void test('buildSkillDiscoveryCommand works with side-channel completion suffix', async () => {
 	const tempRepo = await mkdtemp(
 		join(tmpdir(), 'skill-discovery-side-channel-'),

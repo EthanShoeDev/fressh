@@ -82,8 +82,11 @@ function getSkillSearchRank(
 
 export function buildSkillDiscoveryCommand(panePath: string): string {
 	const scriptBody = [
-		'import json,pathlib,sys',
-		"root=pathlib.Path(sys.argv[1])/'.codex'/'skills'",
+		'import json,pathlib,subprocess,sys',
+		'start=pathlib.Path(sys.argv[1])',
+		"git=subprocess.run(['git','-C',str(start),'rev-parse','--show-toplevel'], text=True, capture_output=True)",
+		'base=pathlib.Path(git.stdout.strip()) if git.returncode == 0 and git.stdout.strip() else start',
+		"root=base/'.codex'/'skills'",
 		'records=[]',
 		"for skill_file in sorted(root.glob('*/SKILL.md')):",
 		"    try: content=skill_file.read_text(encoding='utf-8', errors='replace')",
