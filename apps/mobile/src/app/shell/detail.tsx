@@ -1798,6 +1798,7 @@ function ShellDetail() {
 	);
 
 	const handleOpenWisprTextEditor = useCallback(() => {
+		invalidateHostUrlReads();
 		const currentState = wisprAutomationStateRef.current;
 		if (currentState.phase !== 'idle' && currentState.phase !== 'failed') {
 			logger.info('Ignoring Wispr text entry while automation is busy', {
@@ -1874,6 +1875,7 @@ function ShellDetail() {
 	}, [
 		applyWisprAutomationEvent,
 		failWisprAutomation,
+		invalidateHostUrlReads,
 		isWisprAutomationRequestActive,
 		startWisprTextEntryAutomation,
 	]);
@@ -2292,6 +2294,7 @@ fi
 				throw new Error('Skill selector requires a tmux-enabled connection.');
 			}
 			const panePath = await resolveHostBrowserPanePath();
+			if (skillSelectorRequestIdRef.current !== requestId) return;
 			const output = await runHostBrowserCommand(
 				buildSkillDiscoveryCommand(panePath),
 				10_000,
@@ -2408,6 +2411,7 @@ fi
 			void (async () => {
 				try {
 					const panePath = await resolveHostBrowserPanePath();
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
 					const value = await runHostBrowserCommand(
 						buildTmuxWindowConfigGetCommand(slot, panePath),
 						10_000,
@@ -2460,6 +2464,7 @@ fi
 			void (async () => {
 				try {
 					const panePath = await resolveHostBrowserPanePath();
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
 					const value = await runHostBrowserCommand(
 						buildTmuxWindowConfigGetCommand(slot, panePath),
 						10_000,
