@@ -19,6 +19,8 @@
     "build:signed:apk": "tsx scripts/signed-build.ts --format apk",
     "build:aab": "cd android && ./gradlew bundleRelease",
     "build:apk": "cd android && ./gradlew assembleRelease",
+    "android:compile-debug-kotlin": "cd android && ./gradlew :app:compileDebugKotlin",
+    "android:prebuild-compile-debug-kotlin": "expo prebuild --platform android --non-interactive && pnpm run android:compile-debug-kotlin",
     "prebuild": "expo prebuild",
     "prebuild:clean": "expo prebuild --clean",
     "expo:dep:check": "expo install --fix",

@@ -75,7 +75,7 @@ const config: ExpoConfig = {
 			'expo-channel-name': updateChannel,
 		},
 	},
-	runtimeVersion: packageJson.dependencies?.expo ?? packageJson.version,
+	runtimeVersion: `${packageJson.version}-native-agent-alert-route-v1`,
 	plugins: [
 		'expo-router',
 		[

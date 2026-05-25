@@ -1,4 +1,4 @@
-import { MMKV, useMMKVString } from 'react-native-mmkv';
+import { MMKV, useMMKVBoolean, useMMKVString } from 'react-native-mmkv';
 import { type ThemeName } from './theme';
 
 const storage = new MMKV({ id: 'settings' });
@@ -49,6 +49,33 @@ export const preferences = {
 						} else {
 							setValue(next);
 						}
+					},
+				] as const;
+			},
+		},
+	},
+	agentAlerts: {
+		vibration: {
+			_key: 'agentAlerts.vibration',
+			_resolve: (rawValue: boolean | undefined): boolean => rawValue !== false,
+			get: (): boolean =>
+				preferences.agentAlerts.vibration._resolve(
+					storage.getBoolean(preferences.agentAlerts.vibration._key),
+				),
+			set: (enabled: boolean) => {
+				storage.set(preferences.agentAlerts.vibration._key, enabled);
+			},
+			useAgentAlertVibrationPref: (): [
+				boolean,
+				(enabled: boolean) => void,
+			] => {
+				const [enabled, setEnabled] = useMMKVBoolean(
+					preferences.agentAlerts.vibration._key,
+				);
+				return [
+					preferences.agentAlerts.vibration._resolve(enabled),
+					(nextEnabled: boolean) => {
+						setEnabled(nextEnabled);
 					},
 				] as const;
 			},

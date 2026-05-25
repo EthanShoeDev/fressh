@@ -1,5 +1,5 @@
-import { rootLogger } from '@/lib/logger';
 import { type HostBrowserUrlSlot } from '@/lib/host-browser-actions';
+import { rootLogger } from '@/lib/logger';
 
 // Action IDs emitted by runtime config are handled here at runtime.
 

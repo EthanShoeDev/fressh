@@ -13,6 +13,14 @@ export function buildTmuxScrollbackCopyModeCommand(targetName: string): string {
 	return `tmux copy-mode -t '${safeTarget}'`;
 }
 
+export function buildTmuxSelectWindowCommand(
+	sessionName: string,
+	windowId: string,
+): string {
+	const safeTarget = escapeTmuxTarget(`${sessionName}:${windowId}`);
+	return `tmux select-window -t '${safeTarget}'`;
+}
+
 export async function runTmuxControlCommand(
 	writer: null | TmuxControlWriter,
 	command: string,

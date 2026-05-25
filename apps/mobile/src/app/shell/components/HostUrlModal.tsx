@@ -39,6 +39,7 @@ export function HostUrlModal({
 
 	useEffect(() => {
 		if (!open) return;
+		// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Reset draft text when reopening for a different host URL slot
 		setValue(initialValue);
 	}, [initialValue, open]);
 
@@ -50,7 +51,12 @@ export function HostUrlModal({
 	const actionLabel = mode === 'open-missing' ? 'Save & Open' : 'Save';
 
 	return (
-		<Modal transparent visible={open} animationType="slide" onRequestClose={onClose}>
+		<Modal
+			transparent
+			visible={open}
+			animationType="slide"
+			onRequestClose={onClose}
+		>
 			<Pressable
 				onPress={onClose}
 				style={{
@@ -111,7 +117,9 @@ export function HostUrlModal({
 									borderColor: theme.colors.border,
 								}}
 							>
-								<Text style={{ color: theme.colors.textSecondary }}>Cancel</Text>
+								<Text style={{ color: theme.colors.textSecondary }}>
+									Cancel
+								</Text>
 							</Pressable>
 						</View>
 

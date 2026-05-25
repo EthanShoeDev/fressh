@@ -66,6 +66,12 @@ export function buildHostBrowserPanePathCommand(
 	return `tmux display-message -p -t ${quoteShell(`${tmuxSessionName}:`)} '#{pane_current_path}'`;
 }
 
+export function buildTmuxCurrentWindowIdCommand(
+	tmuxSessionName: string,
+): string {
+	return `tmux display-message -p -t ${quoteShell(`${tmuxSessionName}:`)} '#{window_id}'`;
+}
+
 export function buildDiffityShareCommand(panePath: string): string {
 	return `cd ${quoteShell(panePath)} && mdev diffity share`;
 }

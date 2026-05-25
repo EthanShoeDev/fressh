@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import * as Updates from 'expo-updates';
 import React from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Switch, Text, View } from 'react-native';
 import { preferences } from '@/lib/preferences';
 import { buildSettingsSecurityLinks } from '@/lib/settings-security-links';
 import { useTheme, useThemeControls } from '@/lib/theme';
@@ -12,6 +12,8 @@ export default function Tab() {
 	const { themeName, setThemeName } = useThemeControls();
 	const [lastUpdateCheck, setLastUpdateCheck] =
 		preferences.updates.lastCheckAt.useLastCheckAt();
+	const [agentAlertVibration, setAgentAlertVibration] =
+		preferences.agentAlerts.vibration.useAgentAlertVibrationPref();
 	const [updateStatus, setUpdateStatus] = React.useState<string | null>(null);
 	const [updateError, setUpdateError] = React.useState<string | null>(null);
 	const [updateBusy, setUpdateBusy] = React.useState(false);
@@ -186,6 +188,22 @@ export default function Tab() {
 						marginBottom: 8,
 					}}
 				>
+					Notifications
+				</Text>
+				<SwitchRow
+					label="Agent alert vibration"
+					value={agentAlertVibration}
+					onValueChange={setAgentAlertVibration}
+				/>
+			</View>
+			<View style={{ marginBottom: 24 }}>
+				<Text
+					style={{
+						color: theme.colors.textSecondary,
+						fontSize: 14,
+						marginBottom: 8,
+					}}
+				>
 					Updates
 				</Text>
 				<Pressable
@@ -339,6 +357,49 @@ function Row({
 				{selected ? '✔' : ''}
 			</Text>
 		</Pressable>
+	);
+}
+
+function SwitchRow({
+	label,
+	value,
+	onValueChange,
+}: {
+	label: string;
+	value: boolean;
+	onValueChange: (value: boolean) => void;
+}) {
+	const theme = useTheme();
+	return (
+		<View
+			style={{
+				flexDirection: 'row',
+				alignItems: 'center',
+				justifyContent: 'space-between',
+				backgroundColor: theme.colors.surface,
+				borderWidth: 1,
+				borderColor: theme.colors.border,
+				borderRadius: 10,
+				paddingHorizontal: 12,
+				paddingVertical: 12,
+			}}
+		>
+			<Text
+				style={{
+					color: theme.colors.textPrimary,
+					fontSize: 16,
+					fontWeight: '600',
+				}}
+			>
+				{label}
+			</Text>
+			<Switch
+				value={value}
+				onValueChange={onValueChange}
+				accessibilityRole="switch"
+				accessibilityLabel={label}
+			/>
+		</View>
 	);
 }
 

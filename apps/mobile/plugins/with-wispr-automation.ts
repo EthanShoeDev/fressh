@@ -22,8 +22,7 @@ const DESCRIPTION_TEXT = 'Fressh Wispr Flow dictation automation';
 const SUMMARY_RESOURCE = 'wispr_automation_accessibility_summary';
 const SUMMARY_TEXT =
 	'Allows Fressh to find the Wispr Flow control and perform a tap gesture only when you start Wispr dictation from Fressh.';
-const FOREGROUND_SERVICE_PACKAGE_REGISTRATION =
-	'add(ForegroundServicePackage())';
+const WISPR_AUTOMATION_PACKAGE_REGISTRATION = 'add(WisprAutomationPackage())';
 
 const ACCESSIBILITY_SERVICE_XML = `<?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
@@ -278,17 +277,16 @@ class WisprAutomationModule(
 }
 `;
 
-const FOREGROUND_SERVICE_PACKAGE_KOTLIN = `package com.finalapp.vibe2
+const WISPR_AUTOMATION_PACKAGE_KOTLIN = `package com.finalapp.vibe2
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
-class ForegroundServicePackage : ReactPackage {
+class WisprAutomationPackage : ReactPackage {
   override fun createNativeModules(
     reactContext: ReactApplicationContext
   ) = listOf(
-    ForegroundServiceModule(reactContext),
     WisprAutomationModule(reactContext)
   )
 
@@ -405,7 +403,7 @@ function findMatchingBrace(contents: string, openBraceIndex: number): number {
 	return -1;
 }
 
-function addForegroundServicePackageRegistration(contents: string): string {
+function addWisprAutomationPackageRegistration(contents: string): string {
 	const packageListApply = 'PackageList(this).packages.apply {';
 	const applyIndex = contents.indexOf(packageListApply);
 	if (applyIndex === -1) {
@@ -423,7 +421,7 @@ function addForegroundServicePackageRegistration(contents: string): string {
 	}
 
 	const applyBlock = contents.slice(openBraceIndex + 1, closeBraceIndex);
-	if (applyBlock.includes(FOREGROUND_SERVICE_PACKAGE_REGISTRATION)) {
+	if (applyBlock.includes(WISPR_AUTOMATION_PACKAGE_REGISTRATION)) {
 		return contents;
 	}
 
@@ -432,12 +430,12 @@ function addForegroundServicePackageRegistration(contents: string): string {
 	const indent = indentedLine?.match(/^\s*/)?.[0] ?? '              ';
 	const closeBraceLineStart = contents.lastIndexOf('\n', closeBraceIndex) + 1;
 
-	return `${contents.slice(0, closeBraceLineStart)}${indent}${FOREGROUND_SERVICE_PACKAGE_REGISTRATION}\n${contents.slice(closeBraceLineStart)}`;
+	return `${contents.slice(0, closeBraceLineStart)}${indent}${WISPR_AUTOMATION_PACKAGE_REGISTRATION}\n${contents.slice(closeBraceLineStart)}`;
 }
 
-const withForegroundServicePackageRegistration: ConfigPlugin = (config) =>
+const withWisprAutomationPackageRegistration: ConfigPlugin = (config) =>
 	withMainApplication(config, (config) => {
-		config.modResults.contents = addForegroundServicePackageRegistration(
+		config.modResults.contents = addWisprAutomationPackageRegistration(
 			config.modResults.contents,
 		);
 
@@ -470,13 +468,9 @@ const withWisprAutomationNativeFiles: ConfigPlugin = (config) =>
 
 			const packagePath = path.join(
 				config.modRequest.platformProjectRoot,
-				'app/src/main/java/com/finalapp/vibe2/ForegroundServicePackage.kt',
+				'app/src/main/java/com/finalapp/vibe2/WisprAutomationPackage.kt',
 			);
-			await fs.writeFile(
-				packagePath,
-				FOREGROUND_SERVICE_PACKAGE_KOTLIN,
-				'utf8',
-			);
+			await fs.writeFile(packagePath, WISPR_AUTOMATION_PACKAGE_KOTLIN, 'utf8');
 
 			return config;
 		},
@@ -485,7 +479,7 @@ const withWisprAutomationNativeFiles: ConfigPlugin = (config) =>
 const withWisprAutomation: ConfigPlugin = (config) => {
 	config = withWisprAutomationManifest(config);
 	config = withWisprAutomationStrings(config);
-	config = withForegroundServicePackageRegistration(config);
+	config = withWisprAutomationPackageRegistration(config);
 	config = withWisprAutomationNativeFiles(config);
 	return config;
 };

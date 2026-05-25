@@ -1,177 +1,115 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
 	AndroidConfig,
 	type ConfigPlugin,
 	withAndroidManifest,
 	withDangerousMod,
+	withMainApplication,
 } from 'expo/config-plugins';
 
 const PERMISSIONS = [
 	'android.permission.FOREGROUND_SERVICE',
-	'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
+	'android.permission.FOREGROUND_SERVICE_SPECIAL_USE',
 	'android.permission.POST_NOTIFICATIONS',
 	'android.permission.WAKE_LOCK',
 ];
 
 const SERVICE_NAME = '.SshForegroundService';
+const SPECIAL_USE_PROPERTY_NAME =
+	'android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE';
+const SPECIAL_USE_PROPERTY_VALUE =
+	'Long-running user-visible SSH terminal session and agent status listener';
 
-const SSH_FOREGROUND_SERVICE_KOTLIN = `package com.finalapp.vibe2
+const JAVA_PACKAGE_RELATIVE_PATH = 'app/src/main/java/com/finalapp/vibe2';
+const PLUGIN_DIR = path.dirname(fileURLToPath(import.meta.url));
+const ANDROID_TEMPLATE_SOURCE_PATH = path.join(
+	PLUGIN_DIR,
+	'foreground-service-android',
+);
+const FOREGROUND_SERVICE_PACKAGE_REGISTRATION =
+	'add(ForegroundServicePackage())';
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Service
-import android.content.Context
-import android.content.Intent
-import android.os.Build
-import android.os.IBinder
-import android.os.PowerManager
-import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
+const FOREGROUND_SERVICE_PACKAGE_KOTLIN = `package com.finalapp.vibe2
 
-class SshForegroundService : Service() {
-  private var wakeLock: PowerManager.WakeLock? = null
-
-  override fun onCreate() {
-    super.onCreate()
-    ensureNotificationChannel()
-  }
-
-  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    val title = intent?.getStringExtra(EXTRA_TITLE) ?: DEFAULT_TITLE
-    val message = intent?.getStringExtra(EXTRA_MESSAGE) ?: DEFAULT_MESSAGE
-    startForeground(NOTIFICATION_ID, buildNotification(title, message))
-    acquireWakeLock()
-    return START_STICKY
-  }
-
-  override fun onDestroy() {
-    releaseWakeLock()
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-      stopForeground(STOP_FOREGROUND_REMOVE)
-    } else {
-      stopForeground(true)
-    }
-    super.onDestroy()
-  }
-
-  override fun onBind(intent: Intent?): IBinder? = null
-
-  private fun ensureNotificationChannel() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-    val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    val channel = NotificationChannel(
-      CHANNEL_ID,
-      CHANNEL_NAME,
-      NotificationManager.IMPORTANCE_LOW
-    )
-    channel.description = CHANNEL_DESCRIPTION
-    manager.createNotificationChannel(channel)
-  }
-
-  private fun buildNotification(title: String, message: String): Notification {
-    val intent = Intent(this, MainActivity::class.java).apply {
-      flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-    }
-    val pendingIntent = PendingIntent.getActivity(
-      this,
-      0,
-      intent,
-      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-    )
-
-    return NotificationCompat.Builder(this, CHANNEL_ID)
-      .setContentTitle(title)
-      .setContentText(message)
-      .setSmallIcon(R.mipmap.ic_launcher)
-      .setContentIntent(pendingIntent)
-      .setOngoing(true)
-      .setPriority(NotificationCompat.PRIORITY_LOW)
-      .build()
-  }
-
-  private fun acquireWakeLock() {
-    if (wakeLock?.isHeld == true) return
-    val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-    wakeLock = powerManager.newWakeLock(
-      PowerManager.PARTIAL_WAKE_LOCK,
-      WAKE_LOCK_TAG
-    ).apply { setReferenceCounted(false) }
-    wakeLock?.acquire()
-  }
-
-  private fun releaseWakeLock() {
-    try {
-      if (wakeLock?.isHeld == true) {
-        wakeLock?.release()
-      }
-    } finally {
-      wakeLock = null
-    }
-  }
-
-  companion object {
-    private const val NOTIFICATION_ID = 4227
-    private const val CHANNEL_ID = "fressh_ssh"
-    private const val CHANNEL_NAME = "Fressh SSH"
-    private const val CHANNEL_DESCRIPTION = "Keeps SSH sessions alive"
-    private const val WAKE_LOCK_TAG = "Fressh::SshForegroundService"
-    private const val DEFAULT_TITLE = "Fressh Terminal"
-    private const val DEFAULT_MESSAGE = "Keeping SSH connection alive"
-    const val EXTRA_TITLE = "title"
-    const val EXTRA_MESSAGE = "message"
-
-    fun start(context: Context, title: String, message: String) {
-      val intent = Intent(context, SshForegroundService::class.java).apply {
-        putExtra(EXTRA_TITLE, title)
-        putExtra(EXTRA_MESSAGE, message)
-      }
-      ContextCompat.startForegroundService(context, intent)
-    }
-
-    fun stop(context: Context) {
-      val intent = Intent(context, SshForegroundService::class.java)
-      context.stopService(intent)
-    }
-  }
-}
-`;
-
-const FOREGROUND_SERVICE_MODULE_KOTLIN = `package com.finalapp.vibe2
-
-import com.facebook.react.bridge.Promise
+import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.bridge.ReactContextBaseJavaModule
-import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.uimanager.ViewManager
 
-class ForegroundServiceModule(
-  private val reactContext: ReactApplicationContext
-) : ReactContextBaseJavaModule(reactContext) {
-  override fun getName(): String = "FresshForegroundService"
+class ForegroundServicePackage : ReactPackage {
+  override fun createNativeModules(
+    reactContext: ReactApplicationContext
+  ) = listOf(
+    ForegroundServiceModule(reactContext)
+  )
 
-  @ReactMethod
-  fun start(title: String, message: String, promise: Promise) {
-    try {
-      SshForegroundService.start(reactContext, title, message)
-      promise.resolve(null)
-    } catch (e: Exception) {
-      promise.reject("FOREGROUND_SERVICE_START_FAILED", e)
-    }
-  }
-
-  @ReactMethod
-  fun stop(promise: Promise) {
-    try {
-      SshForegroundService.stop(reactContext)
-      promise.resolve(null)
-    } catch (e: Exception) {
-      promise.reject("FOREGROUND_SERVICE_STOP_FAILED", e)
-    }
-  }
+  override fun createViewManagers(
+    reactContext: ReactApplicationContext
+  ): List<ViewManager<*, *>> = emptyList()
 }
 `;
+
+async function readAndroidTemplateSource(filename: string) {
+	return fs.readFile(path.join(ANDROID_TEMPLATE_SOURCE_PATH, filename), 'utf8');
+}
+
+function findMatchingBrace(contents: string, openBraceIndex: number): number {
+	let depth = 0;
+
+	for (let index = openBraceIndex; index < contents.length; index += 1) {
+		const char = contents[index];
+		if (char === '{') {
+			depth += 1;
+		} else if (char === '}') {
+			depth -= 1;
+			if (depth === 0) {
+				return index;
+			}
+		}
+	}
+
+	return -1;
+}
+
+function addForegroundServicePackageRegistration(contents: string): string {
+	const packageListApply = 'PackageList(this).packages.apply {';
+	const applyIndex = contents.indexOf(packageListApply);
+	if (applyIndex === -1) {
+		throw new Error(
+			`Could not find ${packageListApply} in Android MainApplication.kt`,
+		);
+	}
+
+	const openBraceIndex = contents.indexOf('{', applyIndex);
+	const closeBraceIndex = findMatchingBrace(contents, openBraceIndex);
+	if (closeBraceIndex === -1) {
+		throw new Error(
+			'Could not find PackageList(this).packages.apply block end in Android MainApplication.kt',
+		);
+	}
+
+	const applyBlock = contents.slice(openBraceIndex + 1, closeBraceIndex);
+	if (applyBlock.includes(FOREGROUND_SERVICE_PACKAGE_REGISTRATION)) {
+		return contents;
+	}
+
+	const blockLines = applyBlock.split('\n');
+	const indentedLine = blockLines.find((line) => line.trim().length > 0);
+	const indent = indentedLine?.match(/^\s*/)?.[0] ?? '              ';
+	const closeBraceLineStart = contents.lastIndexOf('\n', closeBraceIndex) + 1;
+
+	return `${contents.slice(0, closeBraceLineStart)}${indent}${FOREGROUND_SERVICE_PACKAGE_REGISTRATION}\n${contents.slice(closeBraceLineStart)}`;
+}
+
+const withForegroundServicePackageRegistration: ConfigPlugin = (config) =>
+	withMainApplication(config, (config) => {
+		config.modResults.contents = addForegroundServicePackageRegistration(
+			config.modResults.contents,
+		);
+
+		return config;
+	});
 
 const withForegroundServiceManifest: ConfigPlugin = (config) =>
 	withAndroidManifest(config, (config) => {
@@ -181,22 +119,60 @@ const withForegroundServiceManifest: ConfigPlugin = (config) =>
 
 		const app = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest);
 		app.service = app.service ?? [];
-		type ServiceAttributesWithStopWithTask =
-			(typeof app.service)[number]['$'] & {
-				'android:stopWithTask'?: 'true' | 'false';
-			};
+		type SshForegroundServiceAttributes = (typeof app.service)[number]['$'] & {
+			'android:foregroundServiceType'?: 'specialUse';
+			'android:stopWithTask'?: 'true' | 'false';
+		};
+		type SshForegroundService = (typeof app.service)[number] & {
+			property?: {
+				$: {
+					'android:name': typeof SPECIAL_USE_PROPERTY_NAME;
+					'android:value': typeof SPECIAL_USE_PROPERTY_VALUE;
+				};
+			}[];
+		};
+		const ensureSpecialUseProperty = (service: SshForegroundService) => {
+			service.property = service.property ?? [];
+			const existing = service.property.find(
+				(property) => property.$['android:name'] === SPECIAL_USE_PROPERTY_NAME,
+			);
+			if (existing) {
+				existing.$['android:value'] = SPECIAL_USE_PROPERTY_VALUE;
+				return;
+			}
+			service.property.push({
+				$: {
+					'android:name': SPECIAL_USE_PROPERTY_NAME,
+					'android:value': SPECIAL_USE_PROPERTY_VALUE,
+				},
+			});
+		};
 		const alreadyPresent = app.service.some(
 			(service) => service.$['android:name'] === SERVICE_NAME,
 		);
-		if (!alreadyPresent) {
-			app.service.push({
+		if (alreadyPresent) {
+			for (const service of app.service) {
+				if (service.$['android:name'] === SERVICE_NAME) {
+					(service.$ as SshForegroundServiceAttributes)[
+						'android:foregroundServiceType'
+					] = 'specialUse';
+					(service.$ as SshForegroundServiceAttributes)[
+						'android:stopWithTask'
+					] = 'false';
+					ensureSpecialUseProperty(service as SshForegroundService);
+				}
+			}
+		} else {
+			const service = {
 				$: {
 					'android:name': SERVICE_NAME,
 					'android:exported': 'false',
-					'android:foregroundServiceType': 'dataSync',
-					'android:stopWithTask': 'true',
-				} as ServiceAttributesWithStopWithTask,
-			});
+					'android:foregroundServiceType': 'specialUse',
+					'android:stopWithTask': 'false',
+				} as SshForegroundServiceAttributes,
+			} as SshForegroundService;
+			ensureSpecialUseProperty(service);
+			app.service.push(service);
 		}
 
 		return config;
@@ -208,18 +184,24 @@ const withForegroundServiceNativeFiles: ConfigPlugin = (config) =>
 		async (config) => {
 			const javaPackagePath = path.join(
 				config.modRequest.platformProjectRoot,
-				'app/src/main/java/com/finalapp/vibe2',
+				JAVA_PACKAGE_RELATIVE_PATH,
 			);
 			await fs.mkdir(javaPackagePath, { recursive: true });
 
+			for (const filename of [
+				'SshForegroundService.kt',
+				'ForegroundServiceModule.kt',
+			] as const) {
+				await fs.writeFile(
+					path.join(javaPackagePath, filename),
+					await readAndroidTemplateSource(filename),
+					'utf8',
+				);
+			}
+
 			await fs.writeFile(
-				path.join(javaPackagePath, 'SshForegroundService.kt'),
-				SSH_FOREGROUND_SERVICE_KOTLIN,
-				'utf8',
-			);
-			await fs.writeFile(
-				path.join(javaPackagePath, 'ForegroundServiceModule.kt'),
-				FOREGROUND_SERVICE_MODULE_KOTLIN,
+				path.join(javaPackagePath, 'ForegroundServicePackage.kt'),
+				FOREGROUND_SERVICE_PACKAGE_KOTLIN,
 				'utf8',
 			);
 
@@ -229,6 +211,7 @@ const withForegroundServiceNativeFiles: ConfigPlugin = (config) =>
 
 const withForegroundService: ConfigPlugin = (config) => {
 	config = withForegroundServiceManifest(config);
+	config = withForegroundServicePackageRegistration(config);
 	config = withForegroundServiceNativeFiles(config);
 	return config;
 };

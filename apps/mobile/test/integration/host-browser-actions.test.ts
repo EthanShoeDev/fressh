@@ -4,6 +4,7 @@ import {
 	buildDiffityShareCommand,
 	buildHostBrowserPanePathCommand,
 	buildHostBrowserStatusCycleCommand,
+	buildTmuxCurrentWindowIdCommand,
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
 	extractLastHttpsUrl,
@@ -59,6 +60,13 @@ void test('status cycle command uses mdev tmux nav cycle for main session', () =
 	assert.equal(
 		buildHostBrowserStatusCycleCommand('main'),
 		"mdev tmux nav cycle 'main:'",
+	);
+});
+
+void test('current window id command shell-quotes tmux session', () => {
+	assert.equal(
+		buildTmuxCurrentWindowIdCommand("main'quoted"),
+		"tmux display-message -p -t 'main'\\''quoted:' '#{window_id}'",
 	);
 });
 
