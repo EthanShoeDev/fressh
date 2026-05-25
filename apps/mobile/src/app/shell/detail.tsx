@@ -744,11 +744,13 @@ function ShellDetail() {
 	);
 	const skillSelectorRequestIdRef = useRef(0);
 	const skillSelectorActiveSourceKeyRef = useRef<string | null>(null);
-	const skillSelectorLoadingRef = useRef(false);
+	const skillSelectorDiscoveryInFlightRef = useRef<{
+		sourceKey: string;
+		promise: Promise<string>;
+	} | null>(null);
 	const closeSkillSelector = useCallback(() => {
 		skillSelectorRequestIdRef.current += 1;
 		skillSelectorActiveSourceKeyRef.current = null;
-		skillSelectorLoadingRef.current = false;
 		setSkillSelectorOpen(false);
 		setSkillSelectorLoading(false);
 		setSkillSelectorError(null);
@@ -2302,16 +2304,9 @@ fi
 
 	const loadSkillSelectorSkills = useCallback(async () => {
 		const requestSourceKey = skillSelectorCurrentSourceKeyRef.current;
-		if (
-			skillSelectorLoadingRef.current &&
-			skillSelectorActiveSourceKeyRef.current === requestSourceKey
-		) {
-			return;
-		}
 		const requestId = skillSelectorRequestIdRef.current + 1;
 		skillSelectorRequestIdRef.current = requestId;
 		skillSelectorActiveSourceKeyRef.current = requestSourceKey;
-		skillSelectorLoadingRef.current = true;
 		setSkillSelectorLoading(true);
 		setSkillSelectorError(null);
 		setSkillSelectorSkills([]);
@@ -2323,18 +2318,31 @@ fi
 			if (!tmuxEnabled) {
 				throw new Error('Skill selector requires a tmux-enabled connection.');
 			}
-			const panePath = await resolveHostBrowserPanePath();
-			if (
-				skillSelectorRequestIdRef.current !== requestId ||
-				skillSelectorActiveSourceKeyRef.current !== requestSourceKey ||
-				skillSelectorCurrentSourceKeyRef.current !== requestSourceKey
-			) {
-				return;
+			let discovery = skillSelectorDiscoveryInFlightRef.current;
+			if (discovery?.sourceKey !== requestSourceKey) {
+				const promise = (async () => {
+					const panePath = await resolveHostBrowserPanePath();
+					if (skillSelectorCurrentSourceKeyRef.current !== requestSourceKey) {
+						throw new Error('Skill selector source changed.');
+					}
+					return await runHostBrowserCommand(
+						buildSkillDiscoveryCommand(panePath),
+						10_000,
+					);
+				})();
+				discovery = { sourceKey: requestSourceKey, promise };
+				skillSelectorDiscoveryInFlightRef.current = discovery;
+				void promise
+					.finally(() => {
+						if (
+							skillSelectorDiscoveryInFlightRef.current?.promise === promise
+						) {
+							skillSelectorDiscoveryInFlightRef.current = null;
+						}
+					})
+					.catch(() => {});
 			}
-			const output = await runHostBrowserCommand(
-				buildSkillDiscoveryCommand(panePath),
-				10_000,
-			);
+			const output = await discovery.promise;
 			const skills = parseSkillDiscoveryOutput(output);
 			if (
 				skillSelectorRequestIdRef.current === requestId &&
@@ -2357,7 +2365,6 @@ fi
 				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
 				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
 			) {
-				skillSelectorLoadingRef.current = false;
 				setSkillSelectorLoading(false);
 			}
 		}
