@@ -314,6 +314,22 @@ void test('phone base keyboard exposes explain, browser long press, and status a
 		actionId: 'CYCLE_WORKMUX_STATUS',
 		label: 'Status',
 		icon: 'Clock',
+		longPress: {
+			options: [
+				{
+					type: 'action',
+					actionId: 'CYCLE_WORKMUX_STATUS',
+					label: 'Status',
+					icon: 'Clock',
+				},
+				{
+					type: 'bytes',
+					bytes: [27, 81],
+					label: 'Hide',
+					icon: null,
+				},
+			],
+		},
 	});
 	assert.equal(phoneBaseKeyboard.grid.length, 3);
 });

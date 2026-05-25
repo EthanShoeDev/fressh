@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-25.1",
-  "updatedAt": "2026-05-25T00:00:00Z",
+  "version": "2026-05-25.2",
+  "updatedAt": "2026-05-25T11:27:14Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -229,7 +229,26 @@
             "type": "action",
             "actionId": "CYCLE_WORKMUX_STATUS",
             "label": "Status",
-            "icon": "Clock"
+            "icon": "Clock",
+            "longPress": {
+              "options": [
+                {
+                  "type": "action",
+                  "actionId": "CYCLE_WORKMUX_STATUS",
+                  "label": "Status",
+                  "icon": "Clock"
+                },
+                {
+                  "type": "bytes",
+                  "bytes": [
+                    27,
+                    81
+                  ],
+                  "label": "Hide",
+                  "icon": null
+                }
+              ]
+            }
           },
           {
             "type": "macro",
