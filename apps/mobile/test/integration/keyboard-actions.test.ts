@@ -50,6 +50,25 @@ void test('Wispr text action delegates to the action context', async () => {
 	assert.equal(opened, 1);
 });
 
+void test('skill selector action delegates to the action context', async () => {
+	let opened = 0;
+
+	await runAction('OPEN_SKILL_SELECTOR', {
+		availableKeyboardIds: new Set(),
+		selectKeyboard: () => {},
+		rotateKeyboard: () => {},
+		openConfigurator: () => {},
+		sendBytes: () => {},
+		pasteClipboard: async () => {},
+		copySelection: () => {},
+		openSkillSelector: () => {
+			opened += 1;
+		},
+	} as Parameters<typeof runAction>[1]);
+
+	assert.equal(opened, 1);
+});
+
 void test('host browser actions delegate to action context callbacks', async () => {
 	const openedSlots: string[] = [];
 	const editedSlots: string[] = [];
