@@ -51,13 +51,32 @@ export function filterDiscoveredSkills(
 	const normalizedQuery = query.trim().toLowerCase();
 	if (!normalizedQuery) return [...skills];
 
-	return skills.filter((skill) => {
-		const description = skill.description ?? '';
-		return (
-			skill.name.toLowerCase().includes(normalizedQuery) ||
-			description.toLowerCase().includes(normalizedQuery)
-		);
-	});
+	return skills
+		.map((skill) => ({
+			skill,
+			rank: getSkillSearchRank(skill, normalizedQuery),
+		}))
+		.filter(
+			(match): match is { skill: DiscoveredSkill; rank: number } =>
+				match.rank !== null,
+		)
+		.sort((a, b) => a.rank - b.rank || a.skill.name.localeCompare(b.skill.name))
+		.map((match) => match.skill);
+}
+
+function getSkillSearchRank(
+	skill: DiscoveredSkill,
+	normalizedQuery: string,
+): number | null {
+	const normalizedName = skill.name.toLowerCase();
+	const normalizedDescription = (skill.description ?? '').toLowerCase();
+
+	if (normalizedName === normalizedQuery) return 1;
+	if (normalizedName.startsWith(normalizedQuery)) return 2;
+	if (normalizedName.includes(normalizedQuery)) return 3;
+	if (normalizedDescription.startsWith(normalizedQuery)) return 4;
+	if (normalizedDescription.includes(normalizedQuery)) return 5;
+	return null;
 }
 
 export function buildSkillDiscoveryCommand(panePath: string): string {

@@ -83,6 +83,59 @@ void test('filterDiscoveredSkills matches names and descriptions', () => {
 	);
 });
 
+void test('filterDiscoveredSkills ranks skill name matches before description matches', () => {
+	const skills = [
+		{
+			name: 'aaa',
+			path: '/repo/.codex/skills/aaa/SKILL.md',
+			description: 'git helper',
+		},
+		{
+			name: 'git-alias',
+			path: '/repo/.codex/skills/git-alias/SKILL.md',
+			description: 'Alias helper',
+		},
+		{
+			name: 'parse-git',
+			path: '/repo/.codex/skills/parse-git/SKILL.md',
+			description: 'Parser helper',
+		},
+		{
+			name: 'description-prefix',
+			path: '/repo/.codex/skills/description-prefix/SKILL.md',
+			description: 'git prefix helper',
+		},
+		{
+			name: 'description-substring',
+			path: '/repo/.codex/skills/description-substring/SKILL.md',
+			description: 'helper for git',
+		},
+		{
+			name: 'git',
+			path: '/repo/.codex/skills/git/SKILL.md',
+			description: 'Version control helper',
+		},
+		{
+			name: 'aardvark-git',
+			path: '/repo/.codex/skills/aardvark-git/SKILL.md',
+			description: 'Name substring tie-breaker',
+		},
+	];
+
+	assert.deepEqual(
+		filterDiscoveredSkills(skills, 'git').map((skill) => skill.name),
+		[
+			'git',
+			'git-alias',
+			'aardvark-git',
+			'parse-git',
+			'aaa',
+			'description-prefix',
+			'description-substring',
+		],
+	);
+});
+
 void test('buildSkillDiscoveryCommand scopes discovery to repo-local codex skills', () => {
 	const command = buildSkillDiscoveryCommand("/tmp/repo with ' quote");
 
