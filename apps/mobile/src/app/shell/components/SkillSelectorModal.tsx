@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	ActivityIndicator,
+	Dimensions,
 	Keyboard,
 	KeyboardAvoidingView,
 	Modal,
@@ -39,6 +40,13 @@ export function SkillSelectorModal({
 	const theme = useTheme();
 	const [query, setQuery] = useState('');
 	const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
+	const androidBottomInset =
+		Platform.OS === 'android' ? androidKeyboardHeight : 0;
+	const dialogMaxHeight = useMemo(() => {
+		const windowHeight = Dimensions.get('window').height;
+		const usableHeight = windowHeight - bottomOffset - androidBottomInset;
+		return Math.floor(Math.max(240, usableHeight) * 0.85);
+	}, [androidBottomInset, bottomOffset]);
 
 	useEffect(() => {
 		if (!open) {
@@ -112,13 +120,13 @@ export function SkillSelectorModal({
 							padding: 16,
 							borderColor: theme.colors.borderStrong,
 							borderWidth: 1,
-							maxHeight: '85%',
+							maxHeight: dialogMaxHeight,
 							width: '70%',
 							maxWidth: 360,
 							minWidth: 260,
 							alignSelf: 'flex-end',
 							marginRight: 8,
-							marginBottom: bottomOffset + androidKeyboardHeight,
+							marginBottom: bottomOffset + androidBottomInset,
 						}}
 					>
 						<View
