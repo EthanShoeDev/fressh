@@ -743,6 +743,13 @@ function ShellDetail() {
 		null,
 	);
 	const skillSelectorRequestIdRef = useRef(0);
+	const closeSkillSelector = useCallback(() => {
+		skillSelectorRequestIdRef.current += 1;
+		setSkillSelectorOpen(false);
+		setSkillSelectorLoading(false);
+		setSkillSelectorError(null);
+		setSkillSelectorSkills([]);
+	}, []);
 	const [autoWisprEnabled, setAutoWisprEnabled] = useState(false);
 	const [wisprTextEditorAvailability, setWisprTextEditorAvailability] =
 		useState<WisprTextEditorAvailability>({ type: 'ready' });
@@ -1806,6 +1813,7 @@ function ShellDetail() {
 			});
 			return;
 		}
+		closeSkillSelector();
 		if (Platform.OS !== 'android') {
 			setCommanderOpen(false);
 			setCommandPresetsOpen(false);
@@ -1874,6 +1882,7 @@ function ShellDetail() {
 		})();
 	}, [
 		applyWisprAutomationEvent,
+		closeSkillSelector,
 		failWisprAutomation,
 		invalidateHostUrlReads,
 		isWisprAutomationRequestActive,
@@ -1966,9 +1975,9 @@ function ShellDetail() {
 
 	const openConfigDialog = useCallback(() => {
 		invalidateHostUrlReads();
-		setSkillSelectorOpen(false);
+		closeSkillSelector();
 		setConfigureOpen(true);
-	}, [invalidateHostUrlReads]);
+	}, [closeSkillSelector, invalidateHostUrlReads]);
 
 	const handleDevServer = useCallback(() => {
 		setConfigureOpen(false);
@@ -2016,11 +2025,11 @@ function ShellDetail() {
 
 	const handleOpenFeatureRequest = useCallback(() => {
 		invalidateHostUrlReads();
-		setSkillSelectorOpen(false);
+		closeSkillSelector();
 		setConfigureOpen(false);
 		setFeatureRequestError(undefined);
 		setFeatureRequestOpen(true);
-	}, [invalidateHostUrlReads]);
+	}, [closeSkillSelector, invalidateHostUrlReads]);
 
 	const handleFeatureRequestSubmit = useCallback(
 		async (description: string) => {
@@ -2334,13 +2343,7 @@ fi
 		void loadSkillSelectorSkills();
 	}, [handleCloseTextEntry, invalidateHostUrlReads, loadSkillSelectorSkills]);
 
-	const handleCloseSkillSelector = useCallback(() => {
-		skillSelectorRequestIdRef.current += 1;
-		setSkillSelectorOpen(false);
-		setSkillSelectorLoading(false);
-		setSkillSelectorError(null);
-		setSkillSelectorSkills([]);
-	}, []);
+	const handleCloseSkillSelector = closeSkillSelector;
 
 	const handleSelectSkill = useCallback(
 		(skill: DiscoveredSkill) => {
@@ -2568,14 +2571,14 @@ fi
 			toggleCommandPresets: () => {
 				invalidateHostUrlReads();
 				setCommanderOpen(false);
-				setSkillSelectorOpen(false);
+				closeSkillSelector();
 				handleCloseTextEntry();
 				setCommandPresetsOpen((prev) => !prev);
 			},
 			openCommander: () => {
 				invalidateHostUrlReads();
 				setCommandPresetsOpen(false);
-				setSkillSelectorOpen(false);
+				closeSkillSelector();
 				handleCloseTextEntry();
 				setCommanderOpen(true);
 			},
@@ -2588,6 +2591,7 @@ fi
 		}),
 		[
 			availableKeyboardIds,
+			closeSkillSelector,
 			handleCycleWorkmuxStatus,
 			handleCopySelection,
 			handleCloseTextEntry,
