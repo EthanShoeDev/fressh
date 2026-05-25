@@ -34,15 +34,6 @@ export async function runTmuxControlCommand(
 	}
 }
 
-export function getTmuxScrollbackLiveInputPolicy({
-	scrollbackActive,
-}: {
-	scrollbackActive: boolean;
-}): 'exit-before-send' | 'pass-through' {
-	if (scrollbackActive) return 'exit-before-send';
-	return 'pass-through';
-}
-
 export function getTmuxScrollbackControlFailurePolicy({
 	scrollbackActive,
 }: {
@@ -50,4 +41,67 @@ export function getTmuxScrollbackControlFailurePolicy({
 }): 'exit-scrollback-and-restart-control' | 'restart-control-only' {
 	if (scrollbackActive) return 'exit-scrollback-and-restart-control';
 	return 'restart-control-only';
+}
+
+export type TmuxScrollbackLiveInputSendPlan =
+	| {
+			type: 'send';
+			segments: Uint8Array<ArrayBuffer>[];
+			interSegmentDelayMs?: number;
+			clearScrollback: boolean;
+	  }
+	| {
+			type: 'block';
+			reason: 'invalid-cancel-key';
+	  };
+
+export function isValidTmuxCancelKey(
+	cancelKey: Uint8Array<ArrayBuffer>,
+): boolean {
+	return cancelKey.length === 1 && cancelKey[0] !== 0x1b;
+}
+
+export function buildTmuxScrollbackLiveInputSendPlan({
+	scrollbackActive,
+	cancelKey,
+	payloadSegments,
+	interSegmentDelayMs,
+	scrollbackExitDelayMs,
+	dropPayloadAfterExit = false,
+}: {
+	scrollbackActive: boolean;
+	cancelKey: Uint8Array<ArrayBuffer>;
+	payloadSegments: Uint8Array<ArrayBuffer>[];
+	interSegmentDelayMs?: number;
+	scrollbackExitDelayMs: number;
+	dropPayloadAfterExit?: boolean;
+}): TmuxScrollbackLiveInputSendPlan {
+	const nonEmptyPayloadSegments = payloadSegments.filter(
+		(segment) => segment.length > 0,
+	);
+
+	if (!scrollbackActive) {
+		return {
+			type: 'send',
+			segments: nonEmptyPayloadSegments,
+			interSegmentDelayMs,
+			clearScrollback: false,
+		};
+	}
+
+	if (!isValidTmuxCancelKey(cancelKey)) {
+		return {
+			type: 'block',
+			reason: 'invalid-cancel-key',
+		};
+	}
+
+	return {
+		type: 'send',
+		segments: dropPayloadAfterExit
+			? [cancelKey]
+			: [cancelKey, ...nonEmptyPayloadSegments],
+		interSegmentDelayMs: scrollbackExitDelayMs,
+		clearScrollback: true,
+	};
 }
