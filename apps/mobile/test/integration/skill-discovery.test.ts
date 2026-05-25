@@ -146,13 +146,14 @@ void test('filterDiscoveredSkills ranks skill name matches before description ma
 void test('buildSkillDiscoveryCommand scopes discovery to repo-local codex skills', () => {
 	const command = buildSkillDiscoveryCommand("/tmp/repo with ' quote");
 
-	assert.match(command, /python3 -/);
+	assert.match(command, /python3 -c/);
 	assert.match(command, /\.codex/);
 	assert.match(command, /skills/);
 	assert.match(command, /SKILL\.md/);
-	assert.match(command, /errors='replace'/);
+	assert.match(command, /errors='\\''replace'\\''/);
 	assert.doesNotMatch(command, /\.agents/);
 	assert.doesNotMatch(command, /plugins/);
+	assert.doesNotMatch(command, /<<'PY'/);
 	assert.match(command, /'\/tmp\/repo with '\\'' quote'/);
 });
 
@@ -214,6 +215,41 @@ void test('buildSkillDiscoveryCommand executes and discovers only repo-local cod
 				name: 'demo',
 				path: demoSkill,
 				description: 'demo \ufffd',
+			},
+		]);
+	} finally {
+		await rm(tempRepo, { recursive: true, force: true });
+	}
+});
+
+void test('buildSkillDiscoveryCommand works with side-channel completion suffix', async () => {
+	const tempRepo = await mkdtemp(
+		join(tmpdir(), 'skill-discovery-side-channel-'),
+	);
+	try {
+		const demoSkill = join(tempRepo, '.codex', 'skills', 'demo', 'SKILL.md');
+		await mkdir(join(tempRepo, '.codex', 'skills', 'demo'), {
+			recursive: true,
+		});
+		await writeFile(
+			demoSkill,
+			'---\nname: demo\ndescription: side channel\n---\n# Demo\n',
+		);
+
+		const marker = '__SIDE_CHANNEL_TEST_DONE__';
+		const command = `${buildSkillDiscoveryCommand(tempRepo)}; __EC__=$?; echo "${marker}"; echo "EXIT_CODE:$__EC__"`;
+		const { stdout } = await execFileAsync('bash', ['-lc', command], {
+			cwd: tempRepo,
+		});
+		const [payload, doneMarker, exitCode] = stdout.trim().split(/\r?\n/);
+
+		assert.equal(doneMarker, marker);
+		assert.equal(exitCode, 'EXIT_CODE:0');
+		assert.deepEqual(parseSkillDiscoveryOutput(payload ?? ''), [
+			{
+				name: 'demo',
+				path: demoSkill,
+				description: 'side channel',
 			},
 		]);
 	} finally {

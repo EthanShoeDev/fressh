@@ -743,8 +743,12 @@ function ShellDetail() {
 		null,
 	);
 	const skillSelectorRequestIdRef = useRef(0);
+	const skillSelectorActiveSourceKeyRef = useRef<string | null>(null);
+	const skillSelectorLoadingRef = useRef(false);
 	const closeSkillSelector = useCallback(() => {
 		skillSelectorRequestIdRef.current += 1;
+		skillSelectorActiveSourceKeyRef.current = null;
+		skillSelectorLoadingRef.current = false;
 		setSkillSelectorOpen(false);
 		setSkillSelectorLoading(false);
 		setSkillSelectorError(null);
@@ -2288,9 +2292,26 @@ fi
 		return panePath;
 	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
+	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${tmuxTarget}`;
+	const skillSelectorSourceKeyRef = useRef(skillSelectorSourceKey);
+	const skillSelectorCurrentSourceKeyRef = useRef(skillSelectorSourceKey);
+	skillSelectorCurrentSourceKeyRef.current = skillSelectorSourceKey;
+	const skillSelectorVisible =
+		skillSelectorOpen &&
+		skillSelectorActiveSourceKeyRef.current === skillSelectorSourceKey;
+
 	const loadSkillSelectorSkills = useCallback(async () => {
+		const requestSourceKey = skillSelectorCurrentSourceKeyRef.current;
+		if (
+			skillSelectorLoadingRef.current &&
+			skillSelectorActiveSourceKeyRef.current === requestSourceKey
+		) {
+			return;
+		}
 		const requestId = skillSelectorRequestIdRef.current + 1;
 		skillSelectorRequestIdRef.current = requestId;
+		skillSelectorActiveSourceKeyRef.current = requestSourceKey;
+		skillSelectorLoadingRef.current = true;
 		setSkillSelectorLoading(true);
 		setSkillSelectorError(null);
 		setSkillSelectorSkills([]);
@@ -2303,21 +2324,40 @@ fi
 				throw new Error('Skill selector requires a tmux-enabled connection.');
 			}
 			const panePath = await resolveHostBrowserPanePath();
-			if (skillSelectorRequestIdRef.current !== requestId) return;
+			if (
+				skillSelectorRequestIdRef.current !== requestId ||
+				skillSelectorActiveSourceKeyRef.current !== requestSourceKey ||
+				skillSelectorCurrentSourceKeyRef.current !== requestSourceKey
+			) {
+				return;
+			}
 			const output = await runHostBrowserCommand(
 				buildSkillDiscoveryCommand(panePath),
 				10_000,
 			);
 			const skills = parseSkillDiscoveryOutput(output);
-			if (skillSelectorRequestIdRef.current === requestId) {
+			if (
+				skillSelectorRequestIdRef.current === requestId &&
+				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
+				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
+			) {
 				setSkillSelectorSkills(skills);
 			}
 		} catch (error) {
-			if (skillSelectorRequestIdRef.current === requestId) {
+			if (
+				skillSelectorRequestIdRef.current === requestId &&
+				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
+				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
+			) {
 				setSkillSelectorError(getErrorMessage(error));
 			}
 		} finally {
-			if (skillSelectorRequestIdRef.current === requestId) {
+			if (
+				skillSelectorRequestIdRef.current === requestId &&
+				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
+				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
+			) {
+				skillSelectorLoadingRef.current = false;
 				setSkillSelectorLoading(false);
 			}
 		}
@@ -2346,16 +2386,20 @@ fi
 
 	const handleSelectSkill = useCallback(
 		(skill: DiscoveredSkill) => {
+			if (
+				skillSelectorActiveSourceKeyRef.current !==
+				skillSelectorCurrentSourceKeyRef.current
+			) {
+				handleCloseSkillSelector();
+				return;
+			}
 			sendTextRaw(`$${skill.name} `);
 			handleCloseSkillSelector();
 		},
 		[handleCloseSkillSelector, sendTextRaw],
 	);
 
-	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${tmuxTarget}`;
-	const skillSelectorSourceKeyRef = useRef(skillSelectorSourceKey);
-
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (skillSelectorSourceKeyRef.current === skillSelectorSourceKey) return;
 		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
 		hostUrlReadRequestIdRef.current += 1;
@@ -3227,7 +3271,7 @@ fi
 					}}
 				/>
 				<SkillSelectorModal
-					open={skillSelectorOpen}
+					open={skillSelectorVisible}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
 					skills={skillSelectorSkills}
 					isLoading={skillSelectorLoading}

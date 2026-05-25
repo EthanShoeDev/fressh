@@ -81,7 +81,7 @@ function getSkillSearchRank(
 }
 
 export function buildSkillDiscoveryCommand(panePath: string): string {
-	return `python3 - ${quoteShell(panePath)} <<'PY'
+	const script = `
 import json
 import pathlib
 import sys
@@ -95,7 +95,8 @@ for skill_file in sorted(root.glob('*/SKILL.md')):
         continue
     records.append({'path': str(skill_file), 'content': content})
 print(json.dumps(records))
-PY`;
+`;
+	return `python3 -c ${quoteShell(script)} ${quoteShell(panePath)}`;
 }
 
 function isSkillDiscoveryRecord(value: unknown): value is SkillDiscoveryRecord {
