@@ -81,21 +81,17 @@ function getSkillSearchRank(
 }
 
 export function buildSkillDiscoveryCommand(panePath: string): string {
-	const script = `
-import json
-import pathlib
-import sys
-
-root = pathlib.Path(sys.argv[1]) / '.codex' / 'skills'
-records = []
-for skill_file in sorted(root.glob('*/SKILL.md')):
-    try:
-        content = skill_file.read_text(encoding='utf-8', errors='replace')
-    except OSError:
-        continue
-    records.append({'path': str(skill_file), 'content': content})
-print(json.dumps(records))
-`;
+	const scriptBody = [
+		'import json,pathlib,sys',
+		"root=pathlib.Path(sys.argv[1])/'.codex'/'skills'",
+		'records=[]',
+		"for skill_file in sorted(root.glob('*/SKILL.md')):",
+		"    try: content=skill_file.read_text(encoding='utf-8', errors='replace')",
+		'    except OSError: continue',
+		"    records.append({'path': str(skill_file), 'content': content})",
+		'print(json.dumps(records))',
+	].join('\n');
+	const script = `exec(${JSON.stringify(scriptBody)})`;
 	return `python3 -c ${quoteShell(script)} ${quoteShell(panePath)}`;
 }
 

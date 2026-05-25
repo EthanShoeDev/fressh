@@ -154,6 +154,7 @@ void test('buildSkillDiscoveryCommand scopes discovery to repo-local codex skill
 	assert.doesNotMatch(command, /\.agents/);
 	assert.doesNotMatch(command, /plugins/);
 	assert.doesNotMatch(command, /<<'PY'/);
+	assert.doesNotMatch(command, /\r?\n/);
 	assert.match(command, /'\/tmp\/repo with '\\'' quote'/);
 });
 
@@ -241,11 +242,20 @@ void test('buildSkillDiscoveryCommand works with side-channel completion suffix'
 		const { stdout } = await execFileAsync('bash', ['-lc', command], {
 			cwd: tempRepo,
 		});
-		const [payload, doneMarker, exitCode] = stdout.trim().split(/\r?\n/);
+		const sideChannelOutput = `${command}\n${stdout}`;
+		const sideChannelLines = sideChannelOutput.trim().split(/\r?\n/);
+		const markerLineIndex = sideChannelLines.findIndex(
+			(line) => line.trim() === marker,
+		);
+		const cleanOutput = sideChannelLines
+			.slice(1, markerLineIndex)
+			.join('\n')
+			.trim();
+		const exitCode = sideChannelOutput.match(/EXIT_CODE:(\d+)/)?.[0];
 
-		assert.equal(doneMarker, marker);
+		assert.ok(markerLineIndex > 0);
 		assert.equal(exitCode, 'EXIT_CODE:0');
-		assert.deepEqual(parseSkillDiscoveryOutput(payload ?? ''), [
+		assert.deepEqual(parseSkillDiscoveryOutput(cleanOutput), [
 			{
 				name: 'demo',
 				path: demoSkill,
