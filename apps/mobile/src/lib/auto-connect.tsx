@@ -4,9 +4,27 @@ import React from 'react';
 import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
-import { getStoredConnectionId, pickLatestConnection } from './connection-utils';
 import {
-	startForegroundService,
+	canRunAndroidBackgroundWork,
+	canAttemptBackgroundReconnect,
+	createForegroundServiceStartCoordinator,
+	getForegroundServiceStartRetryDelay,
+	getForegroundServiceNotificationMessage,
+	shouldPreservePendingWithoutTarget,
+	shouldPreserveForegroundServiceForShellDrop,
+	shouldRunForegroundService,
+	shouldStartForegroundService,
+	shouldStopReconnectOnBackground,
+	shouldWaitForForegroundServiceCoverage,
+	useForegroundServiceRuntimeStore,
+} from './agent-notification-runtime';
+import { AgentNotificationBridgeManager } from './AgentNotificationBridgeManager';
+import {
+	getStoredConnectionId,
+	pickLatestConnection,
+} from './connection-utils';
+import {
+	startForegroundServiceAndReport,
 	stopForegroundService,
 } from './foreground-service';
 import { rootLogger } from './logger';
@@ -22,6 +40,8 @@ import { AbortSignalTimeout, queryClient } from './utils';
 const logger = rootLogger.extend('AutoConnect');
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 5_000, 10_000];
 const RECONNECT_WINDOW_MS = 2 * 60 * 1_000;
+const FOREGROUND_SERVICE_START_RETRY_MS = 5_000;
+const FOREGROUND_SERVICE_START_MAX_RETRIES = 5;
 
 type AutoConnectState = {
 	isAutoConnecting: boolean;
@@ -61,6 +81,9 @@ export function AutoConnectManager() {
 	const connect = useSshStore((s) => s.connect);
 	const shells = useSshStore(useShallow((s) => Object.values(s.shells)));
 	const connections = useSshStore((s) => s.connections);
+	const foregroundServiceStarted = useForegroundServiceRuntimeStore(
+		(s) => s.started,
+	);
 	const latestShell = React.useMemo(() => {
 		if (shells.length === 0) return null;
 		return shells.reduce((latest, shell) =>
@@ -86,19 +109,51 @@ export function AutoConnectManager() {
 	const reconnectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
+	const foregroundStartRetryTimerRef =
+		React.useRef<ReturnType<typeof setTimeout> | null>(null);
+	const foregroundStartFailureCountRef = React.useRef(0);
+	const [foregroundStartRetryNonce, setForegroundStartRetryNonce] =
+		React.useState(0);
 	const reconnectStartedAtMsRef = React.useRef<number | null>(null);
 	const reconnectAttemptRef = React.useRef(0);
 	const reconnectLoopRunningRef = React.useRef(false);
 	const prevShellCountRef = React.useRef(shells.length);
 	const isActiveRef = React.useRef(isActiveState(AppState.currentState));
 	const foregroundKeyRef = React.useRef<string | null>(null);
+	const foregroundStartCoordinatorRef = React.useRef(
+		createForegroundServiceStartCoordinator(),
+	);
 	const allowBackgroundRef = React.useRef(false);
 	const didInitRef = React.useRef(false);
+
+	const setForegroundServiceStarted = React.useCallback((started: boolean) => {
+		useForegroundServiceRuntimeStore.getState().setStarted(started);
+		allowBackgroundRef.current = canRunAndroidBackgroundWork({
+			platformOS: Platform.OS,
+			foregroundServiceStarted: started,
+		});
+	}, []);
+
+	const reconnectExpectedFromShellDrop = shouldPreservePendingWithoutTarget({
+		previousShellCount: prevShellCountRef.current,
+		shellCount: shells.length,
+		appActive: isActiveRef.current,
+		androidBackgroundWorkAllowed:
+			Platform.OS === 'android' && allowBackgroundRef.current,
+		isReconnecting,
+	});
 
 	const clearReconnectTimer = React.useCallback(() => {
 		if (reconnectTimerRef.current) {
 			clearTimeout(reconnectTimerRef.current);
 			reconnectTimerRef.current = null;
+		}
+	}, []);
+
+	const clearForegroundStartRetryTimer = React.useCallback(() => {
+		if (foregroundStartRetryTimerRef.current) {
+			clearTimeout(foregroundStartRetryTimerRef.current);
+			foregroundStartRetryTimerRef.current = null;
 		}
 	}, []);
 
@@ -113,6 +168,41 @@ export function AutoConnectManager() {
 		},
 		[clearReconnectTimer, setReconnecting],
 	);
+
+	React.useEffect(() => {
+		if (Platform.OS !== 'android') return;
+		const syncBackgroundAllowance = (started: boolean) => {
+			allowBackgroundRef.current = canRunAndroidBackgroundWork({
+				platformOS: Platform.OS,
+				foregroundServiceStarted: started,
+			});
+			if (
+				shouldWaitForForegroundServiceCoverage({
+					platformOS: Platform.OS,
+					appActive: isActiveRef.current,
+					backgroundWorkAllowed: allowBackgroundRef.current,
+					foregroundServiceRequired: shouldRunForegroundService({
+						shellCount: useSshStore.getState().shells
+							? Object.keys(useSshStore.getState().shells).length
+							: 0,
+						isAutoConnecting: useAutoConnectStore.getState().isAutoConnecting,
+						isReconnecting: useAutoConnectStore.getState().isReconnecting,
+					}),
+				})
+			) {
+				return;
+			}
+			if (!allowBackgroundRef.current && !isActiveRef.current) {
+				stopReconnectCycle('foreground-service-stopped');
+			}
+		};
+		syncBackgroundAllowance(
+			useForegroundServiceRuntimeStore.getState().started,
+		);
+		return useForegroundServiceRuntimeStore.subscribe((state) => {
+			syncBackgroundAllowance(state.started);
+		});
+	}, [stopReconnectCycle]);
 
 	// Always replace to avoid stacking repeated resumes in history.
 	const navigateToShell = React.useCallback(
@@ -167,7 +257,10 @@ export function AutoConnectManager() {
 						tmuxSessionName = entry.value.tmuxSessionName?.trim() || 'main';
 					}
 				} catch (error) {
-					logger.warn('Failed to load tmux settings for active connection', error);
+					logger.warn(
+						'Failed to load tmux settings for active connection',
+						error,
+					);
 				}
 
 				try {
@@ -263,63 +356,117 @@ export function AutoConnectManager() {
 	}, [attemptAutoConnect]);
 
 	// On disconnect, retry with capped backoff for up to RECONNECT_WINDOW_MS.
-	const scheduleReconnect = React.useCallback(async (reason: string) => {
-		if (reconnectLoopRunningRef.current || isReconnecting || isAutoConnecting) {
-			return;
-		}
-		reconnectLoopRunningRef.current = true;
-		reconnectStartedAtMsRef.current = Date.now();
-		reconnectAttemptRef.current = 0;
-		setReconnecting(true);
-		logger.info('Reconnect cycle started', { reason });
-
-		const attemptWithBackoff = async () => {
+	const scheduleReconnect = React.useCallback(
+		async (reason: string) => {
 			if (
-				!isActiveRef.current &&
-				!(Platform.OS === 'android' && allowBackgroundRef.current)
+				reconnectLoopRunningRef.current ||
+				isReconnecting ||
+				isAutoConnecting
 			) {
-				stopReconnectCycle('app-not-active');
 				return;
 			}
+			reconnectLoopRunningRef.current = true;
+			reconnectStartedAtMsRef.current = Date.now();
+			reconnectAttemptRef.current = 0;
+			setReconnecting(true);
+			logger.info('Reconnect cycle started', { reason });
 
-			const startedAt = reconnectStartedAtMsRef.current ?? Date.now();
-			const elapsedMs = Date.now() - startedAt;
-			if (elapsedMs >= RECONNECT_WINDOW_MS) {
-				logger.warn('Reconnect timeout reached', { elapsedMs });
-				stopReconnectCycle('retry-timeout');
-				return;
-			}
-			const success = await attemptAutoConnect();
-			if (success) {
-				logger.info('Reconnected successfully', { elapsedMs });
-				stopReconnectCycle('reconnected');
-				return;
-			}
-			const attempt = reconnectAttemptRef.current;
-			reconnectAttemptRef.current = attempt + 1;
-			const delayMs =
-				RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)] ??
-				10_000;
-			reconnectTimerRef.current = setTimeout(() => {
-				void attemptWithBackoff();
-			}, delayMs);
-		};
+			const getForegroundServiceRequired = () =>
+				shouldRunForegroundService({
+					shellCount: useSshStore.getState().shells
+						? Object.keys(useSshStore.getState().shells).length
+						: 0,
+					isAutoConnecting: useAutoConnectStore.getState().isAutoConnecting,
+					isReconnecting: useAutoConnectStore.getState().isReconnecting,
+				});
 
-		await attemptWithBackoff();
-	}, [
-		attemptAutoConnect,
-		isAutoConnecting,
-		isReconnecting,
-		setReconnecting,
-		stopReconnectCycle,
-	]);
+			const scheduleNextAttempt = () => {
+				const attempt = reconnectAttemptRef.current;
+				reconnectAttemptRef.current = attempt + 1;
+				const delayMs =
+					RECONNECT_DELAYS_MS[
+						Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)
+					] ?? 10_000;
+				reconnectTimerRef.current = setTimeout(() => {
+					void attemptWithBackoff();
+				}, delayMs);
+			};
+
+			const attemptWithBackoff = async () => {
+				const startedAt = reconnectStartedAtMsRef.current ?? Date.now();
+				const elapsedMs = Date.now() - startedAt;
+				if (elapsedMs >= RECONNECT_WINDOW_MS) {
+					logger.warn('Reconnect timeout reached', { elapsedMs });
+					stopReconnectCycle('retry-timeout');
+					return;
+				}
+				if (
+					shouldWaitForForegroundServiceCoverage({
+						platformOS: Platform.OS,
+						appActive: isActiveRef.current,
+						backgroundWorkAllowed: allowBackgroundRef.current,
+						foregroundServiceRequired: getForegroundServiceRequired(),
+					})
+				) {
+					scheduleNextAttempt();
+					return;
+				}
+				if (
+					!canAttemptBackgroundReconnect({
+						platformOS: Platform.OS,
+						appActive: isActiveRef.current,
+						backgroundWorkAllowed: allowBackgroundRef.current,
+					})
+				) {
+					stopReconnectCycle('app-not-active');
+					return;
+				}
+				const success = await attemptAutoConnect();
+				if (success) {
+					logger.info('Reconnected successfully', { elapsedMs });
+					stopReconnectCycle('reconnected');
+					return;
+				}
+				scheduleNextAttempt();
+			};
+
+			await attemptWithBackoff();
+		},
+		[
+			attemptAutoConnect,
+			isAutoConnecting,
+			isReconnecting,
+			setReconnecting,
+			stopReconnectCycle,
+		],
+	);
 
 	React.useEffect(() => {
 		if (Platform.OS !== 'android') return;
-		const shouldRunService = shells.length > 0;
-		allowBackgroundRef.current = shouldRunService;
+		const shouldRunService = shouldRunForegroundService({
+			shellCount: shells.length,
+			isAutoConnecting,
+			isReconnecting,
+		});
 
 		if (!shouldRunService) {
+			if (
+				shouldPreserveForegroundServiceForShellDrop({
+					platformOS: Platform.OS,
+					appActive: isActiveRef.current,
+					backgroundWorkAllowed: allowBackgroundRef.current,
+					previousShellCount: prevShellCountRef.current,
+					nextShellCount: shells.length,
+					isAutoConnecting,
+					isReconnecting,
+				})
+			) {
+				return;
+			}
+			foregroundStartCoordinatorRef.current.invalidate();
+			clearForegroundStartRetryTimer();
+			foregroundStartFailureCountRef.current = 0;
+			setForegroundServiceStarted(false);
 			if (foregroundKeyRef.current !== null) {
 				foregroundKeyRef.current = null;
 				void stopForegroundService();
@@ -331,29 +478,92 @@ export function AutoConnectManager() {
 			? connections[latestShell.connectionId]
 			: undefined;
 		const title = 'Fressh Terminal';
-		const message = connection
-			? `Connected to ${connection.connectionDetails.username}@${connection.connectionDetails.host}`
-			: isReconnecting || isAutoConnecting
-				? 'Reconnecting...'
-				: 'Keeping SSH connection alive';
+		const message = getForegroundServiceNotificationMessage({
+			hasConnection: connection !== undefined,
+			isAutoConnecting,
+			isReconnecting,
+		});
 		const nextKey = `${title}|${message}`;
-		if (foregroundKeyRef.current === nextKey) return;
+		const currentForegroundKey = foregroundKeyRef.current;
+		if (
+			!shouldStartForegroundService({
+				currentKey: currentForegroundKey,
+				nextKey,
+				foregroundServiceStarted,
+			})
+		) {
+			return;
+		}
+		if (currentForegroundKey !== nextKey) {
+			foregroundStartFailureCountRef.current = 0;
+		}
+		clearForegroundStartRetryTimer();
 		foregroundKeyRef.current = nextKey;
-		void startForegroundService({ title, message });
+		const request = foregroundStartCoordinatorRef.current.begin(nextKey);
+		void startForegroundServiceAndReport({ title, message }).then((started) => {
+			if (
+				!foregroundStartCoordinatorRef.current.isCurrent(
+					request,
+					foregroundKeyRef.current,
+				)
+			) {
+				return;
+			}
+			setForegroundServiceStarted(started);
+			if (started) {
+				foregroundStartFailureCountRef.current = 0;
+				return;
+			}
+			if (!started) {
+				foregroundKeyRef.current = null;
+				const retryDelayMs = getForegroundServiceStartRetryDelay({
+					shouldRunService: shouldRunForegroundService({
+						shellCount: useSshStore.getState().shells
+							? Object.keys(useSshStore.getState().shells).length
+							: 0,
+						isAutoConnecting:
+							useAutoConnectStore.getState().isAutoConnecting,
+						isReconnecting: useAutoConnectStore.getState().isReconnecting,
+					}),
+					failedAttempts: foregroundStartFailureCountRef.current,
+					maxAttempts: FOREGROUND_SERVICE_START_MAX_RETRIES,
+					retryDelayMs: FOREGROUND_SERVICE_START_RETRY_MS,
+				});
+				foregroundStartFailureCountRef.current += 1;
+				if (retryDelayMs !== null) {
+					foregroundStartRetryTimerRef.current = setTimeout(() => {
+						foregroundStartRetryTimerRef.current = null;
+						setForegroundStartRetryNonce((value) => value + 1);
+					}, retryDelayMs);
+				}
+				if (!isActiveRef.current) {
+					stopReconnectCycle('foreground-service-unavailable');
+				}
+			}
+		});
 	}, [
 		connections,
+		foregroundServiceStarted,
+		foregroundStartRetryNonce,
 		isAutoConnecting,
 		isReconnecting,
 		latestShell,
+		clearForegroundStartRetryTimer,
+		setForegroundServiceStarted,
 		shells.length,
+		stopReconnectCycle,
 	]);
 
 	React.useEffect(() => {
+		const foregroundStartCoordinator = foregroundStartCoordinatorRef.current;
 		return () => {
 			if (Platform.OS !== 'android') return;
+			foregroundStartCoordinator.invalidate();
+			clearForegroundStartRetryTimer();
+			setForegroundServiceStarted(false);
 			void stopForegroundService();
 		};
-	}, []);
+	}, [clearForegroundStartRetryTimer, setForegroundServiceStarted]);
 
 	React.useEffect(() => {
 		if (didInitRef.current) return;
@@ -369,7 +579,14 @@ export function AutoConnectManager() {
 			isActiveRef.current = isActiveState(nextState);
 
 			if (wasActive && !isActiveRef.current) {
-				stopReconnectCycle('app-backgrounded');
+				if (
+					shouldStopReconnectOnBackground({
+						platformOS: Platform.OS,
+						backgroundWorkAllowed: allowBackgroundRef.current,
+					})
+				) {
+					stopReconnectCycle('app-backgrounded');
+				}
 				return;
 			}
 			if (!wasActive && isActiveRef.current) {
@@ -406,5 +623,9 @@ export function AutoConnectManager() {
 		prevShellCountRef.current = shells.length;
 	}, [scheduleReconnect, shells.length]);
 
-	return null;
+	return (
+		<AgentNotificationBridgeManager
+			preservePendingWithoutTarget={reconnectExpectedFromShellDrop}
+		/>
+	);
 }

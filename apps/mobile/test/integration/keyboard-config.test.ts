@@ -93,6 +93,40 @@ void test('phone base keyboard review key sends code review and long-presses req
 	});
 });
 
+void test('phone base keyboard replaces raw dollar key with skill selector macro', () => {
+	const config = getBundledShellConfig();
+	const phoneBaseKeyboard = config.keyboards.find(
+		(keyboard) => keyboard.id === 'phone_base',
+	);
+	assert.ok(phoneBaseKeyboard);
+
+	const rawDollarSlots = phoneBaseKeyboard.grid.flatMap((row) =>
+		row.filter((slot) => slot?.type === 'text' && slot.text === '$'),
+	);
+	assert.deepEqual(rawDollarSlots, []);
+
+	const phoneBaseMacros = config.macrosByKeyboardId[phoneBaseKeyboard.id];
+	assert.ok(phoneBaseMacros);
+	assert.deepEqual(
+		phoneBaseMacros.find((macro) => macro.id === 'skill_selector'),
+		{
+			id: 'skill_selector',
+			name: 'Skill selector',
+			label: '$',
+			category: 'Commands',
+			script:
+				'{\n  "type": "action",\n  "actionId": "OPEN_SKILL_SELECTOR"\n}',
+		},
+	);
+
+	assert.deepEqual(phoneBaseKeyboard.grid[1]?.[8], {
+		type: 'macro',
+		macroId: 'skill_selector',
+		label: '$',
+		icon: null,
+	});
+});
+
 void test('phone base keyboard exposes long-press navigation options on arrows and window', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(

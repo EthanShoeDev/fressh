@@ -1,21 +1,22 @@
 import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
+import {
+	createForegroundServiceStarter,
+	type ForegroundServiceNativeModule,
+} from './foreground-service-core';
 import { rootLogger } from './logger';
 
 const logger = rootLogger.extend('ForegroundService');
 
-type ForegroundServiceNativeModule = {
-	start: (title: string, message: string) => Promise<void>;
-	stop: () => Promise<void>;
-};
-
-const nativeForegroundService =
-	NativeModules.FresshForegroundService as ForegroundServiceNativeModule | undefined;
+const nativeForegroundService = NativeModules.FresshForegroundService as
+	| ForegroundServiceNativeModule
+	| undefined;
 
 let didRequestNotificationPermission = false;
 
-async function ensureNotificationPermission() {
+export async function ensureNotificationPermission() {
 	if (Platform.OS !== 'android') return true;
-	if (typeof Platform.Version === 'number' && Platform.Version < 33) return true;
+	if (typeof Platform.Version === 'number' && Platform.Version < 33)
+		return true;
 	try {
 		const granted = await PermissionsAndroid.check(
 			PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
@@ -33,29 +34,35 @@ async function ensureNotificationPermission() {
 	}
 }
 
+export async function startForegroundServiceAndReport(opts?: {
+	title?: string;
+	message?: string;
+}): Promise<boolean> {
+	return await foregroundService.startForegroundService(opts);
+}
+
 export async function startForegroundService(opts?: {
 	title?: string;
 	message?: string;
-}) {
-	if (Platform.OS !== 'android' || !nativeForegroundService) return;
-	const allowed = await ensureNotificationPermission();
-	if (!allowed) {
-		logger.warn('notification permission not granted; continuing anyway');
-	}
-	const title = opts?.title ?? 'Fressh Terminal';
-	const message = opts?.message ?? 'Keeping SSH connection alive';
-	try {
-		await nativeForegroundService.start(title, message);
-	} catch (error) {
-		logger.warn('foreground service start failed', error);
-	}
+}): Promise<void> {
+	await startForegroundServiceAndReport(opts);
 }
 
-export async function stopForegroundService() {
-	if (Platform.OS !== 'android' || !nativeForegroundService) return;
-	try {
-		await nativeForegroundService.stop();
-	} catch (error) {
-		logger.warn('foreground service stop failed', error);
-	}
+export async function stopForegroundServiceAndReport(): Promise<boolean> {
+	return await foregroundService.stopForegroundService();
 }
+
+export async function stopForegroundService(): Promise<void> {
+	await stopForegroundServiceAndReport();
+}
+
+export async function isForegroundServiceRunning(): Promise<boolean> {
+	return await foregroundService.isForegroundServiceRunning();
+}
+
+const foregroundService = createForegroundServiceStarter({
+	getPlatformOS: () => Platform.OS,
+	getNativeModule: () => nativeForegroundService,
+	ensureNotificationPermission,
+	logger,
+});

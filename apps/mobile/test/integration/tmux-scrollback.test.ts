@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	buildTmuxScrollbackCopyModeCommand,
+	buildTmuxSelectWindowCommand,
 	getTmuxScrollbackControlFailurePolicy,
 	getTmuxScrollbackLiveInputPolicy,
 } from '../../src/lib/tmux-scrollback';
@@ -10,6 +11,13 @@ void test('buildTmuxScrollbackCopyModeCommand enters copy mode through tmux cont
 	assert.equal(
 		buildTmuxScrollbackCopyModeCommand("main's"),
 		"tmux copy-mode -t 'main'\\''s'",
+	);
+});
+
+void test('buildTmuxSelectWindowCommand targets an agent alert tmux window id', () => {
+	assert.equal(
+		buildTmuxSelectWindowCommand("main's", '@12'),
+		"tmux select-window -t 'main'\\''s:@12'",
 	);
 });
 

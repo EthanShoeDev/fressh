@@ -7,6 +7,7 @@ import {
 	type XtermWebViewHandle,
 	type TouchScrollConfig,
 } from '@fressh/react-native-xtermjs-webview';
+import { useIsFocused } from '@react-navigation/native';
 
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -20,6 +21,7 @@ import React, {
 	startTransition,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -39,6 +41,16 @@ import {
 	View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+	acknowledgeRoutedAgentNotification,
+	consumeAuthorizedAgentNotificationRouteToken,
+	restoreAuthorizedAgentNotificationRouteToken,
+} from '@/lib/agent-notification-route-api';
+import {
+	acknowledgeVisibleAgentNotification as acknowledgeVisibleAgentNotificationIfVisible,
+	handleAgentNotificationRoute,
+	subscribeAgentNotificationPending,
+} from '@/lib/agent-notification-visibility';
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
 import {
@@ -79,6 +91,11 @@ import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
+import {
+	buildSkillDiscoveryCommand,
+	parseSkillDiscoveryOutput,
+	type DiscoveredSkill,
+} from '@/lib/skill-discovery';
 import { executeSideChannelCommand } from '@/lib/ssh-side-channel';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
@@ -115,6 +132,7 @@ import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
 import { HostUrlModal, type HostUrlModalMode } from './components/HostUrlModal';
+import { SkillSelectorModal } from './components/SkillSelectorModal';
 import { TerminalCommanderModal } from './components/TerminalCommanderModal';
 import { TerminalKeyboard } from './components/TerminalKeyboard';
 import {
@@ -447,6 +465,11 @@ function ShellDetail() {
 	const searchParams = useLocalSearchParams<{
 		connectionId?: string;
 		channelId?: string;
+		agentConnectionId?: string;
+		agentSession?: string;
+		agentWindowId?: string;
+		agentEventId?: string;
+		agentTapToken?: string;
 		tmuxError?: string;
 		tmuxSessionName?: string;
 		storedConnectionId?: string;
@@ -458,9 +481,15 @@ function ShellDetail() {
 	if (!connectionId || isNaN(channelId))
 		throw new Error('Missing or invalid connectionId/channelId');
 	const hasTmuxAttachError = searchParams.tmuxError === 'attach-failed';
+	const agentConnectionId = searchParams.agentConnectionId?.trim() || null;
+	const agentSession = searchParams.agentSession?.trim() || null;
+	const agentWindowId = searchParams.agentWindowId?.trim() || null;
+	const agentEventId = searchParams.agentEventId?.trim() || null;
+	const agentTapToken = searchParams.agentTapToken?.trim() || null;
 	const tmuxSessionName = searchParams.tmuxSessionName;
 
 	const router = useRouter();
+	const isFocused = useIsFocused();
 	const theme = useTheme();
 	const insets = useSafeAreaInsets();
 
@@ -468,11 +497,11 @@ function ShellDetail() {
 		(s) => s.shells[`${connectionId}-${channelId}` as const],
 	);
 	const connection = useSshStore((s) => s.connections[connectionId]);
+	const connectionStoredConnectionId = connection
+		? getStoredConnectionId(connection.connectionDetails)
+		: undefined;
 	const storedConnectionId =
-		searchParams.storedConnectionId ??
-		(connection
-			? getStoredConnectionId(connection.connectionDetails)
-			: undefined);
+		searchParams.storedConnectionId ?? connectionStoredConnectionId;
 	const isAutoConnecting = useAutoConnectStore((s) => s.isAutoConnecting);
 	const isReconnecting = useAutoConnectStore((s) => s.isReconnecting);
 	const [tmuxTarget, setTmuxTarget] = useState(
@@ -559,6 +588,7 @@ function ShellDetail() {
 					term: 'Xterm',
 					useTmux: false,
 					tmuxSessionName: '',
+					registerInStore: false,
 				});
 				if (cancelled) {
 					await controlShell.close();
@@ -704,6 +734,24 @@ function ShellDetail() {
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [textEntryOpen, setTextEntryOpen] = useState(false);
+	const [skillSelectorOpen, setSkillSelectorOpen] = useState(false);
+	const [skillSelectorSkills, setSkillSelectorSkills] = useState<
+		DiscoveredSkill[]
+	>([]);
+	const [skillSelectorLoading, setSkillSelectorLoading] = useState(false);
+	const [skillSelectorError, setSkillSelectorError] = useState<string | null>(
+		null,
+	);
+	const skillSelectorRequestIdRef = useRef(0);
+	const skillSelectorActiveSourceKeyRef = useRef<string | null>(null);
+	const closeSkillSelector = useCallback(() => {
+		skillSelectorRequestIdRef.current += 1;
+		skillSelectorActiveSourceKeyRef.current = null;
+		setSkillSelectorOpen(false);
+		setSkillSelectorLoading(false);
+		setSkillSelectorError(null);
+		setSkillSelectorSkills([]);
+	}, []);
 	const [autoWisprEnabled, setAutoWisprEnabled] = useState(false);
 	const [wisprTextEditorAvailability, setWisprTextEditorAvailability] =
 		useState<WisprTextEditorAvailability>({ type: 'ready' });
@@ -758,6 +806,17 @@ function ShellDetail() {
 	const wisprAutoCloseAttemptIdRef = useRef(0);
 	const wisprAutomationRequestIdRef = useRef(0);
 	const hostUrlReadRequestIdRef = useRef(0);
+	const invalidateHostUrlReads = useCallback(() => {
+		hostUrlReadRequestIdRef.current += 1;
+	}, []);
+	const agentNotificationAckRequestIdRef = useRef(0);
+	const handledAgentAlertRouteRef = useRef<string | null>(null);
+	const acknowledgeVisibleAgentNotificationRef = useRef<() => void>(() => {});
+	const isFocusedRef = useRef(false);
+	const isAppActiveRef = useRef(AppState.currentState === 'active');
+	const visibleConnectionIdRef = useRef<string | null>(null);
+	const visibleChannelIdRef = useRef<number | null>(null);
+	const visibleTmuxTargetRef = useRef('main');
 	const wisprOpeningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
@@ -1293,8 +1352,7 @@ function ShellDetail() {
 			wisprAutoCloseAttemptIdRef.current = attemptId;
 			const result = await tapWisprControlWithinRetryWindow({
 				retry: options?.retry ?? true,
-				shouldContinue: () =>
-					attemptId === wisprAutoCloseAttemptIdRef.current,
+				shouldContinue: () => attemptId === wisprAutoCloseAttemptIdRef.current,
 				initialError: new Error('Wispr bubble not found'),
 				onLateSuccess: options?.onLateSuccess,
 				onLateFailure: options?.onLateFailure,
@@ -1378,7 +1436,9 @@ function ShellDetail() {
 	const setPendingWisprAutoCloseRequests = useCallback(
 		(pendingRequests: WisprPendingAutoCloseRequest[]) => {
 			for (const requestId of wisprTextEntryCloseAfterStartRequestsRef.current.keys()) {
-				if (!pendingRequests.some((request) => request.requestId === requestId)) {
+				if (
+					!pendingRequests.some((request) => request.requestId === requestId)
+				) {
 					clearPendingWisprAutoCloseTimeout(requestId);
 				}
 			}
@@ -1557,9 +1617,7 @@ function ShellDetail() {
 						) {
 							return;
 						}
-						if (
-							wisprTextEntryTimedOutStartRequestIdRef.current === requestId
-						) {
+						if (wisprTextEntryTimedOutStartRequestIdRef.current === requestId) {
 							wisprTextEntryTimedOutStartRequestIdRef.current = null;
 						}
 						if (wisprAutomationStateRef.current.phase === 'waitingForBubble') {
@@ -1749,6 +1807,7 @@ function ShellDetail() {
 	);
 
 	const handleOpenWisprTextEditor = useCallback(() => {
+		invalidateHostUrlReads();
 		const currentState = wisprAutomationStateRef.current;
 		if (currentState.phase !== 'idle' && currentState.phase !== 'failed') {
 			logger.info('Ignoring Wispr text entry while automation is busy', {
@@ -1756,6 +1815,7 @@ function ShellDetail() {
 			});
 			return;
 		}
+		closeSkillSelector();
 		if (Platform.OS !== 'android') {
 			setCommanderOpen(false);
 			setCommandPresetsOpen(false);
@@ -1824,7 +1884,9 @@ function ShellDetail() {
 		})();
 	}, [
 		applyWisprAutomationEvent,
+		closeSkillSelector,
 		failWisprAutomation,
+		invalidateHostUrlReads,
 		isWisprAutomationRequestActive,
 		startWisprTextEntryAutomation,
 	]);
@@ -1842,8 +1904,7 @@ function ShellDetail() {
 			automationState: wisprAutomationStateRef.current,
 			controlTapStartedRequestId:
 				wisprTextEntryControlTapStartedRequestIdRef.current,
-			timedOutStartRequestId:
-				wisprTextEntryTimedOutStartRequestIdRef.current,
+			timedOutStartRequestId: wisprTextEntryTimedOutStartRequestIdRef.current,
 		});
 		textEntryOpenRef.current = false;
 		wisprDeferredAutoStartRequestIdRef.current = null;
@@ -1859,8 +1920,7 @@ function ShellDetail() {
 				automationState: wisprAutomationStateRef.current,
 				controlTapStartedRequestId:
 					wisprTextEntryControlTapStartedRequestIdRef.current,
-				timedOutStartRequestId:
-					wisprTextEntryTimedOutStartRequestIdRef.current,
+				timedOutStartRequestId: wisprTextEntryTimedOutStartRequestIdRef.current,
 			}),
 			{ retryClose: false },
 		);
@@ -1916,8 +1976,10 @@ function ShellDetail() {
 	}, []);
 
 	const openConfigDialog = useCallback(() => {
+		invalidateHostUrlReads();
+		closeSkillSelector();
 		setConfigureOpen(true);
-	}, []);
+	}, [closeSkillSelector, invalidateHostUrlReads]);
 
 	const handleDevServer = useCallback(() => {
 		setConfigureOpen(false);
@@ -1964,10 +2026,12 @@ function ShellDetail() {
 	}, []);
 
 	const handleOpenFeatureRequest = useCallback(() => {
+		invalidateHostUrlReads();
+		closeSkillSelector();
 		setConfigureOpen(false);
 		setFeatureRequestError(undefined);
 		setFeatureRequestOpen(true);
-	}, []);
+	}, [closeSkillSelector, invalidateHostUrlReads]);
 
 	const handleFeatureRequestSubmit = useCallback(
 		async (description: string) => {
@@ -2093,6 +2157,115 @@ fi
 		[connection],
 	);
 
+	useEffect(() => {
+		void handleAgentNotificationRoute({
+			agentConnectionId,
+			storedConnectionId: connectionStoredConnectionId,
+			agentSession,
+			agentWindowId,
+			agentEventId,
+			agentTapToken,
+			tmuxTarget,
+			isRouteHandled: (routeKey) =>
+				handledAgentAlertRouteRef.current === routeKey,
+			markRouteHandled: (routeKey) => {
+				handledAgentAlertRouteRef.current = routeKey;
+			},
+			consumeAuthorizedRouteToken: consumeAuthorizedAgentNotificationRouteToken,
+			restoreAuthorizedRouteToken: restoreAuthorizedAgentNotificationRouteToken,
+			runCommand: runHostBrowserCommand,
+			acknowledge: (connectionId, session, windowId) => {
+				acknowledgeRoutedAgentNotification(connectionId, session, windowId);
+			},
+			warn: (message, error) => {
+				logger.warn(message, error);
+			},
+		});
+	}, [
+		agentConnectionId,
+		agentEventId,
+		agentSession,
+		agentTapToken,
+		agentWindowId,
+		connectionStoredConnectionId,
+		runHostBrowserCommand,
+		tmuxTarget,
+	]);
+
+	const acknowledgeVisibleAgentNotification = useCallback(async () => {
+		await acknowledgeVisibleAgentNotificationIfVisible({
+			platformOS: Platform.OS,
+			connectionId: connectionStoredConnectionId ?? null,
+			channelId,
+			tmuxEnabled,
+			tmuxTarget,
+			getVisibility: () => ({
+				isFocused: isFocusedRef.current,
+				isAppActive: isAppActiveRef.current,
+				connectionId: visibleConnectionIdRef.current,
+				channelId: visibleChannelIdRef.current,
+				tmuxTarget: visibleTmuxTargetRef.current,
+			}),
+			nextRequestId: () => ++agentNotificationAckRequestIdRef.current,
+			isCurrentRequest: (requestId) =>
+				requestId === agentNotificationAckRequestIdRef.current,
+			runCommand: runHostBrowserCommand,
+			acknowledge: acknowledgeRoutedAgentNotification,
+			warn: (message, error) => {
+				logger.warn(message, error);
+			},
+		});
+	}, [
+		channelId,
+		connectionStoredConnectionId,
+		runHostBrowserCommand,
+		tmuxEnabled,
+		tmuxTarget,
+	]);
+
+	useLayoutEffect(() => {
+		acknowledgeVisibleAgentNotificationRef.current = () => {
+			void acknowledgeVisibleAgentNotification();
+		};
+	}, [acknowledgeVisibleAgentNotification]);
+
+	useLayoutEffect(() => {
+		isFocusedRef.current = isFocused;
+		visibleConnectionIdRef.current = isFocused
+			? (connectionStoredConnectionId ?? null)
+			: null;
+		visibleChannelIdRef.current = isFocused ? channelId : null;
+		visibleTmuxTargetRef.current = tmuxTarget.trim() || 'main';
+		agentNotificationAckRequestIdRef.current += 1;
+		if (isFocused) {
+			void acknowledgeVisibleAgentNotification();
+		}
+	}, [
+		acknowledgeVisibleAgentNotification,
+		channelId,
+		connectionStoredConnectionId,
+		isFocused,
+		tmuxTarget,
+	]);
+
+	useLayoutEffect(() => {
+		return () => {
+			agentNotificationAckRequestIdRef.current += 1;
+			isFocusedRef.current = false;
+			isAppActiveRef.current = false;
+			visibleConnectionIdRef.current = null;
+			visibleChannelIdRef.current = null;
+			visibleTmuxTargetRef.current = 'main';
+		};
+	}, []);
+
+	useLayoutEffect(() => {
+		if (Platform.OS !== 'android') return undefined;
+		return subscribeAgentNotificationPending(() => {
+			acknowledgeVisibleAgentNotificationRef.current();
+		});
+	}, []);
+
 	const resolveHostBrowserPanePath = useCallback(async () => {
 		if (!tmuxEnabled) {
 			throw new Error(
@@ -2116,6 +2289,117 @@ fi
 		}
 		return panePath;
 	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
+
+	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${tmuxTarget}`;
+	const skillSelectorSourceKeyRef = useRef(skillSelectorSourceKey);
+	const skillSelectorCurrentSourceKeyRef = useRef(skillSelectorSourceKey);
+	skillSelectorCurrentSourceKeyRef.current = skillSelectorSourceKey;
+	const skillSelectorVisible =
+		skillSelectorOpen &&
+		skillSelectorActiveSourceKeyRef.current === skillSelectorSourceKey;
+
+	const loadSkillSelectorSkills = useCallback(async () => {
+		const requestSourceKey = skillSelectorCurrentSourceKeyRef.current;
+		const requestId = skillSelectorRequestIdRef.current + 1;
+		skillSelectorRequestIdRef.current = requestId;
+		skillSelectorActiveSourceKeyRef.current = requestSourceKey;
+		setSkillSelectorLoading(true);
+		setSkillSelectorError(null);
+		setSkillSelectorSkills([]);
+
+		try {
+			if (!connection) {
+				throw new Error('No SSH connection available.');
+			}
+			if (!tmuxEnabled) {
+				throw new Error('Skill selector requires a tmux-enabled connection.');
+			}
+			const panePath = await resolveHostBrowserPanePath();
+			if (skillSelectorCurrentSourceKeyRef.current !== requestSourceKey) {
+				return;
+			}
+			const output = await runHostBrowserCommand(
+				buildSkillDiscoveryCommand(panePath),
+				10_000,
+			);
+			const skills = parseSkillDiscoveryOutput(output);
+			if (
+				skillSelectorRequestIdRef.current === requestId &&
+				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
+				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
+			) {
+				setSkillSelectorSkills(skills);
+			}
+		} catch (error) {
+			if (
+				skillSelectorRequestIdRef.current === requestId &&
+				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
+				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
+			) {
+				setSkillSelectorError(getErrorMessage(error));
+			}
+		} finally {
+			if (
+				skillSelectorRequestIdRef.current === requestId &&
+				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
+				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
+			) {
+				setSkillSelectorLoading(false);
+			}
+		}
+	}, [
+		connection,
+		resolveHostBrowserPanePath,
+		runHostBrowserCommand,
+		tmuxEnabled,
+	]);
+
+	const handleOpenSkillSelector = useCallback(() => {
+		invalidateHostUrlReads();
+		setCommandPresetsOpen(false);
+		setCommanderOpen(false);
+		setConfigureOpen(false);
+		setFeatureRequestOpen(false);
+		setFeatureRequestError(undefined);
+		setHostUrlModalState(null);
+		setHostUrlModalError(null);
+		handleCloseTextEntry();
+		setSkillSelectorOpen(true);
+		void loadSkillSelectorSkills();
+	}, [handleCloseTextEntry, invalidateHostUrlReads, loadSkillSelectorSkills]);
+
+	const handleCloseSkillSelector = closeSkillSelector;
+
+	const handleSelectSkill = useCallback(
+		(skill: DiscoveredSkill) => {
+			if (
+				skillSelectorActiveSourceKeyRef.current !==
+				skillSelectorCurrentSourceKeyRef.current
+			) {
+				handleCloseSkillSelector();
+				return;
+			}
+			sendTextRaw(`$${skill.name} `);
+			handleCloseSkillSelector();
+		},
+		[handleCloseSkillSelector, sendTextRaw],
+	);
+
+	useLayoutEffect(() => {
+		if (skillSelectorSourceKeyRef.current === skillSelectorSourceKey) return;
+		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
+		hostUrlReadRequestIdRef.current += 1;
+		if (skillSelectorOpen) {
+			handleCloseSkillSelector();
+		}
+	}, [handleCloseSkillSelector, skillSelectorOpen, skillSelectorSourceKey]);
+
+	useEffect(() => {
+		return () => {
+			skillSelectorRequestIdRef.current += 1;
+			hostUrlReadRequestIdRef.current += 1;
+		};
+	}, []);
 
 	const openAndroidUrl = useCallback(async (url: string) => {
 		try {
@@ -2155,10 +2439,12 @@ fi
 
 	const handleOpenHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
+			closeSkillSelector();
 			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
 				try {
 					const panePath = await resolveHostBrowserPanePath();
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
 					const value = await runHostBrowserCommand(
 						buildTmuxWindowConfigGetCommand(slot, panePath),
 						10_000,
@@ -2198,6 +2484,7 @@ fi
 			})();
 		},
 		[
+			closeSkillSelector,
 			openAndroidUrl,
 			resolveHostBrowserPanePath,
 			runHostBrowserCommand,
@@ -2207,10 +2494,12 @@ fi
 
 	const handleEditHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
+			closeSkillSelector();
 			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
 				try {
 					const panePath = await resolveHostBrowserPanePath();
+					if (requestId !== hostUrlReadRequestIdRef.current) return;
 					const value = await runHostBrowserCommand(
 						buildTmuxWindowConfigGetCommand(slot, panePath),
 						10_000,
@@ -2232,14 +2521,20 @@ fi
 				}
 			})();
 		},
-		[resolveHostBrowserPanePath, runHostBrowserCommand, showHostBrowserError],
+		[
+			closeSkillSelector,
+			resolveHostBrowserPanePath,
+			runHostBrowserCommand,
+			showHostBrowserError,
+		],
 	);
 
 	const handleCloseHostUrlModal = useCallback(() => {
 		if (hostUrlModalSubmitting) return;
+		invalidateHostUrlReads();
 		setHostUrlModalState(null);
 		setHostUrlModalError(null);
-	}, [hostUrlModalSubmitting]);
+	}, [hostUrlModalSubmitting, invalidateHostUrlReads]);
 
 	const handleSubmitHostUrlModal = useCallback(
 		(value: string) => {
@@ -2311,15 +2606,20 @@ fi
 			pasteClipboard: handlePasteClipboard,
 			copySelection: handleCopySelection,
 			toggleCommandPresets: () => {
+				invalidateHostUrlReads();
 				setCommanderOpen(false);
+				closeSkillSelector();
 				handleCloseTextEntry();
 				setCommandPresetsOpen((prev) => !prev);
 			},
 			openCommander: () => {
+				invalidateHostUrlReads();
 				setCommandPresetsOpen(false);
+				closeSkillSelector();
 				handleCloseTextEntry();
 				setCommanderOpen(true);
 			},
+			openSkillSelector: handleOpenSkillSelector,
 			openWisprTextEditor: handleOpenWisprTextEditor,
 			openHostDiffity: handleOpenHostDiffity,
 			openHostUrlSlot: handleOpenHostUrlSlot,
@@ -2328,14 +2628,17 @@ fi
 		}),
 		[
 			availableKeyboardIds,
+			closeSkillSelector,
 			handleCycleWorkmuxStatus,
 			handleCopySelection,
 			handleCloseTextEntry,
 			handleEditHostUrlSlot,
 			handleOpenHostDiffity,
 			handleOpenHostUrlSlot,
+			handleOpenSkillSelector,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
+			invalidateHostUrlReads,
 			openConfigDialog,
 			rotateKeyboard,
 			shellConfig,
@@ -2489,8 +2792,10 @@ fi
 		const subscription = AppState.addEventListener('change', (nextState) => {
 			const previousState = appStateRef.current;
 			appStateRef.current = nextState;
+			isAppActiveRef.current = nextState === 'active';
 			if (nextState === 'active') {
 				xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
+				acknowledgeVisibleAgentNotificationRef.current();
 				// Preserve the previous OS keyboard visibility when returning to the app.
 				if (!systemKeyboardEnabled || !lastKeyboardVisibleRef.current) {
 					dismissKeyboard();
@@ -2507,6 +2812,7 @@ fi
 			}
 			// Capture once when transitioning away from active.
 			if (previousState === 'active') {
+				agentNotificationAckRequestIdRef.current += 1;
 				lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
 			}
 		});
@@ -2949,6 +3255,16 @@ fi
 					onSendShortcut={(sequence) => {
 						sendBytesRaw(encoder.encode(sequence));
 					}}
+				/>
+				<SkillSelectorModal
+					open={skillSelectorVisible}
+					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
+					skills={skillSelectorSkills}
+					isLoading={skillSelectorLoading}
+					error={skillSelectorError}
+					onClose={handleCloseSkillSelector}
+					onRetry={loadSkillSelectorSkills}
+					onSelect={handleSelectSkill}
 				/>
 				<TextEntryModal
 					open={textEntryOpen}

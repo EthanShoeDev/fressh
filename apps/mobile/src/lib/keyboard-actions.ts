@@ -1,5 +1,5 @@
-import { rootLogger } from '@/lib/logger';
 import { type HostBrowserUrlSlot } from '@/lib/host-browser-actions';
+import { rootLogger } from '@/lib/logger';
 
 // Action IDs emitted by runtime config are handled here at runtime.
 
@@ -21,6 +21,7 @@ export const KNOWN_ACTION_IDS = [
 	...KEYBOARD_TARGET_ACTION_IDS,
 	'TOGGLE_COMMAND_PRESETS',
 	'OPEN_COMMANDER',
+	'OPEN_SKILL_SELECTOR',
 	'OPEN_WISPR_TEXT_EDITOR',
 	'PASTE_CLIPBOARD',
 	'COPY_SELECTION',
@@ -55,6 +56,7 @@ export type ActionContext = {
 	copySelection: () => void;
 	toggleCommandPresets?: () => void;
 	openCommander?: () => void;
+	openSkillSelector?: () => void;
 	openWisprTextEditor?: () => void;
 	openHostDiffity?: () => void;
 	openHostUrlSlot?: (slot: HostBrowserUrlSlot) => void;
@@ -165,6 +167,10 @@ export async function runAction(
 		}
 		case 'OPEN_COMMANDER': {
 			context.openCommander?.();
+			return;
+		}
+		case 'OPEN_SKILL_SELECTOR': {
+			context.openSkillSelector?.();
 			return;
 		}
 		case 'OPEN_WISPR_TEXT_EDITOR': {
