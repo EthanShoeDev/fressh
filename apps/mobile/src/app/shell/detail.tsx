@@ -2334,7 +2334,6 @@ fi
 		setCommanderOpen(false);
 		setConfigureOpen(false);
 		setFeatureRequestOpen(false);
-		setFeatureRequestSubmitting(false);
 		setFeatureRequestError(undefined);
 		setHostUrlModalState(null);
 		setHostUrlModalError(null);
@@ -2353,7 +2352,7 @@ fi
 		[handleCloseSkillSelector, sendTextRaw],
 	);
 
-	const skillSelectorSourceKey = `${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${tmuxTarget}`;
+	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${tmuxTarget}`;
 	const skillSelectorSourceKeyRef = useRef(skillSelectorSourceKey);
 
 	useEffect(() => {
@@ -2410,6 +2409,7 @@ fi
 
 	const handleOpenHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
+			closeSkillSelector();
 			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
 				try {
@@ -2454,6 +2454,7 @@ fi
 			})();
 		},
 		[
+			closeSkillSelector,
 			openAndroidUrl,
 			resolveHostBrowserPanePath,
 			runHostBrowserCommand,
@@ -2463,6 +2464,7 @@ fi
 
 	const handleEditHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
+			closeSkillSelector();
 			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
 				try {
@@ -2489,7 +2491,12 @@ fi
 				}
 			})();
 		},
-		[resolveHostBrowserPanePath, runHostBrowserCommand, showHostBrowserError],
+		[
+			closeSkillSelector,
+			resolveHostBrowserPanePath,
+			runHostBrowserCommand,
+			showHostBrowserError,
+		],
 	);
 
 	const handleCloseHostUrlModal = useCallback(() => {
