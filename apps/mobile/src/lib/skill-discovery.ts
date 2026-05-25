@@ -48,14 +48,14 @@ export function filterDiscoveredSkills(
 	skills: readonly DiscoveredSkill[],
 	query: string,
 ): DiscoveredSkill[] {
-	const normalizedQuery = query.trim().toLocaleLowerCase();
+	const normalizedQuery = query.trim().toLowerCase();
 	if (!normalizedQuery) return [...skills];
 
 	return skills.filter((skill) => {
 		const description = skill.description ?? '';
 		return (
-			skill.name.toLocaleLowerCase().includes(normalizedQuery) ||
-			description.toLocaleLowerCase().includes(normalizedQuery)
+			skill.name.toLowerCase().includes(normalizedQuery) ||
+			description.toLowerCase().includes(normalizedQuery)
 		);
 	});
 }
@@ -70,7 +70,7 @@ root = pathlib.Path(sys.argv[1]) / '.codex' / 'skills'
 records = []
 for skill_file in sorted(root.glob('*/SKILL.md')):
     try:
-        content = skill_file.read_text(encoding='utf-8')
+        content = skill_file.read_text(encoding='utf-8', errors='replace')
     except OSError:
         continue
     records.append({'path': str(skill_file), 'content': content})

@@ -90,6 +90,7 @@ void test('buildSkillDiscoveryCommand scopes discovery to repo-local codex skill
 	assert.match(command, /\.codex/);
 	assert.match(command, /skills/);
 	assert.match(command, /SKILL\.md/);
+	assert.match(command, /errors='replace'/);
 	assert.doesNotMatch(command, /\.agents/);
 	assert.doesNotMatch(command, /plugins/);
 	assert.match(command, /'\/tmp\/repo with '\\'' quote'/);
