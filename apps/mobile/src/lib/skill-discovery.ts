@@ -32,6 +32,7 @@ export function parseSkillDiscoveryOutput(output: string): DiscoveredSkill[] {
 			if (!pathMatch) return [];
 
 			const fallbackName = pathMatch[1];
+			if (!fallbackName) return [];
 			const metadata = parseSkillFrontmatter(record.content);
 			return [
 				{
@@ -114,14 +115,20 @@ function parseSkillFrontmatter(content: string): {
 	if (!match) {
 		return { name: null, description: null };
 	}
+	const frontmatter = match[1];
+	if (!frontmatter) {
+		return { name: null, description: null };
+	}
 
 	let name: string | null = null;
 	let description: string | null = null;
-	for (const line of match[1].split(/\r?\n/)) {
+	for (const line of frontmatter.split(/\r?\n/)) {
 		const fieldMatch = line.match(/^\s*(name|description)\s*:\s*(.*?)\s*$/);
 		if (!fieldMatch) continue;
 
-		const value = parseYamlScalar(fieldMatch[2]);
+		const rawValue = fieldMatch[2];
+		if (rawValue === undefined) continue;
+		const value = parseYamlScalar(rawValue);
 		if (fieldMatch[1] === 'name') {
 			name = value;
 		} else {
