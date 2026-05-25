@@ -149,7 +149,7 @@ export function SkillSelectorModal({
 							}}
 						/>
 
-						{error ? (
+						{error !== null ? (
 							<View>
 								<Text
 									style={{
