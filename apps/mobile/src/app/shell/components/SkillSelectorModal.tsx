@@ -117,10 +117,11 @@ export function SkillSelectorModal({
 								Skills
 							</Text>
 							<Pressable
+								accessibilityRole="button"
 								onPress={handleClose}
 								style={{
 									paddingHorizontal: 10,
-									paddingVertical: 6,
+									paddingVertical: 10,
 									borderRadius: 8,
 									borderWidth: 1,
 									borderColor: theme.colors.border,
@@ -135,6 +136,7 @@ export function SkillSelectorModal({
 							onChangeText={setQuery}
 							placeholder="Filter skills"
 							placeholderTextColor={theme.colors.muted}
+							accessibilityLabel="Filter skills"
 							autoCapitalize="none"
 							autoCorrect={false}
 							style={{
@@ -162,6 +164,7 @@ export function SkillSelectorModal({
 									{error}
 								</Text>
 								<Pressable
+									accessibilityRole="button"
 									onPress={onRetry}
 									style={{
 										backgroundColor: theme.colors.primary,
@@ -199,13 +202,16 @@ export function SkillSelectorModal({
 							</View>
 						) : filteredSkills.length === 0 ? (
 							<Text style={{ color: theme.colors.textSecondary }}>
-								No repo-local skills found.
+								{skills.length === 0
+									? 'No repo-local skills found.'
+									: 'No matching skills.'}
 							</Text>
 						) : (
-							<ScrollView>
+							<ScrollView keyboardShouldPersistTaps="handled">
 								{filteredSkills.map((skill) => (
 									<Pressable
 										key={skill.path}
+										accessibilityRole="button"
 										onPress={() => handleSelect(skill)}
 										style={{
 											paddingVertical: 12,
