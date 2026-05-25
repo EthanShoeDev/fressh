@@ -2317,30 +2317,31 @@ fi
 			if (!tmuxEnabled) {
 				throw new Error('Skill selector requires a tmux-enabled connection.');
 			}
+			const panePath = await resolveHostBrowserPanePath();
+			if (skillSelectorCurrentSourceKeyRef.current !== requestSourceKey) {
+				return;
+			}
+			const discoveryKey = JSON.stringify([requestSourceKey, panePath]);
 			let discoveryPromise =
-				skillSelectorDiscoveryInFlightRef.current.get(requestSourceKey);
+				skillSelectorDiscoveryInFlightRef.current.get(discoveryKey);
 			if (!discoveryPromise) {
 				discoveryPromise = (async () => {
-					const panePath = await resolveHostBrowserPanePath();
 					return await runHostBrowserCommand(
 						buildSkillDiscoveryCommand(panePath),
 						10_000,
 					);
 				})();
 				skillSelectorDiscoveryInFlightRef.current.set(
-					requestSourceKey,
+					discoveryKey,
 					discoveryPromise,
 				);
 				void discoveryPromise
 					.finally(() => {
 						if (
-							skillSelectorDiscoveryInFlightRef.current.get(
-								requestSourceKey,
-							) === discoveryPromise
+							skillSelectorDiscoveryInFlightRef.current.get(discoveryKey) ===
+							discoveryPromise
 						) {
-							skillSelectorDiscoveryInFlightRef.current.delete(
-								requestSourceKey,
-							);
+							skillSelectorDiscoveryInFlightRef.current.delete(discoveryKey);
 						}
 					})
 					.catch(() => {});
