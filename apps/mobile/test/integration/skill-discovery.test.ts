@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
+import { promisify } from 'node:util';
 import {
 	buildSkillDiscoveryCommand,
 	filterDiscoveredSkills,
 	parseSkillDiscoveryOutput,
 } from '../../src/lib/skill-discovery';
+
+const execFileAsync = promisify(execFile);
 
 const discoveryPayload = JSON.stringify([
 	{
@@ -147,4 +154,69 @@ void test('buildSkillDiscoveryCommand scopes discovery to repo-local codex skill
 	assert.doesNotMatch(command, /\.agents/);
 	assert.doesNotMatch(command, /plugins/);
 	assert.match(command, /'\/tmp\/repo with '\\'' quote'/);
+});
+
+void test('buildSkillDiscoveryCommand executes and discovers only repo-local codex skills', async () => {
+	const tempRepo = await mkdtemp(join(tmpdir(), 'skill-discovery-'));
+	try {
+		const demoSkill = join(tempRepo, '.codex', 'skills', 'demo', 'SKILL.md');
+		const ignoredAgentSkill = join(
+			tempRepo,
+			'.agents',
+			'skills',
+			'ignored',
+			'SKILL.md',
+		);
+		const ignoredNestedSkill = join(
+			tempRepo,
+			'.codex',
+			'skills',
+			'nested',
+			'deeper',
+			'SKILL.md',
+		);
+
+		await mkdir(join(tempRepo, '.codex', 'skills', 'demo'), {
+			recursive: true,
+		});
+		await mkdir(join(tempRepo, '.agents', 'skills', 'ignored'), {
+			recursive: true,
+		});
+		await mkdir(join(tempRepo, '.codex', 'skills', 'nested', 'deeper'), {
+			recursive: true,
+		});
+		await writeFile(
+			demoSkill,
+			Buffer.concat([
+				Buffer.from('---\nname: demo\ndescription: demo '),
+				Buffer.from([0xff]),
+				Buffer.from('\n---\n# Demo\n'),
+			]),
+		);
+		await writeFile(
+			ignoredAgentSkill,
+			'---\nname: ignored-agent\ndescription: ignored\n---\n',
+		);
+		await writeFile(
+			ignoredNestedSkill,
+			'---\nname: ignored-nested\ndescription: ignored\n---\n',
+		);
+
+		const { stdout } = await execFileAsync(
+			'bash',
+			['-lc', buildSkillDiscoveryCommand(tempRepo)],
+			{ cwd: tempRepo },
+		);
+
+		const skills = parseSkillDiscoveryOutput(stdout);
+		assert.deepEqual(skills, [
+			{
+				name: 'demo',
+				path: demoSkill,
+				description: 'demo \ufffd',
+			},
+		]);
+	} finally {
+		await rm(tempRepo, { recursive: true, force: true });
+	}
 });
