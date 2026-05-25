@@ -75,6 +75,11 @@ import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
+	buildSkillDiscoveryCommand,
+	parseSkillDiscoveryOutput,
+	type DiscoveredSkill,
+} from '@/lib/skill-discovery';
+import {
 	getActiveKeyboardIds,
 	getKeyboardActionTarget,
 	getKeyboardsById,
@@ -127,6 +132,7 @@ import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
 import { HostUrlModal, type HostUrlModalMode } from './components/HostUrlModal';
+import { SkillSelectorModal } from './components/SkillSelectorModal';
 import { TerminalCommanderModal } from './components/TerminalCommanderModal';
 import { TerminalKeyboard } from './components/TerminalKeyboard';
 import {
@@ -728,6 +734,15 @@ function ShellDetail() {
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [textEntryOpen, setTextEntryOpen] = useState(false);
+	const [skillSelectorOpen, setSkillSelectorOpen] = useState(false);
+	const [skillSelectorSkills, setSkillSelectorSkills] = useState<
+		DiscoveredSkill[]
+	>([]);
+	const [skillSelectorLoading, setSkillSelectorLoading] = useState(false);
+	const [skillSelectorError, setSkillSelectorError] = useState<string | null>(
+		null,
+	);
+	const skillSelectorRequestIdRef = useRef(0);
 	const [autoWisprEnabled, setAutoWisprEnabled] = useState(false);
 	const [wisprTextEditorAvailability, setWisprTextEditorAvailability] =
 		useState<WisprTextEditorAvailability>({ type: 'ready' });
@@ -2255,6 +2270,69 @@ fi
 		return panePath;
 	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
+	const loadSkillSelectorSkills = useCallback(async () => {
+		const requestId = skillSelectorRequestIdRef.current + 1;
+		skillSelectorRequestIdRef.current = requestId;
+		setSkillSelectorLoading(true);
+		setSkillSelectorError(null);
+		setSkillSelectorSkills([]);
+
+		try {
+			if (!connection) {
+				throw new Error('No SSH connection available.');
+			}
+			if (!tmuxEnabled) {
+				throw new Error('Skill selector requires a tmux-enabled connection.');
+			}
+			const panePath = await resolveHostBrowserPanePath();
+			const output = await runHostBrowserCommand(
+				buildSkillDiscoveryCommand(panePath),
+				10_000,
+			);
+			const skills = parseSkillDiscoveryOutput(output);
+			if (skillSelectorRequestIdRef.current === requestId) {
+				setSkillSelectorSkills(skills);
+			}
+		} catch (error) {
+			if (skillSelectorRequestIdRef.current === requestId) {
+				setSkillSelectorError(getErrorMessage(error));
+			}
+		} finally {
+			if (skillSelectorRequestIdRef.current === requestId) {
+				setSkillSelectorLoading(false);
+			}
+		}
+	}, [
+		connection,
+		resolveHostBrowserPanePath,
+		runHostBrowserCommand,
+		tmuxEnabled,
+	]);
+
+	const handleOpenSkillSelector = useCallback(() => {
+		setCommandPresetsOpen(false);
+		setCommanderOpen(false);
+		handleCloseTextEntry();
+		setSkillSelectorOpen(true);
+		void loadSkillSelectorSkills();
+	}, [handleCloseTextEntry, loadSkillSelectorSkills]);
+
+	const handleCloseSkillSelector = useCallback(() => {
+		skillSelectorRequestIdRef.current += 1;
+		setSkillSelectorOpen(false);
+		setSkillSelectorLoading(false);
+		setSkillSelectorError(null);
+		setSkillSelectorSkills([]);
+	}, []);
+
+	const handleSelectSkill = useCallback(
+		(skill: DiscoveredSkill) => {
+			sendTextRaw(`$${skill.name} `);
+			handleCloseSkillSelector();
+		},
+		[handleCloseSkillSelector, sendTextRaw],
+	);
+
 	const openAndroidUrl = useCallback(async (url: string) => {
 		try {
 			await Linking.openURL(url);
@@ -2458,6 +2536,7 @@ fi
 				handleCloseTextEntry();
 				setCommanderOpen(true);
 			},
+			openSkillSelector: handleOpenSkillSelector,
 			openWisprTextEditor: handleOpenWisprTextEditor,
 			openHostDiffity: handleOpenHostDiffity,
 			openHostUrlSlot: handleOpenHostUrlSlot,
@@ -2472,6 +2551,7 @@ fi
 			handleEditHostUrlSlot,
 			handleOpenHostDiffity,
 			handleOpenHostUrlSlot,
+			handleOpenSkillSelector,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
 			openConfigDialog,
@@ -3090,6 +3170,16 @@ fi
 					onSendShortcut={(sequence) => {
 						sendBytesRaw(encoder.encode(sequence));
 					}}
+				/>
+				<SkillSelectorModal
+					open={skillSelectorOpen}
+					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
+					skills={skillSelectorSkills}
+					isLoading={skillSelectorLoading}
+					error={skillSelectorError}
+					onClose={handleCloseSkillSelector}
+					onRetry={loadSkillSelectorSkills}
+					onSelect={handleSelectSkill}
 				/>
 				<TextEntryModal
 					open={textEntryOpen}
