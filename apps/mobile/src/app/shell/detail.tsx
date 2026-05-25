@@ -797,6 +797,9 @@ function ShellDetail() {
 	const wisprAutoCloseAttemptIdRef = useRef(0);
 	const wisprAutomationRequestIdRef = useRef(0);
 	const hostUrlReadRequestIdRef = useRef(0);
+	const invalidateHostUrlReads = useCallback(() => {
+		hostUrlReadRequestIdRef.current += 1;
+	}, []);
 	const agentNotificationAckRequestIdRef = useRef(0);
 	const handledAgentAlertRouteRef = useRef<string | null>(null);
 	const acknowledgeVisibleAgentNotificationRef = useRef<() => void>(() => {});
@@ -1960,8 +1963,10 @@ function ShellDetail() {
 	}, []);
 
 	const openConfigDialog = useCallback(() => {
+		invalidateHostUrlReads();
+		setSkillSelectorOpen(false);
 		setConfigureOpen(true);
-	}, []);
+	}, [invalidateHostUrlReads]);
 
 	const handleDevServer = useCallback(() => {
 		setConfigureOpen(false);
@@ -2008,10 +2013,12 @@ function ShellDetail() {
 	}, []);
 
 	const handleOpenFeatureRequest = useCallback(() => {
+		invalidateHostUrlReads();
+		setSkillSelectorOpen(false);
 		setConfigureOpen(false);
 		setFeatureRequestError(undefined);
 		setFeatureRequestOpen(true);
-	}, []);
+	}, [invalidateHostUrlReads]);
 
 	const handleFeatureRequestSubmit = useCallback(
 		async (description: string) => {
@@ -2310,7 +2317,7 @@ fi
 	]);
 
 	const handleOpenSkillSelector = useCallback(() => {
-		hostUrlReadRequestIdRef.current += 1;
+		invalidateHostUrlReads();
 		setCommandPresetsOpen(false);
 		setCommanderOpen(false);
 		setConfigureOpen(false);
@@ -2322,7 +2329,7 @@ fi
 		handleCloseTextEntry();
 		setSkillSelectorOpen(true);
 		void loadSkillSelectorSkills();
-	}, [handleCloseTextEntry, loadSkillSelectorSkills]);
+	}, [handleCloseTextEntry, invalidateHostUrlReads, loadSkillSelectorSkills]);
 
 	const handleCloseSkillSelector = useCallback(() => {
 		skillSelectorRequestIdRef.current += 1;
@@ -2346,6 +2353,7 @@ fi
 	useEffect(() => {
 		if (skillSelectorSourceKeyRef.current === skillSelectorSourceKey) return;
 		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
+		hostUrlReadRequestIdRef.current += 1;
 		if (skillSelectorOpen) {
 			handleCloseSkillSelector();
 		}
@@ -2354,6 +2362,7 @@ fi
 	useEffect(() => {
 		return () => {
 			skillSelectorRequestIdRef.current += 1;
+			hostUrlReadRequestIdRef.current += 1;
 		};
 	}, []);
 
@@ -2477,9 +2486,10 @@ fi
 
 	const handleCloseHostUrlModal = useCallback(() => {
 		if (hostUrlModalSubmitting) return;
+		invalidateHostUrlReads();
 		setHostUrlModalState(null);
 		setHostUrlModalError(null);
-	}, [hostUrlModalSubmitting]);
+	}, [hostUrlModalSubmitting, invalidateHostUrlReads]);
 
 	const handleSubmitHostUrlModal = useCallback(
 		(value: string) => {
@@ -2551,12 +2561,16 @@ fi
 			pasteClipboard: handlePasteClipboard,
 			copySelection: handleCopySelection,
 			toggleCommandPresets: () => {
+				invalidateHostUrlReads();
 				setCommanderOpen(false);
+				setSkillSelectorOpen(false);
 				handleCloseTextEntry();
 				setCommandPresetsOpen((prev) => !prev);
 			},
 			openCommander: () => {
+				invalidateHostUrlReads();
 				setCommandPresetsOpen(false);
+				setSkillSelectorOpen(false);
 				handleCloseTextEntry();
 				setCommanderOpen(true);
 			},
@@ -2578,6 +2592,7 @@ fi
 			handleOpenSkillSelector,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
+			invalidateHostUrlReads,
 			openConfigDialog,
 			rotateKeyboard,
 			shellConfig,
