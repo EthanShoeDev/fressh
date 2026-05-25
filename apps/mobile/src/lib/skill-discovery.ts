@@ -84,8 +84,11 @@ export function buildSkillDiscoveryCommand(panePath: string): string {
 	const scriptBody = [
 		'import json,pathlib,subprocess,sys',
 		'start=pathlib.Path(sys.argv[1])',
-		"git=subprocess.run(['git','-C',str(start),'rev-parse','--show-toplevel'], text=True, capture_output=True)",
-		'base=pathlib.Path(git.stdout.strip()) if git.returncode == 0 and git.stdout.strip() else start',
+		'try:',
+		"    git=subprocess.run(['git','-C',str(start),'rev-parse','--show-toplevel'], text=True, capture_output=True)",
+		'except OSError:',
+		'    git=None',
+		'base=pathlib.Path(git.stdout.strip()) if git and git.returncode == 0 and git.stdout.strip() else start',
 		"root=base/'.codex'/'skills'",
 		'records=[]',
 		"for skill_file in sorted(root.glob('*/SKILL.md')):",

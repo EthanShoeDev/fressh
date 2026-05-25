@@ -256,6 +256,46 @@ void test('buildSkillDiscoveryCommand resolves skills from a git repo root', asy
 	}
 });
 
+void test('buildSkillDiscoveryCommand falls back to cwd when git is unavailable', async () => {
+	const tempRepo = await mkdtemp(join(tmpdir(), 'skill-discovery-no-git-'));
+	const tempBin = await mkdtemp(join(tmpdir(), 'skill-discovery-bin-'));
+	try {
+		const demoSkill = join(tempRepo, '.codex', 'skills', 'demo', 'SKILL.md');
+		await mkdir(join(tempRepo, '.codex', 'skills', 'demo'), {
+			recursive: true,
+		});
+		await writeFile(
+			demoSkill,
+			'---\nname: demo\ndescription: no git\n---\n# Demo\n',
+		);
+
+		await writeFile(
+			join(tempBin, 'python3'),
+			'#!/bin/sh\nexec /usr/bin/python3 "$@"\n',
+			{
+				mode: 0o755,
+			},
+		);
+
+		const { stdout } = await execFileAsync(
+			'/bin/bash',
+			['-lc', buildSkillDiscoveryCommand(tempRepo)],
+			{ cwd: tempRepo, env: { ...process.env, PATH: tempBin } },
+		);
+
+		assert.deepEqual(parseSkillDiscoveryOutput(stdout), [
+			{
+				name: 'demo',
+				path: demoSkill,
+				description: 'no git',
+			},
+		]);
+	} finally {
+		await rm(tempRepo, { recursive: true, force: true });
+		await rm(tempBin, { recursive: true, force: true });
+	}
+});
+
 void test('buildSkillDiscoveryCommand works with side-channel completion suffix', async () => {
 	const tempRepo = await mkdtemp(
 		join(tmpdir(), 'skill-discovery-side-channel-'),

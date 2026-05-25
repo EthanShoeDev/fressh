@@ -744,10 +744,9 @@ function ShellDetail() {
 	);
 	const skillSelectorRequestIdRef = useRef(0);
 	const skillSelectorActiveSourceKeyRef = useRef<string | null>(null);
-	const skillSelectorDiscoveryInFlightRef = useRef<{
-		sourceKey: string;
-		promise: Promise<string>;
-	} | null>(null);
+	const skillSelectorDiscoveryInFlightRef = useRef(
+		new Map<string, Promise<string>>(),
+	);
 	const closeSkillSelector = useCallback(() => {
 		skillSelectorRequestIdRef.current += 1;
 		skillSelectorActiveSourceKeyRef.current = null;
@@ -2318,31 +2317,35 @@ fi
 			if (!tmuxEnabled) {
 				throw new Error('Skill selector requires a tmux-enabled connection.');
 			}
-			let discovery = skillSelectorDiscoveryInFlightRef.current;
-			if (discovery?.sourceKey !== requestSourceKey) {
-				const promise = (async () => {
+			let discoveryPromise =
+				skillSelectorDiscoveryInFlightRef.current.get(requestSourceKey);
+			if (!discoveryPromise) {
+				discoveryPromise = (async () => {
 					const panePath = await resolveHostBrowserPanePath();
-					if (skillSelectorCurrentSourceKeyRef.current !== requestSourceKey) {
-						throw new Error('Skill selector source changed.');
-					}
 					return await runHostBrowserCommand(
 						buildSkillDiscoveryCommand(panePath),
 						10_000,
 					);
 				})();
-				discovery = { sourceKey: requestSourceKey, promise };
-				skillSelectorDiscoveryInFlightRef.current = discovery;
-				void promise
+				skillSelectorDiscoveryInFlightRef.current.set(
+					requestSourceKey,
+					discoveryPromise,
+				);
+				void discoveryPromise
 					.finally(() => {
 						if (
-							skillSelectorDiscoveryInFlightRef.current?.promise === promise
+							skillSelectorDiscoveryInFlightRef.current.get(
+								requestSourceKey,
+							) === discoveryPromise
 						) {
-							skillSelectorDiscoveryInFlightRef.current = null;
+							skillSelectorDiscoveryInFlightRef.current.delete(
+								requestSourceKey,
+							);
 						}
 					})
 					.catch(() => {});
 			}
-			const output = await discovery.promise;
+			const output = await discoveryPromise;
 			const skills = parseSkillDiscoveryOutput(output);
 			if (
 				skillSelectorRequestIdRef.current === requestId &&
