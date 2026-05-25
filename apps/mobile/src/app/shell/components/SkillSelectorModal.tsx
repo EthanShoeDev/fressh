@@ -58,10 +58,9 @@ export function SkillSelectorModal({
 	const handleSelect = useCallback(
 		(skill: DiscoveredSkill) => {
 			setQuery('');
-			onClose();
 			onSelect(skill);
 		},
-		[onClose, onSelect],
+		[onSelect],
 	);
 
 	return (
