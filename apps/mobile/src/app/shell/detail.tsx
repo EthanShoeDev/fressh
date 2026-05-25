@@ -75,11 +75,6 @@ import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
-	buildSkillDiscoveryCommand,
-	parseSkillDiscoveryOutput,
-	type DiscoveredSkill,
-} from '@/lib/skill-discovery';
-import {
 	getActiveKeyboardIds,
 	getKeyboardActionTarget,
 	getKeyboardsById,
@@ -96,6 +91,11 @@ import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
+import {
+	buildSkillDiscoveryCommand,
+	parseSkillDiscoveryOutput,
+	type DiscoveredSkill,
+} from '@/lib/skill-discovery';
 import { executeSideChannelCommand } from '@/lib/ssh-side-channel';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
