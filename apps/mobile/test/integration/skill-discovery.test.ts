@@ -277,9 +277,13 @@ void test('buildSkillDiscoveryCommand falls back to cwd when git is unavailable'
 			},
 		);
 
+		await execFileAsync('/bin/bash', ['-c', '! command -v git'], {
+			env: { ...process.env, PATH: tempBin },
+		});
+
 		const { stdout } = await execFileAsync(
 			'/bin/bash',
-			['-lc', buildSkillDiscoveryCommand(tempRepo)],
+			['-c', buildSkillDiscoveryCommand(tempRepo)],
 			{ cwd: tempRepo, env: { ...process.env, PATH: tempBin } },
 		);
 
