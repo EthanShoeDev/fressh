@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-21.6",
-  "updatedAt": "2026-05-21T10:02:48Z",
+  "version": "2026-05-25.1",
+  "updatedAt": "2026-05-25T00:00:00Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -268,8 +268,8 @@
             "icon": null
           },
           {
-            "type": "text",
-            "text": "$",
+            "type": "macro",
+            "macroId": "skill_selector",
             "label": "$",
             "icon": null
           },
@@ -665,6 +665,13 @@
         "label": "approve",
         "category": "Commands",
         "script": "{\n  \"type\": \"command\",\n  \"value\": \"approve\",\n  \"enter\": true\n}"
+      },
+      {
+        "id": "skill_selector",
+        "name": "Skill selector",
+        "label": "$",
+        "category": "Commands",
+        "script": "{\n  \"type\": \"action\",\n  \"actionId\": \"OPEN_SKILL_SELECTOR\"\n}"
       },
       {
         "id": "cmd_code_review",

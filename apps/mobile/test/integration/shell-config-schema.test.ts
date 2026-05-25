@@ -108,6 +108,28 @@ void test('runtime shell config rejects unknown action ids', () => {
 	assert.throws(() => parseShellConfigData(config), /NOT_A_REAL_ACTION/);
 });
 
+void test('runtime shell config accepts open skill selector action ids', () => {
+	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
+	const keyboards = structuredClone(config.keyboards) as Record<
+		string,
+		unknown
+	>[];
+	const firstKeyboard = keyboards[0];
+	assert.ok(firstKeyboard);
+	const grid = structuredClone(firstKeyboard.grid) as unknown[][];
+	grid[0]![0] = {
+		type: 'action',
+		actionId: 'OPEN_SKILL_SELECTOR',
+		label: '$',
+		icon: null,
+	};
+	firstKeyboard.grid = grid;
+	config.keyboards = keyboards;
+
+	const parsed = parseShellConfigData(config);
+	assert.equal(parsed.keyboards[0]?.grid[0]?.[0]?.type, 'action');
+});
+
 void test('runtime shell config accepts long-press macro options on a key', () => {
 	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
 	const keyboards = structuredClone(config.keyboards) as Record<
