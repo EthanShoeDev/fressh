@@ -160,7 +160,7 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 				},
 				{
 					type: 'bytes',
-					bytes: [2, 112],
+					bytes: [27, 91, 49, 59, 55, 68],
 					label: 'Prev all',
 					icon: null,
 				},
@@ -189,7 +189,7 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 				},
 				{
 					type: 'bytes',
-					bytes: [2, 110],
+					bytes: [27, 91, 49, 59, 55, 67],
 					label: 'Next all',
 					icon: null,
 				},
@@ -213,13 +213,13 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 				},
 				{
 					type: 'bytes',
-					bytes: [2, 112],
+					bytes: [27, 91, 49, 59, 55, 68],
 					label: 'Prev all',
 					icon: null,
 				},
 				{
 					type: 'bytes',
-					bytes: [2, 110],
+					bytes: [27, 91, 49, 59, 55, 67],
 					label: 'Next all',
 					icon: null,
 				},

@@ -1,6 +1,6 @@
 {
-  "version": "2026-05-25.2",
-  "updatedAt": "2026-05-25T11:27:14Z",
+  "version": "2026-05-25.3",
+  "updatedAt": "2026-05-25T11:34:03Z",
   "defaultKeyboardId": "phone_base",
   "activeKeyboardIds": [
     "phone_base",
@@ -102,8 +102,12 @@
                 {
                   "type": "bytes",
                   "bytes": [
-                    2,
-                    112
+                    27,
+                    91,
+                    49,
+                    59,
+                    55,
+                    68
                   ],
                   "label": "Prev all",
                   "icon": null
@@ -111,8 +115,12 @@
                 {
                   "type": "bytes",
                   "bytes": [
-                    2,
-                    110
+                    27,
+                    91,
+                    49,
+                    59,
+                    55,
+                    67
                   ],
                   "label": "Next all",
                   "icon": null
@@ -172,8 +180,12 @@
                 {
                   "type": "bytes",
                   "bytes": [
-                    2,
-                    112
+                    27,
+                    91,
+                    49,
+                    59,
+                    55,
+                    68
                   ],
                   "label": "Prev all",
                   "icon": null
@@ -216,8 +228,12 @@
                 {
                   "type": "bytes",
                   "bytes": [
-                    2,
-                    110
+                    27,
+                    91,
+                    49,
+                    59,
+                    55,
+                    67
                   ],
                   "label": "Next all",
                   "icon": null
@@ -541,8 +557,12 @@
           {
             "type": "bytes",
             "bytes": [
-              2,
-              112
+              27,
+              91,
+              49,
+              59,
+              55,
+              68
             ],
             "label": "Prev all",
             "icon": null
@@ -550,8 +570,12 @@
           {
             "type": "bytes",
             "bytes": [
-              2,
-              110
+              27,
+              91,
+              49,
+              59,
+              55,
+              67
             ],
             "label": "Next all",
             "icon": null
