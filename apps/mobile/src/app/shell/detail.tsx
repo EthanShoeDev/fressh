@@ -2310,8 +2310,15 @@ fi
 	]);
 
 	const handleOpenSkillSelector = useCallback(() => {
+		hostUrlReadRequestIdRef.current += 1;
 		setCommandPresetsOpen(false);
 		setCommanderOpen(false);
+		setConfigureOpen(false);
+		setFeatureRequestOpen(false);
+		setFeatureRequestSubmitting(false);
+		setFeatureRequestError(undefined);
+		setHostUrlModalState(null);
+		setHostUrlModalError(null);
 		handleCloseTextEntry();
 		setSkillSelectorOpen(true);
 		void loadSkillSelectorSkills();
@@ -2332,6 +2339,23 @@ fi
 		},
 		[handleCloseSkillSelector, sendTextRaw],
 	);
+
+	const skillSelectorSourceKey = `${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${tmuxTarget}`;
+	const skillSelectorSourceKeyRef = useRef(skillSelectorSourceKey);
+
+	useEffect(() => {
+		if (skillSelectorSourceKeyRef.current === skillSelectorSourceKey) return;
+		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
+		if (skillSelectorOpen) {
+			handleCloseSkillSelector();
+		}
+	}, [handleCloseSkillSelector, skillSelectorOpen, skillSelectorSourceKey]);
+
+	useEffect(() => {
+		return () => {
+			skillSelectorRequestIdRef.current += 1;
+		};
+	}, []);
 
 	const openAndroidUrl = useCallback(async (url: string) => {
 		try {
