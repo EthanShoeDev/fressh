@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	ActivityIndicator,
+	Keyboard,
 	KeyboardAvoidingView,
 	Modal,
 	Platform,
@@ -37,12 +38,34 @@ export function SkillSelectorModal({
 }) {
 	const theme = useTheme();
 	const [query, setQuery] = useState('');
+	const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
 
 	useEffect(() => {
 		if (!open) {
 			// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Reset search text when parent closes the modal.
 			setQuery('');
+			if (Platform.OS === 'android') {
+				// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Reset keyboard inset when parent closes the modal.
+				setAndroidKeyboardHeight(0);
+			}
 		}
+	}, [open]);
+
+	useEffect(() => {
+		if (Platform.OS !== 'android' || !open) return undefined;
+		const showSubscription = Keyboard.addListener(
+			'keyboardDidShow',
+			(event) => {
+				setAndroidKeyboardHeight(event.endCoordinates.height);
+			},
+		);
+		const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+			setAndroidKeyboardHeight(0);
+		});
+		return () => {
+			showSubscription.remove();
+			hideSubscription.remove();
+		};
 	}, [open]);
 
 	const filteredSkills = useMemo(
@@ -95,7 +118,7 @@ export function SkillSelectorModal({
 							minWidth: 260,
 							alignSelf: 'flex-end',
 							marginRight: 8,
-							marginBottom: bottomOffset,
+							marginBottom: bottomOffset + androidKeyboardHeight,
 						}}
 					>
 						<View
