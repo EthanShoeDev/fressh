@@ -744,9 +744,6 @@ function ShellDetail() {
 	);
 	const skillSelectorRequestIdRef = useRef(0);
 	const skillSelectorActiveSourceKeyRef = useRef<string | null>(null);
-	const skillSelectorDiscoveryInFlightRef = useRef(
-		new Map<string, Promise<string>>(),
-	);
 	const closeSkillSelector = useCallback(() => {
 		skillSelectorRequestIdRef.current += 1;
 		skillSelectorActiveSourceKeyRef.current = null;
@@ -2321,32 +2318,10 @@ fi
 			if (skillSelectorCurrentSourceKeyRef.current !== requestSourceKey) {
 				return;
 			}
-			const discoveryKey = JSON.stringify([requestSourceKey, panePath]);
-			let discoveryPromise =
-				skillSelectorDiscoveryInFlightRef.current.get(discoveryKey);
-			if (!discoveryPromise) {
-				discoveryPromise = (async () => {
-					return await runHostBrowserCommand(
-						buildSkillDiscoveryCommand(panePath),
-						10_000,
-					);
-				})();
-				skillSelectorDiscoveryInFlightRef.current.set(
-					discoveryKey,
-					discoveryPromise,
-				);
-				void discoveryPromise
-					.finally(() => {
-						if (
-							skillSelectorDiscoveryInFlightRef.current.get(discoveryKey) ===
-							discoveryPromise
-						) {
-							skillSelectorDiscoveryInFlightRef.current.delete(discoveryKey);
-						}
-					})
-					.catch(() => {});
-			}
-			const output = await discoveryPromise;
+			const output = await runHostBrowserCommand(
+				buildSkillDiscoveryCommand(panePath),
+				10_000,
+			);
 			const skills = parseSkillDiscoveryOutput(output);
 			if (
 				skillSelectorRequestIdRef.current === requestId &&
