@@ -22,6 +22,7 @@ export const KNOWN_ACTION_IDS = [
 	'TOGGLE_COMMAND_PRESETS',
 	'OPEN_COMMANDER',
 	'OPEN_SKILL_SELECTOR',
+	'OPEN_REPO_FEATURE_REQUEST',
 	'OPEN_WISPR_TEXT_EDITOR',
 	'PASTE_CLIPBOARD',
 	'COPY_SELECTION',
@@ -57,6 +58,7 @@ export type ActionContext = {
 	toggleCommandPresets?: () => void;
 	openCommander?: () => void;
 	openSkillSelector?: () => void;
+	openRepoFeatureRequest?: () => void;
 	openWisprTextEditor?: () => void;
 	openHostDiffity?: () => void;
 	openHostUrlSlot?: (slot: HostBrowserUrlSlot) => void;
@@ -171,6 +173,10 @@ export async function runAction(
 		}
 		case 'OPEN_SKILL_SELECTOR': {
 			context.openSkillSelector?.();
+			return;
+		}
+		case 'OPEN_REPO_FEATURE_REQUEST': {
+			context.openRepoFeatureRequest?.();
 			return;
 		}
 		case 'OPEN_WISPR_TEXT_EDITOR': {

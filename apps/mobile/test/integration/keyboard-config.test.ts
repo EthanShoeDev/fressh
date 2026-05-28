@@ -114,8 +114,7 @@ void test('phone base keyboard replaces raw dollar key with skill selector macro
 			name: 'Skill selector',
 			label: '$',
 			category: 'Commands',
-			script:
-				'{\n  "type": "action",\n  "actionId": "OPEN_SKILL_SELECTOR"\n}',
+			script: '{\n  "type": "action",\n  "actionId": "OPEN_SKILL_SELECTOR"\n}',
 		},
 	);
 
@@ -418,6 +417,14 @@ void test('advanced keyboard exposes host URL setter actions', () => {
 	assert.ok(advancedKeyboard);
 
 	assert.equal(advancedKeyboard.grid.length, 3);
+	assert.deepEqual(advancedKeyboard.grid[0]?.slice(4, 5), [
+		{
+			type: 'action',
+			actionId: 'OPEN_REPO_FEATURE_REQUEST',
+			label: 'Issue',
+			icon: 'CirclePlus',
+		},
+	]);
 	assert.deepEqual(advancedKeyboard.grid[2]?.slice(0, 4), [
 		{
 			type: 'action',

@@ -17,6 +17,8 @@ export function FeatureRequestModal({
 	bottomOffset,
 	onClose,
 	onSubmit,
+	targetRepository,
+	isResolvingTarget = false,
 	isSubmitting = false,
 	error,
 }: {
@@ -24,6 +26,8 @@ export function FeatureRequestModal({
 	bottomOffset: number;
 	onClose: () => void;
 	onSubmit: (description: string) => void;
+	targetRepository?: string | null;
+	isResolvingTarget?: boolean;
 	isSubmitting?: boolean;
 	error?: string;
 }) {
@@ -40,7 +44,11 @@ export function FeatureRequestModal({
 		onSubmit(description.trim());
 	}, [description, isSubmitting, onSubmit]);
 
-	const canSubmit = description.trim().length > 0 && !isSubmitting;
+	const canSubmit =
+		description.trim().length > 0 &&
+		!isSubmitting &&
+		!isResolvingTarget &&
+		targetRepository != null;
 
 	return (
 		<Modal
@@ -123,6 +131,19 @@ export function FeatureRequestModal({
 							>
 								Description
 							</Text>
+							<Text
+								style={{
+									color: theme.colors.textSecondary,
+									fontSize: 12,
+									marginBottom: 8,
+								}}
+							>
+								{isResolvingTarget
+									? 'Resolving target repository...'
+									: targetRepository
+										? `Target: ${targetRepository}`
+										: 'Target repository unavailable.'}
+							</Text>
 							<TextInput
 								value={description}
 								onChangeText={setDescription}
@@ -200,7 +221,7 @@ export function FeatureRequestModal({
 									justifyContent: 'center',
 								}}
 							>
-								{isSubmitting && (
+								{(isSubmitting || isResolvingTarget) && (
 									<ActivityIndicator
 										size="small"
 										color={theme.colors.buttonTextOnPrimary}
@@ -215,7 +236,11 @@ export function FeatureRequestModal({
 										fontWeight: '700',
 									}}
 								>
-									{isSubmitting ? 'Submitting...' : 'Submit Feature Request'}
+									{isSubmitting
+										? 'Submitting...'
+										: isResolvingTarget
+											? 'Resolving repository...'
+											: 'Submit Feature Request'}
 								</Text>
 							</Pressable>
 						</ScrollView>

@@ -69,6 +69,25 @@ void test('skill selector action delegates to the action context', async () => {
 	assert.equal(opened, 1);
 });
 
+void test('repo feature request action delegates to the action context', async () => {
+	let opened = 0;
+
+	await runAction('OPEN_REPO_FEATURE_REQUEST', {
+		availableKeyboardIds: new Set(),
+		selectKeyboard: () => {},
+		rotateKeyboard: () => {},
+		openConfigurator: () => {},
+		sendBytes: () => {},
+		pasteClipboard: async () => {},
+		copySelection: () => {},
+		openRepoFeatureRequest: () => {
+			opened += 1;
+		},
+	} as Parameters<typeof runAction>[1]);
+
+	assert.equal(opened, 1);
+});
+
 void test('host browser actions delegate to action context callbacks', async () => {
 	const openedSlots: string[] = [];
 	const editedSlots: string[] = [];

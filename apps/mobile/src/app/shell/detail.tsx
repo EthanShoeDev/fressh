@@ -73,6 +73,11 @@ import {
 import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
+import {
+	buildCreateGitHubIssueCommand,
+	buildResolveGitHubRepositoryCommand,
+	parseGitHubRepositoryResolutionOutput,
+} from '@/lib/repo-feature-request';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -731,6 +736,10 @@ function ShellDetail() {
 	const [configureOpen, setConfigureOpen] = useState(false);
 	const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
 	const [featureRequestSubmitting, setFeatureRequestSubmitting] =
+		useState(false);
+	const [featureRequestTargetRepository, setFeatureRequestTargetRepository] =
+		useState<string | null>(null);
+	const [featureRequestResolvingTarget, setFeatureRequestResolvingTarget] =
 		useState(false);
 	const [featureRequestError, setFeatureRequestError] = useState<
 		string | undefined
@@ -1987,66 +1996,25 @@ function ShellDetail() {
 		void Linking.openURL(SHELL_CONFIG_DOC_URL);
 	}, []);
 
-	const handleOpenFeatureRequest = useCallback(() => {
-		invalidateHostUrlReads();
-		closeSkillSelector();
-		setConfigureOpen(false);
-		setFeatureRequestError(undefined);
-		setFeatureRequestOpen(true);
-	}, [closeSkillSelector, invalidateHostUrlReads]);
-
 	const handleFeatureRequestSubmit = useCallback(
 		async (description: string) => {
 			if (!connection) {
 				setFeatureRequestError('No SSH connection available');
 				return;
 			}
+			if (!featureRequestTargetRepository) {
+				setFeatureRequestError(
+					'Could not resolve GitHub repository for current window.',
+				);
+				return;
+			}
 
 			setFeatureRequestSubmitting(true);
 			setFeatureRequestError(undefined);
-
-			const escapeSingleQuotes = (value: string) =>
-				value.replace(/'/g, "'\\''");
-			const escapedDescription = escapeSingleQuotes(description);
-			const escapedPrompt = escapeSingleQuotes(
-				'Generate a concise GitHub issue title (max 72 chars) for this feature request. Return only the title line, no quotes.',
-			);
-
-			const command = `
-description='${escapedDescription}'
-prompt='${escapedPrompt}'
-prompt=$(printf '%s\\n\\n%s\\n' "$prompt" "$description")
-
-if ! command -v claude >/dev/null 2>&1; then
-  echo 'claude CLI not found. Install Claude Code CLI (claude).' >&2
-  false
-else
-  claude_help=$(claude --help 2>/dev/null)
-  raw_title=''
-  if printf '%s' "$claude_help" | grep -q -- '--print'; then
-    raw_title=$(claude --print "$prompt")
-  elif printf '%s' "$claude_help" | grep -q -- ' -p'; then
-    raw_title=$(claude -p "$prompt")
-  else
-    echo 'claude CLI does not support --print or -p prompt flags.' >&2
-    false
-  fi
-  claude_status=$?
-  if [ $claude_status -ne 0 ]; then
-    echo 'Claude failed to generate a title.' >&2
-    false
-  else
-    title=$(printf '%s' "$raw_title" | tr -d '\\r' | head -n 1 | sed 's/^['"'"'"[:space:]]*//;s/['"'"'"[:space:]]*$//' | tr -s '[:space:]' ' ')
-    title=$(printf '%s' "$title" | cut -c1-72)
-    if [ -z "$title" ]; then
-      echo 'Claude returned an empty title.' >&2
-      false
-    else
-      gh issue create --repo mulyoved/fressh --title "Feature Request: $title" --body "$description"
-    fi
-  fi
-fi
-`.trim();
+			const command = buildCreateGitHubIssueCommand({
+				description,
+				repository: featureRequestTargetRepository,
+			});
 
 			try {
 				// Execute via side-channel SSH session (doesn't interfere with current terminal)
@@ -2092,7 +2060,7 @@ fi
 				setFeatureRequestSubmitting(false);
 			}
 		},
-		[connection],
+		[connection, featureRequestTargetRepository],
 	);
 
 	const showHostBrowserError = useCallback((title: string, message: string) => {
@@ -2252,7 +2220,46 @@ fi
 		return panePath;
 	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
-	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${tmuxTarget}`;
+	const handleOpenFeatureRequest = useCallback(() => {
+		invalidateHostUrlReads();
+		closeSkillSelector();
+		setConfigureOpen(false);
+		setFeatureRequestTargetRepository(null);
+		setFeatureRequestError(undefined);
+		setFeatureRequestOpen(true);
+
+		void (async () => {
+			setFeatureRequestResolvingTarget(true);
+			try {
+				const panePath = await resolveHostBrowserPanePath();
+				const output = await runHostBrowserCommand(
+					buildResolveGitHubRepositoryCommand(panePath),
+					10_000,
+				);
+				const repository = parseGitHubRepositoryResolutionOutput(output);
+				if (!repository) {
+					throw new Error(
+						'Could not resolve GitHub repository for current window.',
+					);
+				}
+				setFeatureRequestTargetRepository(repository);
+				setFeatureRequestError(undefined);
+			} catch (error) {
+				setFeatureRequestTargetRepository(null);
+				setFeatureRequestError(getErrorMessage(error));
+			} finally {
+				setFeatureRequestResolvingTarget(false);
+			}
+		})();
+	}, [
+		closeSkillSelector,
+		invalidateHostUrlReads,
+		resolveHostBrowserPanePath,
+		runHostBrowserCommand,
+	]);
+
+	const activeTmuxSessionName = tmuxTarget.trim() || 'main';
+	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${activeTmuxSessionName}`;
 	const skillSelectorSourceKeyRef = useRef(skillSelectorSourceKey);
 	const skillSelectorCurrentSourceKeyRef = useRef(skillSelectorSourceKey);
 	skillSelectorCurrentSourceKeyRef.current = skillSelectorSourceKey;
@@ -2582,6 +2589,7 @@ fi
 				setCommanderOpen(true);
 			},
 			openSkillSelector: handleOpenSkillSelector,
+			openRepoFeatureRequest: handleOpenFeatureRequest,
 			openWisprTextEditor: handleOpenWisprTextEditor,
 			openHostDiffity: handleOpenHostDiffity,
 			openHostUrlSlot: handleOpenHostUrlSlot,
@@ -2597,6 +2605,7 @@ fi
 			handleEditHostUrlSlot,
 			handleOpenHostDiffity,
 			handleOpenHostUrlSlot,
+			handleOpenFeatureRequest,
 			handleOpenSkillSelector,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
@@ -3281,9 +3290,13 @@ fi
 					onClose={() => {
 						setFeatureRequestOpen(false);
 						setFeatureRequestSubmitting(false);
+						setFeatureRequestResolvingTarget(false);
+						setFeatureRequestTargetRepository(null);
 						setFeatureRequestError(undefined);
 					}}
 					onSubmit={handleFeatureRequestSubmit}
+					targetRepository={featureRequestTargetRepository}
+					isResolvingTarget={featureRequestResolvingTarget}
 					isSubmitting={featureRequestSubmitting}
 					error={featureRequestError}
 				/>
