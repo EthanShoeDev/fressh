@@ -791,8 +791,11 @@ function ShellDetail() {
 	const wisprAutomationRequestIdRef = useRef(0);
 	const hostUrlReadRequestIdRef = useRef(0);
 	const hostUrlSubmitRequestIdRef = useRef(0);
+	const hostUrlSubmitInFlightRef = useRef(false);
 	const featureRequestResolveRequestIdRef = useRef(0);
 	const featureRequestSubmitRequestIdRef = useRef(0);
+	const featureRequestSubmitInFlightRef = useRef(false);
+	const featureRequestSourceStaleRef = useRef(false);
 	const browserGitHubTargetRequestIdRef = useRef(0);
 	const hostDiffityRequestIdRef = useRef(0);
 	const invalidateHostUrlReads = useCallback(() => {
@@ -801,6 +804,7 @@ function ShellDetail() {
 	const resetHostUrlModal = useCallback(() => {
 		hostUrlReadRequestIdRef.current += 1;
 		hostUrlSubmitRequestIdRef.current += 1;
+		hostUrlSubmitInFlightRef.current = false;
 		setHostUrlModalState(null);
 		setHostUrlModalSubmitting(false);
 		setHostUrlModalError(null);
@@ -817,8 +821,11 @@ function ShellDetail() {
 		setFeatureRequestError(undefined);
 	}, []);
 	const closeFeatureRequest = useCallback(() => {
-		if (featureRequestSubmitting) return false;
+		if (featureRequestSubmitInFlightRef.current || featureRequestSubmitting) {
+			return false;
+		}
 		cancelFeatureRequestRequests();
+		featureRequestSourceStaleRef.current = false;
 		resetFeatureRequestState();
 		return true;
 	}, [
@@ -2037,6 +2044,7 @@ function ShellDetail() {
 
 	const handleFeatureRequestSubmit = useCallback(
 		async (description: string) => {
+			if (featureRequestSubmitInFlightRef.current) return;
 			const requestId = ++featureRequestSubmitRequestIdRef.current;
 			if (!connection) {
 				setFeatureRequestError('No SSH connection available');
@@ -2049,6 +2057,8 @@ function ShellDetail() {
 				return;
 			}
 
+			featureRequestSubmitInFlightRef.current = true;
+			featureRequestSourceStaleRef.current = false;
 			setFeatureRequestSubmitting(true);
 			setFeatureRequestError(undefined);
 			const command = buildCreateGitHubIssueCommand({
@@ -2072,6 +2082,7 @@ function ShellDetail() {
 					});
 					setFeatureRequestOpen(false);
 					setFeatureRequestError(undefined);
+					featureRequestSourceStaleRef.current = false;
 					// Extract issue number from URL (format: https://github.com/owner/repo/issues/123)
 					const issueUrl = result.issueUrl ?? null;
 					const issueNumberMatch = issueUrl?.match(/\/issues\/(\d+)$/);
@@ -2086,6 +2097,11 @@ function ShellDetail() {
 						[{ text: 'OK' }],
 					);
 				} else {
+					if (featureRequestSourceStaleRef.current) {
+						resetFeatureRequestState();
+						featureRequestSourceStaleRef.current = false;
+						return;
+					}
 					const errorMsg =
 						result.error ||
 						'Failed to create issue. Make sure gh and claude CLIs are installed and authenticated on the remote host.';
@@ -2098,14 +2114,20 @@ function ShellDetail() {
 					err instanceof Error ? err.message : 'Unknown error occurred';
 				logger.error('Feature request error', { error: err });
 				if (requestId !== featureRequestSubmitRequestIdRef.current) return;
+				if (featureRequestSourceStaleRef.current) {
+					resetFeatureRequestState();
+					featureRequestSourceStaleRef.current = false;
+					return;
+				}
 				setFeatureRequestError(errorMsg);
 			} finally {
 				if (requestId === featureRequestSubmitRequestIdRef.current) {
+					featureRequestSubmitInFlightRef.current = false;
 					setFeatureRequestSubmitting(false);
 				}
 			}
 		},
-		[connection, featureRequestTargetRepository],
+		[connection, featureRequestTargetRepository, resetFeatureRequestState],
 	);
 
 	const showHostBrowserError = useCallback((title: string, message: string) => {
@@ -2418,20 +2440,21 @@ function ShellDetail() {
 	useLayoutEffect(() => {
 		if (skillSelectorSourceKeyRef.current === skillSelectorSourceKey) return;
 		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
-		hostUrlReadRequestIdRef.current += 1;
-		hostUrlSubmitRequestIdRef.current += 1;
+		resetHostUrlModal();
 		hostDiffityRequestIdRef.current += 1;
 		browserGitHubTargetRequestIdRef.current += 1;
-		closeFeatureRequest();
-		setHostUrlModalState(null);
-		setHostUrlModalSubmitting(false);
-		setHostUrlModalError(null);
+		if (featureRequestSubmitInFlightRef.current) {
+			featureRequestSourceStaleRef.current = true;
+		} else {
+			closeFeatureRequest();
+		}
 		if (skillSelectorOpen) {
 			handleCloseSkillSelector();
 		}
 	}, [
 		closeFeatureRequest,
 		handleCloseSkillSelector,
+		resetHostUrlModal,
 		skillSelectorOpen,
 		skillSelectorSourceKey,
 	]);
@@ -2441,7 +2464,10 @@ function ShellDetail() {
 			skillSelectorRequestIdRef.current += 1;
 			hostUrlReadRequestIdRef.current += 1;
 			hostUrlSubmitRequestIdRef.current += 1;
+			hostUrlSubmitInFlightRef.current = false;
 			cancelFeatureRequestRequests();
+			featureRequestSubmitInFlightRef.current = false;
+			featureRequestSourceStaleRef.current = false;
 			browserGitHubTargetRequestIdRef.current += 1;
 			hostDiffityRequestIdRef.current += 1;
 		};
@@ -2637,7 +2663,7 @@ function ShellDetail() {
 	);
 
 	const handleCloseHostUrlModal = useCallback(() => {
-		if (hostUrlModalSubmitting) return;
+		if (hostUrlSubmitInFlightRef.current || hostUrlModalSubmitting) return;
 		resetHostUrlModal();
 	}, [hostUrlModalSubmitting, resetHostUrlModal]);
 
@@ -2656,7 +2682,9 @@ function ShellDetail() {
 				return;
 			}
 
+			if (hostUrlSubmitInFlightRef.current) return;
 			const requestId = ++hostUrlSubmitRequestIdRef.current;
+			hostUrlSubmitInFlightRef.current = true;
 			void (async () => {
 				setHostUrlModalSubmitting(true);
 				setHostUrlModalError(null);
@@ -2680,6 +2708,7 @@ function ShellDetail() {
 					setHostUrlModalError(getErrorMessage(error));
 				} finally {
 					if (requestId === hostUrlSubmitRequestIdRef.current) {
+						hostUrlSubmitInFlightRef.current = false;
 						setHostUrlModalSubmitting(false);
 					}
 				}
