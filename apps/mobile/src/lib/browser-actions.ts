@@ -28,6 +28,15 @@ export type BrowserActionRow =
 			slot: HostBrowserUrlSlot;
 	  };
 
+export type BrowserActionMenuMode = 'open' | 'set';
+
+export type BrowserActionPressIntent =
+	| { type: 'open-diff' }
+	| { type: 'open-github-issues' }
+	| { type: 'open-github-pulls' }
+	| { type: 'open-url-slot'; slot: HostBrowserUrlSlot }
+	| { type: 'edit-url-slot'; slot: HostBrowserUrlSlot };
+
 export const BROWSER_ACTION_ROWS = [
 	{
 		id: 'diff',
@@ -92,4 +101,27 @@ export function isBrowserActionUrlRow<Row extends BrowserActionRow>(
 	row: Row,
 ): row is Extract<Row, { type: 'url-slot' }> {
 	return row.type === 'url-slot';
+}
+
+export function getBrowserActionPressIntent(
+	row: BrowserActionRow,
+	mode: BrowserActionMenuMode,
+): BrowserActionPressIntent {
+	if (isBrowserActionUrlRow(row)) {
+		return mode === 'set'
+			? { type: 'edit-url-slot', slot: row.slot }
+			: { type: 'open-url-slot', slot: row.slot };
+	}
+
+	switch (row.id) {
+		case 'diff':
+			return { type: 'open-diff' };
+		case 'github-issues':
+			return { type: 'open-github-issues' };
+		case 'github-pulls':
+			return { type: 'open-github-pulls' };
+	}
+
+	const exhaustive: never = row;
+	return exhaustive;
 }
