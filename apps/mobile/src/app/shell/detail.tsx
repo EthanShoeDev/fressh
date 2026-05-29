@@ -791,6 +791,7 @@ function ShellDetail() {
 	const wisprAutomationRequestIdRef = useRef(0);
 	const hostUrlReadRequestIdRef = useRef(0);
 	const featureRequestResolveRequestIdRef = useRef(0);
+	const featureRequestSubmitRequestIdRef = useRef(0);
 	const browserGitHubTargetRequestIdRef = useRef(0);
 	const invalidateHostUrlReads = useCallback(() => {
 		hostUrlReadRequestIdRef.current += 1;
@@ -2006,6 +2007,7 @@ function ShellDetail() {
 
 	const handleFeatureRequestSubmit = useCallback(
 		async (description: string) => {
+			const requestId = ++featureRequestSubmitRequestIdRef.current;
 			if (!connection) {
 				setFeatureRequestError('No SSH connection available');
 				return;
@@ -2032,6 +2034,7 @@ function ShellDetail() {
 					60000,
 				);
 
+				if (requestId !== featureRequestSubmitRequestIdRef.current) return;
 				if (result.success) {
 					logger.info('Feature request submitted successfully', {
 						output: result.output,
@@ -2057,15 +2060,19 @@ function ShellDetail() {
 						result.error ||
 						'Failed to create issue. Make sure gh and claude CLIs are installed and authenticated on the remote host.';
 					logger.error('Feature request failed', { error: errorMsg });
+					if (requestId !== featureRequestSubmitRequestIdRef.current) return;
 					setFeatureRequestError(errorMsg);
 				}
 			} catch (err) {
 				const errorMsg =
 					err instanceof Error ? err.message : 'Unknown error occurred';
 				logger.error('Feature request error', { error: err });
+				if (requestId !== featureRequestSubmitRequestIdRef.current) return;
 				setFeatureRequestError(errorMsg);
 			} finally {
-				setFeatureRequestSubmitting(false);
+				if (requestId === featureRequestSubmitRequestIdRef.current) {
+					setFeatureRequestSubmitting(false);
+				}
 			}
 		},
 		[connection, featureRequestTargetRepository],
@@ -2230,6 +2237,7 @@ function ShellDetail() {
 
 	const handleOpenFeatureRequest = useCallback(() => {
 		const requestId = ++featureRequestResolveRequestIdRef.current;
+		featureRequestSubmitRequestIdRef.current += 1;
 		invalidateHostUrlReads();
 		closeSkillSelector();
 		setBrowserActionsOpen(false);
@@ -2374,8 +2382,10 @@ function ShellDetail() {
 		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
 		hostUrlReadRequestIdRef.current += 1;
 		featureRequestResolveRequestIdRef.current += 1;
+		featureRequestSubmitRequestIdRef.current += 1;
 		browserGitHubTargetRequestIdRef.current += 1;
 		setFeatureRequestResolvingTarget(false);
+		setFeatureRequestSubmitting(false);
 		if (skillSelectorOpen) {
 			handleCloseSkillSelector();
 		}
@@ -2386,6 +2396,7 @@ function ShellDetail() {
 			skillSelectorRequestIdRef.current += 1;
 			hostUrlReadRequestIdRef.current += 1;
 			featureRequestResolveRequestIdRef.current += 1;
+			featureRequestSubmitRequestIdRef.current += 1;
 			browserGitHubTargetRequestIdRef.current += 1;
 		};
 	}, []);
@@ -2408,6 +2419,7 @@ function ShellDetail() {
 		handleCloseTextEntry();
 		setConfigureOpen(false);
 		featureRequestResolveRequestIdRef.current += 1;
+		featureRequestSubmitRequestIdRef.current += 1;
 		setFeatureRequestOpen(false);
 		setFeatureRequestSubmitting(false);
 		setFeatureRequestResolvingTarget(false);
@@ -3392,6 +3404,7 @@ function ShellDetail() {
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
 					onClose={() => {
 						featureRequestResolveRequestIdRef.current += 1;
+						featureRequestSubmitRequestIdRef.current += 1;
 						setFeatureRequestOpen(false);
 						setFeatureRequestSubmitting(false);
 						setFeatureRequestResolvingTarget(false);
