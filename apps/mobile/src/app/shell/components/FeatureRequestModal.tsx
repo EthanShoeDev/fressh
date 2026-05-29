@@ -24,7 +24,7 @@ export function FeatureRequestModal({
 }: {
 	open: boolean;
 	bottomOffset: number;
-	onClose: () => void;
+	onClose: () => boolean | void;
 	onSubmit: (description: string) => void;
 	targetRepository?: string | null;
 	isResolvingTarget?: boolean;
@@ -43,8 +43,9 @@ export function FeatureRequestModal({
 
 	const handleClose = useCallback(() => {
 		if (isSubmitting) return;
+		const didClose = onClose();
+		if (didClose === false) return;
 		setDescription('');
-		onClose();
 	}, [isSubmitting, onClose]);
 
 	const handleSubmit = useCallback(() => {
