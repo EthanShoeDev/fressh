@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import {
 	BROWSER_ACTION_ROWS,
+	getBrowserActionPressIntent,
 	isBrowserActionUrlRow,
+	type BrowserActionMenuMode,
 	type BrowserActionRow,
 } from '@/lib/browser-actions';
 import { type HostBrowserUrlSlot } from '@/lib/host-browser-actions';
@@ -30,12 +32,12 @@ export function BrowserActionsModal({
 }) {
 	const theme = useTheme();
 	const longPressedRowIdRef = useRef<string | null>(null);
+	const [menuMode, setMenuMode] = useState<BrowserActionMenuMode>('open');
 
-	useEffect(() => {
-		if (!open) {
-			longPressedRowIdRef.current = null;
-		}
-	}, [open]);
+	const handleShow = useCallback(() => {
+		longPressedRowIdRef.current = null;
+		setMenuMode('open');
+	}, []);
 
 	const runAndClose = useCallback(
 		(callback: () => void) => {
@@ -45,29 +47,43 @@ export function BrowserActionsModal({
 		[onClose],
 	);
 
+	const toggleMenuMode = useCallback(() => {
+		setMenuMode((currentMode) =>
+			currentMode === 'open' ? 'set' : 'open',
+		);
+	}, []);
+
+	const modeButtonLabel = menuMode === 'open' ? 'Set' : 'Open';
+
 	const handlePress = useCallback(
 		(row: BrowserActionRow) => {
 			if (longPressedRowIdRef.current === row.id) {
 				longPressedRowIdRef.current = null;
 				return;
 			}
-			if (row.id === 'diff') {
-				runAndClose(onOpenDiff);
-				return;
-			}
-			if (row.id === 'github-issues') {
-				runAndClose(onOpenGitHubIssues);
-				return;
-			}
-			if (row.id === 'github-pulls') {
-				runAndClose(onOpenGitHubPulls);
-				return;
-			}
-			if (isBrowserActionUrlRow(row)) {
-				runAndClose(() => onOpenUrlSlot(row.slot));
+
+			const intent = getBrowserActionPressIntent(row, menuMode);
+			switch (intent.type) {
+				case 'open-diff':
+					runAndClose(onOpenDiff);
+					return;
+				case 'open-github-issues':
+					runAndClose(onOpenGitHubIssues);
+					return;
+				case 'open-github-pulls':
+					runAndClose(onOpenGitHubPulls);
+					return;
+				case 'open-url-slot':
+					runAndClose(() => onOpenUrlSlot(intent.slot));
+					return;
+				case 'edit-url-slot':
+					runAndClose(() => onEditUrlSlot(intent.slot));
+					return;
 			}
 		},
 		[
+			menuMode,
+			onEditUrlSlot,
 			onOpenDiff,
 			onOpenGitHubIssues,
 			onOpenGitHubPulls,
@@ -91,6 +107,7 @@ export function BrowserActionsModal({
 			visible={open}
 			animationType="slide"
 			onRequestClose={onClose}
+			onShow={handleShow}
 		>
 			<Pressable
 				onPress={onClose}
@@ -134,19 +151,54 @@ export function BrowserActionsModal({
 						>
 							Browser
 						</Text>
-						<Pressable
-							accessibilityRole="button"
-							onPress={onClose}
+						<View
 							style={{
-								paddingHorizontal: 10,
-								paddingVertical: 6,
-								borderRadius: 8,
-								borderWidth: 1,
-								borderColor: theme.colors.border,
+								flexDirection: 'row',
+								alignItems: 'center',
 							}}
 						>
-							<Text style={{ color: theme.colors.textSecondary }}>Close</Text>
-						</Pressable>
+							<Pressable
+								accessibilityRole="button"
+								accessibilityLabel={`Switch Browser menu to ${modeButtonLabel} mode`}
+								onPress={toggleMenuMode}
+								style={{
+									paddingHorizontal: 10,
+									paddingVertical: 6,
+									borderRadius: 8,
+									borderWidth: 1,
+									borderColor: theme.colors.primary,
+									backgroundColor:
+										menuMode === 'set'
+											? theme.colors.primaryDisabled
+											: theme.colors.background,
+									marginRight: 8,
+								}}
+							>
+								<Text
+									style={{
+										color: theme.colors.textPrimary,
+										fontWeight: '600',
+									}}
+								>
+									{modeButtonLabel}
+								</Text>
+							</Pressable>
+							<Pressable
+								accessibilityRole="button"
+								onPress={onClose}
+								style={{
+									paddingHorizontal: 10,
+									paddingVertical: 6,
+									borderRadius: 8,
+									borderWidth: 1,
+									borderColor: theme.colors.border,
+								}}
+							>
+								<Text style={{ color: theme.colors.textSecondary }}>
+									Close
+								</Text>
+							</Pressable>
+						</View>
 					</View>
 
 					<ScrollView>
