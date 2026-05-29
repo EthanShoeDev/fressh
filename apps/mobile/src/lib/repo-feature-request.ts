@@ -33,6 +33,29 @@ export function parseGitHubRepositoryResolutionOutput(
 	return null;
 }
 
+export const GITHUB_REPOSITORY_TARGETS = ['issues', 'pulls'] as const;
+
+export type GitHubRepositoryTarget =
+	(typeof GITHUB_REPOSITORY_TARGETS)[number];
+
+export function isGitHubRepositoryTarget(
+	value: string,
+): value is GitHubRepositoryTarget {
+	return GITHUB_REPOSITORY_TARGETS.includes(
+		value as GitHubRepositoryTarget,
+	);
+}
+
+export function buildGitHubRepositoryTargetUrl(
+	repository: string,
+	target: GitHubRepositoryTarget,
+): string {
+	if (!githubRepositoryPattern.test(repository)) {
+		throw new Error(`Invalid GitHub repository: ${repository}`);
+	}
+	return `https://github.com/${repository}/${target}`;
+}
+
 export function buildResolveGitHubRepositoryCommand(panePath: string): string {
 	return [
 		`cd ${quoteShell(panePath)} || exit 1`,

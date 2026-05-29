@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
 	buildCreateGitHubIssueCommand,
+	buildGitHubRepositoryTargetUrl,
 	buildResolveGitHubRepositoryCommand,
+	isGitHubRepositoryTarget,
 	parseGitHubRepositoryRemoteUrl,
 	parseGitHubRepositoryResolutionOutput,
 } from '../../src/lib/repo-feature-request';
@@ -70,5 +72,24 @@ void test('repository feature request commands quote paths, descriptions, and re
 	assert.match(
 		createCommand,
 		/gh issue create --repo "\$repository" --title "Feature Request: \$title" --body "\$description"/,
+	);
+});
+
+void test('GitHub repository target helpers build Issues and Pull Requests URLs', () => {
+	assert.equal(isGitHubRepositoryTarget('issues'), true);
+	assert.equal(isGitHubRepositoryTarget('pulls'), true);
+	assert.equal(isGitHubRepositoryTarget('repo'), false);
+
+	assert.equal(
+		buildGitHubRepositoryTargetUrl('mulyoved/fressh', 'issues'),
+		'https://github.com/mulyoved/fressh/issues',
+	);
+	assert.equal(
+		buildGitHubRepositoryTargetUrl('mulyoved/fressh', 'pulls'),
+		'https://github.com/mulyoved/fressh/pulls',
+	);
+	assert.throws(
+		() => buildGitHubRepositoryTargetUrl('not a repo', 'issues'),
+		/Invalid GitHub repository/,
 	);
 });
