@@ -2375,6 +2375,7 @@ function ShellDetail() {
 		hostUrlReadRequestIdRef.current += 1;
 		featureRequestResolveRequestIdRef.current += 1;
 		browserGitHubTargetRequestIdRef.current += 1;
+		setFeatureRequestResolvingTarget(false);
 		if (skillSelectorOpen) {
 			handleCloseSkillSelector();
 		}
