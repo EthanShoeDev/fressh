@@ -74,9 +74,11 @@ import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import {
+	buildGitHubRepositoryTargetUrl,
 	buildCreateGitHubIssueCommand,
 	buildResolveGitHubRepositoryCommand,
 	parseGitHubRepositoryResolutionOutput,
+	type GitHubRepositoryTarget,
 } from '@/lib/repo-feature-request';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
@@ -139,6 +141,7 @@ import {
 	type WisprPendingAutoCloseRequest,
 	type WisprTextEditorAvailability,
 } from '@/lib/wispr-text-editor-flow';
+import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
@@ -708,6 +711,7 @@ function ShellDetail() {
 	const appStateRef = useRef(AppState.currentState);
 	const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
+	const [browserActionsOpen, setBrowserActionsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [textEntryOpen, setTextEntryOpen] = useState(false);
 	const [skillSelectorOpen, setSkillSelectorOpen] = useState(false);
@@ -2326,6 +2330,7 @@ function ShellDetail() {
 	const handleOpenSkillSelector = useCallback(() => {
 		invalidateHostUrlReads();
 		setCommandPresetsOpen(false);
+		setBrowserActionsOpen(false);
 		setCommanderOpen(false);
 		setConfigureOpen(false);
 		setFeatureRequestOpen(false);
@@ -2379,6 +2384,69 @@ function ShellDetail() {
 			);
 		}
 	}, []);
+
+	const handleOpenBrowserActions = useCallback(() => {
+		invalidateHostUrlReads();
+		setCommandPresetsOpen(false);
+		setCommanderOpen(false);
+		closeSkillSelector();
+		handleCloseTextEntry();
+		setConfigureOpen(false);
+		setFeatureRequestOpen(false);
+		setFeatureRequestSubmitting(false);
+		setFeatureRequestResolvingTarget(false);
+		setFeatureRequestTargetRepository(null);
+		setFeatureRequestError(undefined);
+		setHostUrlModalState(null);
+		setHostUrlModalError(null);
+		setBrowserActionsOpen(true);
+	}, [closeSkillSelector, handleCloseTextEntry, invalidateHostUrlReads]);
+
+	const handleCloseBrowserActions = useCallback(() => {
+		setBrowserActionsOpen(false);
+	}, []);
+
+	const handleOpenGitHubTarget = useCallback(
+		(target: GitHubRepositoryTarget) => {
+			const title =
+				target === 'issues'
+					? 'GitHub Issues failed'
+					: 'GitHub Pull Requests failed';
+			void (async () => {
+				try {
+					const panePath = await resolveHostBrowserPanePath();
+					const output = await runHostBrowserCommand(
+						buildResolveGitHubRepositoryCommand(panePath),
+						10_000,
+					);
+					const repository = parseGitHubRepositoryResolutionOutput(output);
+					if (!repository) {
+						throw new Error(
+							'Could not resolve GitHub repository for current window.',
+						);
+					}
+					const url = buildGitHubRepositoryTargetUrl(repository, target);
+					await openAndroidUrl(url);
+				} catch (error) {
+					showHostBrowserError(title, getErrorMessage(error));
+				}
+			})();
+		},
+		[
+			openAndroidUrl,
+			resolveHostBrowserPanePath,
+			runHostBrowserCommand,
+			showHostBrowserError,
+		],
+	);
+
+	const handleOpenGitHubIssuesTarget = useCallback(() => {
+		handleOpenGitHubTarget('issues');
+	}, [handleOpenGitHubTarget]);
+
+	const handleOpenGitHubPullsTarget = useCallback(() => {
+		handleOpenGitHubTarget('pulls');
+	}, [handleOpenGitHubTarget]);
 
 	const handleOpenHostDiffity = useCallback(() => {
 		void (async () => {
@@ -2577,6 +2645,7 @@ function ShellDetail() {
 			toggleCommandPresets: () => {
 				invalidateHostUrlReads();
 				setCommanderOpen(false);
+				setBrowserActionsOpen(false);
 				closeSkillSelector();
 				handleCloseTextEntry();
 				setCommandPresetsOpen((prev) => !prev);
@@ -2584,6 +2653,7 @@ function ShellDetail() {
 			openCommander: () => {
 				invalidateHostUrlReads();
 				setCommandPresetsOpen(false);
+				setBrowserActionsOpen(false);
 				closeSkillSelector();
 				handleCloseTextEntry();
 				setCommanderOpen(true);
@@ -2591,6 +2661,7 @@ function ShellDetail() {
 			openSkillSelector: handleOpenSkillSelector,
 			openRepoFeatureRequest: handleOpenFeatureRequest,
 			openWisprTextEditor: handleOpenWisprTextEditor,
+			openBrowserActions: handleOpenBrowserActions,
 			openHostDiffity: handleOpenHostDiffity,
 			openHostUrlSlot: handleOpenHostUrlSlot,
 			editHostUrlSlot: handleEditHostUrlSlot,
@@ -2606,6 +2677,7 @@ function ShellDetail() {
 			handleOpenHostDiffity,
 			handleOpenHostUrlSlot,
 			handleOpenFeatureRequest,
+			handleOpenBrowserActions,
 			handleOpenSkillSelector,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
@@ -3207,6 +3279,16 @@ function ShellDetail() {
 						setCommandPresetsOpen(false);
 					}}
 					onSelect={runCommandPreset}
+				/>
+				<BrowserActionsModal
+					open={browserActionsOpen}
+					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
+					onClose={handleCloseBrowserActions}
+					onOpenDiff={handleOpenHostDiffity}
+					onOpenGitHubIssues={handleOpenGitHubIssuesTarget}
+					onOpenGitHubPulls={handleOpenGitHubPullsTarget}
+					onOpenUrlSlot={handleOpenHostUrlSlot}
+					onEditUrlSlot={handleEditHostUrlSlot}
 				/>
 				<TerminalCommanderModal
 					open={commanderOpen}
