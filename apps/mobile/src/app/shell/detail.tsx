@@ -1793,6 +1793,7 @@ function ShellDetail() {
 			return;
 		}
 		closeSkillSelector();
+		setBrowserActionsOpen(false);
 		if (Platform.OS !== 'android') {
 			setCommanderOpen(false);
 			setCommandPresetsOpen(false);
@@ -1955,6 +1956,7 @@ function ShellDetail() {
 	const openConfigDialog = useCallback(() => {
 		invalidateHostUrlReads();
 		closeSkillSelector();
+		setBrowserActionsOpen(false);
 		setConfigureOpen(true);
 	}, [closeSkillSelector, invalidateHostUrlReads]);
 
@@ -2230,6 +2232,7 @@ function ShellDetail() {
 		const requestId = ++featureRequestResolveRequestIdRef.current;
 		invalidateHostUrlReads();
 		closeSkillSelector();
+		setBrowserActionsOpen(false);
 		setConfigureOpen(false);
 		setFeatureRequestTargetRepository(null);
 		setFeatureRequestError(undefined);
@@ -2492,6 +2495,7 @@ function ShellDetail() {
 	const handleOpenHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
 			closeSkillSelector();
+			setBrowserActionsOpen(false);
 			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
 				try {
@@ -2547,6 +2551,7 @@ function ShellDetail() {
 	const handleEditHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
 			closeSkillSelector();
+			setBrowserActionsOpen(false);
 			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
 				try {
