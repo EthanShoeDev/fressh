@@ -42,9 +42,10 @@ export function FeatureRequestModal({
 	}, [open]);
 
 	const handleClose = useCallback(() => {
+		if (isSubmitting) return;
 		setDescription('');
 		onClose();
-	}, [onClose]);
+	}, [isSubmitting, onClose]);
 
 	const handleSubmit = useCallback(() => {
 		if (!description.trim() || isSubmitting) return;
@@ -114,6 +115,7 @@ export function FeatureRequestModal({
 							</Text>
 							<Pressable
 								onPress={handleClose}
+								disabled={isSubmitting}
 								style={{
 									paddingHorizontal: 10,
 									paddingVertical: 6,
@@ -122,7 +124,13 @@ export function FeatureRequestModal({
 									borderColor: theme.colors.border,
 								}}
 							>
-								<Text style={{ color: theme.colors.textSecondary }}>
+								<Text
+									style={{
+										color: isSubmitting
+											? theme.colors.muted
+											: theme.colors.textSecondary,
+									}}
+								>
 									Cancel
 								</Text>
 							</Pressable>

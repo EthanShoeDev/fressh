@@ -817,9 +817,15 @@ function ShellDetail() {
 		setFeatureRequestError(undefined);
 	}, []);
 	const closeFeatureRequest = useCallback(() => {
+		if (featureRequestSubmitting) return false;
 		cancelFeatureRequestRequests();
 		resetFeatureRequestState();
-	}, [cancelFeatureRequestRequests, resetFeatureRequestState]);
+		return true;
+	}, [
+		cancelFeatureRequestRequests,
+		featureRequestSubmitting,
+		resetFeatureRequestState,
+	]);
 	const agentNotificationAckRequestIdRef = useRef(0);
 	const handledAgentAlertRouteRef = useRef<string | null>(null);
 	const acknowledgeVisibleAgentNotificationRef = useRef<() => void>(() => {});
@@ -2275,6 +2281,7 @@ function ShellDetail() {
 	}, [resolveHostBrowserPanePath, runHostBrowserCommand]);
 
 	const handleOpenFeatureRequest = useCallback(() => {
+		if (featureRequestSubmitting) return;
 		const requestId = ++featureRequestResolveRequestIdRef.current;
 		featureRequestSubmitRequestIdRef.current += 1;
 		invalidateHostUrlReads();
@@ -2303,6 +2310,7 @@ function ShellDetail() {
 		})();
 	}, [
 		closeSkillSelector,
+		featureRequestSubmitting,
 		invalidateHostUrlReads,
 		resetFeatureRequestState,
 		resolveCurrentGitHubRepository,
@@ -2378,7 +2386,7 @@ function ShellDetail() {
 		setBrowserActionsOpen(false);
 		setCommanderOpen(false);
 		setConfigureOpen(false);
-		closeFeatureRequest();
+		if (!closeFeatureRequest()) return;
 		resetHostUrlModal();
 		handleCloseTextEntry();
 		setSkillSelectorOpen(true);
@@ -2433,12 +2441,11 @@ function ShellDetail() {
 			skillSelectorRequestIdRef.current += 1;
 			hostUrlReadRequestIdRef.current += 1;
 			hostUrlSubmitRequestIdRef.current += 1;
-			featureRequestResolveRequestIdRef.current += 1;
-			featureRequestSubmitRequestIdRef.current += 1;
+			cancelFeatureRequestRequests();
 			browserGitHubTargetRequestIdRef.current += 1;
 			hostDiffityRequestIdRef.current += 1;
 		};
-	}, []);
+	}, [cancelFeatureRequestRequests]);
 
 	const openAndroidUrl = useCallback(async (url: string) => {
 		try {
@@ -2457,7 +2464,7 @@ function ShellDetail() {
 		closeSkillSelector();
 		handleCloseTextEntry();
 		setConfigureOpen(false);
-		closeFeatureRequest();
+		if (!closeFeatureRequest()) return;
 		resetHostUrlModal();
 		setBrowserActionsOpen(true);
 	}, [
