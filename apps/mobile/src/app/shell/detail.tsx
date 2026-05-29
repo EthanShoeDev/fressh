@@ -790,6 +790,8 @@ function ShellDetail() {
 	const wisprAutoCloseAttemptIdRef = useRef(0);
 	const wisprAutomationRequestIdRef = useRef(0);
 	const hostUrlReadRequestIdRef = useRef(0);
+	const featureRequestResolveRequestIdRef = useRef(0);
+	const browserGitHubTargetRequestIdRef = useRef(0);
 	const invalidateHostUrlReads = useCallback(() => {
 		hostUrlReadRequestIdRef.current += 1;
 	}, []);
@@ -2225,6 +2227,7 @@ function ShellDetail() {
 	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
 	const handleOpenFeatureRequest = useCallback(() => {
+		const requestId = ++featureRequestResolveRequestIdRef.current;
 		invalidateHostUrlReads();
 		closeSkillSelector();
 		setConfigureOpen(false);
@@ -2246,13 +2249,17 @@ function ShellDetail() {
 						'Could not resolve GitHub repository for current window.',
 					);
 				}
+				if (requestId !== featureRequestResolveRequestIdRef.current) return;
 				setFeatureRequestTargetRepository(repository);
 				setFeatureRequestError(undefined);
 			} catch (error) {
+				if (requestId !== featureRequestResolveRequestIdRef.current) return;
 				setFeatureRequestTargetRepository(null);
 				setFeatureRequestError(getErrorMessage(error));
 			} finally {
-				setFeatureRequestResolvingTarget(false);
+				if (requestId === featureRequestResolveRequestIdRef.current) {
+					setFeatureRequestResolvingTarget(false);
+				}
 			}
 		})();
 	}, [
@@ -2363,6 +2370,8 @@ function ShellDetail() {
 		if (skillSelectorSourceKeyRef.current === skillSelectorSourceKey) return;
 		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
 		hostUrlReadRequestIdRef.current += 1;
+		featureRequestResolveRequestIdRef.current += 1;
+		browserGitHubTargetRequestIdRef.current += 1;
 		if (skillSelectorOpen) {
 			handleCloseSkillSelector();
 		}
@@ -2372,6 +2381,8 @@ function ShellDetail() {
 		return () => {
 			skillSelectorRequestIdRef.current += 1;
 			hostUrlReadRequestIdRef.current += 1;
+			featureRequestResolveRequestIdRef.current += 1;
+			browserGitHubTargetRequestIdRef.current += 1;
 		};
 	}, []);
 
@@ -2392,6 +2403,7 @@ function ShellDetail() {
 		closeSkillSelector();
 		handleCloseTextEntry();
 		setConfigureOpen(false);
+		featureRequestResolveRequestIdRef.current += 1;
 		setFeatureRequestOpen(false);
 		setFeatureRequestSubmitting(false);
 		setFeatureRequestResolvingTarget(false);
@@ -2408,6 +2420,7 @@ function ShellDetail() {
 
 	const handleOpenGitHubTarget = useCallback(
 		(target: GitHubRepositoryTarget) => {
+			const requestId = ++browserGitHubTargetRequestIdRef.current;
 			const title =
 				target === 'issues'
 					? 'GitHub Issues failed'
@@ -2425,9 +2438,11 @@ function ShellDetail() {
 							'Could not resolve GitHub repository for current window.',
 						);
 					}
+					if (requestId !== browserGitHubTargetRequestIdRef.current) return;
 					const url = buildGitHubRepositoryTargetUrl(repository, target);
 					await openAndroidUrl(url);
 				} catch (error) {
+					if (requestId !== browserGitHubTargetRequestIdRef.current) return;
 					showHostBrowserError(title, getErrorMessage(error));
 				}
 			})();
@@ -3370,6 +3385,7 @@ function ShellDetail() {
 					open={featureRequestOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
 					onClose={() => {
+						featureRequestResolveRequestIdRef.current += 1;
 						setFeatureRequestOpen(false);
 						setFeatureRequestSubmitting(false);
 						setFeatureRequestResolvingTarget(false);
