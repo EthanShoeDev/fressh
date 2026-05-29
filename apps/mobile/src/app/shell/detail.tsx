@@ -2384,8 +2384,11 @@ function ShellDetail() {
 		featureRequestResolveRequestIdRef.current += 1;
 		featureRequestSubmitRequestIdRef.current += 1;
 		browserGitHubTargetRequestIdRef.current += 1;
+		setFeatureRequestOpen(false);
 		setFeatureRequestResolvingTarget(false);
 		setFeatureRequestSubmitting(false);
+		setFeatureRequestTargetRepository(null);
+		setFeatureRequestError(undefined);
 		if (skillSelectorOpen) {
 			handleCloseSkillSelector();
 		}
