@@ -790,12 +790,36 @@ function ShellDetail() {
 	const wisprAutoCloseAttemptIdRef = useRef(0);
 	const wisprAutomationRequestIdRef = useRef(0);
 	const hostUrlReadRequestIdRef = useRef(0);
+	const hostUrlSubmitRequestIdRef = useRef(0);
 	const featureRequestResolveRequestIdRef = useRef(0);
 	const featureRequestSubmitRequestIdRef = useRef(0);
 	const browserGitHubTargetRequestIdRef = useRef(0);
+	const hostDiffityRequestIdRef = useRef(0);
 	const invalidateHostUrlReads = useCallback(() => {
 		hostUrlReadRequestIdRef.current += 1;
 	}, []);
+	const resetHostUrlModal = useCallback(() => {
+		hostUrlReadRequestIdRef.current += 1;
+		hostUrlSubmitRequestIdRef.current += 1;
+		setHostUrlModalState(null);
+		setHostUrlModalSubmitting(false);
+		setHostUrlModalError(null);
+	}, []);
+	const cancelFeatureRequestRequests = useCallback(() => {
+		featureRequestResolveRequestIdRef.current += 1;
+		featureRequestSubmitRequestIdRef.current += 1;
+	}, []);
+	const resetFeatureRequestState = useCallback(() => {
+		setFeatureRequestOpen(false);
+		setFeatureRequestSubmitting(false);
+		setFeatureRequestResolvingTarget(false);
+		setFeatureRequestTargetRepository(null);
+		setFeatureRequestError(undefined);
+	}, []);
+	const closeFeatureRequest = useCallback(() => {
+		cancelFeatureRequestRequests();
+		resetFeatureRequestState();
+	}, [cancelFeatureRequestRequests, resetFeatureRequestState]);
 	const agentNotificationAckRequestIdRef = useRef(0);
 	const handledAgentAlertRouteRef = useRef<string | null>(null);
 	const acknowledgeVisibleAgentNotificationRef = useRef<() => void>(() => {});
@@ -2235,6 +2259,21 @@ function ShellDetail() {
 		return panePath;
 	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
+	const resolveCurrentGitHubRepository = useCallback(async () => {
+		const panePath = await resolveHostBrowserPanePath();
+		const output = await runHostBrowserCommand(
+			buildResolveGitHubRepositoryCommand(panePath),
+			10_000,
+		);
+		const repository = parseGitHubRepositoryResolutionOutput(output);
+		if (!repository) {
+			throw new Error(
+				'Could not resolve GitHub repository for current window.',
+			);
+		}
+		return repository;
+	}, [resolveHostBrowserPanePath, runHostBrowserCommand]);
+
 	const handleOpenFeatureRequest = useCallback(() => {
 		const requestId = ++featureRequestResolveRequestIdRef.current;
 		featureRequestSubmitRequestIdRef.current += 1;
@@ -2242,24 +2281,13 @@ function ShellDetail() {
 		closeSkillSelector();
 		setBrowserActionsOpen(false);
 		setConfigureOpen(false);
-		setFeatureRequestTargetRepository(null);
-		setFeatureRequestError(undefined);
+		resetFeatureRequestState();
 		setFeatureRequestOpen(true);
 
 		void (async () => {
 			setFeatureRequestResolvingTarget(true);
 			try {
-				const panePath = await resolveHostBrowserPanePath();
-				const output = await runHostBrowserCommand(
-					buildResolveGitHubRepositoryCommand(panePath),
-					10_000,
-				);
-				const repository = parseGitHubRepositoryResolutionOutput(output);
-				if (!repository) {
-					throw new Error(
-						'Could not resolve GitHub repository for current window.',
-					);
-				}
+				const repository = await resolveCurrentGitHubRepository();
 				if (requestId !== featureRequestResolveRequestIdRef.current) return;
 				setFeatureRequestTargetRepository(repository);
 				setFeatureRequestError(undefined);
@@ -2276,8 +2304,8 @@ function ShellDetail() {
 	}, [
 		closeSkillSelector,
 		invalidateHostUrlReads,
-		resolveHostBrowserPanePath,
-		runHostBrowserCommand,
+		resetFeatureRequestState,
+		resolveCurrentGitHubRepository,
 	]);
 
 	const activeTmuxSessionName = tmuxTarget.trim() || 'main';
@@ -2346,19 +2374,21 @@ function ShellDetail() {
 	]);
 
 	const handleOpenSkillSelector = useCallback(() => {
-		invalidateHostUrlReads();
 		setCommandPresetsOpen(false);
 		setBrowserActionsOpen(false);
 		setCommanderOpen(false);
 		setConfigureOpen(false);
-		setFeatureRequestOpen(false);
-		setFeatureRequestError(undefined);
-		setHostUrlModalState(null);
-		setHostUrlModalError(null);
+		closeFeatureRequest();
+		resetHostUrlModal();
 		handleCloseTextEntry();
 		setSkillSelectorOpen(true);
 		void loadSkillSelectorSkills();
-	}, [handleCloseTextEntry, invalidateHostUrlReads, loadSkillSelectorSkills]);
+	}, [
+		closeFeatureRequest,
+		handleCloseTextEntry,
+		loadSkillSelectorSkills,
+		resetHostUrlModal,
+	]);
 
 	const handleCloseSkillSelector = closeSkillSelector;
 
@@ -2381,26 +2411,32 @@ function ShellDetail() {
 		if (skillSelectorSourceKeyRef.current === skillSelectorSourceKey) return;
 		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
 		hostUrlReadRequestIdRef.current += 1;
-		featureRequestResolveRequestIdRef.current += 1;
-		featureRequestSubmitRequestIdRef.current += 1;
+		hostUrlSubmitRequestIdRef.current += 1;
+		hostDiffityRequestIdRef.current += 1;
 		browserGitHubTargetRequestIdRef.current += 1;
-		setFeatureRequestOpen(false);
-		setFeatureRequestResolvingTarget(false);
-		setFeatureRequestSubmitting(false);
-		setFeatureRequestTargetRepository(null);
-		setFeatureRequestError(undefined);
+		closeFeatureRequest();
+		setHostUrlModalState(null);
+		setHostUrlModalSubmitting(false);
+		setHostUrlModalError(null);
 		if (skillSelectorOpen) {
 			handleCloseSkillSelector();
 		}
-	}, [handleCloseSkillSelector, skillSelectorOpen, skillSelectorSourceKey]);
+	}, [
+		closeFeatureRequest,
+		handleCloseSkillSelector,
+		skillSelectorOpen,
+		skillSelectorSourceKey,
+	]);
 
 	useEffect(() => {
 		return () => {
 			skillSelectorRequestIdRef.current += 1;
 			hostUrlReadRequestIdRef.current += 1;
+			hostUrlSubmitRequestIdRef.current += 1;
 			featureRequestResolveRequestIdRef.current += 1;
 			featureRequestSubmitRequestIdRef.current += 1;
 			browserGitHubTargetRequestIdRef.current += 1;
+			hostDiffityRequestIdRef.current += 1;
 		};
 	}, []);
 
@@ -2421,17 +2457,16 @@ function ShellDetail() {
 		closeSkillSelector();
 		handleCloseTextEntry();
 		setConfigureOpen(false);
-		featureRequestResolveRequestIdRef.current += 1;
-		featureRequestSubmitRequestIdRef.current += 1;
-		setFeatureRequestOpen(false);
-		setFeatureRequestSubmitting(false);
-		setFeatureRequestResolvingTarget(false);
-		setFeatureRequestTargetRepository(null);
-		setFeatureRequestError(undefined);
-		setHostUrlModalState(null);
-		setHostUrlModalError(null);
+		closeFeatureRequest();
+		resetHostUrlModal();
 		setBrowserActionsOpen(true);
-	}, [closeSkillSelector, handleCloseTextEntry, invalidateHostUrlReads]);
+	}, [
+		closeFeatureRequest,
+		closeSkillSelector,
+		handleCloseTextEntry,
+		invalidateHostUrlReads,
+		resetHostUrlModal,
+	]);
 
 	const handleCloseBrowserActions = useCallback(() => {
 		setBrowserActionsOpen(false);
@@ -2446,17 +2481,7 @@ function ShellDetail() {
 					: 'GitHub Pull Requests failed';
 			void (async () => {
 				try {
-					const panePath = await resolveHostBrowserPanePath();
-					const output = await runHostBrowserCommand(
-						buildResolveGitHubRepositoryCommand(panePath),
-						10_000,
-					);
-					const repository = parseGitHubRepositoryResolutionOutput(output);
-					if (!repository) {
-						throw new Error(
-							'Could not resolve GitHub repository for current window.',
-						);
-					}
+					const repository = await resolveCurrentGitHubRepository();
 					if (requestId !== browserGitHubTargetRequestIdRef.current) return;
 					const url = buildGitHubRepositoryTargetUrl(repository, target);
 					await openAndroidUrl(url);
@@ -2468,8 +2493,7 @@ function ShellDetail() {
 		},
 		[
 			openAndroidUrl,
-			resolveHostBrowserPanePath,
-			runHostBrowserCommand,
+			resolveCurrentGitHubRepository,
 			showHostBrowserError,
 		],
 	);
@@ -2483,6 +2507,7 @@ function ShellDetail() {
 	}, [handleOpenGitHubTarget]);
 
 	const handleOpenHostDiffity = useCallback(() => {
+		const requestId = ++hostDiffityRequestIdRef.current;
 		void (async () => {
 			try {
 				const panePath = await resolveHostBrowserPanePath();
@@ -2496,8 +2521,10 @@ function ShellDetail() {
 						output || 'mdev diffity share did not return an HTTPS URL.',
 					);
 				}
+				if (requestId !== hostDiffityRequestIdRef.current) return;
 				await openAndroidUrl(url);
 			} catch (error) {
+				if (requestId !== hostDiffityRequestIdRef.current) return;
 				showHostBrowserError('Diffity failed', getErrorMessage(error));
 			}
 		})();
@@ -2604,10 +2631,8 @@ function ShellDetail() {
 
 	const handleCloseHostUrlModal = useCallback(() => {
 		if (hostUrlModalSubmitting) return;
-		invalidateHostUrlReads();
-		setHostUrlModalState(null);
-		setHostUrlModalError(null);
-	}, [hostUrlModalSubmitting, invalidateHostUrlReads]);
+		resetHostUrlModal();
+	}, [hostUrlModalSubmitting, resetHostUrlModal]);
 
 	const handleSubmitHostUrlModal = useCallback(
 		(value: string) => {
@@ -2624,6 +2649,7 @@ function ShellDetail() {
 				return;
 			}
 
+			const requestId = ++hostUrlSubmitRequestIdRef.current;
 			void (async () => {
 				setHostUrlModalSubmitting(true);
 				setHostUrlModalError(null);
@@ -2636,14 +2662,19 @@ function ShellDetail() {
 						),
 						10_000,
 					);
+					if (requestId !== hostUrlSubmitRequestIdRef.current) return;
 					if (state.mode === 'open-missing') {
 						await openAndroidUrl(parsed.url);
+						if (requestId !== hostUrlSubmitRequestIdRef.current) return;
 					}
 					setHostUrlModalState(null);
 				} catch (error) {
+					if (requestId !== hostUrlSubmitRequestIdRef.current) return;
 					setHostUrlModalError(getErrorMessage(error));
 				} finally {
-					setHostUrlModalSubmitting(false);
+					if (requestId === hostUrlSubmitRequestIdRef.current) {
+						setHostUrlModalSubmitting(false);
+					}
 				}
 			})();
 		},
