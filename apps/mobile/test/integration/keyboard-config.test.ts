@@ -369,7 +369,7 @@ void test('browser keyboard exposes host navigation actions', () => {
 	assert.deepEqual(config.macrosByKeyboardId.browser_keyboard, []);
 });
 
-void test('advanced keyboard exposes host URL setter actions', () => {
+void test('advanced keyboard omits consolidated host URL setter actions', () => {
 	const config = getBundledShellConfig();
 	const advancedKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'advanced_keyboard',
@@ -386,29 +386,18 @@ void test('advanced keyboard exposes host URL setter actions', () => {
 		},
 	]);
 	assert.deepEqual(advancedKeyboard.grid[2]?.slice(0, 4), [
-		{
-			type: 'action',
-			actionId: 'EDIT_HOST_URL_WINDOW',
-			label: 'Set URL',
-			icon: 'Link',
-		},
-		{
-			type: 'action',
-			actionId: 'EDIT_HOST_URL_DEV_SERVER',
-			label: 'Set Web',
-			icon: 'Globe',
-		},
-		{
-			type: 'action',
-			actionId: 'EDIT_HOST_URL_STORYBOOK',
-			label: 'Set Story',
-			icon: 'BookOpen',
-		},
-		{
-			type: 'action',
-			actionId: 'EDIT_HOST_URL_APP',
-			label: 'Set App',
-			icon: 'PanelTop',
-		},
+		null,
+		null,
+		null,
+		null,
 	]);
+
+	const advancedActionIds = advancedKeyboard.grid.flatMap((row) =>
+		row.flatMap((item) => (item?.type === 'action' ? [item.actionId] : [])),
+	);
+
+	assert.equal(advancedActionIds.includes('EDIT_HOST_URL_WINDOW'), false);
+	assert.equal(advancedActionIds.includes('EDIT_HOST_URL_DEV_SERVER'), false);
+	assert.equal(advancedActionIds.includes('EDIT_HOST_URL_STORYBOOK'), false);
+	assert.equal(advancedActionIds.includes('EDIT_HOST_URL_APP'), false);
 });

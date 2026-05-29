@@ -1,6 +1,6 @@
 {
-	"version": "2026-05-29.1",
-	"updatedAt": "2026-05-29T07:50:36Z",
+	"version": "2026-05-29.2",
+	"updatedAt": "2026-05-29T08:15:00Z",
 	"defaultKeyboardId": "phone_base",
 	"activeKeyboardIds": ["phone_base", "advanced_keyboard", "browser_keyboard"],
 	"keyboardRouting": {
@@ -375,30 +375,10 @@
 					null
 				],
 				[
-					{
-						"type": "action",
-						"actionId": "EDIT_HOST_URL_WINDOW",
-						"label": "Set URL",
-						"icon": "Link"
-					},
-					{
-						"type": "action",
-						"actionId": "EDIT_HOST_URL_DEV_SERVER",
-						"label": "Set Web",
-						"icon": "Globe"
-					},
-					{
-						"type": "action",
-						"actionId": "EDIT_HOST_URL_STORYBOOK",
-						"label": "Set Story",
-						"icon": "BookOpen"
-					},
-					{
-						"type": "action",
-						"actionId": "EDIT_HOST_URL_APP",
-						"label": "Set App",
-						"icon": "PanelTop"
-					},
+					null,
+					null,
+					null,
+					null,
 					null,
 					null,
 					null,
