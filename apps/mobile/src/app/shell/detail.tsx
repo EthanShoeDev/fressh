@@ -3436,15 +3436,7 @@ function ShellDetail() {
 				<FeatureRequestModal
 					open={featureRequestOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={() => {
-						featureRequestResolveRequestIdRef.current += 1;
-						featureRequestSubmitRequestIdRef.current += 1;
-						setFeatureRequestOpen(false);
-						setFeatureRequestSubmitting(false);
-						setFeatureRequestResolvingTarget(false);
-						setFeatureRequestTargetRepository(null);
-						setFeatureRequestError(undefined);
-					}}
+					onClose={closeFeatureRequest}
 					onSubmit={handleFeatureRequestSubmit}
 					targetRepository={featureRequestTargetRepository}
 					isResolvingTarget={featureRequestResolvingTarget}
