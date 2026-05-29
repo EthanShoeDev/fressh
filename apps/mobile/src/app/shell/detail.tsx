@@ -798,6 +798,7 @@ function ShellDetail() {
 	const featureRequestSourceStaleRef = useRef(false);
 	const browserGitHubTargetRequestIdRef = useRef(0);
 	const hostDiffityRequestIdRef = useRef(0);
+	const hostDiffityInFlightRef = useRef(false);
 	const invalidateHostUrlReads = useCallback(() => {
 		hostUrlReadRequestIdRef.current += 1;
 	}, []);
@@ -2075,6 +2076,11 @@ function ShellDetail() {
 				);
 
 				if (requestId !== featureRequestSubmitRequestIdRef.current) return;
+				if (featureRequestSourceStaleRef.current) {
+					resetFeatureRequestState();
+					featureRequestSourceStaleRef.current = false;
+					return;
+				}
 				if (result.success) {
 					logger.info('Feature request submitted successfully', {
 						output: result.output,
@@ -2097,11 +2103,6 @@ function ShellDetail() {
 						[{ text: 'OK' }],
 					);
 				} else {
-					if (featureRequestSourceStaleRef.current) {
-						resetFeatureRequestState();
-						featureRequestSourceStaleRef.current = false;
-						return;
-					}
 					const errorMsg =
 						result.error ||
 						'Failed to create issue. Make sure gh and claude CLIs are installed and authenticated on the remote host.';
@@ -2470,6 +2471,7 @@ function ShellDetail() {
 			featureRequestSourceStaleRef.current = false;
 			browserGitHubTargetRequestIdRef.current += 1;
 			hostDiffityRequestIdRef.current += 1;
+			hostDiffityInFlightRef.current = false;
 		};
 	}, [cancelFeatureRequestRequests]);
 
@@ -2540,7 +2542,9 @@ function ShellDetail() {
 	}, [handleOpenGitHubTarget]);
 
 	const handleOpenHostDiffity = useCallback(() => {
+		if (hostDiffityInFlightRef.current) return;
 		const requestId = ++hostDiffityRequestIdRef.current;
+		hostDiffityInFlightRef.current = true;
 		void (async () => {
 			try {
 				const panePath = await resolveHostBrowserPanePath();
@@ -2559,6 +2563,8 @@ function ShellDetail() {
 			} catch (error) {
 				if (requestId !== hostDiffityRequestIdRef.current) return;
 				showHostBrowserError('Diffity failed', getErrorMessage(error));
+			} finally {
+				hostDiffityInFlightRef.current = false;
 			}
 		})();
 	}, [
