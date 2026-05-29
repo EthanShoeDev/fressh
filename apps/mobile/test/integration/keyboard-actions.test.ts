@@ -146,3 +146,23 @@ void test('host browser actions delegate to action context callbacks', async () 
 void test('browser keyboard is a target keyboard action', () => {
 	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_BROWSER_KEYBOARD'), true);
 });
+
+void test('browser actions menu action delegates to the action context', async () => {
+	let opened = 0;
+
+	await runAction('OPEN_BROWSER_ACTIONS', {
+		availableKeyboardIds: new Set(),
+		selectKeyboard: () => {},
+		rotateKeyboard: () => {},
+		openConfigurator: () => {},
+		sendBytes: () => {},
+		pasteClipboard: async () => {},
+		copySelection: () => {},
+		openBrowserActions: () => {
+			opened += 1;
+		},
+	} as Parameters<typeof runAction>[1]);
+
+	assert.equal(opened, 1);
+	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_BROWSER_ACTIONS'), true);
+});
