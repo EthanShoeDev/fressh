@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import {
 	BROWSER_ACTION_ROWS,
@@ -30,6 +30,12 @@ export function BrowserActionsModal({
 }) {
 	const theme = useTheme();
 	const longPressedRowIdRef = useRef<string | null>(null);
+
+	useEffect(() => {
+		if (!open) {
+			longPressedRowIdRef.current = null;
+		}
+	}, [open]);
 
 	const runAndClose = useCallback(
 		(callback: () => void) => {
