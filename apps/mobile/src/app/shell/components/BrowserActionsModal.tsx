@@ -1,10 +1,14 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import {
 	BROWSER_ACTION_ROWS,
 	getBrowserActionModeButtonLabel,
-	getBrowserActionPressIntent,
-	getNextBrowserActionMenuMode,
 	isBrowserActionUrlRow,
 	type BrowserActionMenuMode,
 	type BrowserActionRow,
@@ -12,6 +16,15 @@ import {
 import { type HostBrowserUrlSlot } from '@/lib/host-browser-actions';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { useTheme } from '@/lib/theme';
+import {
+	handleBrowserActionsModalClose,
+	handleBrowserActionsModalModeToggle,
+	handleBrowserActionsModalRowLongPress,
+	handleBrowserActionsModalRowPress,
+	handleBrowserActionsModalShow,
+	resetBrowserActionsModalState,
+	type BrowserActionsModalCallbacks,
+} from './browser-actions-modal-controller';
 
 export function BrowserActionsModal({
 	open,
@@ -36,69 +49,86 @@ export function BrowserActionsModal({
 	const longPressedRowIdRef = useRef<string | null>(null);
 	const [menuMode, setMenuMode] = useState<BrowserActionMenuMode>('open');
 
-	const handleShow = useCallback(() => {
-		longPressedRowIdRef.current = null;
-		setMenuMode('open');
+	const resetMenuState = useCallback(() => {
+		resetBrowserActionsModalState({
+			setMenuMode,
+			setLongPressedRowId: (rowId) => {
+				longPressedRowIdRef.current = rowId;
+			},
+		});
 	}, []);
 
-	const runAndClose = useCallback(
-		(callback: () => void) => {
-			onClose();
-			callback();
-		},
-		[onClose],
+	useEffect(() => {
+		if (!open) resetMenuState();
+	}, [open, resetMenuState]);
+
+	const handleShow = useCallback(() => {
+		handleBrowserActionsModalShow({
+			setMenuMode,
+			setLongPressedRowId: (rowId) => {
+				longPressedRowIdRef.current = rowId;
+			},
+		});
+	}, []);
+
+	const handleClose = useCallback(() => {
+		handleBrowserActionsModalClose({
+			setMenuMode,
+			onClose,
+		});
+	}, [onClose]);
+
+	const callbacks: BrowserActionsModalCallbacks = useMemo(
+		() => ({
+			onClose: handleClose,
+			onOpenDiff,
+			onOpenGitHubIssues,
+			onOpenGitHubPulls,
+			onOpenUrlSlot,
+			onEditUrlSlot,
+		}),
+		[
+			handleClose,
+			onEditUrlSlot,
+			onOpenDiff,
+			onOpenGitHubIssues,
+			onOpenGitHubPulls,
+			onOpenUrlSlot,
+		],
 	);
 
 	const toggleMenuMode = useCallback(() => {
-		setMenuMode(getNextBrowserActionMenuMode);
+		handleBrowserActionsModalModeToggle({ setMenuMode });
 	}, []);
 
 	const modeButtonLabel = getBrowserActionModeButtonLabel(menuMode);
 
 	const handlePress = useCallback(
 		(row: BrowserActionRow) => {
-			if (longPressedRowIdRef.current === row.id) {
-				longPressedRowIdRef.current = null;
-				return;
-			}
-
-			const intent = getBrowserActionPressIntent(row, menuMode);
-			switch (intent.type) {
-				case 'open-diff':
-					runAndClose(onOpenDiff);
-					return;
-				case 'open-github-issues':
-					runAndClose(onOpenGitHubIssues);
-					return;
-				case 'open-github-pulls':
-					runAndClose(onOpenGitHubPulls);
-					return;
-				case 'open-url-slot':
-					runAndClose(() => onOpenUrlSlot(intent.slot));
-					return;
-				case 'edit-url-slot':
-					runAndClose(() => onEditUrlSlot(intent.slot));
-					return;
-			}
+			handleBrowserActionsModalRowPress({
+				row,
+				menuMode,
+				longPressedRowId: longPressedRowIdRef.current,
+				setLongPressedRowId: (rowId) => {
+					longPressedRowIdRef.current = rowId;
+				},
+				callbacks,
+			});
 		},
-		[
-			menuMode,
-			onEditUrlSlot,
-			onOpenDiff,
-			onOpenGitHubIssues,
-			onOpenGitHubPulls,
-			onOpenUrlSlot,
-			runAndClose,
-		],
+		[callbacks, menuMode],
 	);
 
 	const handleLongPress = useCallback(
 		(row: BrowserActionRow) => {
-			if (!isBrowserActionUrlRow(row)) return;
-			longPressedRowIdRef.current = row.id;
-			runAndClose(() => onEditUrlSlot(row.slot));
+			handleBrowserActionsModalRowLongPress({
+				row,
+				setLongPressedRowId: (rowId) => {
+					longPressedRowIdRef.current = rowId;
+				},
+				callbacks,
+			});
 		},
-		[onEditUrlSlot, runAndClose],
+		[callbacks],
 	);
 
 	return (
@@ -106,11 +136,11 @@ export function BrowserActionsModal({
 			transparent
 			visible={open}
 			animationType="slide"
-			onRequestClose={onClose}
+			onRequestClose={handleClose}
 			onShow={handleShow}
 		>
 			<Pressable
-				onPress={onClose}
+				onPress={handleClose}
 				style={{
 					flex: 1,
 					backgroundColor: theme.colors.overlay,
@@ -185,7 +215,7 @@ export function BrowserActionsModal({
 							</Pressable>
 							<Pressable
 								accessibilityRole="button"
-								onPress={onClose}
+								onPress={handleClose}
 								style={{
 									paddingHorizontal: 10,
 									paddingVertical: 6,
@@ -194,9 +224,7 @@ export function BrowserActionsModal({
 									borderColor: theme.colors.border,
 								}}
 							>
-								<Text style={{ color: theme.colors.textSecondary }}>
-									Close
-								</Text>
+								<Text style={{ color: theme.colors.textSecondary }}>Close</Text>
 							</Pressable>
 						</View>
 					</View>
