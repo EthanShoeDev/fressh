@@ -157,7 +157,11 @@ export function BrowserActionsModal({
 									key={row.id}
 									accessibilityRole="button"
 									onPress={() => handlePress(row)}
-									onLongPress={() => handleLongPress(row)}
+									onLongPress={
+										isBrowserActionUrlRow(row)
+											? () => handleLongPress(row)
+											: undefined
+									}
 									style={{
 										paddingVertical: 12,
 										paddingHorizontal: 12,
