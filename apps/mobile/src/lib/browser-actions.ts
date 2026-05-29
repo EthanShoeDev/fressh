@@ -88,8 +88,8 @@ export const BROWSER_ACTION_URL_ROWS = BROWSER_ACTION_ROWS.filter(
 	isBrowserActionUrlRow,
 );
 
-export function isBrowserActionUrlRow(
-	row: BrowserActionRow,
-): row is Extract<BrowserActionRow, { type: 'url-slot' }> {
+export function isBrowserActionUrlRow<Row extends BrowserActionRow>(
+	row: Row,
+): row is Extract<Row, { type: 'url-slot' }> {
 	return row.type === 'url-slot';
 }
