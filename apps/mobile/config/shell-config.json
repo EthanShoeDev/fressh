@@ -1,6 +1,6 @@
 {
-	"version": "2026-05-28.2",
-	"updatedAt": "2026-05-28T18:54:49Z",
+	"version": "2026-05-29.1",
+	"updatedAt": "2026-05-29T07:50:36Z",
 	"defaultKeyboardId": "phone_base",
 	"activeKeyboardIds": ["phone_base", "advanced_keyboard", "browser_keyboard"],
 	"keyboardRouting": {
@@ -238,49 +238,9 @@
 					},
 					{
 						"type": "action",
-						"actionId": "OPEN_BROWSER_KEYBOARD",
+						"actionId": "OPEN_BROWSER_ACTIONS",
 						"label": "Browser",
-						"icon": "ExternalLink",
-						"longPress": {
-							"options": [
-								{
-									"type": "action",
-									"actionId": "OPEN_BROWSER_KEYBOARD",
-									"label": "Browser",
-									"icon": "ExternalLink"
-								},
-								{
-									"type": "action",
-									"actionId": "OPEN_HOST_DIFFITY",
-									"label": "Diff",
-									"icon": "GitCompare"
-								},
-								{
-									"type": "action",
-									"actionId": "OPEN_HOST_URL_WINDOW",
-									"label": "URL",
-									"icon": "Link"
-								},
-								{
-									"type": "action",
-									"actionId": "OPEN_HOST_URL_DEV_SERVER",
-									"label": "Web",
-									"icon": "Globe"
-								},
-								{
-									"type": "action",
-									"actionId": "OPEN_HOST_URL_STORYBOOK",
-									"label": "Story",
-									"icon": "BookOpen"
-								},
-								{
-									"type": "action",
-									"actionId": "OPEN_HOST_URL_APP",
-									"label": "App",
-									"icon": "PanelTop"
-								}
-							]
-						}
+						"icon": "ExternalLink"
 					},
 					{
 						"type": "macro",

@@ -248,7 +248,7 @@ void test('bundled keyboards do not expose tmux history actions', () => {
 	assert.deepEqual(historySlots, []);
 });
 
-void test('phone base keyboard exposes explain, browser long press, and status actions', () => {
+void test('phone base keyboard exposes explain, browser actions, and status actions', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -264,49 +264,9 @@ void test('phone base keyboard exposes explain, browser long press, and status a
 	});
 	assert.deepEqual(phoneBaseKeyboard.grid[2]?.[2], {
 		type: 'action',
-		actionId: 'OPEN_BROWSER_KEYBOARD',
+		actionId: 'OPEN_BROWSER_ACTIONS',
 		label: 'Browser',
 		icon: 'ExternalLink',
-		longPress: {
-			options: [
-				{
-					type: 'action',
-					actionId: 'OPEN_BROWSER_KEYBOARD',
-					label: 'Browser',
-					icon: 'ExternalLink',
-				},
-				{
-					type: 'action',
-					actionId: 'OPEN_HOST_DIFFITY',
-					label: 'Diff',
-					icon: 'GitCompare',
-				},
-				{
-					type: 'action',
-					actionId: 'OPEN_HOST_URL_WINDOW',
-					label: 'URL',
-					icon: 'Link',
-				},
-				{
-					type: 'action',
-					actionId: 'OPEN_HOST_URL_DEV_SERVER',
-					label: 'Web',
-					icon: 'Globe',
-				},
-				{
-					type: 'action',
-					actionId: 'OPEN_HOST_URL_STORYBOOK',
-					label: 'Story',
-					icon: 'BookOpen',
-				},
-				{
-					type: 'action',
-					actionId: 'OPEN_HOST_URL_APP',
-					label: 'App',
-					icon: 'PanelTop',
-				},
-			],
-		},
 	});
 	assert.deepEqual(phoneBaseKeyboard.grid[1]?.[2], {
 		type: 'action',
