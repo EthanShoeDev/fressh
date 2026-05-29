@@ -37,6 +37,18 @@ export type BrowserActionPressIntent =
 	| { type: 'open-url-slot'; slot: HostBrowserUrlSlot }
 	| { type: 'edit-url-slot'; slot: HostBrowserUrlSlot };
 
+export function getNextBrowserActionMenuMode(
+	mode: BrowserActionMenuMode,
+): BrowserActionMenuMode {
+	return mode === 'open' ? 'set' : 'open';
+}
+
+export function getBrowserActionModeButtonLabel(
+	mode: BrowserActionMenuMode,
+): 'Set' | 'Open' {
+	return mode === 'open' ? 'Set' : 'Open';
+}
+
 export const BROWSER_ACTION_ROWS = [
 	{
 		id: 'diff',

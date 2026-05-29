@@ -2,7 +2,9 @@ import React, { useCallback, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import {
 	BROWSER_ACTION_ROWS,
+	getBrowserActionModeButtonLabel,
 	getBrowserActionPressIntent,
+	getNextBrowserActionMenuMode,
 	isBrowserActionUrlRow,
 	type BrowserActionMenuMode,
 	type BrowserActionRow,
@@ -48,12 +50,10 @@ export function BrowserActionsModal({
 	);
 
 	const toggleMenuMode = useCallback(() => {
-		setMenuMode((currentMode) =>
-			currentMode === 'open' ? 'set' : 'open',
-		);
+		setMenuMode(getNextBrowserActionMenuMode);
 	}, []);
 
-	const modeButtonLabel = menuMode === 'open' ? 'Set' : 'Open';
+	const modeButtonLabel = getBrowserActionModeButtonLabel(menuMode);
 
 	const handlePress = useCallback(
 		(row: BrowserActionRow) => {

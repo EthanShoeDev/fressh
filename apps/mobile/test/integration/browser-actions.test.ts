@@ -4,7 +4,9 @@ import test from 'node:test';
 import {
 	BROWSER_ACTION_ROWS,
 	BROWSER_ACTION_URL_ROWS,
+	getBrowserActionModeButtonLabel,
 	getBrowserActionPressIntent,
+	getNextBrowserActionMenuMode,
 	isBrowserActionUrlRow,
 	type BrowserActionMenuMode,
 } from '../../src/lib/browser-actions';
@@ -49,6 +51,14 @@ void test('browser action press intent keeps static rows as open actions in ever
 			{ type: 'open-github-pulls' },
 		);
 	}
+});
+
+void test('browser action menu mode toggles both directions with matching button labels', () => {
+	assert.equal(getBrowserActionModeButtonLabel('open'), 'Set');
+	assert.equal(getNextBrowserActionMenuMode('open'), 'set');
+
+	assert.equal(getBrowserActionModeButtonLabel('set'), 'Open');
+	assert.equal(getNextBrowserActionMenuMode('set'), 'open');
 });
 
 void test('browser action press intent opens URL slots in open mode', () => {

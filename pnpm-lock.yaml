@@ -210,9 +210,6 @@ importers:
       '@types/react':
         specifier: ~19.1.12
         version: 19.1.12
-      '@types/react-test-renderer':
-        specifier: 19.1.0
-        version: 19.1.0
       '@typescript-eslint/parser':
         specifier: ^8.44.0
         version: 8.44.0(eslint@9.35.0(jiti@2.5.1))(typescript@5.9.2)
@@ -222,9 +219,6 @@ importers:
       cmd-ts:
         specifier: ^0.14.1
         version: 0.14.1
-      esbuild:
-        specifier: ^0.25.9
-        version: 0.25.9
       eslint:
         specifier: ^9.35.0
         version: 9.35.0(jiti@2.5.1)
@@ -258,9 +252,6 @@ importers:
       prettier-plugin-organize-imports:
         specifier: ^4.2.0
         version: 4.2.0(prettier@3.6.2)(typescript@5.9.2)
-      react-test-renderer:
-        specifier: 19.1.0
-        version: 19.1.0(react@19.1.0)
       release-it:
         specifier: ^19.0.4
         version: 19.0.4(@types/node@24.3.0)(magicast@0.3.5)
@@ -3157,9 +3148,6 @@ packages:
     resolution: {integrity: sha512-qXRuZaOsAdXKFyOhRBg6Lqqc0yay13vN7KrIg4L7N4aaHN68ma9OK3NE1BoDFgFOTfM7zg+3/8+2n8rLUH3OKQ==}
     peerDependencies:
       '@types/react': ^19.0.0
-
-  '@types/react-test-renderer@19.1.0':
-    resolution: {integrity: sha512-XD0WZrHqjNrxA/MaR9O22w/RNidWR9YZmBdRGI7wcnWGrv/3dA8wKCJ8m63Sn+tLJhcjmuhOi629N66W6kgWzQ==}
 
   '@types/react@19.1.12':
     resolution: {integrity: sha512-cMoR+FoAf/Jyq6+Df2/Z41jISvGZZ2eTlnsaJRptmZ76Caldwy1odD4xTr/gNV9VLj0AWgg/nmkevIyUfIIq5w==}
@@ -7976,11 +7964,6 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
-
-  react-test-renderer@19.1.0:
-    resolution: {integrity: sha512-jXkSl3CpvPYEF+p/eGDLB4sPoDX8pKkYvRl9+rR8HxLY0X04vW7hCm1/0zHoUSjPZ3bDa+wXWNTDVIw/R8aDVw==}
-    peerDependencies:
-      react: ^19.1.0
 
   react@19.1.0:
     resolution: {integrity: sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg==}
@@ -12898,10 +12881,6 @@ snapshots:
       parse-path: 7.1.0
 
   '@types/react-dom@19.1.9(@types/react@19.1.12)':
-    dependencies:
-      '@types/react': 19.1.12
-
-  '@types/react-test-renderer@19.1.0':
     dependencies:
       '@types/react': 19.1.12
 
@@ -18962,12 +18941,6 @@ snapshots:
       tslib: 2.8.1
     optionalDependencies:
       '@types/react': 19.1.12
-
-  react-test-renderer@19.1.0(react@19.1.0):
-    dependencies:
-      react: 19.1.0
-      react-is: 19.1.1
-      scheduler: 0.26.0
 
   react@19.1.0: {}
 
