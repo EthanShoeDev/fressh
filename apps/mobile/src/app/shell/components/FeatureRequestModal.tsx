@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
 	ActivityIndicator,
 	KeyboardAvoidingView,
@@ -33,6 +33,13 @@ export function FeatureRequestModal({
 }) {
 	const theme = useTheme();
 	const [description, setDescription] = useState('');
+
+	useEffect(() => {
+		if (!open) {
+			// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Reset draft text when parent closes the modal.
+			setDescription('');
+		}
+	}, [open]);
 
 	const handleClose = useCallback(() => {
 		setDescription('');
