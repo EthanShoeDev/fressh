@@ -114,8 +114,7 @@ void test('phone base keyboard replaces raw dollar key with skill selector macro
 			name: 'Skill selector',
 			label: '$',
 			category: 'Commands',
-			script:
-				'{\n  "type": "action",\n  "actionId": "OPEN_SKILL_SELECTOR"\n}',
+			script: '{\n  "type": "action",\n  "actionId": "OPEN_SKILL_SELECTOR"\n}',
 		},
 	);
 
@@ -160,7 +159,7 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 				},
 				{
 					type: 'bytes',
-					bytes: [2, 112],
+					bytes: [27, 91, 49, 59, 55, 68],
 					label: 'Prev all',
 					icon: null,
 				},
@@ -189,7 +188,7 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 				},
 				{
 					type: 'bytes',
-					bytes: [2, 110],
+					bytes: [27, 91, 49, 59, 55, 67],
 					label: 'Next all',
 					icon: null,
 				},
@@ -213,13 +212,13 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 				},
 				{
 					type: 'bytes',
-					bytes: [2, 112],
+					bytes: [27, 91, 49, 59, 55, 68],
 					label: 'Prev all',
 					icon: null,
 				},
 				{
 					type: 'bytes',
-					bytes: [2, 110],
+					bytes: [27, 91, 49, 59, 55, 67],
 					label: 'Next all',
 					icon: null,
 				},
@@ -249,7 +248,7 @@ void test('bundled keyboards do not expose tmux history actions', () => {
 	assert.deepEqual(historySlots, []);
 });
 
-void test('phone base keyboard exposes explain, browser long press, and status actions', () => {
+void test('phone base keyboard exposes explain, browser actions, and status actions', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -265,55 +264,31 @@ void test('phone base keyboard exposes explain, browser long press, and status a
 	});
 	assert.deepEqual(phoneBaseKeyboard.grid[2]?.[2], {
 		type: 'action',
-		actionId: 'OPEN_BROWSER_KEYBOARD',
+		actionId: 'OPEN_BROWSER_ACTIONS',
 		label: 'Browser',
 		icon: 'ExternalLink',
-		longPress: {
-			options: [
-				{
-					type: 'action',
-					actionId: 'OPEN_BROWSER_KEYBOARD',
-					label: 'Browser',
-					icon: 'ExternalLink',
-				},
-				{
-					type: 'action',
-					actionId: 'OPEN_HOST_DIFFITY',
-					label: 'Diff',
-					icon: 'GitCompare',
-				},
-				{
-					type: 'action',
-					actionId: 'OPEN_HOST_URL_WINDOW',
-					label: 'URL',
-					icon: 'Link',
-				},
-				{
-					type: 'action',
-					actionId: 'OPEN_HOST_URL_DEV_SERVER',
-					label: 'Web',
-					icon: 'Globe',
-				},
-				{
-					type: 'action',
-					actionId: 'OPEN_HOST_URL_STORYBOOK',
-					label: 'Story',
-					icon: 'BookOpen',
-				},
-				{
-					type: 'action',
-					actionId: 'OPEN_HOST_URL_APP',
-					label: 'App',
-					icon: 'PanelTop',
-				},
-			],
-		},
 	});
 	assert.deepEqual(phoneBaseKeyboard.grid[1]?.[2], {
 		type: 'action',
 		actionId: 'CYCLE_WORKMUX_STATUS',
 		label: 'Status',
 		icon: 'Clock',
+		longPress: {
+			options: [
+				{
+					type: 'action',
+					actionId: 'CYCLE_WORKMUX_STATUS',
+					label: 'Status',
+					icon: 'Clock',
+				},
+				{
+					type: 'bytes',
+					bytes: [27, 81],
+					label: 'Hide',
+					icon: null,
+				},
+			],
+		},
 	});
 	assert.equal(phoneBaseKeyboard.grid.length, 3);
 });
@@ -394,7 +369,7 @@ void test('browser keyboard exposes host navigation actions', () => {
 	assert.deepEqual(config.macrosByKeyboardId.browser_keyboard, []);
 });
 
-void test('advanced keyboard exposes host URL setter actions', () => {
+void test('advanced keyboard omits consolidated host URL setter actions', () => {
 	const config = getBundledShellConfig();
 	const advancedKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'advanced_keyboard',
@@ -402,30 +377,27 @@ void test('advanced keyboard exposes host URL setter actions', () => {
 	assert.ok(advancedKeyboard);
 
 	assert.equal(advancedKeyboard.grid.length, 3);
-	assert.deepEqual(advancedKeyboard.grid[2]?.slice(0, 4), [
+	assert.deepEqual(advancedKeyboard.grid[0]?.slice(4, 5), [
 		{
 			type: 'action',
-			actionId: 'EDIT_HOST_URL_WINDOW',
-			label: 'Set URL',
-			icon: 'Link',
-		},
-		{
-			type: 'action',
-			actionId: 'EDIT_HOST_URL_DEV_SERVER',
-			label: 'Set Web',
-			icon: 'Globe',
-		},
-		{
-			type: 'action',
-			actionId: 'EDIT_HOST_URL_STORYBOOK',
-			label: 'Set Story',
-			icon: 'BookOpen',
-		},
-		{
-			type: 'action',
-			actionId: 'EDIT_HOST_URL_APP',
-			label: 'Set App',
-			icon: 'PanelTop',
+			actionId: 'OPEN_REPO_FEATURE_REQUEST',
+			label: 'Issue',
+			icon: 'CirclePlus',
 		},
 	]);
+	assert.deepEqual(advancedKeyboard.grid[2]?.slice(0, 4), [
+		null,
+		null,
+		null,
+		null,
+	]);
+
+	const advancedActionIds = advancedKeyboard.grid.flatMap((row) =>
+		row.flatMap((item) => (item?.type === 'action' ? [item.actionId] : [])),
+	);
+
+	assert.equal(advancedActionIds.includes('EDIT_HOST_URL_WINDOW'), false);
+	assert.equal(advancedActionIds.includes('EDIT_HOST_URL_DEV_SERVER'), false);
+	assert.equal(advancedActionIds.includes('EDIT_HOST_URL_STORYBOOK'), false);
+	assert.equal(advancedActionIds.includes('EDIT_HOST_URL_APP'), false);
 });

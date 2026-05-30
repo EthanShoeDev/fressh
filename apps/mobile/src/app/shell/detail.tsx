@@ -73,6 +73,13 @@ import {
 import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
+import {
+	buildGitHubRepositoryTargetUrl,
+	buildCreateGitHubIssueCommand,
+	buildResolveGitHubRepositoryCommand,
+	parseGitHubRepositoryResolutionOutput,
+	type GitHubRepositoryTarget,
+} from '@/lib/repo-feature-request';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -91,6 +98,7 @@ import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
+import { buildShellLiveInputSendPlan } from '@/lib/shell-live-input';
 import {
 	buildSkillDiscoveryCommand,
 	parseSkillDiscoveryOutput,
@@ -98,11 +106,16 @@ import {
 } from '@/lib/skill-discovery';
 import { executeSideChannelCommand } from '@/lib/ssh-side-channel';
 import { useSshStore } from '@/lib/ssh-store';
+import {
+	buildClipboardPasteSegments,
+	buildCommanderExecuteSegments,
+	buildTextEntryPasteSegments,
+} from '@/lib/terminal-input-payloads';
 import { useTheme } from '@/lib/theme';
 import {
 	buildTmuxScrollbackCopyModeCommand,
 	getTmuxScrollbackControlFailurePolicy,
-	getTmuxScrollbackLiveInputPolicy,
+	isValidTmuxCancelKey,
 	runTmuxControlCommand,
 } from '@/lib/tmux-scrollback';
 import { queryClient } from '@/lib/utils';
@@ -128,6 +141,7 @@ import {
 	type WisprPendingAutoCloseRequest,
 	type WisprTextEditorAvailability,
 } from '@/lib/wispr-text-editor-flow';
+import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
@@ -211,41 +225,6 @@ class OrderedWriter {
 		return next;
 	}
 }
-
-const isValidCancelKey = (cancelKey: Uint8Array) =>
-	cancelKey.length === 1 && cancelKey[0] !== 0x1b;
-
-const concatBytes = (a: Uint8Array, b: Uint8Array) => {
-	const merged = new Uint8Array(a.length + b.length);
-	merged.set(a, 0);
-	merged.set(b, a.length);
-	return merged;
-};
-
-const containsMarker = (bytes: Uint8Array, marker: number[]) => {
-	if (bytes.length < marker.length) return false;
-	for (let i = 0; i <= bytes.length - marker.length; i += 1) {
-		let matched = true;
-		for (let j = 0; j < marker.length; j += 1) {
-			if (bytes[i + j] !== marker[j]) {
-				matched = false;
-				break;
-			}
-		}
-		if (matched) return true;
-	}
-	return false;
-};
-
-const isLargePayload = (bytes: Uint8Array) => {
-	if (bytes.length > 32) return true;
-	for (let i = 0; i < bytes.length; i += 1) {
-		if (bytes[i] === 10 || bytes[i] === 13) return true;
-	}
-	const pasteStart = [0x1b, 0x5b, 0x32, 0x30, 0x30, 0x7e];
-	const pasteEnd = [0x1b, 0x5b, 0x32, 0x30, 0x31, 0x7e];
-	return containsMarker(bytes, pasteStart) || containsMarker(bytes, pasteEnd);
-};
 
 const GITHUB_ISSUES_URL = 'https://github.com/mulyoved/fressh/issues';
 const SHELL_CONFIG_DOC_URL =
@@ -732,6 +711,7 @@ function ShellDetail() {
 	const appStateRef = useRef(AppState.currentState);
 	const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
 	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
+	const [browserActionsOpen, setBrowserActionsOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [textEntryOpen, setTextEntryOpen] = useState(false);
 	const [skillSelectorOpen, setSkillSelectorOpen] = useState(false);
@@ -760,6 +740,10 @@ function ShellDetail() {
 	const [configureOpen, setConfigureOpen] = useState(false);
 	const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
 	const [featureRequestSubmitting, setFeatureRequestSubmitting] =
+		useState(false);
+	const [featureRequestTargetRepository, setFeatureRequestTargetRepository] =
+		useState<string | null>(null);
+	const [featureRequestResolvingTarget, setFeatureRequestResolvingTarget] =
 		useState(false);
 	const [featureRequestError, setFeatureRequestError] = useState<
 		string | undefined
@@ -806,9 +790,50 @@ function ShellDetail() {
 	const wisprAutoCloseAttemptIdRef = useRef(0);
 	const wisprAutomationRequestIdRef = useRef(0);
 	const hostUrlReadRequestIdRef = useRef(0);
+	const hostUrlSubmitRequestIdRef = useRef(0);
+	const hostUrlSubmitInFlightRef = useRef(false);
+	const featureRequestResolveRequestIdRef = useRef(0);
+	const featureRequestSubmitRequestIdRef = useRef(0);
+	const featureRequestSubmitInFlightRef = useRef(false);
+	const featureRequestSourceStaleRef = useRef(false);
+	const browserGitHubTargetRequestIdRef = useRef(0);
+	const hostDiffityRequestIdRef = useRef(0);
+	const hostDiffityInFlightRef = useRef(false);
 	const invalidateHostUrlReads = useCallback(() => {
 		hostUrlReadRequestIdRef.current += 1;
 	}, []);
+	const resetHostUrlModal = useCallback(() => {
+		hostUrlReadRequestIdRef.current += 1;
+		hostUrlSubmitRequestIdRef.current += 1;
+		hostUrlSubmitInFlightRef.current = false;
+		setHostUrlModalState(null);
+		setHostUrlModalSubmitting(false);
+		setHostUrlModalError(null);
+	}, []);
+	const cancelFeatureRequestRequests = useCallback(() => {
+		featureRequestResolveRequestIdRef.current += 1;
+		featureRequestSubmitRequestIdRef.current += 1;
+	}, []);
+	const resetFeatureRequestState = useCallback(() => {
+		setFeatureRequestOpen(false);
+		setFeatureRequestSubmitting(false);
+		setFeatureRequestResolvingTarget(false);
+		setFeatureRequestTargetRepository(null);
+		setFeatureRequestError(undefined);
+	}, []);
+	const closeFeatureRequest = useCallback(() => {
+		if (featureRequestSubmitInFlightRef.current || featureRequestSubmitting) {
+			return false;
+		}
+		cancelFeatureRequestRequests();
+		featureRequestSourceStaleRef.current = false;
+		resetFeatureRequestState();
+		return true;
+	}, [
+		cancelFeatureRequestRequests,
+		featureRequestSubmitting,
+		resetFeatureRequestState,
+	]);
 	const agentNotificationAckRequestIdRef = useRef(0);
 	const handledAgentAlertRouteRef = useRef<string | null>(null);
 	const acknowledgeVisibleAgentNotificationRef = useRef<() => void>(() => {});
@@ -882,6 +907,7 @@ function ShellDetail() {
 			} catch (e: unknown) {
 				logger.warn('sendData failed', e);
 				router.back();
+				throw e;
 			}
 		},
 		[shell, router],
@@ -896,7 +922,9 @@ function ShellDetail() {
 	}, [shell, writeToShell]);
 
 	const sendBytesOrdered = useCallback((bytes: Uint8Array<ArrayBuffer>) => {
-		return writerRef.current?.send(bytes);
+		const send = writerRef.current?.send(bytes);
+		void send?.catch(() => {});
+		return send;
 	}, []);
 
 	const sendBytesQueued = useCallback(
@@ -904,7 +932,9 @@ function ShellDetail() {
 			segments: Uint8Array<ArrayBuffer>[],
 			opts?: { interSegmentDelayMs?: number },
 		) => {
-			return writerRef.current?.sendBatch(segments, opts);
+			const send = writerRef.current?.sendBatch(segments, opts);
+			void send?.catch(() => {});
+			return send;
 		},
 		[],
 	);
@@ -929,7 +959,7 @@ function ShellDetail() {
 			tmuxControlWriterRef.current = null;
 			setTmuxControlReady(false);
 			if (failurePolicy === 'exit-scrollback-and-restart-control') {
-				if (isValidCancelKey(cancelKeyBytes)) {
+				if (isValidTmuxCancelKey(cancelKeyBytes)) {
 					void sendBytesOrdered(cancelKeyBytes);
 				} else {
 					logger.warn(
@@ -965,58 +995,63 @@ function ShellDetail() {
 		[handleTmuxControlUnavailable],
 	);
 
-	const sendInputEnsuringLive = useCallback(
-		(bytes: Uint8Array<ArrayBuffer>) => {
-			const inputPolicy = getTmuxScrollbackLiveInputPolicy({
+	const sendLiveInputSegments = useCallback(
+		(
+			payloadSegments: Uint8Array<ArrayBuffer>[],
+			opts?: {
+				interSegmentDelayMs?: number;
+				dropPayloadAfterExit?: boolean;
+			},
+		) => {
+			const plan = buildShellLiveInputSendPlan({
 				scrollbackActive: scrollbackActiveRef.current,
+				cancelKeyBytes,
+				exitKeyBytes,
+				payloadSegments,
+				interSegmentDelayMs: opts?.interSegmentDelayMs,
+				scrollbackExitDelayMs: touchEnterDelayMs,
+				isCurrentPayloadExitKey: opts?.dropPayloadAfterExit,
 			});
-			if (inputPolicy === 'pass-through') {
-				void sendBytesOrdered(bytes);
-				return;
-			}
 
-			if (!isValidCancelKey(cancelKeyBytes)) {
+			if (plan.type === 'block') {
 				logger.warn(
 					'cancelKey invalid; blocking input until Jump to live is used',
 				);
 				return;
 			}
 
-			const isExitKey =
-				bytes.length === exitKeyBytes.length &&
-				bytes.length === 1 &&
-				bytes[0] === exitKeyBytes[0];
-
-			if (isExitKey) {
-				void sendBytesOrdered(cancelKeyBytes);
+			if (plan.clearScrollback) {
 				clearScrollbackState();
-				return;
 			}
+			if (!plan.segments.length) return;
 
-			const largePayload = isLargePayload(bytes);
-			if (!largePayload) {
-				void sendBytesOrdered(concatBytes(cancelKeyBytes, bytes));
-			} else {
-				void sendBytesQueued([cancelKeyBytes, bytes], {
-					interSegmentDelayMs: touchEnterDelayMs,
-				});
-			}
-			clearScrollbackState();
+			void sendBytesQueued(plan.segments, {
+				interSegmentDelayMs: plan.interSegmentDelayMs,
+			});
 		},
-		[
-			cancelKeyBytes,
-			exitKeyBytes,
-			sendBytesOrdered,
-			sendBytesQueued,
-			clearScrollbackState,
-		],
+		[cancelKeyBytes, clearScrollbackState, exitKeyBytes, sendBytesQueued],
 	);
 
 	const sendBytesRaw = useCallback(
 		(bytes: Uint8Array<ArrayBuffer>) => {
-			sendInputEnsuringLive(bytes);
+			sendLiveInputSegments([bytes]);
 		},
-		[sendInputEnsuringLive],
+		[sendLiveInputSegments],
+	);
+
+	const sendLiteralInputSegments = useCallback(
+		(
+			payloadSegments: Uint8Array<ArrayBuffer>[],
+			opts?: {
+				interSegmentDelayMs?: number;
+			},
+		) => {
+			sendLiveInputSegments(payloadSegments, {
+				interSegmentDelayMs: opts?.interSegmentDelayMs,
+				dropPayloadAfterExit: false,
+			});
+		},
+		[sendLiveInputSegments],
 	);
 
 	const sendBytesWithModifiers = useCallback(
@@ -1037,16 +1072,20 @@ function ShellDetail() {
 
 	const sendTextRaw = useCallback(
 		(value: string) => {
-			sendBytesRaw(encoder.encode(value));
+			sendLiteralInputSegments([encoder.encode(value)]);
 		},
-		[sendBytesRaw],
+		[sendLiteralInputSegments],
 	);
 
 	const sendTextWithModifiers = useCallback(
 		(value: string) => {
+			if (!modifierKeysActive.length) {
+				sendTextRaw(value);
+				return;
+			}
 			sendBytesWithModifiers(encoder.encode(value));
 		},
-		[sendBytesWithModifiers],
+		[modifierKeysActive, sendBytesWithModifiers, sendTextRaw],
 	);
 
 	const clearCommandTimeouts = useCallback(() => {
@@ -1145,53 +1184,30 @@ function ShellDetail() {
 	const handlePasteClipboard = useCallback(async () => {
 		try {
 			const text = await Clipboard.getStringAsync();
-			if (text) sendTextRaw(text);
+			const segments = buildClipboardPasteSegments(text);
+			if (segments.length) {
+				sendLiteralInputSegments(segments);
+			}
 			if (selectionModeEnabled) {
 				exitSelectionMode();
 			}
 		} catch (error) {
 			logger.warn('clipboard read failed', error);
 		}
-	}, [exitSelectionMode, sendTextRaw, selectionModeEnabled]);
+	}, [exitSelectionMode, selectionModeEnabled, sendLiteralInputSegments]);
 
 	const handlePasteTextEntry = useCallback(
-		async (value: string) => {
-			if (!value) return;
+		(value: string) => {
+			const segments = buildTextEntryPasteSegments(value);
+			if (!segments.length) return;
 			if (selectionModeEnabled) {
 				exitSelectionMode();
 			}
-
-			const textBytes = encoder.encode(value);
-			const enterBytes = encoder.encode('\r');
-
-			const inputPolicy = getTmuxScrollbackLiveInputPolicy({
-				scrollbackActive: scrollbackActiveRef.current,
+			sendLiteralInputSegments(segments, {
+				interSegmentDelayMs: touchEnterDelayMs,
 			});
-			if (inputPolicy === 'exit-before-send') {
-				if (!isValidCancelKey(cancelKeyBytes)) {
-					logger.warn('cancelKey invalid; cannot auto-exit scrollback');
-					return;
-				}
-				clearScrollbackState();
-				try {
-					await sendBytesQueued([cancelKeyBytes, textBytes, enterBytes], {
-						interSegmentDelayMs: touchEnterDelayMs,
-					});
-				} catch (error) {
-					logger.warn('paste text entry failed', error);
-				}
-				return;
-			}
-
-			void sendBytesQueued([textBytes, enterBytes]);
 		},
-		[
-			cancelKeyBytes,
-			clearScrollbackState,
-			exitSelectionMode,
-			selectionModeEnabled,
-			sendBytesQueued,
-		],
+		[exitSelectionMode, selectionModeEnabled, sendLiteralInputSegments],
 	);
 
 	const clearWisprOpeningTimeout = useCallback(() => {
@@ -1816,6 +1832,7 @@ function ShellDetail() {
 			return;
 		}
 		closeSkillSelector();
+		setBrowserActionsOpen(false);
 		if (Platform.OS !== 'android') {
 			setCommanderOpen(false);
 			setCommandPresetsOpen(false);
@@ -1978,6 +1995,7 @@ function ShellDetail() {
 	const openConfigDialog = useCallback(() => {
 		invalidateHostUrlReads();
 		closeSkillSelector();
+		setBrowserActionsOpen(false);
 		setConfigureOpen(true);
 	}, [closeSkillSelector, invalidateHostUrlReads]);
 
@@ -2025,66 +2043,29 @@ function ShellDetail() {
 		void Linking.openURL(SHELL_CONFIG_DOC_URL);
 	}, []);
 
-	const handleOpenFeatureRequest = useCallback(() => {
-		invalidateHostUrlReads();
-		closeSkillSelector();
-		setConfigureOpen(false);
-		setFeatureRequestError(undefined);
-		setFeatureRequestOpen(true);
-	}, [closeSkillSelector, invalidateHostUrlReads]);
-
 	const handleFeatureRequestSubmit = useCallback(
 		async (description: string) => {
+			if (featureRequestSubmitInFlightRef.current) return;
+			const requestId = ++featureRequestSubmitRequestIdRef.current;
 			if (!connection) {
 				setFeatureRequestError('No SSH connection available');
 				return;
 			}
+			if (!featureRequestTargetRepository) {
+				setFeatureRequestError(
+					'Could not resolve GitHub repository for current window.',
+				);
+				return;
+			}
 
+			featureRequestSubmitInFlightRef.current = true;
+			featureRequestSourceStaleRef.current = false;
 			setFeatureRequestSubmitting(true);
 			setFeatureRequestError(undefined);
-
-			const escapeSingleQuotes = (value: string) =>
-				value.replace(/'/g, "'\\''");
-			const escapedDescription = escapeSingleQuotes(description);
-			const escapedPrompt = escapeSingleQuotes(
-				'Generate a concise GitHub issue title (max 72 chars) for this feature request. Return only the title line, no quotes.',
-			);
-
-			const command = `
-description='${escapedDescription}'
-prompt='${escapedPrompt}'
-prompt=$(printf '%s\\n\\n%s\\n' "$prompt" "$description")
-
-if ! command -v claude >/dev/null 2>&1; then
-  echo 'claude CLI not found. Install Claude Code CLI (claude).' >&2
-  false
-else
-  claude_help=$(claude --help 2>/dev/null)
-  raw_title=''
-  if printf '%s' "$claude_help" | grep -q -- '--print'; then
-    raw_title=$(claude --print "$prompt")
-  elif printf '%s' "$claude_help" | grep -q -- ' -p'; then
-    raw_title=$(claude -p "$prompt")
-  else
-    echo 'claude CLI does not support --print or -p prompt flags.' >&2
-    false
-  fi
-  claude_status=$?
-  if [ $claude_status -ne 0 ]; then
-    echo 'Claude failed to generate a title.' >&2
-    false
-  else
-    title=$(printf '%s' "$raw_title" | tr -d '\\r' | head -n 1 | sed 's/^['"'"'"[:space:]]*//;s/['"'"'"[:space:]]*$//' | tr -s '[:space:]' ' ')
-    title=$(printf '%s' "$title" | cut -c1-72)
-    if [ -z "$title" ]; then
-      echo 'Claude returned an empty title.' >&2
-      false
-    else
-      gh issue create --repo mulyoved/fressh --title "Feature Request: $title" --body "$description"
-    fi
-  fi
-fi
-`.trim();
+			const command = buildCreateGitHubIssueCommand({
+				description,
+				repository: featureRequestTargetRepository,
+			});
 
 			try {
 				// Execute via side-channel SSH session (doesn't interfere with current terminal)
@@ -2094,6 +2075,12 @@ fi
 					60000,
 				);
 
+				if (requestId !== featureRequestSubmitRequestIdRef.current) return;
+				if (featureRequestSourceStaleRef.current) {
+					resetFeatureRequestState();
+					featureRequestSourceStaleRef.current = false;
+					return;
+				}
 				if (result.success) {
 					logger.info('Feature request submitted successfully', {
 						output: result.output,
@@ -2101,6 +2088,7 @@ fi
 					});
 					setFeatureRequestOpen(false);
 					setFeatureRequestError(undefined);
+					featureRequestSourceStaleRef.current = false;
 					// Extract issue number from URL (format: https://github.com/owner/repo/issues/123)
 					const issueUrl = result.issueUrl ?? null;
 					const issueNumberMatch = issueUrl?.match(/\/issues\/(\d+)$/);
@@ -2119,18 +2107,28 @@ fi
 						result.error ||
 						'Failed to create issue. Make sure gh and claude CLIs are installed and authenticated on the remote host.';
 					logger.error('Feature request failed', { error: errorMsg });
+					if (requestId !== featureRequestSubmitRequestIdRef.current) return;
 					setFeatureRequestError(errorMsg);
 				}
 			} catch (err) {
 				const errorMsg =
 					err instanceof Error ? err.message : 'Unknown error occurred';
 				logger.error('Feature request error', { error: err });
+				if (requestId !== featureRequestSubmitRequestIdRef.current) return;
+				if (featureRequestSourceStaleRef.current) {
+					resetFeatureRequestState();
+					featureRequestSourceStaleRef.current = false;
+					return;
+				}
 				setFeatureRequestError(errorMsg);
 			} finally {
-				setFeatureRequestSubmitting(false);
+				if (requestId === featureRequestSubmitRequestIdRef.current) {
+					featureRequestSubmitInFlightRef.current = false;
+					setFeatureRequestSubmitting(false);
+				}
 			}
 		},
-		[connection],
+		[connection, featureRequestTargetRepository, resetFeatureRequestState],
 	);
 
 	const showHostBrowserError = useCallback((title: string, message: string) => {
@@ -2290,7 +2288,59 @@ fi
 		return panePath;
 	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
-	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${tmuxTarget}`;
+	const resolveCurrentGitHubRepository = useCallback(async () => {
+		const panePath = await resolveHostBrowserPanePath();
+		const output = await runHostBrowserCommand(
+			buildResolveGitHubRepositoryCommand(panePath),
+			10_000,
+		);
+		const repository = parseGitHubRepositoryResolutionOutput(output);
+		if (!repository) {
+			throw new Error(
+				'Could not resolve GitHub repository for current window.',
+			);
+		}
+		return repository;
+	}, [resolveHostBrowserPanePath, runHostBrowserCommand]);
+
+	const handleOpenFeatureRequest = useCallback(() => {
+		if (featureRequestSubmitting) return;
+		const requestId = ++featureRequestResolveRequestIdRef.current;
+		featureRequestSubmitRequestIdRef.current += 1;
+		invalidateHostUrlReads();
+		closeSkillSelector();
+		setBrowserActionsOpen(false);
+		setConfigureOpen(false);
+		resetFeatureRequestState();
+		setFeatureRequestOpen(true);
+
+		void (async () => {
+			setFeatureRequestResolvingTarget(true);
+			try {
+				const repository = await resolveCurrentGitHubRepository();
+				if (requestId !== featureRequestResolveRequestIdRef.current) return;
+				setFeatureRequestTargetRepository(repository);
+				setFeatureRequestError(undefined);
+			} catch (error) {
+				if (requestId !== featureRequestResolveRequestIdRef.current) return;
+				setFeatureRequestTargetRepository(null);
+				setFeatureRequestError(getErrorMessage(error));
+			} finally {
+				if (requestId === featureRequestResolveRequestIdRef.current) {
+					setFeatureRequestResolvingTarget(false);
+				}
+			}
+		})();
+	}, [
+		closeSkillSelector,
+		featureRequestSubmitting,
+		invalidateHostUrlReads,
+		resetFeatureRequestState,
+		resolveCurrentGitHubRepository,
+	]);
+
+	const activeTmuxSessionName = tmuxTarget.trim() || 'main';
+	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${activeTmuxSessionName}`;
 	const skillSelectorSourceKeyRef = useRef(skillSelectorSourceKey);
 	const skillSelectorCurrentSourceKeyRef = useRef(skillSelectorSourceKey);
 	skillSelectorCurrentSourceKeyRef.current = skillSelectorSourceKey;
@@ -2355,18 +2405,21 @@ fi
 	]);
 
 	const handleOpenSkillSelector = useCallback(() => {
-		invalidateHostUrlReads();
 		setCommandPresetsOpen(false);
+		setBrowserActionsOpen(false);
 		setCommanderOpen(false);
 		setConfigureOpen(false);
-		setFeatureRequestOpen(false);
-		setFeatureRequestError(undefined);
-		setHostUrlModalState(null);
-		setHostUrlModalError(null);
+		if (!closeFeatureRequest()) return;
+		resetHostUrlModal();
 		handleCloseTextEntry();
 		setSkillSelectorOpen(true);
 		void loadSkillSelectorSkills();
-	}, [handleCloseTextEntry, invalidateHostUrlReads, loadSkillSelectorSkills]);
+	}, [
+		closeFeatureRequest,
+		handleCloseTextEntry,
+		loadSkillSelectorSkills,
+		resetHostUrlModal,
+	]);
 
 	const handleCloseSkillSelector = closeSkillSelector;
 
@@ -2388,18 +2441,39 @@ fi
 	useLayoutEffect(() => {
 		if (skillSelectorSourceKeyRef.current === skillSelectorSourceKey) return;
 		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
-		hostUrlReadRequestIdRef.current += 1;
+		resetHostUrlModal();
+		hostDiffityRequestIdRef.current += 1;
+		browserGitHubTargetRequestIdRef.current += 1;
+		if (featureRequestSubmitInFlightRef.current) {
+			featureRequestSourceStaleRef.current = true;
+		} else {
+			closeFeatureRequest();
+		}
 		if (skillSelectorOpen) {
 			handleCloseSkillSelector();
 		}
-	}, [handleCloseSkillSelector, skillSelectorOpen, skillSelectorSourceKey]);
+	}, [
+		closeFeatureRequest,
+		handleCloseSkillSelector,
+		resetHostUrlModal,
+		skillSelectorOpen,
+		skillSelectorSourceKey,
+	]);
 
 	useEffect(() => {
 		return () => {
 			skillSelectorRequestIdRef.current += 1;
 			hostUrlReadRequestIdRef.current += 1;
+			hostUrlSubmitRequestIdRef.current += 1;
+			hostUrlSubmitInFlightRef.current = false;
+			cancelFeatureRequestRequests();
+			featureRequestSubmitInFlightRef.current = false;
+			featureRequestSourceStaleRef.current = false;
+			browserGitHubTargetRequestIdRef.current += 1;
+			hostDiffityRequestIdRef.current += 1;
+			hostDiffityInFlightRef.current = false;
 		};
-	}, []);
+	}, [cancelFeatureRequestRequests]);
 
 	const openAndroidUrl = useCallback(async (url: string) => {
 		try {
@@ -2411,7 +2485,66 @@ fi
 		}
 	}, []);
 
+	const handleOpenBrowserActions = useCallback(() => {
+		invalidateHostUrlReads();
+		setCommandPresetsOpen(false);
+		setCommanderOpen(false);
+		closeSkillSelector();
+		handleCloseTextEntry();
+		setConfigureOpen(false);
+		if (!closeFeatureRequest()) return;
+		resetHostUrlModal();
+		setBrowserActionsOpen(true);
+	}, [
+		closeFeatureRequest,
+		closeSkillSelector,
+		handleCloseTextEntry,
+		invalidateHostUrlReads,
+		resetHostUrlModal,
+	]);
+
+	const handleCloseBrowserActions = useCallback(() => {
+		setBrowserActionsOpen(false);
+	}, []);
+
+	const handleOpenGitHubTarget = useCallback(
+		(target: GitHubRepositoryTarget) => {
+			const requestId = ++browserGitHubTargetRequestIdRef.current;
+			const title =
+				target === 'issues'
+					? 'GitHub Issues failed'
+					: 'GitHub Pull Requests failed';
+			void (async () => {
+				try {
+					const repository = await resolveCurrentGitHubRepository();
+					if (requestId !== browserGitHubTargetRequestIdRef.current) return;
+					const url = buildGitHubRepositoryTargetUrl(repository, target);
+					await openAndroidUrl(url);
+				} catch (error) {
+					if (requestId !== browserGitHubTargetRequestIdRef.current) return;
+					showHostBrowserError(title, getErrorMessage(error));
+				}
+			})();
+		},
+		[
+			openAndroidUrl,
+			resolveCurrentGitHubRepository,
+			showHostBrowserError,
+		],
+	);
+
+	const handleOpenGitHubIssuesTarget = useCallback(() => {
+		handleOpenGitHubTarget('issues');
+	}, [handleOpenGitHubTarget]);
+
+	const handleOpenGitHubPullsTarget = useCallback(() => {
+		handleOpenGitHubTarget('pulls');
+	}, [handleOpenGitHubTarget]);
+
 	const handleOpenHostDiffity = useCallback(() => {
+		if (hostDiffityInFlightRef.current) return;
+		const requestId = ++hostDiffityRequestIdRef.current;
+		hostDiffityInFlightRef.current = true;
 		void (async () => {
 			try {
 				const panePath = await resolveHostBrowserPanePath();
@@ -2425,9 +2558,13 @@ fi
 						output || 'mdev diffity share did not return an HTTPS URL.',
 					);
 				}
+				if (requestId !== hostDiffityRequestIdRef.current) return;
 				await openAndroidUrl(url);
 			} catch (error) {
+				if (requestId !== hostDiffityRequestIdRef.current) return;
 				showHostBrowserError('Diffity failed', getErrorMessage(error));
+			} finally {
+				hostDiffityInFlightRef.current = false;
 			}
 		})();
 	}, [
@@ -2440,6 +2577,7 @@ fi
 	const handleOpenHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
 			closeSkillSelector();
+			setBrowserActionsOpen(false);
 			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
 				try {
@@ -2495,6 +2633,7 @@ fi
 	const handleEditHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
 			closeSkillSelector();
+			setBrowserActionsOpen(false);
 			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
 				try {
@@ -2530,11 +2669,9 @@ fi
 	);
 
 	const handleCloseHostUrlModal = useCallback(() => {
-		if (hostUrlModalSubmitting) return;
-		invalidateHostUrlReads();
-		setHostUrlModalState(null);
-		setHostUrlModalError(null);
-	}, [hostUrlModalSubmitting, invalidateHostUrlReads]);
+		if (hostUrlSubmitInFlightRef.current || hostUrlModalSubmitting) return;
+		resetHostUrlModal();
+	}, [hostUrlModalSubmitting, resetHostUrlModal]);
 
 	const handleSubmitHostUrlModal = useCallback(
 		(value: string) => {
@@ -2551,6 +2688,9 @@ fi
 				return;
 			}
 
+			if (hostUrlSubmitInFlightRef.current) return;
+			const requestId = ++hostUrlSubmitRequestIdRef.current;
+			hostUrlSubmitInFlightRef.current = true;
 			void (async () => {
 				setHostUrlModalSubmitting(true);
 				setHostUrlModalError(null);
@@ -2563,14 +2703,20 @@ fi
 						),
 						10_000,
 					);
+					if (requestId !== hostUrlSubmitRequestIdRef.current) return;
 					if (state.mode === 'open-missing') {
 						await openAndroidUrl(parsed.url);
+						if (requestId !== hostUrlSubmitRequestIdRef.current) return;
 					}
 					setHostUrlModalState(null);
 				} catch (error) {
+					if (requestId !== hostUrlSubmitRequestIdRef.current) return;
 					setHostUrlModalError(getErrorMessage(error));
 				} finally {
-					setHostUrlModalSubmitting(false);
+					if (requestId === hostUrlSubmitRequestIdRef.current) {
+						hostUrlSubmitInFlightRef.current = false;
+						setHostUrlModalSubmitting(false);
+					}
 				}
 			})();
 		},
@@ -2608,6 +2754,7 @@ fi
 			toggleCommandPresets: () => {
 				invalidateHostUrlReads();
 				setCommanderOpen(false);
+				setBrowserActionsOpen(false);
 				closeSkillSelector();
 				handleCloseTextEntry();
 				setCommandPresetsOpen((prev) => !prev);
@@ -2615,12 +2762,15 @@ fi
 			openCommander: () => {
 				invalidateHostUrlReads();
 				setCommandPresetsOpen(false);
+				setBrowserActionsOpen(false);
 				closeSkillSelector();
 				handleCloseTextEntry();
 				setCommanderOpen(true);
 			},
 			openSkillSelector: handleOpenSkillSelector,
+			openRepoFeatureRequest: handleOpenFeatureRequest,
 			openWisprTextEditor: handleOpenWisprTextEditor,
+			openBrowserActions: handleOpenBrowserActions,
 			openHostDiffity: handleOpenHostDiffity,
 			openHostUrlSlot: handleOpenHostUrlSlot,
 			editHostUrlSlot: handleEditHostUrlSlot,
@@ -2635,6 +2785,8 @@ fi
 			handleEditHostUrlSlot,
 			handleOpenHostDiffity,
 			handleOpenHostUrlSlot,
+			handleOpenFeatureRequest,
+			handleOpenBrowserActions,
 			handleOpenSkillSelector,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
@@ -2958,12 +3110,12 @@ fi
 				return;
 			}
 			if (selectionModeEnabled) exitSelectionMode();
-			sendInputEnsuringLive(bytes);
+			sendBytesRaw(bytes);
 		},
 		[
 			shell,
 			sendBytesOrdered,
-			sendInputEnsuringLive,
+			sendBytesRaw,
 			selectionModeEnabled,
 			exitSelectionMode,
 		],
@@ -2975,7 +3127,7 @@ fi
 	}, [router]);
 
 	const handleJumpToLive = useCallback(() => {
-		if (!isValidCancelKey(cancelKeyBytes)) {
+		if (!isValidTmuxCancelKey(cancelKeyBytes)) {
 			logger.warn('cancelKey invalid; cannot auto-exit scrollback');
 			return;
 		}
@@ -3237,6 +3389,16 @@ fi
 					}}
 					onSelect={runCommandPreset}
 				/>
+				<BrowserActionsModal
+					open={browserActionsOpen}
+					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
+					onClose={handleCloseBrowserActions}
+					onOpenDiff={handleOpenHostDiffity}
+					onOpenGitHubIssues={handleOpenGitHubIssuesTarget}
+					onOpenGitHubPulls={handleOpenGitHubPullsTarget}
+					onOpenUrlSlot={handleOpenHostUrlSlot}
+					onEditUrlSlot={handleEditHostUrlSlot}
+				/>
 				<TerminalCommanderModal
 					open={commanderOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
@@ -3244,9 +3406,11 @@ fi
 						setCommanderOpen(false);
 					}}
 					onExecuteCommand={(value) => {
-						if (!value.trim()) return;
-						sendTextRaw(value);
-						sendBytesRaw(encoder.encode('\r'));
+						const segments = buildCommanderExecuteSegments(value);
+						if (!segments.length) return;
+						sendLiteralInputSegments(segments, {
+							interSegmentDelayMs: touchEnterDelayMs,
+						});
 					}}
 					onPasteText={(value) => {
 						if (!value.trim()) return;
@@ -3314,12 +3478,10 @@ fi
 				<FeatureRequestModal
 					open={featureRequestOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={() => {
-						setFeatureRequestOpen(false);
-						setFeatureRequestSubmitting(false);
-						setFeatureRequestError(undefined);
-					}}
+					onClose={closeFeatureRequest}
 					onSubmit={handleFeatureRequestSubmit}
+					targetRepository={featureRequestTargetRepository}
+					isResolvingTarget={featureRequestResolvingTarget}
 					isSubmitting={featureRequestSubmitting}
 					error={featureRequestError}
 				/>

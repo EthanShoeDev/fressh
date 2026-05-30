@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
 	ActivityIndicator,
 	KeyboardAvoidingView,
@@ -17,30 +17,47 @@ export function FeatureRequestModal({
 	bottomOffset,
 	onClose,
 	onSubmit,
+	targetRepository,
+	isResolvingTarget = false,
 	isSubmitting = false,
 	error,
 }: {
 	open: boolean;
 	bottomOffset: number;
-	onClose: () => void;
+	onClose: () => boolean | void;
 	onSubmit: (description: string) => void;
+	targetRepository?: string | null;
+	isResolvingTarget?: boolean;
 	isSubmitting?: boolean;
 	error?: string;
 }) {
 	const theme = useTheme();
 	const [description, setDescription] = useState('');
 
+	useEffect(() => {
+		if (!open) {
+			// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Reset draft text when parent closes the modal.
+			setDescription('');
+		}
+	}, [open]);
+
 	const handleClose = useCallback(() => {
+		if (isSubmitting) return;
+		const didClose = onClose();
+		if (didClose === false) return;
 		setDescription('');
-		onClose();
-	}, [onClose]);
+	}, [isSubmitting, onClose]);
 
 	const handleSubmit = useCallback(() => {
 		if (!description.trim() || isSubmitting) return;
 		onSubmit(description.trim());
 	}, [description, isSubmitting, onSubmit]);
 
-	const canSubmit = description.trim().length > 0 && !isSubmitting;
+	const canSubmit =
+		description.trim().length > 0 &&
+		!isSubmitting &&
+		!isResolvingTarget &&
+		targetRepository != null;
 
 	return (
 		<Modal
@@ -99,6 +116,7 @@ export function FeatureRequestModal({
 							</Text>
 							<Pressable
 								onPress={handleClose}
+								disabled={isSubmitting}
 								style={{
 									paddingHorizontal: 10,
 									paddingVertical: 6,
@@ -107,7 +125,13 @@ export function FeatureRequestModal({
 									borderColor: theme.colors.border,
 								}}
 							>
-								<Text style={{ color: theme.colors.textSecondary }}>
+								<Text
+									style={{
+										color: isSubmitting
+											? theme.colors.muted
+											: theme.colors.textSecondary,
+									}}
+								>
 									Cancel
 								</Text>
 							</Pressable>
@@ -122,6 +146,19 @@ export function FeatureRequestModal({
 								}}
 							>
 								Description
+							</Text>
+							<Text
+								style={{
+									color: theme.colors.textSecondary,
+									fontSize: 12,
+									marginBottom: 8,
+								}}
+							>
+								{isResolvingTarget
+									? 'Resolving target repository...'
+									: targetRepository
+										? `Target: ${targetRepository}`
+										: 'Target repository unavailable.'}
 							</Text>
 							<TextInput
 								value={description}
@@ -200,7 +237,7 @@ export function FeatureRequestModal({
 									justifyContent: 'center',
 								}}
 							>
-								{isSubmitting && (
+								{(isSubmitting || isResolvingTarget) && (
 									<ActivityIndicator
 										size="small"
 										color={theme.colors.buttonTextOnPrimary}
@@ -215,7 +252,11 @@ export function FeatureRequestModal({
 										fontWeight: '700',
 									}}
 								>
-									{isSubmitting ? 'Submitting...' : 'Submit Feature Request'}
+									{isSubmitting
+										? 'Submitting...'
+										: isResolvingTarget
+											? 'Resolving repository...'
+											: 'Submit Feature Request'}
 								</Text>
 							</Pressable>
 						</ScrollView>
