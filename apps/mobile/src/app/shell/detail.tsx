@@ -99,12 +99,10 @@ import {
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
 import { buildShellLiveInputSendPlan } from '@/lib/shell-live-input';
-import { useShellSimpleModals } from '@/lib/shell-modals';
 import {
-	buildSkillDiscoveryCommand,
-	parseSkillDiscoveryOutput,
-	type DiscoveredSkill,
-} from '@/lib/skill-discovery';
+	useShellSimpleModals,
+	useSkillSelectorController,
+} from '@/lib/shell-modals';
 import { executeSideChannelCommand } from '@/lib/ssh-side-channel';
 import { useSshStore } from '@/lib/ssh-store';
 import {
@@ -714,24 +712,6 @@ function ShellDetail() {
 		configure: configureModal,
 	} = useShellSimpleModals();
 	const [browserActionsOpen, setBrowserActionsOpen] = useState(false);
-	const [skillSelectorOpen, setSkillSelectorOpen] = useState(false);
-	const [skillSelectorSkills, setSkillSelectorSkills] = useState<
-		DiscoveredSkill[]
-	>([]);
-	const [skillSelectorLoading, setSkillSelectorLoading] = useState(false);
-	const [skillSelectorError, setSkillSelectorError] = useState<string | null>(
-		null,
-	);
-	const skillSelectorRequestIdRef = useRef(0);
-	const skillSelectorActiveSourceKeyRef = useRef<string | null>(null);
-	const closeSkillSelector = useCallback(() => {
-		skillSelectorRequestIdRef.current += 1;
-		skillSelectorActiveSourceKeyRef.current = null;
-		setSkillSelectorOpen(false);
-		setSkillSelectorLoading(false);
-		setSkillSelectorError(null);
-		setSkillSelectorSkills([]);
-	}, []);
 	const [autoWisprEnabled, setAutoWisprEnabled] = useState(false);
 	const [wisprTextEditorAvailability, setWisprTextEditorAvailability] =
 		useState<WisprTextEditorAvailability>({ type: 'ready' });
@@ -1820,6 +1800,115 @@ function ShellDetail() {
 		[startWisprTextEntryAutomation, textEntryModal, wisprTextEditorAvailability],
 	);
 
+	const runHostBrowserCommand = useCallback(
+		async (command: string, timeoutMs = 30_000) => {
+			if (!connection) {
+				throw new Error('No SSH connection available.');
+			}
+			const result = await executeSideChannelCommand(
+				connection,
+				command,
+				timeoutMs,
+			);
+			if (!result.success) {
+				throw new Error(
+					result.error || result.output || 'Remote command failed.',
+				);
+			}
+			return result.output.trim();
+		},
+		[connection],
+	);
+
+	const resolveHostBrowserPanePath = useCallback(async () => {
+		if (!tmuxEnabled) {
+			throw new Error(
+				'Host browser actions require a tmux-enabled connection.',
+			);
+		}
+		const sessionName = tmuxTarget.trim() || 'main';
+		const output = await runHostBrowserCommand(
+			buildHostBrowserPanePathCommand(sessionName),
+			10_000,
+		);
+		const panePath = output
+			.split(/\r?\n/)
+			.map((line) => line.trim())
+			.filter(Boolean)
+			.at(-1);
+		if (!panePath) {
+			throw new Error(
+				`Could not resolve pane path for tmux session ${sessionName}.`,
+			);
+		}
+		return panePath;
+	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
+
+	const handleCloseTextEntry = useCallback(() => {
+		const autoCloseDecision = resolveWisprAutoCloseOnTextEntryClose({
+			autoStartedRequestId: wisprTextEntryAutoStartedRequestIdRef.current,
+			automationState: wisprAutomationStateRef.current,
+			controlTapStartedRequestId:
+				wisprTextEntryControlTapStartedRequestIdRef.current,
+			timedOutStartRequestId: wisprTextEntryTimedOutStartRequestIdRef.current,
+		});
+		textEntryModal.onClose();
+		wisprDeferredAutoStartRequestIdRef.current = null;
+		resetWisprAutomation();
+		consumeWisprAutoCloseDecision(autoCloseDecision);
+	}, [consumeWisprAutoCloseDecision, resetWisprAutomation, textEntryModal]);
+
+	const activeTmuxSessionName = tmuxTarget.trim() || 'main';
+	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${activeTmuxSessionName}`;
+
+	const closeSkillSelectorOtherModals = useCallback(() => {
+		commandPresetsModal.onClose();
+		setBrowserActionsOpen(false);
+		commanderModal.onClose();
+		configureModal.onClose();
+		if (!closeFeatureRequest()) return false;
+		resetHostUrlModal();
+		handleCloseTextEntry();
+		return true;
+	}, [
+		closeFeatureRequest,
+		commandPresetsModal,
+		commanderModal,
+		configureModal,
+		handleCloseTextEntry,
+		resetHostUrlModal,
+	]);
+
+	const skillSelector = useSkillSelectorController({
+		connection,
+		tmuxEnabled,
+		runHostBrowserCommand,
+		resolveHostBrowserPanePath,
+		sendTextRaw,
+		sourceKey: skillSelectorSourceKey,
+		getErrorMessage,
+		closeOtherModals: closeSkillSelectorOtherModals,
+	});
+
+	const sourceKeyChangeTrackerRef = useRef(skillSelectorSourceKey);
+
+	useLayoutEffect(() => {
+		if (sourceKeyChangeTrackerRef.current === skillSelectorSourceKey) return;
+		sourceKeyChangeTrackerRef.current = skillSelectorSourceKey;
+		resetHostUrlModal();
+		hostDiffityRequestIdRef.current += 1;
+		browserGitHubTargetRequestIdRef.current += 1;
+		if (featureRequestSubmitInFlightRef.current) {
+			featureRequestSourceStaleRef.current = true;
+		} else {
+			closeFeatureRequest();
+		}
+	}, [
+		closeFeatureRequest,
+		resetHostUrlModal,
+		skillSelectorSourceKey,
+	]);
+
 	const handleOpenWisprTextEditor = useCallback(() => {
 		invalidateHostUrlReads();
 		const currentState = wisprAutomationStateRef.current;
@@ -1829,7 +1918,7 @@ function ShellDetail() {
 			});
 			return;
 		}
-		closeSkillSelector();
+		skillSelector.close();
 		setBrowserActionsOpen(false);
 		if (Platform.OS !== 'android') {
 			commanderModal.onClose();
@@ -1895,7 +1984,7 @@ function ShellDetail() {
 		})();
 	}, [
 		applyWisprAutomationEvent,
-		closeSkillSelector,
+		skillSelector,
 		commanderModal,
 		commandPresetsModal,
 		failWisprAutomation,
@@ -1911,20 +2000,6 @@ function ShellDetail() {
 			logger.warn('Failed to open accessibility settings', error);
 		});
 	}, []);
-
-	const handleCloseTextEntry = useCallback(() => {
-		const autoCloseDecision = resolveWisprAutoCloseOnTextEntryClose({
-			autoStartedRequestId: wisprTextEntryAutoStartedRequestIdRef.current,
-			automationState: wisprAutomationStateRef.current,
-			controlTapStartedRequestId:
-				wisprTextEntryControlTapStartedRequestIdRef.current,
-			timedOutStartRequestId: wisprTextEntryTimedOutStartRequestIdRef.current,
-		});
-		textEntryModal.onClose();
-		wisprDeferredAutoStartRequestIdRef.current = null;
-		resetWisprAutomation();
-		consumeWisprAutoCloseDecision(autoCloseDecision);
-	}, [consumeWisprAutoCloseDecision, resetWisprAutomation, textEntryModal]);
 
 	cleanupWisprTextEntryOnUnmountRef.current = () => {
 		consumeWisprAutoCloseDecision(
@@ -1990,10 +2065,10 @@ function ShellDetail() {
 
 	const openConfigDialog = useCallback(() => {
 		invalidateHostUrlReads();
-		closeSkillSelector();
+		skillSelector.close();
 		setBrowserActionsOpen(false);
 		configureModal.onOpen();
-	}, [closeSkillSelector, configureModal, invalidateHostUrlReads]);
+	}, [skillSelector, configureModal, invalidateHostUrlReads]);
 
 	const handleDevServer = useCallback(() => {
 		configureModal.onClose();
@@ -2131,26 +2206,6 @@ function ShellDetail() {
 		Alert.alert(title, message);
 	}, []);
 
-	const runHostBrowserCommand = useCallback(
-		async (command: string, timeoutMs = 30_000) => {
-			if (!connection) {
-				throw new Error('No SSH connection available.');
-			}
-			const result = await executeSideChannelCommand(
-				connection,
-				command,
-				timeoutMs,
-			);
-			if (!result.success) {
-				throw new Error(
-					result.error || result.output || 'Remote command failed.',
-				);
-			}
-			return result.output.trim();
-		},
-		[connection],
-	);
-
 	useEffect(() => {
 		void handleAgentNotificationRoute({
 			agentConnectionId,
@@ -2260,30 +2315,6 @@ function ShellDetail() {
 		});
 	}, []);
 
-	const resolveHostBrowserPanePath = useCallback(async () => {
-		if (!tmuxEnabled) {
-			throw new Error(
-				'Host browser actions require a tmux-enabled connection.',
-			);
-		}
-		const sessionName = tmuxTarget.trim() || 'main';
-		const output = await runHostBrowserCommand(
-			buildHostBrowserPanePathCommand(sessionName),
-			10_000,
-		);
-		const panePath = output
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.at(-1);
-		if (!panePath) {
-			throw new Error(
-				`Could not resolve pane path for tmux session ${sessionName}.`,
-			);
-		}
-		return panePath;
-	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
-
 	const resolveCurrentGitHubRepository = useCallback(async () => {
 		const panePath = await resolveHostBrowserPanePath();
 		const output = await runHostBrowserCommand(
@@ -2304,7 +2335,7 @@ function ShellDetail() {
 		const requestId = ++featureRequestResolveRequestIdRef.current;
 		featureRequestSubmitRequestIdRef.current += 1;
 		invalidateHostUrlReads();
-		closeSkillSelector();
+		skillSelector.close();
 		setBrowserActionsOpen(false);
 		configureModal.onClose();
 		resetFeatureRequestState();
@@ -2328,7 +2359,7 @@ function ShellDetail() {
 			}
 		})();
 	}, [
-		closeSkillSelector,
+		skillSelector,
 		configureModal,
 		featureRequestSubmitting,
 		invalidateHostUrlReads,
@@ -2336,133 +2367,8 @@ function ShellDetail() {
 		resolveCurrentGitHubRepository,
 	]);
 
-	const activeTmuxSessionName = tmuxTarget.trim() || 'main';
-	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${activeTmuxSessionName}`;
-	const skillSelectorSourceKeyRef = useRef(skillSelectorSourceKey);
-	const skillSelectorCurrentSourceKeyRef = useRef(skillSelectorSourceKey);
-	skillSelectorCurrentSourceKeyRef.current = skillSelectorSourceKey;
-	const skillSelectorVisible =
-		skillSelectorOpen &&
-		skillSelectorActiveSourceKeyRef.current === skillSelectorSourceKey;
-
-	const loadSkillSelectorSkills = useCallback(async () => {
-		const requestSourceKey = skillSelectorCurrentSourceKeyRef.current;
-		const requestId = skillSelectorRequestIdRef.current + 1;
-		skillSelectorRequestIdRef.current = requestId;
-		skillSelectorActiveSourceKeyRef.current = requestSourceKey;
-		setSkillSelectorLoading(true);
-		setSkillSelectorError(null);
-		setSkillSelectorSkills([]);
-
-		try {
-			if (!connection) {
-				throw new Error('No SSH connection available.');
-			}
-			if (!tmuxEnabled) {
-				throw new Error('Skill selector requires a tmux-enabled connection.');
-			}
-			const panePath = await resolveHostBrowserPanePath();
-			if (skillSelectorCurrentSourceKeyRef.current !== requestSourceKey) {
-				return;
-			}
-			const output = await runHostBrowserCommand(
-				buildSkillDiscoveryCommand(panePath),
-				10_000,
-			);
-			const skills = parseSkillDiscoveryOutput(output);
-			if (
-				skillSelectorRequestIdRef.current === requestId &&
-				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
-				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
-			) {
-				setSkillSelectorSkills(skills);
-			}
-		} catch (error) {
-			if (
-				skillSelectorRequestIdRef.current === requestId &&
-				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
-				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
-			) {
-				setSkillSelectorError(getErrorMessage(error));
-			}
-		} finally {
-			if (
-				skillSelectorRequestIdRef.current === requestId &&
-				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
-				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
-			) {
-				setSkillSelectorLoading(false);
-			}
-		}
-	}, [
-		connection,
-		resolveHostBrowserPanePath,
-		runHostBrowserCommand,
-		tmuxEnabled,
-	]);
-
-	const handleOpenSkillSelector = useCallback(() => {
-		commandPresetsModal.onClose();
-		setBrowserActionsOpen(false);
-		commanderModal.onClose();
-		configureModal.onClose();
-		if (!closeFeatureRequest()) return;
-		resetHostUrlModal();
-		handleCloseTextEntry();
-		setSkillSelectorOpen(true);
-		void loadSkillSelectorSkills();
-	}, [
-		closeFeatureRequest,
-		commandPresetsModal,
-		commanderModal,
-		configureModal,
-		handleCloseTextEntry,
-		loadSkillSelectorSkills,
-		resetHostUrlModal,
-	]);
-
-	const handleCloseSkillSelector = closeSkillSelector;
-
-	const handleSelectSkill = useCallback(
-		(skill: DiscoveredSkill) => {
-			if (
-				skillSelectorActiveSourceKeyRef.current !==
-				skillSelectorCurrentSourceKeyRef.current
-			) {
-				handleCloseSkillSelector();
-				return;
-			}
-			sendTextRaw(`$${skill.name} `);
-			handleCloseSkillSelector();
-		},
-		[handleCloseSkillSelector, sendTextRaw],
-	);
-
-	useLayoutEffect(() => {
-		if (skillSelectorSourceKeyRef.current === skillSelectorSourceKey) return;
-		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
-		resetHostUrlModal();
-		hostDiffityRequestIdRef.current += 1;
-		browserGitHubTargetRequestIdRef.current += 1;
-		if (featureRequestSubmitInFlightRef.current) {
-			featureRequestSourceStaleRef.current = true;
-		} else {
-			closeFeatureRequest();
-		}
-		if (skillSelectorOpen) {
-			handleCloseSkillSelector();
-		}
-	}, [
-		closeFeatureRequest,
-		handleCloseSkillSelector,
-		resetHostUrlModal,
-		skillSelectorOpen,
-		skillSelectorSourceKey,
-	]);
-
 	useEffect(() => {
 		return () => {
-			skillSelectorRequestIdRef.current += 1;
 			hostUrlReadRequestIdRef.current += 1;
 			hostUrlSubmitRequestIdRef.current += 1;
 			hostUrlSubmitInFlightRef.current = false;
@@ -2489,7 +2395,7 @@ function ShellDetail() {
 		invalidateHostUrlReads();
 		commandPresetsModal.onClose();
 		commanderModal.onClose();
-		closeSkillSelector();
+		skillSelector.close();
 		handleCloseTextEntry();
 		configureModal.onClose();
 		if (!closeFeatureRequest()) return;
@@ -2497,7 +2403,7 @@ function ShellDetail() {
 		setBrowserActionsOpen(true);
 	}, [
 		closeFeatureRequest,
-		closeSkillSelector,
+		skillSelector,
 		commandPresetsModal,
 		commanderModal,
 		configureModal,
@@ -2579,7 +2485,7 @@ function ShellDetail() {
 
 	const handleOpenHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
-			closeSkillSelector();
+			skillSelector.close();
 			setBrowserActionsOpen(false);
 			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
@@ -2625,7 +2531,7 @@ function ShellDetail() {
 			})();
 		},
 		[
-			closeSkillSelector,
+			skillSelector,
 			openAndroidUrl,
 			resolveHostBrowserPanePath,
 			runHostBrowserCommand,
@@ -2635,7 +2541,7 @@ function ShellDetail() {
 
 	const handleEditHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
-			closeSkillSelector();
+			skillSelector.close();
 			setBrowserActionsOpen(false);
 			const requestId = ++hostUrlReadRequestIdRef.current;
 			void (async () => {
@@ -2664,7 +2570,7 @@ function ShellDetail() {
 			})();
 		},
 		[
-			closeSkillSelector,
+			skillSelector,
 			resolveHostBrowserPanePath,
 			runHostBrowserCommand,
 			showHostBrowserError,
@@ -2758,7 +2664,7 @@ function ShellDetail() {
 				invalidateHostUrlReads();
 				commanderModal.onClose();
 				setBrowserActionsOpen(false);
-				closeSkillSelector();
+				skillSelector.close();
 				handleCloseTextEntry();
 				if (commandPresetsModal.open) {
 					commandPresetsModal.onClose();
@@ -2770,11 +2676,11 @@ function ShellDetail() {
 				invalidateHostUrlReads();
 				commandPresetsModal.onClose();
 				setBrowserActionsOpen(false);
-				closeSkillSelector();
+				skillSelector.close();
 				handleCloseTextEntry();
 				commanderModal.onOpen();
 			},
-			openSkillSelector: handleOpenSkillSelector,
+			openSkillSelector: skillSelector.open,
 			openRepoFeatureRequest: handleOpenFeatureRequest,
 			openWisprTextEditor: handleOpenWisprTextEditor,
 			openBrowserActions: handleOpenBrowserActions,
@@ -2785,7 +2691,7 @@ function ShellDetail() {
 		}),
 		[
 			availableKeyboardIds,
-			closeSkillSelector,
+			skillSelector,
 			commandPresetsModal,
 			commanderModal,
 			handleCycleWorkmuxStatus,
@@ -2796,7 +2702,6 @@ function ShellDetail() {
 			handleOpenHostUrlSlot,
 			handleOpenFeatureRequest,
 			handleOpenBrowserActions,
-			handleOpenSkillSelector,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
 			invalidateHostUrlReads,
@@ -3426,14 +3331,8 @@ function ShellDetail() {
 					}}
 				/>
 				<SkillSelectorModal
-					open={skillSelectorVisible}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					skills={skillSelectorSkills}
-					isLoading={skillSelectorLoading}
-					error={skillSelectorError}
-					onClose={handleCloseSkillSelector}
-					onRetry={loadSkillSelectorSkills}
-					onSelect={handleSelectSkill}
+					{...skillSelector.modalProps}
 				/>
 				<TextEntryModal
 					open={textEntryModal.open}
