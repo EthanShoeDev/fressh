@@ -12,6 +12,8 @@ const config: KnipConfig = {
 		'apps/mobile/build-*.apk',
 		'apps/mobile/dist/**',
 	],
+	// System binaries invoked by package scripts. Not npm packages.
+	ignoreBinaries: ['adb', 'expo', 'gh', 'just', 'lsof', 'maestro', 'nix'],
 };
 
 export default config;
