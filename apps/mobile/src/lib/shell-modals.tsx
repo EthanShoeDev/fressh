@@ -1,3 +1,4 @@
+import * as Linking from 'expo-linking';
 import {
 	useCallback,
 	useEffect,
@@ -7,7 +8,7 @@ import {
 	useState,
 	type RefObject,
 } from 'react';
-import { Alert, Linking } from 'react-native';
+import { Alert } from 'react-native';
 import {
 	buildDiffityShareCommand,
 	buildHostBrowserPanePathCommand,
@@ -979,6 +980,11 @@ export function useBrowserActionsController<TConnection>(
 		hostUrlSubmitRequestId.invalidate();
 		browserGitHubTargetRequestId.invalidate();
 		hostDiffityRequestId.invalidate();
+		hostUrlSubmitInFlightRef.current = false;
+		hostDiffityInFlightRef.current = false;
+		setHostUrlModalState(null);
+		setHostUrlModalSubmitting(false);
+		setHostUrlModalError(null);
 	}, [
 		browserGitHubTargetRequestId,
 		hostDiffityRequestId,

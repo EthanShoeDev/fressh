@@ -1734,7 +1734,6 @@ function ShellDetail() {
 
 	const skillSelectorCloseRef = useRef<() => void>(() => {});
 	const featureRequestCloseRef = useRef<() => boolean>(() => true);
-	const browserActionsCloseRef = useRef<() => void>(() => {});
 
 	const closeBrowserActionsOtherModals = useCallback((): boolean => {
 		commandPresetsModal.onClose();
@@ -1803,7 +1802,6 @@ function ShellDetail() {
 		closeOtherModals: closeSkillSelectorOtherModals,
 	});
 
-	browserActionsCloseRef.current = browserActions.close;
 	skillSelectorCloseRef.current = skillSelector.close;
 	featureRequestCloseRef.current = featureRequest.close;
 
