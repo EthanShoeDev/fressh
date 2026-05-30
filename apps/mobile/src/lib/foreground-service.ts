@@ -34,30 +34,19 @@ export async function ensureNotificationPermission() {
 	}
 }
 
-export async function startForegroundServiceAndReport(opts?: {
-	title?: string;
-	message?: string;
-}): Promise<boolean> {
-	return await foregroundService.startForegroundService(opts);
-}
-
 export async function startForegroundService(opts?: {
 	title?: string;
 	message?: string;
-}): Promise<void> {
-	await startForegroundServiceAndReport(opts);
+}): Promise<boolean> {
+	return foregroundService.startForegroundService(opts);
 }
 
-export async function stopForegroundServiceAndReport(): Promise<boolean> {
-	return await foregroundService.stopForegroundService();
-}
-
-export async function stopForegroundService(): Promise<void> {
-	await stopForegroundServiceAndReport();
+export async function stopForegroundService(): Promise<boolean> {
+	return foregroundService.stopForegroundService();
 }
 
 export async function isForegroundServiceRunning(): Promise<boolean> {
-	return await foregroundService.isForegroundServiceRunning();
+	return foregroundService.isForegroundServiceRunning();
 }
 
 const foregroundService = createForegroundServiceStarter({

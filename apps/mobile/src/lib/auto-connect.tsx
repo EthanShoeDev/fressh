@@ -10,7 +10,7 @@ import {
 	pickLatestConnection,
 } from './connection-utils';
 import {
-	startForegroundServiceAndReport,
+	startForegroundService,
 	stopForegroundService,
 } from './foreground-service';
 import {
@@ -500,7 +500,7 @@ export function AutoConnectManager() {
 		clearForegroundStartRetryTimer();
 		foregroundKeyRef.current = nextKey;
 		const request = foregroundStartCoordinatorRef.current.begin(nextKey);
-		void startForegroundServiceAndReport({ title, message }).then((started) => {
+		void startForegroundService({ title, message }).then((started) => {
 			if (
 				!foregroundStartCoordinatorRef.current.isCurrent(
 					request,
