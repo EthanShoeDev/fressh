@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { clearAgentNotificationRoutesSafely } from '../../src/lib/agent-notification-clear';
+import { clearAgentNotificationRoutesSafely } from '../../src/lib/agent-notification-bridge';
 
 void test('clearAgentNotificationRoutesSafely clears route tokens even without notification ids', () => {
 	let clearCalls = 0;

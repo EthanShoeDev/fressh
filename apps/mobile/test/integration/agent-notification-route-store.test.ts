@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
 	AGENT_NOTIFICATION_ROUTE_TOKEN_TTL_MS,
 	createAgentNotificationRouteTokenStore,
-} from '../../src/lib/agent-notification-route-store-core';
+} from '../../src/lib/agent-notification-route';
 
 function createMemoryStorage() {
 	const values = new Map<string, string>();

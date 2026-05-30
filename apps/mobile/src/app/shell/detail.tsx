@@ -45,7 +45,7 @@ import {
 	acknowledgeRoutedAgentNotification,
 	consumeAuthorizedAgentNotificationRouteToken,
 	restoreAuthorizedAgentNotificationRouteToken,
-} from '@/lib/agent-notification-route-api';
+} from '@/lib/agent-notification-route-store';
 import {
 	acknowledgeVisibleAgentNotification as acknowledgeVisibleAgentNotificationIfVisible,
 	handleAgentNotificationRoute,
@@ -119,28 +119,24 @@ import {
 	runTmuxControlCommand,
 } from '@/lib/tmux-scrollback';
 import { queryClient } from '@/lib/utils';
-import { wisprAutomationNative } from '@/lib/wispr-automation-native';
 import {
+	canStartWisprTextEntryAutomation,
 	isWisprAutomationBusy,
 	reduceWisprAutomationState,
-	type WisprAutomationEvent,
-	type WisprAutomationFailureReason,
-	type WisprAutomationState,
-} from '@/lib/wispr-automation-state';
-import {
+	resolveTextEntryWisprControl,
+	resolveWisprAutoCloseOnTextEntryClose,
+	resolveWisprPendingAutoCloseRequests,
+	resolveWisprTextEditorAvailability,
 	tapWisprControlWithTimeout,
 	WisprTapTimeoutError,
 	withTimeout,
-} from '@/lib/wispr-tap-timeout';
-import {
-	canStartWisprTextEntryAutomation,
-	resolveWisprAutoCloseOnTextEntryClose,
-	resolveWisprPendingAutoCloseRequests,
-	resolveTextEntryWisprControl,
-	resolveWisprTextEditorAvailability,
+	type WisprAutomationEvent,
+	type WisprAutomationFailureReason,
+	type WisprAutomationState,
 	type WisprPendingAutoCloseRequest,
 	type WisprTextEditorAvailability,
-} from '@/lib/wispr-text-editor-flow';
+} from '@/lib/wispr-automation';
+import { wisprAutomationNative } from '@/lib/wispr-automation-native';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
