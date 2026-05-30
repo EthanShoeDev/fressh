@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type RefObject } from 'react';
+import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
 
 export type SimpleModalHandle = {
 	open: boolean;
@@ -58,27 +58,42 @@ export function useShellSimpleModals(): ShellSimpleModalsHandle {
 		setConfigureOpen(false);
 	}, []);
 
-	return {
-		commandPresets: {
+	const commandPresets = useMemo<SimpleModalHandle>(
+		() => ({
 			open: commandPresetsOpen,
 			onOpen: openCommandPresets,
 			onClose: closeCommandPresets,
-		},
-		commander: {
+		}),
+		[commandPresetsOpen, openCommandPresets, closeCommandPresets],
+	);
+
+	const commander = useMemo<SimpleModalHandle>(
+		() => ({
 			open: commanderOpen,
 			onOpen: openCommander,
 			onClose: closeCommander,
-		},
-		textEntry: {
+		}),
+		[commanderOpen, openCommander, closeCommander],
+	);
+
+	const textEntry = useMemo<TextEntryModalHandle>(
+		() => ({
 			open: textEntryOpen,
 			openRef: textEntryOpenRef,
 			onOpen: openTextEntry,
 			onClose: closeTextEntry,
-		},
-		configure: {
+		}),
+		[textEntryOpen, openTextEntry, closeTextEntry],
+	);
+
+	const configure = useMemo<SimpleModalHandle>(
+		() => ({
 			open: configureOpen,
 			onOpen: openConfigure,
 			onClose: closeConfigure,
-		},
-	};
+		}),
+		[configureOpen, openConfigure, closeConfigure],
+	);
+
+	return { commandPresets, commander, textEntry, configure };
 }

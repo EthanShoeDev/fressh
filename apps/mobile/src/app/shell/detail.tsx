@@ -707,13 +707,12 @@ function ShellDetail() {
 	const lastKeyboardVisibleRef = useRef(false);
 	const appStateRef = useRef(AppState.currentState);
 	const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
-	const simpleModals = useShellSimpleModals();
 	const {
 		commandPresets: commandPresetsModal,
 		commander: commanderModal,
 		textEntry: textEntryModal,
 		configure: configureModal,
-	} = simpleModals;
+	} = useShellSimpleModals();
 	const [browserActionsOpen, setBrowserActionsOpen] = useState(false);
 	const [skillSelectorOpen, setSkillSelectorOpen] = useState(false);
 	const [skillSelectorSkills, setSkillSelectorSkills] = useState<
