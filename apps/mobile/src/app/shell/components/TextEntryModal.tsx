@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import { closeThenDismissKeyboard } from '@/lib/deferred-keyboard-dismiss';
 import { useTheme } from '@/lib/theme';
-import { type TextEntryWisprControl } from '@/lib/wispr-text-editor-flow';
+import { type TextEntryWisprControl } from '@/lib/wispr-automation';
 
 const MIN_LINES = 6;
 const LINE_HEIGHT = 20;
