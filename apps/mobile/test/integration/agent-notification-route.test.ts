@@ -4,7 +4,7 @@ import {
 	createAgentNotificationPendingKey,
 	createStableNotificationId,
 } from '../../src/lib/agent-notification-events';
-import { acknowledgeRoutedAgentNotificationWithDependencies } from '../../src/lib/agent-notification-route-api-core';
+import { acknowledgeRoutedAgentNotificationWithDependencies } from '../../src/lib/agent-notification-route';
 
 void test('routed agent acknowledgement cleans tokens and cancels bridge notification ids', () => {
 	const deleted: unknown[] = [];

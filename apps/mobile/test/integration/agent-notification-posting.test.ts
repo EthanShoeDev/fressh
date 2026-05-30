@@ -6,8 +6,8 @@ import {
 	createStableNotificationId,
 	type AgentNotificationEvent,
 } from '../../src/lib/agent-notification-events';
+import { type AgentAlertNotificationInput } from '../../src/lib/agent-notification-native';
 import { postAgentNotificationWithRouteToken } from '../../src/lib/agent-notification-posting';
-import { type AgentAlertNotificationInput } from '../../src/lib/agent-notifications-native';
 
 function createEvent(id = 'main:@12:2000:waiting'): AgentNotificationEvent {
 	return {

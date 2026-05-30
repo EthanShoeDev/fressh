@@ -1,4 +1,4 @@
-import { createAgentNotificationRouteIdentityKey } from './agent-notification-route-identity';
+import { createAgentNotificationRouteIdentityKey } from './agent-notification-route';
 import { buildTmuxCurrentWindowIdCommand } from './host-browser-actions';
 import { rootLogger } from './logger';
 import { buildTmuxSelectWindowCommand } from './tmux-scrollback';

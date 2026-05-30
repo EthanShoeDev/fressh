@@ -4,6 +4,15 @@ import React from 'react';
 import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
+import { AgentNotificationBridgeManager } from './AgentNotificationBridgeManager';
+import {
+	getStoredConnectionId,
+	pickLatestConnection,
+} from './connection-utils';
+import {
+	startForegroundServiceAndReport,
+	stopForegroundService,
+} from './foreground-service';
 import {
 	canRunAndroidBackgroundWork,
 	canAttemptBackgroundReconnect,
@@ -17,16 +26,7 @@ import {
 	shouldStopReconnectOnBackground,
 	shouldWaitForForegroundServiceCoverage,
 	useForegroundServiceRuntimeStore,
-} from './agent-notification-runtime';
-import { AgentNotificationBridgeManager } from './AgentNotificationBridgeManager';
-import {
-	getStoredConnectionId,
-	pickLatestConnection,
-} from './connection-utils';
-import {
-	startForegroundServiceAndReport,
-	stopForegroundService,
-} from './foreground-service';
+} from './foreground-service-runtime';
 import { rootLogger } from './logger';
 import { connectAndOpenShell } from './query-fns';
 import {
@@ -531,6 +531,7 @@ export function AutoConnectManager() {
 				});
 				foregroundStartFailureCountRef.current += 1;
 				if (retryDelayMs !== null) {
+					// eslint-disable-next-line @eslint-react/web-api/no-leaked-timeout -- timer is tracked on a ref and cleared by clearForegroundStartRetryTimer in the effect cleanup and on unmount
 					foregroundStartRetryTimerRef.current = setTimeout(() => {
 						foregroundStartRetryTimerRef.current = null;
 						setForegroundStartRetryNonce((value) => value + 1);
@@ -541,6 +542,9 @@ export function AutoConnectManager() {
 				}
 			}
 		});
+		return () => {
+			clearForegroundStartRetryTimer();
+		};
 	}, [
 		connections,
 		foregroundServiceStarted,

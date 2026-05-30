@@ -3,29 +3,34 @@ import { AppState, Platform } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 import {
 	AgentNotificationBridgeStateMachine,
-	HEARTBEAT_STALE_MS,
-} from './agent-notification-bridge';
-import { setAgentNotificationBridgeApi } from './agent-notification-bridge-api';
-import {
+	clearAgentNotificationRoutesSafely,
 	createAgentNotificationPostRetryKey,
 	createAgentNotificationPostRetryRepostInput,
 	createAgentNotificationRepostInput,
 	getAgentNotificationRestartDelay,
-} from './agent-notification-bridge-manager-core';
-import { handleAgentNotificationListenerLine } from './agent-notification-bridge-runtime';
-import { clearAgentNotificationRoutesSafely } from './agent-notification-clear';
+	handleAgentNotificationListenerLine,
+	HEARTBEAT_STALE_MS,
+	setAgentNotificationBridgeApi,
+} from './agent-notification-bridge';
 import {
 	type AgentNotificationEvent,
 	AgentNotificationDedupe,
 	buildAgentNotificationListenCommand,
 	matchesAgentNotificationPendingKey,
 } from './agent-notification-events';
+import {
+	cancelAgentAlertNotification,
+	postAgentAlertNotification,
+} from './agent-notification-native';
 import { postAgentNotificationWithRouteToken } from './agent-notification-posting';
 import {
 	clearRoutedAgentNotificationRouteTokens,
 	createRoutedAgentNotificationRouteToken,
 	deleteRoutedAgentNotificationRouteToken,
-} from './agent-notification-route-api';
+} from './agent-notification-route-store';
+import { notifyAgentNotificationPending } from './agent-notification-visibility';
+import { getStoredConnectionId } from './connection-utils';
+import { isForegroundServiceRunning } from './foreground-service';
 import {
 	canRunAgentNotificationBridge,
 	createAgentNotificationPostRetryCoordinator,
@@ -35,14 +40,7 @@ import {
 	shouldClearPendingAgentNotificationsForResumeKeyChange,
 	shouldPreservePendingWithoutConfiguredTarget,
 	useForegroundServiceRuntimeStore,
-} from './agent-notification-runtime';
-import { notifyAgentNotificationPending } from './agent-notification-visibility';
-import {
-	cancelAgentAlertNotification,
-	postAgentAlertNotification,
-} from './agent-notifications-native';
-import { getStoredConnectionId } from './connection-utils';
-import { isForegroundServiceRunning } from './foreground-service';
+} from './foreground-service-runtime';
 import { rootLogger } from './logger';
 import { preferences } from './preferences';
 import { secretsManager } from './secrets-manager';

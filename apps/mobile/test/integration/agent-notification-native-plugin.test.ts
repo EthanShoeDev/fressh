@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type * as ExpoConfigPlugins from 'expo/config-plugins';
 import type withForegroundServiceType from '../../plugins/with-foreground-service';
-import { createAgentNotificationsNativeWrapper } from '../../src/lib/agent-notifications-native';
+import { createAgentNotificationsNativeWrapper } from '../../src/lib/agent-notification-native';
 
 const require = createRequire(import.meta.url);
 const { compileModsAsync } =
@@ -323,7 +323,7 @@ async function generatedFreshAndroidManifestSource() {
 
 async function agentNotificationsNativeSource() {
 	return readFile(
-		new URL('../../src/lib/agent-notifications-native.ts', import.meta.url)
+		new URL('../../src/lib/agent-notification-native.ts', import.meta.url)
 			.pathname,
 		'utf8',
 	);

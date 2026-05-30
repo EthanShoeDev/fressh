@@ -4,11 +4,11 @@ import {
 	getAgentAlertNotificationText,
 	shouldAdvanceAgentNotificationCursorAfterPost,
 } from './agent-notification-events';
+import { type AgentAlertNotificationInput } from './agent-notification-native';
 import {
 	type AgentNotificationRouteIdentity,
 	type AgentNotificationRouteToken,
-} from './agent-notification-route-identity';
-import { type AgentAlertNotificationInput } from './agent-notifications-native';
+} from './agent-notification-route';
 
 export const AGENT_NOTIFICATION_POST_TIMEOUT_MS = 10_000;
 
