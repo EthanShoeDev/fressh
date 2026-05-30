@@ -99,6 +99,7 @@ import {
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
 import { buildShellLiveInputSendPlan } from '@/lib/shell-live-input';
+import { useShellSimpleModals } from '@/lib/shell-modals';
 import {
 	buildSkillDiscoveryCommand,
 	parseSkillDiscoveryOutput,
@@ -706,10 +707,14 @@ function ShellDetail() {
 	const lastKeyboardVisibleRef = useRef(false);
 	const appStateRef = useRef(AppState.currentState);
 	const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
-	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
+	const simpleModals = useShellSimpleModals();
+	const {
+		commandPresets: commandPresetsModal,
+		commander: commanderModal,
+		textEntry: textEntryModal,
+		configure: configureModal,
+	} = simpleModals;
 	const [browserActionsOpen, setBrowserActionsOpen] = useState(false);
-	const [commanderOpen, setCommanderOpen] = useState(false);
-	const [textEntryOpen, setTextEntryOpen] = useState(false);
 	const [skillSelectorOpen, setSkillSelectorOpen] = useState(false);
 	const [skillSelectorSkills, setSkillSelectorSkills] = useState<
 		DiscoveredSkill[]
@@ -733,7 +738,6 @@ function ShellDetail() {
 		useState<WisprTextEditorAvailability>({ type: 'ready' });
 	const [wisprAutomationState, setWisprAutomationState] =
 		useState<WisprAutomationState>({ phase: 'idle' });
-	const [configureOpen, setConfigureOpen] = useState(false);
 	const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
 	const [featureRequestSubmitting, setFeatureRequestSubmitting] =
 		useState(false);
@@ -762,7 +766,6 @@ function ShellDetail() {
 	const wisprAutomationStateRef = useRef<WisprAutomationState>({
 		phase: 'idle',
 	});
-	const textEntryOpenRef = useRef(false);
 	const autoWisprEnabledRef = useRef(false);
 	const wisprTextEntryValueRef = useRef('');
 	const cleanupWisprTextEntryOnUnmountRef = useRef<() => void>(() => {});
@@ -843,7 +846,6 @@ function ShellDetail() {
 	);
 	const lastSelectionRef = useRef<{ text: string; at: number } | null>(null);
 	const { width, height } = useWindowDimensions();
-	textEntryOpenRef.current = textEntryOpen;
 	autoWisprEnabledRef.current = autoWisprEnabled;
 	const touchScrollEnabled =
 		Platform.OS === 'android' &&
@@ -1139,9 +1141,9 @@ function ShellDetail() {
 				}, scheduledDelay);
 				commandTimeoutsRef.current.push(timeoutId);
 			});
-			setCommandPresetsOpen(false);
+			commandPresetsModal.onClose();
 		},
-		[clearCommandTimeouts, exitSelectionMode, sendCommandStep],
+		[clearCommandTimeouts, commandPresetsModal, exitSelectionMode, sendCommandStep],
 	);
 
 	const runCommandPreset = useCallback(
@@ -1623,7 +1625,7 @@ function ShellDetail() {
 							return;
 						}
 						if (
-							!textEntryOpenRef.current ||
+							!textEntryModal.openRef.current ||
 							!isWisprAutomationRequestActive(requestId) ||
 							wisprTextEntryAutoStartedRequestIdRef.current !== requestId
 						) {
@@ -1717,6 +1719,7 @@ function ShellDetail() {
 			expirePendingWisprAutoCloseRequest,
 			isWisprAutomationRequestActive,
 			tapWisprControlWithRetry,
+			textEntryModal,
 		],
 	);
 
@@ -1779,7 +1782,7 @@ function ShellDetail() {
 		const requestId = wisprDeferredAutoStartRequestIdRef.current;
 		if (requestId == null) return;
 		if (
-			!textEntryOpenRef.current ||
+			!textEntryModal.openRef.current ||
 			!autoWisprEnabledRef.current ||
 			!isWisprAutomationRequestActive(requestId)
 		) {
@@ -1800,7 +1803,7 @@ function ShellDetail() {
 			}
 			if (
 				!enabled ||
-				!textEntryOpen ||
+				!textEntryModal.open ||
 				wisprTextEditorAvailability.type !== 'ready'
 			) {
 				return;
@@ -1815,7 +1818,7 @@ function ShellDetail() {
 			wisprAutomationRequestIdRef.current = requestId;
 			startWisprTextEntryAutomation(requestId);
 		},
-		[startWisprTextEntryAutomation, textEntryOpen, wisprTextEditorAvailability],
+		[startWisprTextEntryAutomation, textEntryModal, wisprTextEditorAvailability],
 	);
 
 	const handleOpenWisprTextEditor = useCallback(() => {
@@ -1830,16 +1833,15 @@ function ShellDetail() {
 		closeSkillSelector();
 		setBrowserActionsOpen(false);
 		if (Platform.OS !== 'android') {
-			setCommanderOpen(false);
-			setCommandPresetsOpen(false);
+			commanderModal.onClose();
+			commandPresetsModal.onClose();
 			setWisprTextEditorAvailability({
 				type: 'setup-required',
 				reason: 'service-disabled',
 				message: 'Wispr automation is only available on Android.',
 				openAccessibilitySettings: false,
 			});
-			textEntryOpenRef.current = true;
-			setTextEntryOpen(true);
+			textEntryModal.onOpen();
 			failWisprAutomation(
 				'unsupported-platform',
 				'Wispr automation is only available on Android.',
@@ -1856,10 +1858,9 @@ function ShellDetail() {
 				const availability = resolveWisprTextEditorAvailability(status);
 				setWisprTextEditorAvailability(availability);
 				if (availability.type === 'setup-required') {
-					setCommanderOpen(false);
-					setCommandPresetsOpen(false);
-					textEntryOpenRef.current = true;
-					setTextEntryOpen(true);
+					commanderModal.onClose();
+					commandPresetsModal.onClose();
+					textEntryModal.onOpen();
 					applyWisprAutomationEvent({
 						type: 'failed',
 						reason: availability.reason,
@@ -1868,25 +1869,23 @@ function ShellDetail() {
 					return;
 				}
 
-				setCommanderOpen(false);
-				setCommandPresetsOpen(false);
-				textEntryOpenRef.current = true;
-				setTextEntryOpen(true);
+				commanderModal.onClose();
+				commandPresetsModal.onClose();
+				textEntryModal.onOpen();
 				if (availability.type === 'ready' && autoWisprEnabledRef.current) {
 					startWisprTextEntryAutomation(requestId);
 				}
 			} catch (error) {
 				if (!isWisprAutomationRequestActive(requestId)) return;
-				setCommanderOpen(false);
-				setCommandPresetsOpen(false);
+				commanderModal.onClose();
+				commandPresetsModal.onClose();
 				setWisprTextEditorAvailability({
 					type: 'setup-required',
 					reason: 'service-disabled',
 					message: 'Wispr automation is unavailable.',
 					openAccessibilitySettings: false,
 				});
-				textEntryOpenRef.current = true;
-				setTextEntryOpen(true);
+				textEntryModal.onOpen();
 				applyWisprAutomationEvent({
 					type: 'failed',
 					reason: 'service-disabled',
@@ -1898,10 +1897,13 @@ function ShellDetail() {
 	}, [
 		applyWisprAutomationEvent,
 		closeSkillSelector,
+		commanderModal,
+		commandPresetsModal,
 		failWisprAutomation,
 		invalidateHostUrlReads,
 		isWisprAutomationRequestActive,
 		startWisprTextEntryAutomation,
+		textEntryModal,
 	]);
 
 	const handleOpenWisprAutomationSettings = useCallback(() => {
@@ -1919,12 +1921,11 @@ function ShellDetail() {
 				wisprTextEntryControlTapStartedRequestIdRef.current,
 			timedOutStartRequestId: wisprTextEntryTimedOutStartRequestIdRef.current,
 		});
-		textEntryOpenRef.current = false;
+		textEntryModal.onClose();
 		wisprDeferredAutoStartRequestIdRef.current = null;
-		setTextEntryOpen(false);
 		resetWisprAutomation();
 		consumeWisprAutoCloseDecision(autoCloseDecision);
-	}, [consumeWisprAutoCloseDecision, resetWisprAutomation]);
+	}, [consumeWisprAutoCloseDecision, resetWisprAutomation, textEntryModal]);
 
 	cleanupWisprTextEntryOnUnmountRef.current = () => {
 		consumeWisprAutoCloseDecision(
@@ -1992,16 +1993,16 @@ function ShellDetail() {
 		invalidateHostUrlReads();
 		closeSkillSelector();
 		setBrowserActionsOpen(false);
-		setConfigureOpen(true);
-	}, [closeSkillSelector, invalidateHostUrlReads]);
+		configureModal.onOpen();
+	}, [closeSkillSelector, configureModal, invalidateHostUrlReads]);
 
 	const handleDevServer = useCallback(() => {
-		setConfigureOpen(false);
+		configureModal.onClose();
 		void Linking.openURL(HANDLE_DEV_SERVER_URL);
-	}, []);
+	}, [configureModal]);
 
 	const handleReloadConfig = useCallback(async () => {
-		setConfigureOpen(false);
+		configureModal.onClose();
 		try {
 			const nextState = await reloadRuntimeShellConfigFromRemote();
 			setShellConfigState(nextState);
@@ -2018,26 +2019,26 @@ function ShellDetail() {
 			}));
 			Alert.alert('Config reload failed', message);
 		}
-	}, []);
+	}, [configureModal]);
 
 	const handleHostConfig = useCallback(() => {
-		setConfigureOpen(false);
+		configureModal.onClose();
 		const editConnectionId = storedConnectionId ?? connectionId;
 		router.replace({
 			pathname: '/',
 			params: { editConnectionId },
 		});
-	}, [connectionId, router, storedConnectionId]);
+	}, [configureModal, connectionId, router, storedConnectionId]);
 
 	const handleOpenGitHubIssues = useCallback(() => {
-		setConfigureOpen(false);
+		configureModal.onClose();
 		void Linking.openURL(GITHUB_ISSUES_URL);
-	}, []);
+	}, [configureModal]);
 
 	const handleOpenShellConfigDocs = useCallback(() => {
-		setConfigureOpen(false);
+		configureModal.onClose();
 		void Linking.openURL(SHELL_CONFIG_DOC_URL);
-	}, []);
+	}, [configureModal]);
 
 	const handleFeatureRequestSubmit = useCallback(
 		async (description: string) => {
@@ -2306,7 +2307,7 @@ function ShellDetail() {
 		invalidateHostUrlReads();
 		closeSkillSelector();
 		setBrowserActionsOpen(false);
-		setConfigureOpen(false);
+		configureModal.onClose();
 		resetFeatureRequestState();
 		setFeatureRequestOpen(true);
 
@@ -2329,6 +2330,7 @@ function ShellDetail() {
 		})();
 	}, [
 		closeSkillSelector,
+		configureModal,
 		featureRequestSubmitting,
 		invalidateHostUrlReads,
 		resetFeatureRequestState,
@@ -2401,10 +2403,10 @@ function ShellDetail() {
 	]);
 
 	const handleOpenSkillSelector = useCallback(() => {
-		setCommandPresetsOpen(false);
+		commandPresetsModal.onClose();
 		setBrowserActionsOpen(false);
-		setCommanderOpen(false);
-		setConfigureOpen(false);
+		commanderModal.onClose();
+		configureModal.onClose();
 		if (!closeFeatureRequest()) return;
 		resetHostUrlModal();
 		handleCloseTextEntry();
@@ -2412,6 +2414,9 @@ function ShellDetail() {
 		void loadSkillSelectorSkills();
 	}, [
 		closeFeatureRequest,
+		commandPresetsModal,
+		commanderModal,
+		configureModal,
 		handleCloseTextEntry,
 		loadSkillSelectorSkills,
 		resetHostUrlModal,
@@ -2483,17 +2488,20 @@ function ShellDetail() {
 
 	const handleOpenBrowserActions = useCallback(() => {
 		invalidateHostUrlReads();
-		setCommandPresetsOpen(false);
-		setCommanderOpen(false);
+		commandPresetsModal.onClose();
+		commanderModal.onClose();
 		closeSkillSelector();
 		handleCloseTextEntry();
-		setConfigureOpen(false);
+		configureModal.onClose();
 		if (!closeFeatureRequest()) return;
 		resetHostUrlModal();
 		setBrowserActionsOpen(true);
 	}, [
 		closeFeatureRequest,
 		closeSkillSelector,
+		commandPresetsModal,
+		commanderModal,
+		configureModal,
 		handleCloseTextEntry,
 		invalidateHostUrlReads,
 		resetHostUrlModal,
@@ -2749,19 +2757,23 @@ function ShellDetail() {
 			copySelection: handleCopySelection,
 			toggleCommandPresets: () => {
 				invalidateHostUrlReads();
-				setCommanderOpen(false);
+				commanderModal.onClose();
 				setBrowserActionsOpen(false);
 				closeSkillSelector();
 				handleCloseTextEntry();
-				setCommandPresetsOpen((prev) => !prev);
+				if (commandPresetsModal.open) {
+					commandPresetsModal.onClose();
+				} else {
+					commandPresetsModal.onOpen();
+				}
 			},
 			openCommander: () => {
 				invalidateHostUrlReads();
-				setCommandPresetsOpen(false);
+				commandPresetsModal.onClose();
 				setBrowserActionsOpen(false);
 				closeSkillSelector();
 				handleCloseTextEntry();
-				setCommanderOpen(true);
+				commanderModal.onOpen();
 			},
 			openSkillSelector: handleOpenSkillSelector,
 			openRepoFeatureRequest: handleOpenFeatureRequest,
@@ -2775,6 +2787,8 @@ function ShellDetail() {
 		[
 			availableKeyboardIds,
 			closeSkillSelector,
+			commandPresetsModal,
+			commanderModal,
 			handleCycleWorkmuxStatus,
 			handleCopySelection,
 			handleCloseTextEntry,
@@ -3377,12 +3391,10 @@ function ShellDetail() {
 					onCopySelection={handleCopySelection}
 				/>
 				<CommandPresetsModal
-					open={commandPresetsOpen}
+					open={commandPresetsModal.open}
 					presets={shellConfig.commandMenus}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={() => {
-						setCommandPresetsOpen(false);
-					}}
+					onClose={commandPresetsModal.onClose}
 					onSelect={runCommandPreset}
 				/>
 				<BrowserActionsModal
@@ -3396,11 +3408,9 @@ function ShellDetail() {
 					onEditUrlSlot={handleEditHostUrlSlot}
 				/>
 				<TerminalCommanderModal
-					open={commanderOpen}
+					open={commanderModal.open}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={() => {
-						setCommanderOpen(false);
-					}}
+					onClose={commanderModal.onClose}
 					onExecuteCommand={(value) => {
 						const segments = buildCommanderExecuteSegments(value);
 						if (!segments.length) return;
@@ -3427,7 +3437,7 @@ function ShellDetail() {
 					onSelect={handleSelectSkill}
 				/>
 				<TextEntryModal
-					open={textEntryOpen}
+					open={textEntryModal.open}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
 					wisprMode={wisprMode}
 					wisprControl={wisprControl}
@@ -3454,11 +3464,9 @@ function ShellDetail() {
 					onSubmit={handleSubmitHostUrlModal}
 				/>
 				<ConfigureModal
-					open={configureOpen}
+					open={configureModal.open}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={() => {
-						setConfigureOpen(false);
-					}}
+					onClose={configureModal.onClose}
 					onDevServer={handleDevServer}
 					onReloadConfig={handleReloadConfig}
 					onHostConfig={handleHostConfig}
