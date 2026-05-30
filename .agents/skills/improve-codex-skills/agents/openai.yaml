@@ -1,0 +1,4 @@
+interface:
+  display_name: "Improve Codex Skills"
+  short_description: "Improve Codex skills from trace evidence"
+  default_prompt: "Use $improve-codex-skills to analyze the current repo's Codex skill from trace evidence, defaulting to the `.agents` variant, the latest matching session log, and local artifacts in this repo unless the user explicitly overrides them. Treat shorthand like `env5` as `~/cube9-env5/app` when the user is pointing at another checkout's logs."

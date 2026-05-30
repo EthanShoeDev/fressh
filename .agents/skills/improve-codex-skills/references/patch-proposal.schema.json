@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "patches"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "patches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "risk_level", "rationale", "contents"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^(SKILL\\.md|agents/openai\\.yaml|references/.+|scripts/.+)$"
+          },
+          "risk_level": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "contents": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
