@@ -111,4 +111,13 @@ export default defineConfig([
 			'@typescript-eslint/restrict-template-expressions': 'off',
 		},
 	},
+	{
+		// Base `no-redeclare` flags TypeScript function overload signatures.
+		// The typescript-eslint version understands overloads.
+		files: ['**/*.{ts,tsx}'],
+		rules: {
+			'no-redeclare': 'off',
+			'@typescript-eslint/no-redeclare': 'error',
+		},
+	},
 ]);

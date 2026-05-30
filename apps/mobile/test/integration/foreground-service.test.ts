@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { shouldStartForegroundService } from '../../src/lib/agent-notification-runtime';
 import { createForegroundServiceStarter } from '../../src/lib/foreground-service-core';
+import { shouldStartForegroundService } from '../../src/lib/foreground-service-runtime';
 
 void test('foreground service restart is required when liveness flips to stopped', () => {
 	const key = 'Fressh Terminal|Connected';

@@ -45,7 +45,7 @@ import {
 	acknowledgeRoutedAgentNotification,
 	consumeAuthorizedAgentNotificationRouteToken,
 	restoreAuthorizedAgentNotificationRouteToken,
-} from '@/lib/agent-notification-route-api';
+} from '@/lib/agent-notification-route-store';
 import {
 	acknowledgeVisibleAgentNotification as acknowledgeVisibleAgentNotificationIfVisible,
 	handleAgentNotificationRoute,

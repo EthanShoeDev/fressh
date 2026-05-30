@@ -1,54 +1,111 @@
 import * as Crypto from 'expo-crypto';
 import { MMKV } from 'react-native-mmkv';
+import { acknowledgeAgentNotification } from './agent-notification-bridge';
+import { cancelAgentAlertNotification } from './agent-notification-native';
 import {
+	acknowledgeRoutedAgentNotificationWithDependencies,
+	createAgentNotificationRouteTokenStore,
 	type AgentNotificationRouteIdentity,
 	type AgentNotificationRouteToken,
-} from './agent-notification-route-identity';
-import { createAgentNotificationRouteTokenStore } from './agent-notification-route-store-core';
+} from './agent-notification-route';
+import { rootLogger } from './logger';
+
+const logger = rootLogger.extend('AgentNotificationRoute');
 
 const store = createAgentNotificationRouteTokenStore({
 	storage: new MMKV({ id: 'agent-notification-routes' }),
 	createToken: () => Crypto.randomUUID(),
 });
 
-export function createStoredAgentNotificationRouteToken(
+export function createRoutedAgentNotificationRouteToken(
 	input: AgentNotificationRouteIdentity,
 ) {
 	return store.create(input);
 }
 
-export function hasStoredAgentNotificationRouteToken(
-	input: AgentNotificationRouteToken,
+export function hasAuthorizedAgentNotificationRouteToken(
+	connectionId: string,
+	session: string,
+	windowId: string,
+	eventId: string,
+	tapToken: string,
 ) {
-	return store.has(input);
+	try {
+		return store.has({ connectionId, session, windowId, eventId, tapToken });
+	} catch (error) {
+		logger.warn('agent notification route token lookup failed', error);
+		return false;
+	}
 }
 
-export function consumeStoredAgentNotificationRouteToken(
-	input: AgentNotificationRouteToken,
+export function consumeAuthorizedAgentNotificationRouteToken(
+	connectionId: string,
+	session: string,
+	windowId: string,
+	eventId: string,
+	tapToken: string,
 ) {
-	return store.consume(input);
+	try {
+		return store.consume({
+			connectionId,
+			session,
+			windowId,
+			eventId,
+			tapToken,
+		});
+	} catch (error) {
+		logger.warn('agent notification route token consume failed', error);
+		return false;
+	}
 }
 
-export function restoreStoredAgentNotificationRouteToken(
-	input: AgentNotificationRouteToken,
+export function restoreAuthorizedAgentNotificationRouteToken(
+	connectionId: string,
+	session: string,
+	windowId: string,
+	eventId: string,
+	tapToken: string,
 ) {
-	return store.restore(input);
+	try {
+		return store.restore({
+			connectionId,
+			session,
+			windowId,
+			eventId,
+			tapToken,
+		});
+	} catch (error) {
+		logger.warn('agent notification route token restore failed', error);
+		return false;
+	}
 }
 
-export function deleteStoredAgentNotificationRouteToken(
-	input: AgentNotificationRouteIdentity & { tapToken?: string },
+export function deleteRoutedAgentNotificationRouteToken(
+	input: AgentNotificationRouteToken,
 ) {
 	store.delete(input);
 }
 
-export function deleteStoredAgentNotificationRouteTokens(input: {
-	connectionId: string;
-	session: string;
-	windowId: string;
-}) {
-	store.deleteMatching(input);
+export function clearRoutedAgentNotificationRouteTokens() {
+	store.clear();
 }
 
-export function clearStoredAgentNotificationRouteTokens() {
-	store.clear();
+export function acknowledgeRoutedAgentNotification(
+	connectionId: string,
+	session: string,
+	windowId: string,
+) {
+	acknowledgeRoutedAgentNotificationWithDependencies(
+		{
+			deleteRouteTokens: (input) => {
+				store.deleteMatching(input);
+			},
+			acknowledgeBridge: acknowledgeAgentNotification,
+			cancelNotification: (notificationId) => {
+				void cancelAgentAlertNotification(notificationId);
+			},
+			warn: (message, error) => logger.warn(message, error),
+		},
+		{ connectionId, session, windowId },
+	);
 }

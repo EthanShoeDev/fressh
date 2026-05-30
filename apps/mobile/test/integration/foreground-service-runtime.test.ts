@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+	AGENT_NOTIFICATION_RESTART_EXHAUSTED_PROBE_MS,
+	createAgentNotificationPostRetryKey,
+	createAgentNotificationPostRetryRepostInput,
+	createAgentNotificationRepostInput,
+	getAgentNotificationRestartDelay,
+} from '../../src/lib/agent-notification-bridge';
+import {
 	canAttemptBackgroundReconnect,
 	canRunAgentNotificationBridge,
 	canRunAndroidBackgroundWork,
@@ -19,14 +26,7 @@ import {
 	shouldWaitForForegroundServiceCoverage,
 	shouldClearPendingAgentNotifications,
 	shouldClearPendingAgentNotificationsForResumeKeyChange,
-} from '../../src/lib/agent-notification-runtime';
-import {
-	AGENT_NOTIFICATION_RESTART_EXHAUSTED_PROBE_MS,
-	createAgentNotificationPostRetryKey,
-	createAgentNotificationPostRetryRepostInput,
-	createAgentNotificationRepostInput,
-	getAgentNotificationRestartDelay,
-} from '../../src/lib/agent-notification-bridge-manager-core';
+} from '../../src/lib/foreground-service-runtime';
 
 void test('foreground service notification message avoids connection identity', () => {
 	assert.equal(
