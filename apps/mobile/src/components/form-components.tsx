@@ -214,9 +214,9 @@ export function SubmitButton(
 const { fieldContext, formContext, useFieldContext, useFormContext } =
 	createFormHookContexts();
 
-export { useFieldContext, useFormContext };
+export { useFieldContext };
 // https://tanstack.com/form/latest/docs/framework/react/quick-start
-export const { useAppForm, withForm, withFieldGroup } = createFormHook({
+export const { useAppForm } = createFormHook({
 	fieldComponents: {
 		TextField,
 		NumberField,

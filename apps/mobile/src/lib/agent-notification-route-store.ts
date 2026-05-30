@@ -23,21 +23,6 @@ export function createRoutedAgentNotificationRouteToken(
 	return store.create(input);
 }
 
-export function hasAuthorizedAgentNotificationRouteToken(
-	connectionId: string,
-	session: string,
-	windowId: string,
-	eventId: string,
-	tapToken: string,
-) {
-	try {
-		return store.has({ connectionId, session, windowId, eventId, tapToken });
-	} catch (error) {
-		logger.warn('agent notification route token lookup failed', error);
-		return false;
-	}
-}
-
 export function consumeAuthorizedAgentNotificationRouteToken(
 	connectionId: string,
 	session: string,

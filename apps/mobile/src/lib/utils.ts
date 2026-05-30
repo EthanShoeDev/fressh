@@ -1,5 +1,4 @@
 import { QueryClient } from '@tanstack/react-query';
-import { use, type Context } from 'react';
 
 export const queryClient = new QueryClient();
 
@@ -13,12 +12,4 @@ export const AbortSignalTimeout = (timeout: number) => {
 		controller.abort();
 	}, timeout);
 	return controller.signal;
-};
-
-export const useContextSafe = <T>(context: Context<T>) => {
-	const contextValue = use(context);
-	if (!contextValue) {
-		throw new Error('Context not found');
-	}
-	return contextValue;
 };
