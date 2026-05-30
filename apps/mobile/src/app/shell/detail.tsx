@@ -54,17 +54,6 @@ import {
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
 import {
-	buildDiffityShareCommand,
-	buildHostBrowserPanePathCommand,
-	buildHostBrowserStatusCycleCommand,
-	buildTmuxWindowConfigGetCommand,
-	buildTmuxWindowConfigSetCommand,
-	extractLastHttpsUrl,
-	getHostBrowserUrlSlotLabel,
-	parseHostBrowserUrlInput,
-	type HostBrowserUrlSlot,
-} from '@/lib/host-browser-actions';
-import {
 	HANDLE_DEV_SERVER_URL,
 	runAction,
 	type ActionContext,
@@ -73,12 +62,6 @@ import {
 import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
-import {
-	buildGitHubRepositoryTargetUrl,
-	buildResolveGitHubRepositoryCommand,
-	parseGitHubRepositoryResolutionOutput,
-	type GitHubRepositoryTarget,
-} from '@/lib/repo-feature-request';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -99,6 +82,7 @@ import {
 } from '@/lib/shell-config-store-native';
 import { buildShellLiveInputSendPlan } from '@/lib/shell-live-input';
 import {
+	useBrowserActionsController,
 	useFeatureRequestController,
 	useShellSimpleModals,
 	useSkillSelectorController,
@@ -140,7 +124,7 @@ import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
-import { HostUrlModal, type HostUrlModalMode } from './components/HostUrlModal';
+import { HostUrlModal } from './components/HostUrlModal';
 import { SkillSelectorModal } from './components/SkillSelectorModal';
 import { TerminalCommanderModal } from './components/TerminalCommanderModal';
 import { TerminalKeyboard } from './components/TerminalKeyboard';
@@ -340,13 +324,6 @@ type TerminalErrorBoundaryProps = {
 
 type TerminalErrorBoundaryState = {
 	hasError: boolean;
-};
-
-type HostUrlModalState = {
-	mode: HostUrlModalMode;
-	slot: HostBrowserUrlSlot;
-	panePath: string;
-	initialValue: string;
 };
 
 class TerminalErrorBoundary extends React.Component<
@@ -711,18 +688,11 @@ function ShellDetail() {
 		textEntry: textEntryModal,
 		configure: configureModal,
 	} = useShellSimpleModals();
-	const [browserActionsOpen, setBrowserActionsOpen] = useState(false);
 	const [autoWisprEnabled, setAutoWisprEnabled] = useState(false);
 	const [wisprTextEditorAvailability, setWisprTextEditorAvailability] =
 		useState<WisprTextEditorAvailability>({ type: 'ready' });
 	const [wisprAutomationState, setWisprAutomationState] =
 		useState<WisprAutomationState>({ phase: 'idle' });
-	const [hostUrlModalState, setHostUrlModalState] =
-		useState<HostUrlModalState | null>(null);
-	const [hostUrlModalSubmitting, setHostUrlModalSubmitting] = useState(false);
-	const [hostUrlModalError, setHostUrlModalError] = useState<string | null>(
-		null,
-	);
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
@@ -757,23 +727,6 @@ function ShellDetail() {
 	);
 	const wisprAutoCloseAttemptIdRef = useRef(0);
 	const wisprAutomationRequestIdRef = useRef(0);
-	const hostUrlReadRequestIdRef = useRef(0);
-	const hostUrlSubmitRequestIdRef = useRef(0);
-	const hostUrlSubmitInFlightRef = useRef(false);
-	const browserGitHubTargetRequestIdRef = useRef(0);
-	const hostDiffityRequestIdRef = useRef(0);
-	const hostDiffityInFlightRef = useRef(false);
-	const invalidateHostUrlReads = useCallback(() => {
-		hostUrlReadRequestIdRef.current += 1;
-	}, []);
-	const resetHostUrlModal = useCallback(() => {
-		hostUrlReadRequestIdRef.current += 1;
-		hostUrlSubmitRequestIdRef.current += 1;
-		hostUrlSubmitInFlightRef.current = false;
-		setHostUrlModalState(null);
-		setHostUrlModalSubmitting(false);
-		setHostUrlModalError(null);
-	}, []);
 	const agentNotificationAckRequestIdRef = useRef(0);
 	const handledAgentAlertRouteRef = useRef<string | null>(null);
 	const acknowledgeVisibleAgentNotificationRef = useRef<() => void>(() => {});
@@ -1762,50 +1715,6 @@ function ShellDetail() {
 		[startWisprTextEntryAutomation, textEntryModal, wisprTextEditorAvailability],
 	);
 
-	const runHostBrowserCommand = useCallback(
-		async (command: string, timeoutMs = 30_000) => {
-			if (!connection) {
-				throw new Error('No SSH connection available.');
-			}
-			const result = await executeSideChannelCommand(
-				connection,
-				command,
-				timeoutMs,
-			);
-			if (!result.success) {
-				throw new Error(
-					result.error || result.output || 'Remote command failed.',
-				);
-			}
-			return result.output.trim();
-		},
-		[connection],
-	);
-
-	const resolveHostBrowserPanePath = useCallback(async () => {
-		if (!tmuxEnabled) {
-			throw new Error(
-				'Host browser actions require a tmux-enabled connection.',
-			);
-		}
-		const sessionName = tmuxTarget.trim() || 'main';
-		const output = await runHostBrowserCommand(
-			buildHostBrowserPanePathCommand(sessionName),
-			10_000,
-		);
-		const panePath = output
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.at(-1);
-		if (!panePath) {
-			throw new Error(
-				`Could not resolve pane path for tmux session ${sessionName}.`,
-			);
-		}
-		return panePath;
-	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
-
 	const handleCloseTextEntry = useCallback(() => {
 		const autoCloseDecision = resolveWisprAutoCloseOnTextEntryClose({
 			autoStartedRequestId: wisprTextEntryAutoStartedRequestIdRef.current,
@@ -1823,34 +1732,44 @@ function ShellDetail() {
 	const activeTmuxSessionName = tmuxTarget.trim() || 'main';
 	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${activeTmuxSessionName}`;
 
-	const resolveCurrentGitHubRepository = useCallback(async () => {
-		const panePath = await resolveHostBrowserPanePath();
-		const output = await runHostBrowserCommand(
-			buildResolveGitHubRepositoryCommand(panePath),
-			10_000,
-		);
-		const repository = parseGitHubRepositoryResolutionOutput(output);
-		if (!repository) {
-			throw new Error(
-				'Could not resolve GitHub repository for current window.',
-			);
-		}
-		return repository;
-	}, [resolveHostBrowserPanePath, runHostBrowserCommand]);
-
 	const skillSelectorCloseRef = useRef<() => void>(() => {});
 	const featureRequestCloseRef = useRef<() => boolean>(() => true);
+	const browserActionsCloseRef = useRef<() => void>(() => {});
+
+	const closeBrowserActionsOtherModals = useCallback((): boolean => {
+		commandPresetsModal.onClose();
+		commanderModal.onClose();
+		skillSelectorCloseRef.current();
+		handleCloseTextEntry();
+		configureModal.onClose();
+		if (!featureRequestCloseRef.current()) return false;
+		return true;
+	}, [
+		commandPresetsModal,
+		commanderModal,
+		configureModal,
+		handleCloseTextEntry,
+	]);
+
+	const browserActions = useBrowserActionsController({
+		connection: connection ?? null,
+		tmuxEnabled,
+		tmuxTarget,
+		executeSideChannelCommand,
+		getErrorMessage,
+		closeOtherModals: closeBrowserActionsOtherModals,
+	});
 
 	const closeFeatureRequestOtherModals = useCallback(() => {
-		invalidateHostUrlReads();
+		browserActions.invalidateHostUrlReads();
 		skillSelectorCloseRef.current();
-		setBrowserActionsOpen(false);
+		browserActions.close();
 		configureModal.onClose();
-	}, [configureModal, invalidateHostUrlReads]);
+	}, [browserActions, configureModal]);
 
 	const featureRequest = useFeatureRequestController({
 		connection: connection ?? null,
-		resolveCurrentGitHubRepository,
+		resolveCurrentGitHubRepository: browserActions.resolveCurrentGitHubRepository,
 		executeSideChannelCommand,
 		getErrorMessage,
 		logger,
@@ -1859,32 +1778,32 @@ function ShellDetail() {
 
 	const closeSkillSelectorOtherModals = useCallback(() => {
 		commandPresetsModal.onClose();
-		setBrowserActionsOpen(false);
+		browserActions.close();
 		commanderModal.onClose();
 		configureModal.onClose();
 		if (!featureRequestCloseRef.current()) return false;
-		resetHostUrlModal();
 		handleCloseTextEntry();
 		return true;
 	}, [
+		browserActions,
 		commandPresetsModal,
 		commanderModal,
 		configureModal,
 		handleCloseTextEntry,
-		resetHostUrlModal,
 	]);
 
 	const skillSelector = useSkillSelectorController({
 		connection,
 		tmuxEnabled,
-		runHostBrowserCommand,
-		resolveHostBrowserPanePath,
+		runHostBrowserCommand: browserActions.runHostBrowserCommand,
+		resolveHostBrowserPanePath: browserActions.resolveHostBrowserPanePath,
 		sendTextRaw,
 		sourceKey: skillSelectorSourceKey,
 		getErrorMessage,
 		closeOtherModals: closeSkillSelectorOtherModals,
 	});
 
+	browserActionsCloseRef.current = browserActions.close;
 	skillSelectorCloseRef.current = skillSelector.close;
 	featureRequestCloseRef.current = featureRequest.close;
 
@@ -1893,18 +1812,13 @@ function ShellDetail() {
 	useLayoutEffect(() => {
 		if (sourceKeyChangeTrackerRef.current === skillSelectorSourceKey) return;
 		sourceKeyChangeTrackerRef.current = skillSelectorSourceKey;
-		resetHostUrlModal();
-		hostDiffityRequestIdRef.current += 1;
-		browserGitHubTargetRequestIdRef.current += 1;
+		browserActions.invalidateAll();
+		browserActions.close();
 		featureRequest.markSourceStale();
-	}, [
-		featureRequest,
-		resetHostUrlModal,
-		skillSelectorSourceKey,
-	]);
+	}, [browserActions, featureRequest, skillSelectorSourceKey]);
 
 	const handleOpenWisprTextEditor = useCallback(() => {
-		invalidateHostUrlReads();
+		browserActions.invalidateHostUrlReads();
 		const currentState = wisprAutomationStateRef.current;
 		if (currentState.phase !== 'idle' && currentState.phase !== 'failed') {
 			logger.info('Ignoring Wispr text entry while automation is busy', {
@@ -1913,7 +1827,7 @@ function ShellDetail() {
 			return;
 		}
 		skillSelector.close();
-		setBrowserActionsOpen(false);
+		browserActions.close();
 		if (Platform.OS !== 'android') {
 			commanderModal.onClose();
 			commandPresetsModal.onClose();
@@ -1978,11 +1892,11 @@ function ShellDetail() {
 		})();
 	}, [
 		applyWisprAutomationEvent,
+		browserActions,
 		skillSelector,
 		commanderModal,
 		commandPresetsModal,
 		failWisprAutomation,
-		invalidateHostUrlReads,
 		isWisprAutomationRequestActive,
 		startWisprTextEntryAutomation,
 		textEntryModal,
@@ -2058,11 +1972,11 @@ function ShellDetail() {
 	}, []);
 
 	const openConfigDialog = useCallback(() => {
-		invalidateHostUrlReads();
+		browserActions.invalidateHostUrlReads();
 		skillSelector.close();
-		setBrowserActionsOpen(false);
+		browserActions.close();
 		configureModal.onOpen();
-	}, [skillSelector, configureModal, invalidateHostUrlReads]);
+	}, [browserActions, skillSelector, configureModal]);
 
 	const handleDevServer = useCallback(() => {
 		configureModal.onClose();
@@ -2108,10 +2022,6 @@ function ShellDetail() {
 		void Linking.openURL(SHELL_CONFIG_DOC_URL);
 	}, [configureModal]);
 
-	const showHostBrowserError = useCallback((title: string, message: string) => {
-		Alert.alert(title, message);
-	}, []);
-
 	useEffect(() => {
 		void handleAgentNotificationRoute({
 			agentConnectionId,
@@ -2128,7 +2038,7 @@ function ShellDetail() {
 			},
 			consumeAuthorizedRouteToken: consumeAuthorizedAgentNotificationRouteToken,
 			restoreAuthorizedRouteToken: restoreAuthorizedAgentNotificationRouteToken,
-			runCommand: runHostBrowserCommand,
+			runCommand: browserActions.runHostBrowserCommand,
 			acknowledge: (connectionId, session, windowId) => {
 				acknowledgeRoutedAgentNotification(connectionId, session, windowId);
 			},
@@ -2142,8 +2052,8 @@ function ShellDetail() {
 		agentSession,
 		agentTapToken,
 		agentWindowId,
+		browserActions.runHostBrowserCommand,
 		connectionStoredConnectionId,
-		runHostBrowserCommand,
 		tmuxTarget,
 	]);
 
@@ -2164,16 +2074,16 @@ function ShellDetail() {
 			nextRequestId: () => ++agentNotificationAckRequestIdRef.current,
 			isCurrentRequest: (requestId) =>
 				requestId === agentNotificationAckRequestIdRef.current,
-			runCommand: runHostBrowserCommand,
+			runCommand: browserActions.runHostBrowserCommand,
 			acknowledge: acknowledgeRoutedAgentNotification,
 			warn: (message, error) => {
 				logger.warn(message, error);
 			},
 		});
 	}, [
+		browserActions.runHostBrowserCommand,
 		channelId,
 		connectionStoredConnectionId,
-		runHostBrowserCommand,
 		tmuxEnabled,
 		tmuxTarget,
 	]);
@@ -2221,285 +2131,6 @@ function ShellDetail() {
 		});
 	}, []);
 
-	useEffect(() => {
-		return () => {
-			hostUrlReadRequestIdRef.current += 1;
-			hostUrlSubmitRequestIdRef.current += 1;
-			hostUrlSubmitInFlightRef.current = false;
-			browserGitHubTargetRequestIdRef.current += 1;
-			hostDiffityRequestIdRef.current += 1;
-			hostDiffityInFlightRef.current = false;
-		};
-	}, []);
-
-	const openAndroidUrl = useCallback(async (url: string) => {
-		try {
-			await Linking.openURL(url);
-		} catch (error) {
-			throw new Error(
-				`Android could not open ${url}: ${getErrorMessage(error)}`,
-			);
-		}
-	}, []);
-
-	const handleOpenBrowserActions = useCallback(() => {
-		invalidateHostUrlReads();
-		commandPresetsModal.onClose();
-		commanderModal.onClose();
-		skillSelector.close();
-		handleCloseTextEntry();
-		configureModal.onClose();
-		if (!featureRequest.close()) return;
-		resetHostUrlModal();
-		setBrowserActionsOpen(true);
-	}, [
-		featureRequest,
-		skillSelector,
-		commandPresetsModal,
-		commanderModal,
-		configureModal,
-		handleCloseTextEntry,
-		invalidateHostUrlReads,
-		resetHostUrlModal,
-	]);
-
-	const handleCloseBrowserActions = useCallback(() => {
-		setBrowserActionsOpen(false);
-	}, []);
-
-	const handleOpenGitHubTarget = useCallback(
-		(target: GitHubRepositoryTarget) => {
-			const requestId = ++browserGitHubTargetRequestIdRef.current;
-			const title =
-				target === 'issues'
-					? 'GitHub Issues failed'
-					: 'GitHub Pull Requests failed';
-			void (async () => {
-				try {
-					const repository = await resolveCurrentGitHubRepository();
-					if (requestId !== browserGitHubTargetRequestIdRef.current) return;
-					const url = buildGitHubRepositoryTargetUrl(repository, target);
-					await openAndroidUrl(url);
-				} catch (error) {
-					if (requestId !== browserGitHubTargetRequestIdRef.current) return;
-					showHostBrowserError(title, getErrorMessage(error));
-				}
-			})();
-		},
-		[
-			openAndroidUrl,
-			resolveCurrentGitHubRepository,
-			showHostBrowserError,
-		],
-	);
-
-	const handleOpenGitHubIssuesTarget = useCallback(() => {
-		handleOpenGitHubTarget('issues');
-	}, [handleOpenGitHubTarget]);
-
-	const handleOpenGitHubPullsTarget = useCallback(() => {
-		handleOpenGitHubTarget('pulls');
-	}, [handleOpenGitHubTarget]);
-
-	const handleOpenHostDiffity = useCallback(() => {
-		if (hostDiffityInFlightRef.current) return;
-		const requestId = ++hostDiffityRequestIdRef.current;
-		hostDiffityInFlightRef.current = true;
-		void (async () => {
-			try {
-				const panePath = await resolveHostBrowserPanePath();
-				const output = await runHostBrowserCommand(
-					buildDiffityShareCommand(panePath),
-					60_000,
-				);
-				const url = extractLastHttpsUrl(output);
-				if (!url) {
-					throw new Error(
-						output || 'mdev diffity share did not return an HTTPS URL.',
-					);
-				}
-				if (requestId !== hostDiffityRequestIdRef.current) return;
-				await openAndroidUrl(url);
-			} catch (error) {
-				if (requestId !== hostDiffityRequestIdRef.current) return;
-				showHostBrowserError('Diffity failed', getErrorMessage(error));
-			} finally {
-				hostDiffityInFlightRef.current = false;
-			}
-		})();
-	}, [
-		openAndroidUrl,
-		resolveHostBrowserPanePath,
-		runHostBrowserCommand,
-		showHostBrowserError,
-	]);
-
-	const handleOpenHostUrlSlot = useCallback(
-		(slot: HostBrowserUrlSlot) => {
-			skillSelector.close();
-			setBrowserActionsOpen(false);
-			const requestId = ++hostUrlReadRequestIdRef.current;
-			void (async () => {
-				try {
-					const panePath = await resolveHostBrowserPanePath();
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					const value = await runHostBrowserCommand(
-						buildTmuxWindowConfigGetCommand(slot, panePath),
-						10_000,
-					);
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					const savedUrl = value.trim();
-					if (savedUrl) {
-						const parsed = parseHostBrowserUrlInput(savedUrl);
-						if (parsed.type === 'invalid') {
-							setHostUrlModalState({
-								mode: 'edit',
-								slot,
-								panePath,
-								initialValue: savedUrl,
-							});
-							setHostUrlModalError(parsed.message);
-							return;
-						}
-						if (parsed.type === 'empty') return;
-						await openAndroidUrl(parsed.url);
-						return;
-					}
-					setHostUrlModalError(null);
-					setHostUrlModalState({
-						mode: 'open-missing',
-						slot,
-						panePath,
-						initialValue: '',
-					});
-				} catch (error) {
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					showHostBrowserError(
-						`${getHostBrowserUrlSlotLabel(slot)} failed`,
-						getErrorMessage(error),
-					);
-				}
-			})();
-		},
-		[
-			skillSelector,
-			openAndroidUrl,
-			resolveHostBrowserPanePath,
-			runHostBrowserCommand,
-			showHostBrowserError,
-		],
-	);
-
-	const handleEditHostUrlSlot = useCallback(
-		(slot: HostBrowserUrlSlot) => {
-			skillSelector.close();
-			setBrowserActionsOpen(false);
-			const requestId = ++hostUrlReadRequestIdRef.current;
-			void (async () => {
-				try {
-					const panePath = await resolveHostBrowserPanePath();
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					const value = await runHostBrowserCommand(
-						buildTmuxWindowConfigGetCommand(slot, panePath),
-						10_000,
-					);
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					setHostUrlModalError(null);
-					setHostUrlModalState({
-						mode: 'edit',
-						slot,
-						panePath,
-						initialValue: value.trim(),
-					});
-				} catch (error) {
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					showHostBrowserError(
-						`Edit ${getHostBrowserUrlSlotLabel(slot)} failed`,
-						getErrorMessage(error),
-					);
-				}
-			})();
-		},
-		[
-			skillSelector,
-			resolveHostBrowserPanePath,
-			runHostBrowserCommand,
-			showHostBrowserError,
-		],
-	);
-
-	const handleCloseHostUrlModal = useCallback(() => {
-		if (hostUrlSubmitInFlightRef.current || hostUrlModalSubmitting) return;
-		resetHostUrlModal();
-	}, [hostUrlModalSubmitting, resetHostUrlModal]);
-
-	const handleSubmitHostUrlModal = useCallback(
-		(value: string) => {
-			const state = hostUrlModalState;
-			if (!state) return;
-			const parsed = parseHostBrowserUrlInput(value);
-			if (parsed.type === 'empty') {
-				setHostUrlModalState(null);
-				setHostUrlModalError(null);
-				return;
-			}
-			if (parsed.type === 'invalid') {
-				setHostUrlModalError(parsed.message);
-				return;
-			}
-
-			if (hostUrlSubmitInFlightRef.current) return;
-			const requestId = ++hostUrlSubmitRequestIdRef.current;
-			hostUrlSubmitInFlightRef.current = true;
-			void (async () => {
-				setHostUrlModalSubmitting(true);
-				setHostUrlModalError(null);
-				try {
-					await runHostBrowserCommand(
-						buildTmuxWindowConfigSetCommand(
-							state.slot,
-							state.panePath,
-							parsed.url,
-						),
-						10_000,
-					);
-					if (requestId !== hostUrlSubmitRequestIdRef.current) return;
-					if (state.mode === 'open-missing') {
-						await openAndroidUrl(parsed.url);
-						if (requestId !== hostUrlSubmitRequestIdRef.current) return;
-					}
-					setHostUrlModalState(null);
-				} catch (error) {
-					if (requestId !== hostUrlSubmitRequestIdRef.current) return;
-					setHostUrlModalError(getErrorMessage(error));
-				} finally {
-					if (requestId === hostUrlSubmitRequestIdRef.current) {
-						hostUrlSubmitInFlightRef.current = false;
-						setHostUrlModalSubmitting(false);
-					}
-				}
-			})();
-		},
-		[hostUrlModalState, openAndroidUrl, runHostBrowserCommand],
-	);
-
-	const handleCycleWorkmuxStatus = useCallback(() => {
-		void (async () => {
-			try {
-				if (!tmuxEnabled) {
-					throw new Error('Status cycle requires a tmux-enabled connection.');
-				}
-				const sessionName = tmuxTarget.trim() || 'main';
-				await runHostBrowserCommand(
-					buildHostBrowserStatusCycleCommand(sessionName),
-					10_000,
-				);
-			} catch (error) {
-				showHostBrowserError('Status cycle failed', getErrorMessage(error));
-			}
-		})();
-	}, [runHostBrowserCommand, showHostBrowserError, tmuxEnabled, tmuxTarget]);
-
 	const actionContext = useMemo<ActionContext>(
 		() => ({
 			availableKeyboardIds,
@@ -2512,9 +2143,9 @@ function ShellDetail() {
 			pasteClipboard: handlePasteClipboard,
 			copySelection: handleCopySelection,
 			toggleCommandPresets: () => {
-				invalidateHostUrlReads();
+				browserActions.invalidateHostUrlReads();
 				commanderModal.onClose();
-				setBrowserActionsOpen(false);
+				browserActions.close();
 				skillSelector.close();
 				handleCloseTextEntry();
 				if (commandPresetsModal.open) {
@@ -2524,9 +2155,9 @@ function ShellDetail() {
 				}
 			},
 			openCommander: () => {
-				invalidateHostUrlReads();
+				browserActions.invalidateHostUrlReads();
 				commandPresetsModal.onClose();
-				setBrowserActionsOpen(false);
+				browserActions.close();
 				skillSelector.close();
 				handleCloseTextEntry();
 				commanderModal.onOpen();
@@ -2534,28 +2165,23 @@ function ShellDetail() {
 			openSkillSelector: skillSelector.open,
 			openRepoFeatureRequest: featureRequest.open,
 			openWisprTextEditor: handleOpenWisprTextEditor,
-			openBrowserActions: handleOpenBrowserActions,
-			openHostDiffity: handleOpenHostDiffity,
-			openHostUrlSlot: handleOpenHostUrlSlot,
-			editHostUrlSlot: handleEditHostUrlSlot,
-			cycleWorkmuxStatus: handleCycleWorkmuxStatus,
+			openBrowserActions: browserActions.open,
+			openHostDiffity: browserActions.browserActionsProps.onOpenDiff,
+			openHostUrlSlot: browserActions.browserActionsProps.onOpenUrlSlot,
+			editHostUrlSlot: browserActions.browserActionsProps.onEditUrlSlot,
+			cycleWorkmuxStatus: browserActions.cycleWorkmuxStatus,
 		}),
 		[
 			availableKeyboardIds,
+			browserActions,
 			featureRequest.open,
 			skillSelector,
 			commandPresetsModal,
 			commanderModal,
-			handleCycleWorkmuxStatus,
 			handleCopySelection,
 			handleCloseTextEntry,
-			handleEditHostUrlSlot,
-			handleOpenHostDiffity,
-			handleOpenHostUrlSlot,
-			handleOpenBrowserActions,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
-			invalidateHostUrlReads,
 			openConfigDialog,
 			rotateKeyboard,
 			shellConfig,
@@ -3153,14 +2779,8 @@ function ShellDetail() {
 					onSelect={runCommandPreset}
 				/>
 				<BrowserActionsModal
-					open={browserActionsOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={handleCloseBrowserActions}
-					onOpenDiff={handleOpenHostDiffity}
-					onOpenGitHubIssues={handleOpenGitHubIssuesTarget}
-					onOpenGitHubPulls={handleOpenGitHubPullsTarget}
-					onOpenUrlSlot={handleOpenHostUrlSlot}
-					onEditUrlSlot={handleEditHostUrlSlot}
+					{...browserActions.browserActionsProps}
 				/>
 				<TerminalCommanderModal
 					open={commanderModal.open}
@@ -3198,19 +2818,15 @@ function ShellDetail() {
 					onValueChange={handleWisprTextEntryValueChange}
 				/>
 				<HostUrlModal
-					open={hostUrlModalState != null}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					slotLabel={
-						hostUrlModalState
-							? getHostBrowserUrlSlotLabel(hostUrlModalState.slot)
-							: 'URL'
-					}
-					initialValue={hostUrlModalState?.initialValue ?? ''}
-					mode={hostUrlModalState?.mode ?? 'edit'}
-					isSubmitting={hostUrlModalSubmitting}
-					error={hostUrlModalError}
-					onClose={handleCloseHostUrlModal}
-					onSubmit={handleSubmitHostUrlModal}
+					open={browserActions.hostUrlProps.open}
+					slotLabel={browserActions.hostUrlProps.slotLabel}
+					initialValue={browserActions.hostUrlProps.initialValue}
+					mode={browserActions.hostUrlProps.mode}
+					isSubmitting={browserActions.hostUrlProps.isSubmitting}
+					error={browserActions.hostUrlProps.error}
+					onClose={browserActions.hostUrlProps.onClose}
+					onSubmit={browserActions.hostUrlProps.onSubmit}
 				/>
 				<ConfigureModal
 					open={configureModal.open}
