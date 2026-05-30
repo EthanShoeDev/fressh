@@ -7,6 +7,11 @@ import {
 	useState,
 	type RefObject,
 } from 'react';
+import { Alert } from 'react-native';
+import {
+	buildCreateGitHubIssueCommand,
+	buildFeatureRequestSubmittedAlert,
+} from './repo-feature-request';
 import { useRequestId } from './request-id';
 import {
 	buildSkillDiscoveryCommand,
@@ -278,5 +283,247 @@ export function useSkillSelectorController<TConnection>(deps: {
 			close,
 		}),
 		[close, modalProps, openController],
+	);
+}
+
+export type FeatureRequestModalProps = {
+	open: boolean;
+	isSubmitting: boolean;
+	targetRepository: string | null;
+	isResolvingTarget: boolean;
+	error: string | undefined;
+	onClose: () => boolean;
+	onSubmit: (description: string) => Promise<void>;
+};
+
+export type FeatureRequestControllerHandle = {
+	modalProps: FeatureRequestModalProps;
+	open: () => void;
+	close: () => boolean;
+	markSourceStale: () => void;
+};
+
+export type FeatureRequestControllerDeps<TConnection> = {
+	connection: TConnection | null;
+	resolveCurrentGitHubRepository: () => Promise<string>;
+	executeSideChannelCommand: (
+		connection: TConnection,
+		command: string,
+		timeoutMs: number,
+	) => Promise<{
+		success: boolean;
+		output: string;
+		error?: string;
+		issueUrl?: string;
+	}>;
+	getErrorMessage: (error: unknown) => string;
+	logger: {
+		info: (message: string, payload?: unknown) => void;
+		error: (message: string, payload?: unknown) => void;
+	};
+	closeOtherModals: () => void;
+};
+
+export function useFeatureRequestController<TConnection>(
+	deps: FeatureRequestControllerDeps<TConnection>,
+): FeatureRequestControllerHandle {
+	const {
+		connection,
+		resolveCurrentGitHubRepository,
+		executeSideChannelCommand,
+		getErrorMessage,
+		logger,
+		closeOtherModals,
+	} = deps;
+
+	const [open, setOpen] = useState(false);
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [targetRepository, setTargetRepository] = useState<string | null>(null);
+	const [isResolvingTarget, setIsResolvingTarget] = useState(false);
+	const [error, setError] = useState<string | undefined>(undefined);
+
+	const resolveRequestId = useRequestId();
+	const submitRequestId = useRequestId();
+	const submitInFlightRef = useRef(false);
+	const sourceStaleRef = useRef(false);
+
+	const reset = useCallback(() => {
+		setOpen(false);
+		setIsSubmitting(false);
+		setIsResolvingTarget(false);
+		setTargetRepository(null);
+		setError(undefined);
+	}, []);
+
+	const cancelRequests = useCallback(() => {
+		resolveRequestId.invalidate();
+		submitRequestId.invalidate();
+	}, [resolveRequestId, submitRequestId]);
+
+	const close = useCallback((): boolean => {
+		if (submitInFlightRef.current || isSubmitting) {
+			return false;
+		}
+		cancelRequests();
+		sourceStaleRef.current = false;
+		reset();
+		return true;
+	}, [cancelRequests, isSubmitting, reset]);
+
+	const openController = useCallback(() => {
+		if (isSubmitting) return;
+		const id = resolveRequestId.next();
+		submitRequestId.invalidate();
+		closeOtherModals();
+		reset();
+		setOpen(true);
+
+		void (async () => {
+			setIsResolvingTarget(true);
+			try {
+				const repository = await resolveCurrentGitHubRepository();
+				if (!resolveRequestId.isCurrent(id)) return;
+				setTargetRepository(repository);
+				setError(undefined);
+			} catch (err) {
+				if (!resolveRequestId.isCurrent(id)) return;
+				setTargetRepository(null);
+				setError(getErrorMessage(err));
+			} finally {
+				if (resolveRequestId.isCurrent(id)) {
+					setIsResolvingTarget(false);
+				}
+			}
+		})();
+	}, [
+		closeOtherModals,
+		getErrorMessage,
+		isSubmitting,
+		reset,
+		resolveCurrentGitHubRepository,
+		resolveRequestId,
+		submitRequestId,
+	]);
+
+	const submit = useCallback(
+		async (description: string) => {
+			if (submitInFlightRef.current) return;
+			const id = submitRequestId.next();
+			if (!connection) {
+				setError('No SSH connection available');
+				return;
+			}
+			if (!targetRepository) {
+				setError('Could not resolve GitHub repository for current window.');
+				return;
+			}
+
+			submitInFlightRef.current = true;
+			sourceStaleRef.current = false;
+			setIsSubmitting(true);
+			setError(undefined);
+
+			const command = buildCreateGitHubIssueCommand({
+				description,
+				repository: targetRepository,
+			});
+
+			try {
+				const result = await executeSideChannelCommand(
+					connection,
+					command,
+					60_000,
+				);
+				if (!submitRequestId.isCurrent(id)) return;
+				if (sourceStaleRef.current) {
+					reset();
+					sourceStaleRef.current = false;
+					return;
+				}
+				if (result.success) {
+					logger.info('Feature request submitted successfully', {
+						output: result.output,
+						issueUrl: result.issueUrl,
+					});
+					setOpen(false);
+					setError(undefined);
+					sourceStaleRef.current = false;
+					const alert = buildFeatureRequestSubmittedAlert({
+						issueUrl: result.issueUrl ?? null,
+					});
+					Alert.alert(alert.title, alert.message, [{ text: 'OK' }]);
+				} else {
+					const errorMsg =
+						result.error ||
+						'Failed to create issue. Make sure gh and claude CLIs are installed and authenticated on the remote host.';
+					logger.error('Feature request failed', { error: errorMsg });
+					if (!submitRequestId.isCurrent(id)) return;
+					setError(errorMsg);
+				}
+			} catch (err) {
+				const errorMsg =
+					err instanceof Error ? err.message : 'Unknown error occurred';
+				logger.error('Feature request error', { error: err });
+				if (!submitRequestId.isCurrent(id)) return;
+				if (sourceStaleRef.current) {
+					reset();
+					sourceStaleRef.current = false;
+					return;
+				}
+				setError(errorMsg);
+			} finally {
+				if (submitRequestId.isCurrent(id)) {
+					submitInFlightRef.current = false;
+					setIsSubmitting(false);
+				}
+			}
+		},
+		[
+			connection,
+			executeSideChannelCommand,
+			logger,
+			reset,
+			submitRequestId,
+			targetRepository,
+		],
+	);
+
+	const markSourceStale = useCallback(() => {
+		if (submitInFlightRef.current) {
+			sourceStaleRef.current = true;
+		} else {
+			close();
+		}
+	}, [close]);
+
+	useEffect(() => {
+		return () => {
+			cancelRequests();
+			submitInFlightRef.current = false;
+			sourceStaleRef.current = false;
+		};
+	}, [cancelRequests]);
+
+	const modalProps = useMemo<FeatureRequestModalProps>(
+		() => ({
+			open,
+			isSubmitting,
+			targetRepository,
+			isResolvingTarget,
+			error,
+			onClose: close,
+			onSubmit: submit,
+		}),
+		[close, error, isResolvingTarget, isSubmitting, open, submit, targetRepository],
+	);
+
+	return useMemo<FeatureRequestControllerHandle>(
+		() => ({
+			modalProps,
+			open: openController,
+			close,
+			markSourceStale,
+		}),
+		[close, markSourceStale, modalProps, openController],
 	);
 }

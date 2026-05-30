@@ -75,7 +75,6 @@ import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import {
 	buildGitHubRepositoryTargetUrl,
-	buildCreateGitHubIssueCommand,
 	buildResolveGitHubRepositoryCommand,
 	parseGitHubRepositoryResolutionOutput,
 	type GitHubRepositoryTarget,
@@ -100,6 +99,7 @@ import {
 } from '@/lib/shell-config-store-native';
 import { buildShellLiveInputSendPlan } from '@/lib/shell-live-input';
 import {
+	useFeatureRequestController,
 	useShellSimpleModals,
 	useSkillSelectorController,
 } from '@/lib/shell-modals';
@@ -717,16 +717,6 @@ function ShellDetail() {
 		useState<WisprTextEditorAvailability>({ type: 'ready' });
 	const [wisprAutomationState, setWisprAutomationState] =
 		useState<WisprAutomationState>({ phase: 'idle' });
-	const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
-	const [featureRequestSubmitting, setFeatureRequestSubmitting] =
-		useState(false);
-	const [featureRequestTargetRepository, setFeatureRequestTargetRepository] =
-		useState<string | null>(null);
-	const [featureRequestResolvingTarget, setFeatureRequestResolvingTarget] =
-		useState(false);
-	const [featureRequestError, setFeatureRequestError] = useState<
-		string | undefined
-	>(undefined);
 	const [hostUrlModalState, setHostUrlModalState] =
 		useState<HostUrlModalState | null>(null);
 	const [hostUrlModalSubmitting, setHostUrlModalSubmitting] = useState(false);
@@ -770,10 +760,6 @@ function ShellDetail() {
 	const hostUrlReadRequestIdRef = useRef(0);
 	const hostUrlSubmitRequestIdRef = useRef(0);
 	const hostUrlSubmitInFlightRef = useRef(false);
-	const featureRequestResolveRequestIdRef = useRef(0);
-	const featureRequestSubmitRequestIdRef = useRef(0);
-	const featureRequestSubmitInFlightRef = useRef(false);
-	const featureRequestSourceStaleRef = useRef(false);
 	const browserGitHubTargetRequestIdRef = useRef(0);
 	const hostDiffityRequestIdRef = useRef(0);
 	const hostDiffityInFlightRef = useRef(false);
@@ -788,30 +774,6 @@ function ShellDetail() {
 		setHostUrlModalSubmitting(false);
 		setHostUrlModalError(null);
 	}, []);
-	const cancelFeatureRequestRequests = useCallback(() => {
-		featureRequestResolveRequestIdRef.current += 1;
-		featureRequestSubmitRequestIdRef.current += 1;
-	}, []);
-	const resetFeatureRequestState = useCallback(() => {
-		setFeatureRequestOpen(false);
-		setFeatureRequestSubmitting(false);
-		setFeatureRequestResolvingTarget(false);
-		setFeatureRequestTargetRepository(null);
-		setFeatureRequestError(undefined);
-	}, []);
-	const closeFeatureRequest = useCallback(() => {
-		if (featureRequestSubmitInFlightRef.current || featureRequestSubmitting) {
-			return false;
-		}
-		cancelFeatureRequestRequests();
-		featureRequestSourceStaleRef.current = false;
-		resetFeatureRequestState();
-		return true;
-	}, [
-		cancelFeatureRequestRequests,
-		featureRequestSubmitting,
-		resetFeatureRequestState,
-	]);
 	const agentNotificationAckRequestIdRef = useRef(0);
 	const handledAgentAlertRouteRef = useRef<string | null>(null);
 	const acknowledgeVisibleAgentNotificationRef = useRef<() => void>(() => {});
@@ -1861,17 +1823,50 @@ function ShellDetail() {
 	const activeTmuxSessionName = tmuxTarget.trim() || 'main';
 	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${activeTmuxSessionName}`;
 
+	const resolveCurrentGitHubRepository = useCallback(async () => {
+		const panePath = await resolveHostBrowserPanePath();
+		const output = await runHostBrowserCommand(
+			buildResolveGitHubRepositoryCommand(panePath),
+			10_000,
+		);
+		const repository = parseGitHubRepositoryResolutionOutput(output);
+		if (!repository) {
+			throw new Error(
+				'Could not resolve GitHub repository for current window.',
+			);
+		}
+		return repository;
+	}, [resolveHostBrowserPanePath, runHostBrowserCommand]);
+
+	const skillSelectorCloseRef = useRef<() => void>(() => {});
+	const featureRequestCloseRef = useRef<() => boolean>(() => true);
+
+	const closeFeatureRequestOtherModals = useCallback(() => {
+		invalidateHostUrlReads();
+		skillSelectorCloseRef.current();
+		setBrowserActionsOpen(false);
+		configureModal.onClose();
+	}, [configureModal, invalidateHostUrlReads]);
+
+	const featureRequest = useFeatureRequestController({
+		connection: connection ?? null,
+		resolveCurrentGitHubRepository,
+		executeSideChannelCommand,
+		getErrorMessage,
+		logger,
+		closeOtherModals: closeFeatureRequestOtherModals,
+	});
+
 	const closeSkillSelectorOtherModals = useCallback(() => {
 		commandPresetsModal.onClose();
 		setBrowserActionsOpen(false);
 		commanderModal.onClose();
 		configureModal.onClose();
-		if (!closeFeatureRequest()) return false;
+		if (!featureRequestCloseRef.current()) return false;
 		resetHostUrlModal();
 		handleCloseTextEntry();
 		return true;
 	}, [
-		closeFeatureRequest,
 		commandPresetsModal,
 		commanderModal,
 		configureModal,
@@ -1890,6 +1885,9 @@ function ShellDetail() {
 		closeOtherModals: closeSkillSelectorOtherModals,
 	});
 
+	skillSelectorCloseRef.current = skillSelector.close;
+	featureRequestCloseRef.current = featureRequest.close;
+
 	const sourceKeyChangeTrackerRef = useRef(skillSelectorSourceKey);
 
 	useLayoutEffect(() => {
@@ -1898,13 +1896,9 @@ function ShellDetail() {
 		resetHostUrlModal();
 		hostDiffityRequestIdRef.current += 1;
 		browserGitHubTargetRequestIdRef.current += 1;
-		if (featureRequestSubmitInFlightRef.current) {
-			featureRequestSourceStaleRef.current = true;
-		} else {
-			closeFeatureRequest();
-		}
+		featureRequest.markSourceStale();
 	}, [
-		closeFeatureRequest,
+		featureRequest,
 		resetHostUrlModal,
 		skillSelectorSourceKey,
 	]);
@@ -2114,94 +2108,6 @@ function ShellDetail() {
 		void Linking.openURL(SHELL_CONFIG_DOC_URL);
 	}, [configureModal]);
 
-	const handleFeatureRequestSubmit = useCallback(
-		async (description: string) => {
-			if (featureRequestSubmitInFlightRef.current) return;
-			const requestId = ++featureRequestSubmitRequestIdRef.current;
-			if (!connection) {
-				setFeatureRequestError('No SSH connection available');
-				return;
-			}
-			if (!featureRequestTargetRepository) {
-				setFeatureRequestError(
-					'Could not resolve GitHub repository for current window.',
-				);
-				return;
-			}
-
-			featureRequestSubmitInFlightRef.current = true;
-			featureRequestSourceStaleRef.current = false;
-			setFeatureRequestSubmitting(true);
-			setFeatureRequestError(undefined);
-			const command = buildCreateGitHubIssueCommand({
-				description,
-				repository: featureRequestTargetRepository,
-			});
-
-			try {
-				// Execute via side-channel SSH session (doesn't interfere with current terminal)
-				const result = await executeSideChannelCommand(
-					connection,
-					command,
-					60000,
-				);
-
-				if (requestId !== featureRequestSubmitRequestIdRef.current) return;
-				if (featureRequestSourceStaleRef.current) {
-					resetFeatureRequestState();
-					featureRequestSourceStaleRef.current = false;
-					return;
-				}
-				if (result.success) {
-					logger.info('Feature request submitted successfully', {
-						output: result.output,
-						issueUrl: result.issueUrl,
-					});
-					setFeatureRequestOpen(false);
-					setFeatureRequestError(undefined);
-					featureRequestSourceStaleRef.current = false;
-					// Extract issue number from URL (format: https://github.com/owner/repo/issues/123)
-					const issueUrl = result.issueUrl ?? null;
-					const issueNumberMatch = issueUrl?.match(/\/issues\/(\d+)$/);
-					const issueNumber = issueNumberMatch?.[1] ?? null;
-					Alert.alert(
-						issueNumber
-							? `Issue #${issueNumber} Created`
-							: 'Feature Request Submitted',
-						issueUrl
-							? `Your request has been created:\n${issueUrl}`
-							: 'Your feature request has been submitted successfully.',
-						[{ text: 'OK' }],
-					);
-				} else {
-					const errorMsg =
-						result.error ||
-						'Failed to create issue. Make sure gh and claude CLIs are installed and authenticated on the remote host.';
-					logger.error('Feature request failed', { error: errorMsg });
-					if (requestId !== featureRequestSubmitRequestIdRef.current) return;
-					setFeatureRequestError(errorMsg);
-				}
-			} catch (err) {
-				const errorMsg =
-					err instanceof Error ? err.message : 'Unknown error occurred';
-				logger.error('Feature request error', { error: err });
-				if (requestId !== featureRequestSubmitRequestIdRef.current) return;
-				if (featureRequestSourceStaleRef.current) {
-					resetFeatureRequestState();
-					featureRequestSourceStaleRef.current = false;
-					return;
-				}
-				setFeatureRequestError(errorMsg);
-			} finally {
-				if (requestId === featureRequestSubmitRequestIdRef.current) {
-					featureRequestSubmitInFlightRef.current = false;
-					setFeatureRequestSubmitting(false);
-				}
-			}
-		},
-		[connection, featureRequestTargetRepository, resetFeatureRequestState],
-	);
-
 	const showHostBrowserError = useCallback((title: string, message: string) => {
 		Alert.alert(title, message);
 	}, []);
@@ -2315,71 +2221,16 @@ function ShellDetail() {
 		});
 	}, []);
 
-	const resolveCurrentGitHubRepository = useCallback(async () => {
-		const panePath = await resolveHostBrowserPanePath();
-		const output = await runHostBrowserCommand(
-			buildResolveGitHubRepositoryCommand(panePath),
-			10_000,
-		);
-		const repository = parseGitHubRepositoryResolutionOutput(output);
-		if (!repository) {
-			throw new Error(
-				'Could not resolve GitHub repository for current window.',
-			);
-		}
-		return repository;
-	}, [resolveHostBrowserPanePath, runHostBrowserCommand]);
-
-	const handleOpenFeatureRequest = useCallback(() => {
-		if (featureRequestSubmitting) return;
-		const requestId = ++featureRequestResolveRequestIdRef.current;
-		featureRequestSubmitRequestIdRef.current += 1;
-		invalidateHostUrlReads();
-		skillSelector.close();
-		setBrowserActionsOpen(false);
-		configureModal.onClose();
-		resetFeatureRequestState();
-		setFeatureRequestOpen(true);
-
-		void (async () => {
-			setFeatureRequestResolvingTarget(true);
-			try {
-				const repository = await resolveCurrentGitHubRepository();
-				if (requestId !== featureRequestResolveRequestIdRef.current) return;
-				setFeatureRequestTargetRepository(repository);
-				setFeatureRequestError(undefined);
-			} catch (error) {
-				if (requestId !== featureRequestResolveRequestIdRef.current) return;
-				setFeatureRequestTargetRepository(null);
-				setFeatureRequestError(getErrorMessage(error));
-			} finally {
-				if (requestId === featureRequestResolveRequestIdRef.current) {
-					setFeatureRequestResolvingTarget(false);
-				}
-			}
-		})();
-	}, [
-		skillSelector,
-		configureModal,
-		featureRequestSubmitting,
-		invalidateHostUrlReads,
-		resetFeatureRequestState,
-		resolveCurrentGitHubRepository,
-	]);
-
 	useEffect(() => {
 		return () => {
 			hostUrlReadRequestIdRef.current += 1;
 			hostUrlSubmitRequestIdRef.current += 1;
 			hostUrlSubmitInFlightRef.current = false;
-			cancelFeatureRequestRequests();
-			featureRequestSubmitInFlightRef.current = false;
-			featureRequestSourceStaleRef.current = false;
 			browserGitHubTargetRequestIdRef.current += 1;
 			hostDiffityRequestIdRef.current += 1;
 			hostDiffityInFlightRef.current = false;
 		};
-	}, [cancelFeatureRequestRequests]);
+	}, []);
 
 	const openAndroidUrl = useCallback(async (url: string) => {
 		try {
@@ -2398,11 +2249,11 @@ function ShellDetail() {
 		skillSelector.close();
 		handleCloseTextEntry();
 		configureModal.onClose();
-		if (!closeFeatureRequest()) return;
+		if (!featureRequest.close()) return;
 		resetHostUrlModal();
 		setBrowserActionsOpen(true);
 	}, [
-		closeFeatureRequest,
+		featureRequest,
 		skillSelector,
 		commandPresetsModal,
 		commanderModal,
@@ -2681,7 +2532,7 @@ function ShellDetail() {
 				commanderModal.onOpen();
 			},
 			openSkillSelector: skillSelector.open,
-			openRepoFeatureRequest: handleOpenFeatureRequest,
+			openRepoFeatureRequest: featureRequest.open,
 			openWisprTextEditor: handleOpenWisprTextEditor,
 			openBrowserActions: handleOpenBrowserActions,
 			openHostDiffity: handleOpenHostDiffity,
@@ -2691,6 +2542,7 @@ function ShellDetail() {
 		}),
 		[
 			availableKeyboardIds,
+			featureRequest.open,
 			skillSelector,
 			commandPresetsModal,
 			commanderModal,
@@ -2700,7 +2552,6 @@ function ShellDetail() {
 			handleEditHostUrlSlot,
 			handleOpenHostDiffity,
 			handleOpenHostUrlSlot,
-			handleOpenFeatureRequest,
 			handleOpenBrowserActions,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
@@ -3370,7 +3221,7 @@ function ShellDetail() {
 					onHostConfig={handleHostConfig}
 					onOpenGitHubIssues={handleOpenGitHubIssues}
 					onOpenShellConfigDocs={handleOpenShellConfigDocs}
-					onRequestFeature={handleOpenFeatureRequest}
+					onRequestFeature={featureRequest.open}
 					configVersion={shellConfig.version}
 					configUpdatedAt={shellConfig.updatedAt}
 					configSource={shellConfigState.source}
@@ -3378,14 +3229,8 @@ function ShellDetail() {
 					configLastError={shellConfigState.lastError}
 				/>
 				<FeatureRequestModal
-					open={featureRequestOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={closeFeatureRequest}
-					onSubmit={handleFeatureRequestSubmit}
-					targetRepository={featureRequestTargetRepository}
-					isResolvingTarget={featureRequestResolvingTarget}
-					isSubmitting={featureRequestSubmitting}
-					error={featureRequestError}
+					{...featureRequest.modalProps}
 				/>
 				{showReconnectOverlay && (
 					<View
