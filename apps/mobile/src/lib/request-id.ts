@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 export type RequestIdHandle = {
 	next: () => number;
@@ -16,5 +16,8 @@ export function useRequestId(): RequestIdHandle {
 	const invalidate = useCallback(() => {
 		ref.current += 1;
 	}, []);
-	return { next, isCurrent, invalidate };
+	return useMemo(
+		() => ({ next, isCurrent, invalidate }),
+		[next, isCurrent, invalidate],
+	);
 }
