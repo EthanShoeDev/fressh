@@ -20,118 +20,114 @@ extern "C" {
     int8_t poll_result
     );
     typedef void
-    (*UniffiForeignFutureFree)(
+    (*UniffiForeignFutureDroppedCallback)(
     uint64_t handle
     );
     typedef void
     (*UniffiCallbackInterfaceFree)(
     uint64_t handle
-    );typedef struct UniffiForeignFuture {
+    );
+    typedef uint64_t
+    (*UniffiCallbackInterfaceClone)(
+    uint64_t handle
+    );typedef struct UniffiForeignFutureDroppedCallbackStruct {
         uint64_t handle;
-        UniffiForeignFutureFree free;
-    } UniffiForeignFuture;typedef struct UniffiForeignFutureStructU8 {
+        UniffiForeignFutureDroppedCallback free;
+    } UniffiForeignFutureDroppedCallbackStruct;typedef struct UniffiForeignFutureResultU8 {
         uint8_t return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructU8;
+    } UniffiForeignFutureResultU8;
     typedef void
     (*UniffiForeignFutureCompleteU8)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructU8 result
-    );typedef struct UniffiForeignFutureStructI8 {
+    UniffiForeignFutureResultU8 result
+    );typedef struct UniffiForeignFutureResultI8 {
         int8_t return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructI8;
+    } UniffiForeignFutureResultI8;
     typedef void
     (*UniffiForeignFutureCompleteI8)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructI8 result
-    );typedef struct UniffiForeignFutureStructU16 {
+    UniffiForeignFutureResultI8 result
+    );typedef struct UniffiForeignFutureResultU16 {
         uint16_t return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructU16;
+    } UniffiForeignFutureResultU16;
     typedef void
     (*UniffiForeignFutureCompleteU16)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructU16 result
-    );typedef struct UniffiForeignFutureStructI16 {
+    UniffiForeignFutureResultU16 result
+    );typedef struct UniffiForeignFutureResultI16 {
         int16_t return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructI16;
+    } UniffiForeignFutureResultI16;
     typedef void
     (*UniffiForeignFutureCompleteI16)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructI16 result
-    );typedef struct UniffiForeignFutureStructU32 {
+    UniffiForeignFutureResultI16 result
+    );typedef struct UniffiForeignFutureResultU32 {
         uint32_t return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructU32;
+    } UniffiForeignFutureResultU32;
     typedef void
     (*UniffiForeignFutureCompleteU32)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructU32 result
-    );typedef struct UniffiForeignFutureStructI32 {
+    UniffiForeignFutureResultU32 result
+    );typedef struct UniffiForeignFutureResultI32 {
         int32_t return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructI32;
+    } UniffiForeignFutureResultI32;
     typedef void
     (*UniffiForeignFutureCompleteI32)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructI32 result
-    );typedef struct UniffiForeignFutureStructU64 {
+    UniffiForeignFutureResultI32 result
+    );typedef struct UniffiForeignFutureResultU64 {
         uint64_t return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructU64;
+    } UniffiForeignFutureResultU64;
     typedef void
     (*UniffiForeignFutureCompleteU64)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructU64 result
-    );typedef struct UniffiForeignFutureStructI64 {
+    UniffiForeignFutureResultU64 result
+    );typedef struct UniffiForeignFutureResultI64 {
         int64_t return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructI64;
+    } UniffiForeignFutureResultI64;
     typedef void
     (*UniffiForeignFutureCompleteI64)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructI64 result
-    );typedef struct UniffiForeignFutureStructF32 {
+    UniffiForeignFutureResultI64 result
+    );typedef struct UniffiForeignFutureResultF32 {
         float return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructF32;
+    } UniffiForeignFutureResultF32;
     typedef void
     (*UniffiForeignFutureCompleteF32)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructF32 result
-    );typedef struct UniffiForeignFutureStructF64 {
+    UniffiForeignFutureResultF32 result
+    );typedef struct UniffiForeignFutureResultF64 {
         double return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructF64;
+    } UniffiForeignFutureResultF64;
     typedef void
     (*UniffiForeignFutureCompleteF64)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructF64 result
-    );typedef struct UniffiForeignFutureStructPointer {
-        void * return_value;
-        RustCallStatus call_status;
-    } UniffiForeignFutureStructPointer;
-    typedef void
-    (*UniffiForeignFutureCompletePointer)(
-    uint64_t callback_data, 
-    UniffiForeignFutureStructPointer result
-    );typedef struct UniffiForeignFutureStructRustBuffer {
+    UniffiForeignFutureResultF64 result
+    );typedef struct UniffiForeignFutureResultRustBuffer {
         RustBuffer return_value;
         RustCallStatus call_status;
-    } UniffiForeignFutureStructRustBuffer;
+    } UniffiForeignFutureResultRustBuffer;
     typedef void
     (*UniffiForeignFutureCompleteRustBuffer)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructRustBuffer result
-    );typedef struct UniffiForeignFutureStructVoid {
+    UniffiForeignFutureResultRustBuffer result
+    );typedef struct UniffiForeignFutureResultVoid {
         RustCallStatus call_status;
-    } UniffiForeignFutureStructVoid;
+    } UniffiForeignFutureResultVoid;
     typedef void
     (*UniffiForeignFutureCompleteVoid)(
     uint64_t callback_data, 
-    UniffiForeignFutureStructVoid result
+    UniffiForeignFutureResultVoid result
     );
     typedef void
     (*UniffiCallbackInterfaceConnectProgressCallbackMethod0)(
@@ -151,7 +147,7 @@ extern "C" {
     RustBuffer server_key_info, 
     UniffiForeignFutureCompleteI8 uniffi_future_callback, 
     uint64_t uniffi_callback_data, 
-    UniffiForeignFuture * uniffi_out_return
+    UniffiForeignFutureDroppedCallbackStruct * uniffi_out_dropped_callback
     );
     typedef void
     (*UniffiCallbackInterfaceShellClosedCallbackMethod0)(
@@ -165,168 +161,173 @@ extern "C" {
     RustBuffer ev, 
     void * uniffi_out_return, RustCallStatus* rust_call_status
     );typedef struct UniffiVTableCallbackInterfaceConnectProgressCallback {
+        UniffiCallbackInterfaceFree uniffi_free;
+        UniffiCallbackInterfaceClone uniffi_clone;
         UniffiCallbackInterfaceConnectProgressCallbackMethod0 on_change;
-        UniffiCallbackInterfaceFree uniffi_free;
     } UniffiVTableCallbackInterfaceConnectProgressCallback;typedef struct UniffiVTableCallbackInterfaceConnectionDisconnectedCallback {
+        UniffiCallbackInterfaceFree uniffi_free;
+        UniffiCallbackInterfaceClone uniffi_clone;
         UniffiCallbackInterfaceConnectionDisconnectedCallbackMethod0 on_change;
-        UniffiCallbackInterfaceFree uniffi_free;
     } UniffiVTableCallbackInterfaceConnectionDisconnectedCallback;typedef struct UniffiVTableCallbackInterfaceServerKeyCallback {
+        UniffiCallbackInterfaceFree uniffi_free;
+        UniffiCallbackInterfaceClone uniffi_clone;
         UniffiCallbackInterfaceServerKeyCallbackMethod0 on_change;
-        UniffiCallbackInterfaceFree uniffi_free;
     } UniffiVTableCallbackInterfaceServerKeyCallback;typedef struct UniffiVTableCallbackInterfaceShellClosedCallback {
+        UniffiCallbackInterfaceFree uniffi_free;
+        UniffiCallbackInterfaceClone uniffi_clone;
         UniffiCallbackInterfaceShellClosedCallbackMethod0 on_change;
-        UniffiCallbackInterfaceFree uniffi_free;
     } UniffiVTableCallbackInterfaceShellClosedCallback;typedef struct UniffiVTableCallbackInterfaceShellListener {
-        UniffiCallbackInterfaceShellListenerMethod0 on_event;
         UniffiCallbackInterfaceFree uniffi_free;
+        UniffiCallbackInterfaceClone uniffi_clone;
+        UniffiCallbackInterfaceShellListenerMethod0 on_event;
     } UniffiVTableCallbackInterfaceShellListener;
-    void * uniffi_uniffi_russh_fn_clone_connectprogresscallback(
-        void * ptr, 
+    /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_connectprogresscallback(
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_connectprogresscallback(
-        void * ptr, 
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_connectprogresscallback(
         UniffiVTableCallbackInterfaceConnectProgressCallback * vtable
     );
     void uniffi_uniffi_russh_fn_method_connectprogresscallback_on_change(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustBuffer status, 
         RustCallStatus *uniffi_out_err
     );
-    void * uniffi_uniffi_russh_fn_clone_connectiondisconnectedcallback(
-        void * ptr, 
+    /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_connectiondisconnectedcallback(
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_connectiondisconnectedcallback(
-        void * ptr, 
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_connectiondisconnectedcallback(
         UniffiVTableCallbackInterfaceConnectionDisconnectedCallback * vtable
     );
     void uniffi_uniffi_russh_fn_method_connectiondisconnectedcallback_on_change(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustBuffer connection_id, 
         RustCallStatus *uniffi_out_err
     );
-    void * uniffi_uniffi_russh_fn_clone_serverkeycallback(
-        void * ptr, 
+    /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_serverkeycallback(
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_serverkeycallback(
-        void * ptr, 
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_serverkeycallback(
         UniffiVTableCallbackInterfaceServerKeyCallback * vtable
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_serverkeycallback_on_change(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustBuffer server_key_info
     );
-    void * uniffi_uniffi_russh_fn_clone_shellclosedcallback(
-        void * ptr, 
+    /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_shellclosedcallback(
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_shellclosedcallback(
-        void * ptr, 
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_shellclosedcallback(
         UniffiVTableCallbackInterfaceShellClosedCallback * vtable
     );
     void uniffi_uniffi_russh_fn_method_shellclosedcallback_on_change(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         uint32_t channel_id, 
         RustCallStatus *uniffi_out_err
     );
-    void * uniffi_uniffi_russh_fn_clone_shelllistener(
-        void * ptr, 
+    /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_shelllistener(
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_shelllistener(
-        void * ptr, 
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_shelllistener(
         UniffiVTableCallbackInterfaceShellListener * vtable
     );
     void uniffi_uniffi_russh_fn_method_shelllistener_on_event(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustBuffer ev, 
         RustCallStatus *uniffi_out_err
     );
-    void * uniffi_uniffi_russh_fn_clone_shellsession(
-        void * ptr, 
+    /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_shellsession(
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_shellsession(
-        void * ptr, 
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     uint64_t uniffi_uniffi_russh_fn_method_shellsession_add_listener(
-        void * ptr, 
-        void * listener, 
+        /*handle*/ uint64_t ptr, 
+        /*handle*/ uint64_t listener, 
         RustBuffer opts, 
         RustCallStatus *uniffi_out_err
     );
     RustBuffer uniffi_uniffi_russh_fn_method_shellsession_buffer_stats(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_shellsession_close(
-        void * ptr
+        /*handle*/ uint64_t ptr
     );
     uint64_t uniffi_uniffi_russh_fn_method_shellsession_current_seq(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
     RustBuffer uniffi_uniffi_russh_fn_method_shellsession_get_info(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
     RustBuffer uniffi_uniffi_russh_fn_method_shellsession_read_buffer(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustBuffer cursor, 
         RustBuffer max_bytes, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_method_shellsession_remove_listener(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         uint64_t id, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_shellsession_resize_pty(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         uint32_t cols, 
         uint32_t rows, 
         RustBuffer pixel_width, 
         RustBuffer pixel_height
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_shellsession_send_data(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustBuffer data
     );
-    void * uniffi_uniffi_russh_fn_clone_sshconnection(
-        void * ptr, 
+    /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_sshconnection(
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_sshconnection(
-        void * ptr, 
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_sshconnection_disconnect(
-        void * ptr
+        /*handle*/ uint64_t ptr
     );
     RustBuffer uniffi_uniffi_russh_fn_method_sshconnection_get_info(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_sshconnection_start_shell(
-        void * ptr, 
+        /*handle*/ uint64_t ptr, 
         RustBuffer opts
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_func_connect(
@@ -511,21 +512,6 @@ extern "C" {
         /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
-    void ffi_uniffi_russh_rust_future_poll_pointer(
-        /*handle*/ uint64_t handle, 
-        UniffiRustFutureContinuationCallback callback, 
-        /*handle*/ uint64_t callback_data
-    );
-    void ffi_uniffi_russh_rust_future_cancel_pointer(
-        /*handle*/ uint64_t handle
-    );
-    void ffi_uniffi_russh_rust_future_free_pointer(
-        /*handle*/ uint64_t handle
-    );
-    void * ffi_uniffi_russh_rust_future_complete_pointer(
-        /*handle*/ uint64_t handle, 
-        RustCallStatus *uniffi_out_err
-    );
     void ffi_uniffi_russh_rust_future_poll_rust_buffer(
         /*handle*/ uint64_t handle, 
         UniffiRustFutureContinuationCallback callback, 
@@ -680,24 +666,31 @@ template <> struct Bridging<RustBuffer> {
 
   static jsi::Value toJs(jsi::Runtime &rt, std::shared_ptr<CallInvoker>,
                          RustBuffer buf) {
-    // We need to make a copy of the bytes from Rust's memory space into
-    // Javascripts memory space. We need to do this because the two languages
-    // manages memory very differently: a garbage collector needs to track all
-    // the memory at runtime, Rust is doing it all closer to compile time.
-    uint8_t *bytes = new uint8_t[buf.len];
-    std::memcpy(bytes, buf.data, buf.len);
-
-    // Construct an ArrayBuffer with copy of the bytes from the RustBuffer.
+    // View-handoff: hand JS a `Uint8Array` view aliasing the Rust-owned bytes
+    // (no boundary copy). The single mandatory copy now happens inside
+    // `converter.lift(view)` (string decode, byte-array `set`, field-by-field
+    // record reads). The codegen-emitted try/finally calls `rustbuffer_free`
+    // on the view after `lift` returns, releasing the Rust allocation.
+    //
+    // Capacity hint: Rust may return a buffer where `capacity > len`. The
+    // view's `byteLength` is `len` (so converters that decode the whole view
+    // see only the message bytes), but `rustbuffer_free` needs `capacity` to
+    // free correctly. We stash `capacity` on the view via a string-keyed
+    // property when it differs from `len`; the JSI `rustbufferFree` host
+    // function reads it back and falls back to `byteLength` for views from
+    // `rustbufferAlloc(n)` where `byteLength == capacity` already.
+    //
+    // CMutableBuffer is non-owning here: its destructor leaves `buf.data`
+    // alone. Only the codegen-emitted `rustbuffer_free` path frees it.
     auto payload = std::make_shared<uniffi_jsi::CMutableBuffer>(
-        uniffi_jsi::CMutableBuffer((uint8_t *)bytes, buf.len));
-    auto arrayBuffer = jsi::ArrayBuffer(rt, payload);
-
-    // Once we have a Javascript version, we no longer need the Rust version, so
-    // we can call into Rust to tell it it's okay to free that memory.
-    rustbuffer_free(buf);
-
-    // Finally, return the ArrayBuffer.
-    return uniffi_jsi::Bridging<jsi::ArrayBuffer>::arraybuffer_to_value(rt, arrayBuffer);;
+        buf.data, static_cast<size_t>(buf.len));
+    auto view = uniffi_jsi::arraybufferToUint8Array(
+        rt, jsi::ArrayBuffer(rt, payload));
+    if (buf.capacity != static_cast<uint64_t>(buf.len)) {
+      view.setProperty(rt, uniffi_jsi::kUbrnRustCapacity,
+                       jsi::Value(static_cast<double>(buf.capacity)));
+    }
+    return jsi::Value(rt, view);
   }
 };
 
@@ -722,9 +715,22 @@ template <> struct Bridging<RustCallStatus> {
                          const jsi::Value &jsStatus) {
     auto statusObject = jsStatus.asObject(rt);
     if (status.error_buf.data != nullptr) {
-      auto rbuf = Bridging<RustBuffer>::toJs(rt, callInvoker,
-                                                         status.error_buf);
-      statusObject.setProperty(rt, "errorBuf", rbuf);
+      // The error path is NOT wrapped in the codegen-emitted try/finally that
+      // covers normal returns: `errorBuf` is read by the runtime's call-status
+      // dispatcher (rust-call.ts) which throws straight to the user without
+      // ever calling `rustbuffer_free`. Switching this site to view-handoff
+      // would leak the Rust allocation, so we keep the copy semantics here:
+      // copy the bytes into a JS-owned ArrayBuffer and free the Rust buffer
+      // immediately. The errorBuf is small (a serialized error variant) and
+      // only allocated on the cold error path, so the boundary copy is cheap.
+      auto len = static_cast<size_t>(status.error_buf.len);
+      uint8_t *bytes = new uint8_t[len];
+      std::memcpy(bytes, status.error_buf.data, len);
+      auto payload = std::make_shared<uniffi_jsi::CMutableBuffer>(bytes, len);
+      auto view = uniffi_jsi::arraybufferToUint8Array(
+          rt, jsi::ArrayBuffer(rt, payload));
+      statusObject.setProperty(rt, "errorBuf", view);
+      Bridging<RustBuffer>::rustbuffer_free(status.error_buf);
     }
     if (status.code != UNIFFI_CALL_STATUS_OK) {
       auto code =
@@ -892,7 +898,7 @@ namespace uniffi::uniffi_russh::cb::rustfuturecontinuationcallback {
             rs_pollResult);
     }
 
-    static UniffiRustFutureContinuationCallback
+    [[maybe_unused]] static UniffiRustFutureContinuationCallback
     makeCallbackFunction( // uniffi::uniffi_russh::cb::rustfuturecontinuationcallback
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
@@ -939,49 +945,9 @@ namespace uniffi::uniffi_russh::cb::rustfuturecontinuationcallback {
         rsLambda = nullptr;
     }
 } // namespace uniffi::uniffi_russh::cb::rustfuturecontinuationcallback
-    // Implementation of callback function calling from JS to Rust ForeignFutureFree,
-    // passed from Rust to JS as part of async callbacks.
-namespace uniffi::uniffi_russh {
-using CallInvoker = uniffi_runtime::UniffiCallInvoker;
+    // Implementation of callback function calling from Rust to JS ForeignFutureDroppedCallback
 
-template <> struct Bridging<UniffiForeignFutureFree> {
-  static jsi::Value toJs(jsi::Runtime &rt, std::shared_ptr<CallInvoker> callInvoker, UniffiForeignFutureFree rsCallback) {
-    return jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "--ForeignFutureFree"),
-        1,
-        [rsCallback, callInvoker](
-            jsi::Runtime &rt,
-            const jsi::Value &thisValue,
-            const jsi::Value *arguments,
-            size_t count) -> jsi::Value
-        {
-            return intoRust(rt, callInvoker, thisValue, arguments, count, rsCallback);
-        }
-    );
-  }
-
-  static jsi::Value intoRust(
-      jsi::Runtime &rt,
-      std::shared_ptr<CallInvoker> callInvoker,
-      const jsi::Value &thisValue,
-      const jsi::Value *args,
-      size_t count,
-      UniffiForeignFutureFree func) {
-    // Convert the arguments into the Rust, with Bridging<T>::fromJs,
-    // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0])
-        );
-
-        
-        return jsi::Value::undefined();
-  }
-};
-} // namespace uniffi::uniffi_russh
-    // Implementation of free callback function CallbackInterfaceFree
-
-
-// Callback function: uniffi::uniffi_russh::st::foreignfuture::foreignfuture::free::UniffiCallbackInterfaceFree
+// Callback function: uniffi::uniffi_russh::cb::foreignfuturedroppedcallback::UniffiForeignFutureDroppedCallback
 //
 // We have the following constraints:
 // - we need to pass a function pointer to Rust.
@@ -993,7 +959,7 @@ template <> struct Bridging<UniffiForeignFutureFree> {
 //
 // We then give the `callback` function pointer to Rust which will call the lambda sometime in the
 // future.
-namespace uniffi::uniffi_russh::st::foreignfuture::foreignfuture::free {
+namespace uniffi::uniffi_russh::cb::foreignfuturedroppedcallback {
     using namespace facebook;
 
     // We need to store a lambda in a global so we can call it from
@@ -1024,7 +990,7 @@ namespace uniffi::uniffi_russh::st::foreignfuture::foreignfuture::free {
 
             
         } catch (const jsi::JSError &error) {
-            std::cout << "Error in callback UniffiCallbackInterfaceFree: "
+            std::cout << "Error in callback UniffiForeignFutureDroppedCallback: "
                     << error.what() << std::endl;
             throw error;
         }
@@ -1050,8 +1016,8 @@ namespace uniffi::uniffi_russh::st::foreignfuture::foreignfuture::free {
             rs_handle);
     }
 
-    static UniffiCallbackInterfaceFree
-    makeCallbackFunction( // uniffi::uniffi_russh::st::foreignfuture::foreignfuture::free
+    [[maybe_unused]] static UniffiForeignFutureDroppedCallback
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::foreignfuturedroppedcallback
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
                      const jsi::Value &value) {
@@ -1094,7 +1060,9 @@ namespace uniffi::uniffi_russh::st::foreignfuture::foreignfuture::free {
         // then the pointer will no longer be left dangling.
         rsLambda = nullptr;
     }
-} // namespace uniffi::uniffi_russh::st::foreignfuture::foreignfuture::free
+} // namespace uniffi::uniffi_russh::cb::foreignfuturedroppedcallback
+    // Implementation of free callback function CallbackInterfaceFree
+
 
 // Callback function: uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectprogresscallback::vtablecallbackinterfaceconnectprogresscallback::free::UniffiCallbackInterfaceFree
 //
@@ -1165,7 +1133,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectprogresscallba
             rs_handle);
     }
 
-    static UniffiCallbackInterfaceFree
+    [[maybe_unused]] static UniffiCallbackInterfaceFree
     makeCallbackFunction( // uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectprogresscallback::vtablecallbackinterfaceconnectprogresscallback::free
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
@@ -1280,7 +1248,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectiondisconnecte
             rs_handle);
     }
 
-    static UniffiCallbackInterfaceFree
+    [[maybe_unused]] static UniffiCallbackInterfaceFree
     makeCallbackFunction( // uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectiondisconnectedcallback::vtablecallbackinterfaceconnectiondisconnectedcallback::free
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
@@ -1395,7 +1363,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceserverkeycallback::vt
             rs_handle);
     }
 
-    static UniffiCallbackInterfaceFree
+    [[maybe_unused]] static UniffiCallbackInterfaceFree
     makeCallbackFunction( // uniffi::uniffi_russh::st::vtablecallbackinterfaceserverkeycallback::vtablecallbackinterfaceserverkeycallback::free
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
@@ -1510,7 +1478,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceshellclosedcallback::
             rs_handle);
     }
 
-    static UniffiCallbackInterfaceFree
+    [[maybe_unused]] static UniffiCallbackInterfaceFree
     makeCallbackFunction( // uniffi::uniffi_russh::st::vtablecallbackinterfaceshellclosedcallback::vtablecallbackinterfaceshellclosedcallback::free
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
@@ -1625,7 +1593,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceshelllistener::vtable
             rs_handle);
     }
 
-    static UniffiCallbackInterfaceFree
+    [[maybe_unused]] static UniffiCallbackInterfaceFree
     makeCallbackFunction( // uniffi::uniffi_russh::st::vtablecallbackinterfaceshelllistener::vtablecallbackinterfaceshelllistener::free
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
@@ -1674,28 +1642,28 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFuture> {
-  static UniffiForeignFuture fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureDroppedCallbackStruct> {
+  static UniffiForeignFutureDroppedCallbackStruct fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFuture");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureDroppedCallbackStruct");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFuture rsObject;
+    UniffiForeignFutureDroppedCallbackStruct rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.handle = uniffi_jsi::Bridging<uint64_t>::fromJs(
         rt, callInvoker,
         jsObject.getProperty(rt, "handle")
       );
-    rsObject.free = uniffi::uniffi_russh::st::foreignfuture::foreignfuture::free::makeCallbackFunction(
+    rsObject.free = uniffi::uniffi_russh::cb::foreignfuturedroppedcallback::makeCallbackFunction(
           rt, callInvoker, jsObject.getProperty(rt, "free")
         );
 
@@ -1708,30 +1676,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructU8> {
-  static UniffiForeignFutureStructU8 fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultU8> {
+  static UniffiForeignFutureResultU8 fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructU8");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultU8");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructU8 rsObject;
+    UniffiForeignFutureResultU8 rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<uint8_t>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -1770,7 +1738,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteU8> {
       UniffiForeignFutureCompleteU8 func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructU8>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultU8>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -1782,30 +1750,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructI8> {
-  static UniffiForeignFutureStructI8 fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultI8> {
+  static UniffiForeignFutureResultI8 fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructI8");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultI8");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructI8 rsObject;
+    UniffiForeignFutureResultI8 rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<int8_t>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -1844,7 +1812,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteI8> {
       UniffiForeignFutureCompleteI8 func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructI8>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultI8>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -1856,30 +1824,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructU16> {
-  static UniffiForeignFutureStructU16 fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultU16> {
+  static UniffiForeignFutureResultU16 fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructU16");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultU16");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructU16 rsObject;
+    UniffiForeignFutureResultU16 rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<uint16_t>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -1918,7 +1886,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteU16> {
       UniffiForeignFutureCompleteU16 func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructU16>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultU16>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -1930,30 +1898,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructI16> {
-  static UniffiForeignFutureStructI16 fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultI16> {
+  static UniffiForeignFutureResultI16 fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructI16");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultI16");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructI16 rsObject;
+    UniffiForeignFutureResultI16 rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<int16_t>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -1992,7 +1960,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteI16> {
       UniffiForeignFutureCompleteI16 func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructI16>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultI16>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -2004,30 +1972,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructU32> {
-  static UniffiForeignFutureStructU32 fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultU32> {
+  static UniffiForeignFutureResultU32 fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructU32");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultU32");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructU32 rsObject;
+    UniffiForeignFutureResultU32 rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<uint32_t>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -2066,7 +2034,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteU32> {
       UniffiForeignFutureCompleteU32 func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructU32>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultU32>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -2078,30 +2046,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructI32> {
-  static UniffiForeignFutureStructI32 fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultI32> {
+  static UniffiForeignFutureResultI32 fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructI32");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultI32");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructI32 rsObject;
+    UniffiForeignFutureResultI32 rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<int32_t>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -2140,7 +2108,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteI32> {
       UniffiForeignFutureCompleteI32 func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructI32>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultI32>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -2152,30 +2120,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructU64> {
-  static UniffiForeignFutureStructU64 fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultU64> {
+  static UniffiForeignFutureResultU64 fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructU64");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultU64");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructU64 rsObject;
+    UniffiForeignFutureResultU64 rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<uint64_t>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -2214,7 +2182,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteU64> {
       UniffiForeignFutureCompleteU64 func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructU64>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultU64>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -2226,30 +2194,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructI64> {
-  static UniffiForeignFutureStructI64 fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultI64> {
+  static UniffiForeignFutureResultI64 fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructI64");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultI64");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructI64 rsObject;
+    UniffiForeignFutureResultI64 rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<int64_t>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -2288,7 +2256,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteI64> {
       UniffiForeignFutureCompleteI64 func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructI64>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultI64>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -2300,30 +2268,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructF32> {
-  static UniffiForeignFutureStructF32 fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultF32> {
+  static UniffiForeignFutureResultF32 fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructF32");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultF32");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructF32 rsObject;
+    UniffiForeignFutureResultF32 rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<float>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -2362,7 +2330,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteF32> {
       UniffiForeignFutureCompleteF32 func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructF32>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultF32>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -2374,30 +2342,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructF64> {
-  static UniffiForeignFutureStructF64 fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultF64> {
+  static UniffiForeignFutureResultF64 fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructF64");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultF64");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructF64 rsObject;
+    UniffiForeignFutureResultF64 rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<double>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -2436,7 +2404,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteF64> {
       UniffiForeignFutureCompleteF64 func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructF64>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultF64>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -2448,104 +2416,30 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructPointer> {
-  static UniffiForeignFutureStructPointer fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultRustBuffer> {
+  static UniffiForeignFutureResultRustBuffer fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructPointer");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultRustBuffer");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructPointer rsObject;
-
-    // Create the vtable from the js callbacks.
-    rsObject.return_value = uniffi_jsi::Bridging<void *>::fromJs(
-        rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
-      );
-    rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
-      );
-
-    return rsObject;
-  }
-};
-
-} // namespace uniffi::uniffi_russh
-    // Implementation of callback function calling from JS to Rust ForeignFutureCompletePointer,
-    // passed from Rust to JS as part of async callbacks.
-namespace uniffi::uniffi_russh {
-using CallInvoker = uniffi_runtime::UniffiCallInvoker;
-
-template <> struct Bridging<UniffiForeignFutureCompletePointer> {
-  static jsi::Value toJs(jsi::Runtime &rt, std::shared_ptr<CallInvoker> callInvoker, UniffiForeignFutureCompletePointer rsCallback) {
-    return jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "--ForeignFutureCompletePointer"),
-        2,
-        [rsCallback, callInvoker](
-            jsi::Runtime &rt,
-            const jsi::Value &thisValue,
-            const jsi::Value *arguments,
-            size_t count) -> jsi::Value
-        {
-            return intoRust(rt, callInvoker, thisValue, arguments, count, rsCallback);
-        }
-    );
-  }
-
-  static jsi::Value intoRust(
-      jsi::Runtime &rt,
-      std::shared_ptr<CallInvoker> callInvoker,
-      const jsi::Value &thisValue,
-      const jsi::Value *args,
-      size_t count,
-      UniffiForeignFutureCompletePointer func) {
-    // Convert the arguments into the Rust, with Bridging<T>::fromJs,
-    // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructPointer>::fromJs(rt, callInvoker, args[1])
-        );
-
-        
-        return jsi::Value::undefined();
-  }
-};
-} // namespace uniffi::uniffi_russh
-namespace uniffi::uniffi_russh {
-using namespace facebook;
-using CallInvoker = uniffi_runtime::UniffiCallInvoker;
-
-template <> struct Bridging<UniffiForeignFutureStructRustBuffer> {
-  static UniffiForeignFutureStructRustBuffer fromJs(jsi::Runtime &rt,
-    std::shared_ptr<CallInvoker> callInvoker,
-    const jsi::Value &jsValue
-  ) {
-    // Check if the input is an object
-    if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructRustBuffer");
-    }
-
-    // Get the object from the jsi::Value
-    auto jsObject = jsValue.getObject(rt);
-
-    // Create the vtable struct
-    UniffiForeignFutureStructRustBuffer rsObject;
+    UniffiForeignFutureResultRustBuffer rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "returnValue")
+        jsObject.getProperty(rt, "return_value")
       );
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -2584,7 +2478,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteRustBuffer> {
       UniffiForeignFutureCompleteRustBuffer func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructRustBuffer>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultRustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -2596,26 +2490,26 @@ namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-template <> struct Bridging<UniffiForeignFutureStructVoid> {
-  static UniffiForeignFutureStructVoid fromJs(jsi::Runtime &rt,
+template <> struct Bridging<UniffiForeignFutureResultVoid> {
+  static UniffiForeignFutureResultVoid fromJs(jsi::Runtime &rt,
     std::shared_ptr<CallInvoker> callInvoker,
     const jsi::Value &jsValue
   ) {
     // Check if the input is an object
     if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureStructVoid");
+      throw jsi::JSError(rt, "Expected an object for UniffiForeignFutureResultVoid");
     }
 
     // Get the object from the jsi::Value
     auto jsObject = jsValue.getObject(rt);
 
     // Create the vtable struct
-    UniffiForeignFutureStructVoid rsObject;
+    UniffiForeignFutureResultVoid rsObject;
 
     // Create the vtable from the js callbacks.
     rsObject.call_status = uniffi::uniffi_russh::Bridging<RustCallStatus>::fromJs(
         rt, callInvoker,
-        jsObject.getProperty(rt, "callStatus")
+        jsObject.getProperty(rt, "call_status")
       );
 
     return rsObject;
@@ -2654,7 +2548,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteVoid> {
       UniffiForeignFutureCompleteVoid func) {
     // Convert the arguments into the Rust, with Bridging<T>::fromJs,
     // then call the rs_callback with those arguments.
-        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureStructVoid>::fromJs(rt, callInvoker, args[1])
+        func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultVoid>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -2662,9 +2556,10 @@ template <> struct Bridging<UniffiForeignFutureCompleteVoid> {
   }
 };
 } // namespace uniffi::uniffi_russh
-    // Implementation of callback function calling from Rust to JS CallbackInterfaceConnectProgressCallbackMethod0
+    // Implementation of CallbackInterfaceClone for vtable field uniffi_clone in VTableCallbackInterfaceConnectProgressCallback
 
-// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0::UniffiCallbackInterfaceConnectProgressCallbackMethod0
+
+// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectprogresscallback::UniffiCallbackInterfaceClone
 //
 // We have the following constraints:
 // - we need to pass a function pointer to Rust.
@@ -2676,7 +2571,133 @@ template <> struct Bridging<UniffiForeignFutureCompleteVoid> {
 //
 // We then give the `callback` function pointer to Rust which will call the lambda sometime in the
 // future.
-namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0 {
+namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectprogresscallback {
+    using namespace facebook;
+
+    // We need to store a lambda in a global so we can call it from
+    // a function pointer. The function pointer is passed to Rust.
+    static std::function<void(uint64_t, uint64_t*)> rsLambda = nullptr;
+
+    // This is the main body of the callback. It's called from the lambda,
+    // which itself is called from the callback function which is passed to Rust.
+    static void body(jsi::Runtime &rt,
+                     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
+                     std::shared_ptr<jsi::Value> callbackValue
+            ,uint64_t rs_handle
+            , uint64_t* uniffi_direct_return) {
+
+        // Convert the arguments from Rust, into jsi::Values.
+        // We'll use the Bridging class to do this…
+        auto js_handle = uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, rs_handle);
+
+        // Now we are ready to call the callback.
+        // We are already on the JS thread, because this `body` function was
+        // invoked from the CallInvoker.
+        try {
+            // Getting the callback function
+            auto cb = callbackValue->asObject(rt).asFunction(rt);
+            auto uniffiResult = cb.call(rt, js_handle
+            );
+
+            
+
+            
+            // Write the direct return value back to the caller.
+            if (uniffi_direct_return != nullptr) {
+                *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
+                    rt, callInvoker, uniffiResult
+                );
+            }
+        } catch (const jsi::JSError &error) {
+            std::cout << "Error in callback UniffiCallbackInterfaceClone: "
+                    << error.what() << std::endl;
+            throw error;
+        }
+    }
+
+    static uint64_t callback(uint64_t rs_handle) {
+        // If the runtime has shutdown, then there is no point in trying to
+        // call into Javascript. BUT how do we tell if the runtime has shutdown?
+        //
+        // Answer: the module destructor calls into callback `cleanup` method,
+        // which nulls out the rsLamda.
+        //
+        // If rsLamda is null, then there is no runtime to call into.
+        if (rsLambda == nullptr) {
+            // This only occurs when destructors are calling into Rust free/drop,
+            // which causes the JS callback to be dropped.
+            return 0;
+        }
+        uint64_t uniffi_result = 0;
+
+        // The runtime, the actual callback jsi::funtion, and the callInvoker
+        // are all in the lambda.
+        rsLambda(
+            rs_handle, 
+            &uniffi_result);
+        return uniffi_result;
+    }
+
+    [[maybe_unused]] static UniffiCallbackInterfaceClone
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectprogresscallback
+                    jsi::Runtime &rt,
+                     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
+                     const jsi::Value &value) {
+        if (rsLambda != nullptr) {
+            // `makeCallbackFunction` is called in two circumstances:
+            //
+            // 1. at startup, when initializing callback interface vtables.
+            // 2. when polling futures. This happens at least once per future that is
+            //    exposed to Javascript. We know that this is always the same function,
+            //    `uniffiFutureContinuationCallback` in `async-rust-calls.ts`.
+            //
+            // We can therefore return the callback function without making anything
+            // new if we've been initialized already.
+            return callback;
+        }
+        auto callbackFunction = value.asObject(rt).asFunction(rt);
+        auto callbackValue = std::make_shared<jsi::Value>(rt, callbackFunction);
+        rsLambda = [&rt, callInvoker, callbackValue](uint64_t rs_handle, uint64_t* uniffi_direct_return) {
+                // We immediately make a lambda which will do the work of transforming the
+                // arguments into JSI values and calling the callback.
+                uniffi_runtime::UniffiCallFunc jsLambda = [
+                    callInvoker,
+                    callbackValue
+                    , rs_handle, uniffi_direct_return](jsi::Runtime &rt) mutable {
+                    body(rt, callInvoker, callbackValue
+                        , rs_handle, uniffi_direct_return);
+                };
+                // We'll then call that lambda from the callInvoker which will
+                // look after calling it on the correct thread.
+                callInvoker->invokeBlocking(rt, jsLambda);
+        };
+        return callback;
+    }
+
+    // This method is called from the destructor of NativeUniffiRussh, which only happens
+    // when the jsi::Runtime is being destroyed.
+    static void cleanup() {
+        // The lambda holds a reference to the the Runtime, so when this is nulled out,
+        // then the pointer will no longer be left dangling.
+        rsLambda = nullptr;
+    }
+} // namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectprogresscallback
+    // Implementation of CallbackInterfaceConnectProgressCallbackMethod0 for vtable field on_change in VTableCallbackInterfaceConnectProgressCallback
+
+
+// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0::vtablecallbackinterfaceconnectprogresscallback::UniffiCallbackInterfaceConnectProgressCallbackMethod0
+//
+// We have the following constraints:
+// - we need to pass a function pointer to Rust.
+// - we need a jsi::Runtime and jsi::Function to call into JS.
+// - function pointers can't store state, so we can't use a lamda.
+//
+// For this, we store a lambda as a global, as `rsLambda`. The `callback` function calls
+// the lambda, which itself calls the `body` which then calls into JS.
+//
+// We then give the `callback` function pointer to Rust which will call the lambda sometime in the
+// future.
+namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0::vtablecallbackinterfaceconnectprogresscallback {
     using namespace facebook;
 
     // We need to store a lambda in a global so we can call it from
@@ -2744,8 +2765,8 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmeth
             rs_uniffiOutReturn, uniffi_call_status);
     }
 
-    static UniffiCallbackInterfaceConnectProgressCallbackMethod0
-    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0
+    [[maybe_unused]] static UniffiCallbackInterfaceConnectProgressCallbackMethod0
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0::vtablecallbackinterfaceconnectprogresscallback
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
                      const jsi::Value &value) {
@@ -2791,10 +2812,47 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmeth
         // then the pointer will no longer be left dangling.
         rsLambda = nullptr;
     }
-} // namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0
-    // Implementation of callback function calling from Rust to JS CallbackInterfaceConnectionDisconnectedCallbackMethod0
+} // namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0::vtablecallbackinterfaceconnectprogresscallback
+namespace uniffi::uniffi_russh {
+using namespace facebook;
+using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0::UniffiCallbackInterfaceConnectionDisconnectedCallbackMethod0
+template <> struct Bridging<UniffiVTableCallbackInterfaceConnectProgressCallback> {
+  static UniffiVTableCallbackInterfaceConnectProgressCallback fromJs(jsi::Runtime &rt,
+    std::shared_ptr<CallInvoker> callInvoker,
+    const jsi::Value &jsValue
+  ) {
+    // Check if the input is an object
+    if (!jsValue.isObject()) {
+      throw jsi::JSError(rt, "Expected an object for UniffiVTableCallbackInterfaceConnectProgressCallback");
+    }
+
+    // Get the object from the jsi::Value
+    auto jsObject = jsValue.getObject(rt);
+
+    // Create the vtable struct
+    UniffiVTableCallbackInterfaceConnectProgressCallback rsObject;
+
+    // Create the vtable from the js callbacks.
+    rsObject.uniffi_free = uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectprogresscallback::vtablecallbackinterfaceconnectprogresscallback::free::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "uniffi_free")
+        );
+    rsObject.uniffi_clone = uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectprogresscallback::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "uniffi_clone")
+        );
+    rsObject.on_change = uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0::vtablecallbackinterfaceconnectprogresscallback::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "on_change")
+        );
+
+    return rsObject;
+  }
+};
+
+} // namespace uniffi::uniffi_russh
+    // Implementation of CallbackInterfaceClone for vtable field uniffi_clone in VTableCallbackInterfaceConnectionDisconnectedCallback
+
+
+// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectiondisconnectedcallback::UniffiCallbackInterfaceClone
 //
 // We have the following constraints:
 // - we need to pass a function pointer to Rust.
@@ -2806,7 +2864,133 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmeth
 //
 // We then give the `callback` function pointer to Rust which will call the lambda sometime in the
 // future.
-namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0 {
+namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectiondisconnectedcallback {
+    using namespace facebook;
+
+    // We need to store a lambda in a global so we can call it from
+    // a function pointer. The function pointer is passed to Rust.
+    static std::function<void(uint64_t, uint64_t*)> rsLambda = nullptr;
+
+    // This is the main body of the callback. It's called from the lambda,
+    // which itself is called from the callback function which is passed to Rust.
+    static void body(jsi::Runtime &rt,
+                     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
+                     std::shared_ptr<jsi::Value> callbackValue
+            ,uint64_t rs_handle
+            , uint64_t* uniffi_direct_return) {
+
+        // Convert the arguments from Rust, into jsi::Values.
+        // We'll use the Bridging class to do this…
+        auto js_handle = uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, rs_handle);
+
+        // Now we are ready to call the callback.
+        // We are already on the JS thread, because this `body` function was
+        // invoked from the CallInvoker.
+        try {
+            // Getting the callback function
+            auto cb = callbackValue->asObject(rt).asFunction(rt);
+            auto uniffiResult = cb.call(rt, js_handle
+            );
+
+            
+
+            
+            // Write the direct return value back to the caller.
+            if (uniffi_direct_return != nullptr) {
+                *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
+                    rt, callInvoker, uniffiResult
+                );
+            }
+        } catch (const jsi::JSError &error) {
+            std::cout << "Error in callback UniffiCallbackInterfaceClone: "
+                    << error.what() << std::endl;
+            throw error;
+        }
+    }
+
+    static uint64_t callback(uint64_t rs_handle) {
+        // If the runtime has shutdown, then there is no point in trying to
+        // call into Javascript. BUT how do we tell if the runtime has shutdown?
+        //
+        // Answer: the module destructor calls into callback `cleanup` method,
+        // which nulls out the rsLamda.
+        //
+        // If rsLamda is null, then there is no runtime to call into.
+        if (rsLambda == nullptr) {
+            // This only occurs when destructors are calling into Rust free/drop,
+            // which causes the JS callback to be dropped.
+            return 0;
+        }
+        uint64_t uniffi_result = 0;
+
+        // The runtime, the actual callback jsi::funtion, and the callInvoker
+        // are all in the lambda.
+        rsLambda(
+            rs_handle, 
+            &uniffi_result);
+        return uniffi_result;
+    }
+
+    [[maybe_unused]] static UniffiCallbackInterfaceClone
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectiondisconnectedcallback
+                    jsi::Runtime &rt,
+                     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
+                     const jsi::Value &value) {
+        if (rsLambda != nullptr) {
+            // `makeCallbackFunction` is called in two circumstances:
+            //
+            // 1. at startup, when initializing callback interface vtables.
+            // 2. when polling futures. This happens at least once per future that is
+            //    exposed to Javascript. We know that this is always the same function,
+            //    `uniffiFutureContinuationCallback` in `async-rust-calls.ts`.
+            //
+            // We can therefore return the callback function without making anything
+            // new if we've been initialized already.
+            return callback;
+        }
+        auto callbackFunction = value.asObject(rt).asFunction(rt);
+        auto callbackValue = std::make_shared<jsi::Value>(rt, callbackFunction);
+        rsLambda = [&rt, callInvoker, callbackValue](uint64_t rs_handle, uint64_t* uniffi_direct_return) {
+                // We immediately make a lambda which will do the work of transforming the
+                // arguments into JSI values and calling the callback.
+                uniffi_runtime::UniffiCallFunc jsLambda = [
+                    callInvoker,
+                    callbackValue
+                    , rs_handle, uniffi_direct_return](jsi::Runtime &rt) mutable {
+                    body(rt, callInvoker, callbackValue
+                        , rs_handle, uniffi_direct_return);
+                };
+                // We'll then call that lambda from the callInvoker which will
+                // look after calling it on the correct thread.
+                callInvoker->invokeBlocking(rt, jsLambda);
+        };
+        return callback;
+    }
+
+    // This method is called from the destructor of NativeUniffiRussh, which only happens
+    // when the jsi::Runtime is being destroyed.
+    static void cleanup() {
+        // The lambda holds a reference to the the Runtime, so when this is nulled out,
+        // then the pointer will no longer be left dangling.
+        rsLambda = nullptr;
+    }
+} // namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectiondisconnectedcallback
+    // Implementation of CallbackInterfaceConnectionDisconnectedCallbackMethod0 for vtable field on_change in VTableCallbackInterfaceConnectionDisconnectedCallback
+
+
+// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0::vtablecallbackinterfaceconnectiondisconnectedcallback::UniffiCallbackInterfaceConnectionDisconnectedCallbackMethod0
+//
+// We have the following constraints:
+// - we need to pass a function pointer to Rust.
+// - we need a jsi::Runtime and jsi::Function to call into JS.
+// - function pointers can't store state, so we can't use a lamda.
+//
+// For this, we store a lambda as a global, as `rsLambda`. The `callback` function calls
+// the lambda, which itself calls the `body` which then calls into JS.
+//
+// We then give the `callback` function pointer to Rust which will call the lambda sometime in the
+// future.
+namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0::vtablecallbackinterfaceconnectiondisconnectedcallback {
     using namespace facebook;
 
     // We need to store a lambda in a global so we can call it from
@@ -2874,8 +3058,8 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallb
             rs_uniffiOutReturn, uniffi_call_status);
     }
 
-    static UniffiCallbackInterfaceConnectionDisconnectedCallbackMethod0
-    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0
+    [[maybe_unused]] static UniffiCallbackInterfaceConnectionDisconnectedCallbackMethod0
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0::vtablecallbackinterfaceconnectiondisconnectedcallback
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
                      const jsi::Value &value) {
@@ -2921,10 +3105,47 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallb
         // then the pointer will no longer be left dangling.
         rsLambda = nullptr;
     }
-} // namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0
-    // Implementation of callback function calling from Rust to JS CallbackInterfaceServerKeyCallbackMethod0
+} // namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0::vtablecallbackinterfaceconnectiondisconnectedcallback
+namespace uniffi::uniffi_russh {
+using namespace facebook;
+using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::UniffiCallbackInterfaceServerKeyCallbackMethod0
+template <> struct Bridging<UniffiVTableCallbackInterfaceConnectionDisconnectedCallback> {
+  static UniffiVTableCallbackInterfaceConnectionDisconnectedCallback fromJs(jsi::Runtime &rt,
+    std::shared_ptr<CallInvoker> callInvoker,
+    const jsi::Value &jsValue
+  ) {
+    // Check if the input is an object
+    if (!jsValue.isObject()) {
+      throw jsi::JSError(rt, "Expected an object for UniffiVTableCallbackInterfaceConnectionDisconnectedCallback");
+    }
+
+    // Get the object from the jsi::Value
+    auto jsObject = jsValue.getObject(rt);
+
+    // Create the vtable struct
+    UniffiVTableCallbackInterfaceConnectionDisconnectedCallback rsObject;
+
+    // Create the vtable from the js callbacks.
+    rsObject.uniffi_free = uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectiondisconnectedcallback::vtablecallbackinterfaceconnectiondisconnectedcallback::free::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "uniffi_free")
+        );
+    rsObject.uniffi_clone = uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectiondisconnectedcallback::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "uniffi_clone")
+        );
+    rsObject.on_change = uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0::vtablecallbackinterfaceconnectiondisconnectedcallback::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "on_change")
+        );
+
+    return rsObject;
+  }
+};
+
+} // namespace uniffi::uniffi_russh
+    // Implementation of CallbackInterfaceClone for vtable field uniffi_clone in VTableCallbackInterfaceServerKeyCallback
+
+
+// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceserverkeycallback::UniffiCallbackInterfaceClone
 //
 // We have the following constraints:
 // - we need to pass a function pointer to Rust.
@@ -2936,12 +3157,138 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallb
 //
 // We then give the `callback` function pointer to Rust which will call the lambda sometime in the
 // future.
-namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0 {
+namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceserverkeycallback {
     using namespace facebook;
 
     // We need to store a lambda in a global so we can call it from
     // a function pointer. The function pointer is passed to Rust.
-    static std::function<void(uint64_t, RustBuffer, UniffiForeignFutureCompleteI8, uint64_t, UniffiForeignFuture *)> rsLambda = nullptr;
+    static std::function<void(uint64_t, uint64_t*)> rsLambda = nullptr;
+
+    // This is the main body of the callback. It's called from the lambda,
+    // which itself is called from the callback function which is passed to Rust.
+    static void body(jsi::Runtime &rt,
+                     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
+                     std::shared_ptr<jsi::Value> callbackValue
+            ,uint64_t rs_handle
+            , uint64_t* uniffi_direct_return) {
+
+        // Convert the arguments from Rust, into jsi::Values.
+        // We'll use the Bridging class to do this…
+        auto js_handle = uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, rs_handle);
+
+        // Now we are ready to call the callback.
+        // We are already on the JS thread, because this `body` function was
+        // invoked from the CallInvoker.
+        try {
+            // Getting the callback function
+            auto cb = callbackValue->asObject(rt).asFunction(rt);
+            auto uniffiResult = cb.call(rt, js_handle
+            );
+
+            
+
+            
+            // Write the direct return value back to the caller.
+            if (uniffi_direct_return != nullptr) {
+                *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
+                    rt, callInvoker, uniffiResult
+                );
+            }
+        } catch (const jsi::JSError &error) {
+            std::cout << "Error in callback UniffiCallbackInterfaceClone: "
+                    << error.what() << std::endl;
+            throw error;
+        }
+    }
+
+    static uint64_t callback(uint64_t rs_handle) {
+        // If the runtime has shutdown, then there is no point in trying to
+        // call into Javascript. BUT how do we tell if the runtime has shutdown?
+        //
+        // Answer: the module destructor calls into callback `cleanup` method,
+        // which nulls out the rsLamda.
+        //
+        // If rsLamda is null, then there is no runtime to call into.
+        if (rsLambda == nullptr) {
+            // This only occurs when destructors are calling into Rust free/drop,
+            // which causes the JS callback to be dropped.
+            return 0;
+        }
+        uint64_t uniffi_result = 0;
+
+        // The runtime, the actual callback jsi::funtion, and the callInvoker
+        // are all in the lambda.
+        rsLambda(
+            rs_handle, 
+            &uniffi_result);
+        return uniffi_result;
+    }
+
+    [[maybe_unused]] static UniffiCallbackInterfaceClone
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceserverkeycallback
+                    jsi::Runtime &rt,
+                     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
+                     const jsi::Value &value) {
+        if (rsLambda != nullptr) {
+            // `makeCallbackFunction` is called in two circumstances:
+            //
+            // 1. at startup, when initializing callback interface vtables.
+            // 2. when polling futures. This happens at least once per future that is
+            //    exposed to Javascript. We know that this is always the same function,
+            //    `uniffiFutureContinuationCallback` in `async-rust-calls.ts`.
+            //
+            // We can therefore return the callback function without making anything
+            // new if we've been initialized already.
+            return callback;
+        }
+        auto callbackFunction = value.asObject(rt).asFunction(rt);
+        auto callbackValue = std::make_shared<jsi::Value>(rt, callbackFunction);
+        rsLambda = [&rt, callInvoker, callbackValue](uint64_t rs_handle, uint64_t* uniffi_direct_return) {
+                // We immediately make a lambda which will do the work of transforming the
+                // arguments into JSI values and calling the callback.
+                uniffi_runtime::UniffiCallFunc jsLambda = [
+                    callInvoker,
+                    callbackValue
+                    , rs_handle, uniffi_direct_return](jsi::Runtime &rt) mutable {
+                    body(rt, callInvoker, callbackValue
+                        , rs_handle, uniffi_direct_return);
+                };
+                // We'll then call that lambda from the callInvoker which will
+                // look after calling it on the correct thread.
+                callInvoker->invokeBlocking(rt, jsLambda);
+        };
+        return callback;
+    }
+
+    // This method is called from the destructor of NativeUniffiRussh, which only happens
+    // when the jsi::Runtime is being destroyed.
+    static void cleanup() {
+        // The lambda holds a reference to the the Runtime, so when this is nulled out,
+        // then the pointer will no longer be left dangling.
+        rsLambda = nullptr;
+    }
+} // namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceserverkeycallback
+    // Implementation of CallbackInterfaceServerKeyCallbackMethod0 for vtable field on_change in VTableCallbackInterfaceServerKeyCallback
+
+
+// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::vtablecallbackinterfaceserverkeycallback::UniffiCallbackInterfaceServerKeyCallbackMethod0
+//
+// We have the following constraints:
+// - we need to pass a function pointer to Rust.
+// - we need a jsi::Runtime and jsi::Function to call into JS.
+// - function pointers can't store state, so we can't use a lamda.
+//
+// For this, we store a lambda as a global, as `rsLambda`. The `callback` function calls
+// the lambda, which itself calls the `body` which then calls into JS.
+//
+// We then give the `callback` function pointer to Rust which will call the lambda sometime in the
+// future.
+namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::vtablecallbackinterfaceserverkeycallback {
+    using namespace facebook;
+
+    // We need to store a lambda in a global so we can call it from
+    // a function pointer. The function pointer is passed to Rust.
+    static std::function<void(uint64_t, RustBuffer, UniffiForeignFutureCompleteI8, uint64_t, UniffiForeignFutureDroppedCallbackStruct *)> rsLambda = nullptr;
 
     // This is the main body of the callback. It's called from the lambda,
     // which itself is called from the callback function which is passed to Rust.
@@ -2952,7 +3299,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0 {
             ,RustBuffer rs_serverKeyInfo
             ,UniffiForeignFutureCompleteI8 rs_uniffiFutureCallback
             ,uint64_t rs_uniffiCallbackData
-            ,UniffiForeignFuture * rs_uniffiOutReturn) {
+            ,UniffiForeignFutureDroppedCallbackStruct * rs_uniffiOutDroppedCallback) {
 
         // Convert the arguments from Rust, into jsi::Values.
         // We'll use the Bridging class to do this…
@@ -2973,11 +3320,11 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0 {
             
 
             
-            // return type is MutReference(Struct("ForeignFuture"))
+            // return type is Struct("ForeignFutureDroppedCallbackStruct")
             // Finally, we need to copy the return value back into the Rust pointer.
-            *rs_uniffiOutReturn =
+            *rs_uniffiOutDroppedCallback =
                 uniffi::uniffi_russh::Bridging<
-                    UniffiForeignFuture
+                    UniffiForeignFutureDroppedCallbackStruct
                 >::fromJs(
                     rt, callInvoker, uniffiResult
                 );
@@ -2988,7 +3335,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0 {
         }
     }
 
-    static void callback(uint64_t rs_uniffiHandle, RustBuffer rs_serverKeyInfo, UniffiForeignFutureCompleteI8 rs_uniffiFutureCallback, uint64_t rs_uniffiCallbackData, UniffiForeignFuture * rs_uniffiOutReturn) {
+    static void callback(uint64_t rs_uniffiHandle, RustBuffer rs_serverKeyInfo, UniffiForeignFutureCompleteI8 rs_uniffiFutureCallback, uint64_t rs_uniffiCallbackData, UniffiForeignFutureDroppedCallbackStruct * rs_uniffiOutDroppedCallback) {
         // If the runtime has shutdown, then there is no point in trying to
         // call into Javascript. BUT how do we tell if the runtime has shutdown?
         //
@@ -3009,11 +3356,11 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0 {
             rs_serverKeyInfo, 
             rs_uniffiFutureCallback, 
             rs_uniffiCallbackData, 
-            rs_uniffiOutReturn);
+            rs_uniffiOutDroppedCallback);
     }
 
-    static UniffiCallbackInterfaceServerKeyCallbackMethod0
-    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0
+    [[maybe_unused]] static UniffiCallbackInterfaceServerKeyCallbackMethod0
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::vtablecallbackinterfaceserverkeycallback
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
                      const jsi::Value &value) {
@@ -3031,7 +3378,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0 {
         }
         auto callbackFunction = value.asObject(rt).asFunction(rt);
         auto callbackValue = std::make_shared<jsi::Value>(rt, callbackFunction);
-        rsLambda = [&rt, callInvoker, callbackValue](uint64_t rs_uniffiHandle, RustBuffer rs_serverKeyInfo, UniffiForeignFutureCompleteI8 rs_uniffiFutureCallback, uint64_t rs_uniffiCallbackData, UniffiForeignFuture * rs_uniffiOutReturn) {
+        rsLambda = [&rt, callInvoker, callbackValue](uint64_t rs_uniffiHandle, RustBuffer rs_serverKeyInfo, UniffiForeignFutureCompleteI8 rs_uniffiFutureCallback, uint64_t rs_uniffiCallbackData, UniffiForeignFutureDroppedCallbackStruct * rs_uniffiOutDroppedCallback) {
                 // We immediately make a lambda which will do the work of transforming the
                 // arguments into JSI values and calling the callback.
                 uniffi_runtime::UniffiCallFunc jsLambda = [
@@ -3041,13 +3388,13 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0 {
                     , rs_serverKeyInfo
                     , rs_uniffiFutureCallback
                     , rs_uniffiCallbackData
-                    , rs_uniffiOutReturn](jsi::Runtime &rt) mutable {
+                    , rs_uniffiOutDroppedCallback](jsi::Runtime &rt) mutable {
                     body(rt, callInvoker, callbackValue
                         , rs_uniffiHandle
                         , rs_serverKeyInfo
                         , rs_uniffiFutureCallback
                         , rs_uniffiCallbackData
-                        , rs_uniffiOutReturn);
+                        , rs_uniffiOutDroppedCallback);
                 };
                 // We'll then call that lambda from the callInvoker which will
                 // look after calling it on the correct thread.
@@ -3063,10 +3410,47 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0 {
         // then the pointer will no longer be left dangling.
         rsLambda = nullptr;
     }
-} // namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0
-    // Implementation of callback function calling from Rust to JS CallbackInterfaceShellClosedCallbackMethod0
+} // namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::vtablecallbackinterfaceserverkeycallback
+namespace uniffi::uniffi_russh {
+using namespace facebook;
+using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0::UniffiCallbackInterfaceShellClosedCallbackMethod0
+template <> struct Bridging<UniffiVTableCallbackInterfaceServerKeyCallback> {
+  static UniffiVTableCallbackInterfaceServerKeyCallback fromJs(jsi::Runtime &rt,
+    std::shared_ptr<CallInvoker> callInvoker,
+    const jsi::Value &jsValue
+  ) {
+    // Check if the input is an object
+    if (!jsValue.isObject()) {
+      throw jsi::JSError(rt, "Expected an object for UniffiVTableCallbackInterfaceServerKeyCallback");
+    }
+
+    // Get the object from the jsi::Value
+    auto jsObject = jsValue.getObject(rt);
+
+    // Create the vtable struct
+    UniffiVTableCallbackInterfaceServerKeyCallback rsObject;
+
+    // Create the vtable from the js callbacks.
+    rsObject.uniffi_free = uniffi::uniffi_russh::st::vtablecallbackinterfaceserverkeycallback::vtablecallbackinterfaceserverkeycallback::free::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "uniffi_free")
+        );
+    rsObject.uniffi_clone = uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceserverkeycallback::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "uniffi_clone")
+        );
+    rsObject.on_change = uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::vtablecallbackinterfaceserverkeycallback::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "on_change")
+        );
+
+    return rsObject;
+  }
+};
+
+} // namespace uniffi::uniffi_russh
+    // Implementation of CallbackInterfaceClone for vtable field uniffi_clone in VTableCallbackInterfaceShellClosedCallback
+
+
+// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshellclosedcallback::UniffiCallbackInterfaceClone
 //
 // We have the following constraints:
 // - we need to pass a function pointer to Rust.
@@ -3078,7 +3462,133 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0 {
 //
 // We then give the `callback` function pointer to Rust which will call the lambda sometime in the
 // future.
-namespace uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0 {
+namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshellclosedcallback {
+    using namespace facebook;
+
+    // We need to store a lambda in a global so we can call it from
+    // a function pointer. The function pointer is passed to Rust.
+    static std::function<void(uint64_t, uint64_t*)> rsLambda = nullptr;
+
+    // This is the main body of the callback. It's called from the lambda,
+    // which itself is called from the callback function which is passed to Rust.
+    static void body(jsi::Runtime &rt,
+                     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
+                     std::shared_ptr<jsi::Value> callbackValue
+            ,uint64_t rs_handle
+            , uint64_t* uniffi_direct_return) {
+
+        // Convert the arguments from Rust, into jsi::Values.
+        // We'll use the Bridging class to do this…
+        auto js_handle = uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, rs_handle);
+
+        // Now we are ready to call the callback.
+        // We are already on the JS thread, because this `body` function was
+        // invoked from the CallInvoker.
+        try {
+            // Getting the callback function
+            auto cb = callbackValue->asObject(rt).asFunction(rt);
+            auto uniffiResult = cb.call(rt, js_handle
+            );
+
+            
+
+            
+            // Write the direct return value back to the caller.
+            if (uniffi_direct_return != nullptr) {
+                *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
+                    rt, callInvoker, uniffiResult
+                );
+            }
+        } catch (const jsi::JSError &error) {
+            std::cout << "Error in callback UniffiCallbackInterfaceClone: "
+                    << error.what() << std::endl;
+            throw error;
+        }
+    }
+
+    static uint64_t callback(uint64_t rs_handle) {
+        // If the runtime has shutdown, then there is no point in trying to
+        // call into Javascript. BUT how do we tell if the runtime has shutdown?
+        //
+        // Answer: the module destructor calls into callback `cleanup` method,
+        // which nulls out the rsLamda.
+        //
+        // If rsLamda is null, then there is no runtime to call into.
+        if (rsLambda == nullptr) {
+            // This only occurs when destructors are calling into Rust free/drop,
+            // which causes the JS callback to be dropped.
+            return 0;
+        }
+        uint64_t uniffi_result = 0;
+
+        // The runtime, the actual callback jsi::funtion, and the callInvoker
+        // are all in the lambda.
+        rsLambda(
+            rs_handle, 
+            &uniffi_result);
+        return uniffi_result;
+    }
+
+    [[maybe_unused]] static UniffiCallbackInterfaceClone
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshellclosedcallback
+                    jsi::Runtime &rt,
+                     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
+                     const jsi::Value &value) {
+        if (rsLambda != nullptr) {
+            // `makeCallbackFunction` is called in two circumstances:
+            //
+            // 1. at startup, when initializing callback interface vtables.
+            // 2. when polling futures. This happens at least once per future that is
+            //    exposed to Javascript. We know that this is always the same function,
+            //    `uniffiFutureContinuationCallback` in `async-rust-calls.ts`.
+            //
+            // We can therefore return the callback function without making anything
+            // new if we've been initialized already.
+            return callback;
+        }
+        auto callbackFunction = value.asObject(rt).asFunction(rt);
+        auto callbackValue = std::make_shared<jsi::Value>(rt, callbackFunction);
+        rsLambda = [&rt, callInvoker, callbackValue](uint64_t rs_handle, uint64_t* uniffi_direct_return) {
+                // We immediately make a lambda which will do the work of transforming the
+                // arguments into JSI values and calling the callback.
+                uniffi_runtime::UniffiCallFunc jsLambda = [
+                    callInvoker,
+                    callbackValue
+                    , rs_handle, uniffi_direct_return](jsi::Runtime &rt) mutable {
+                    body(rt, callInvoker, callbackValue
+                        , rs_handle, uniffi_direct_return);
+                };
+                // We'll then call that lambda from the callInvoker which will
+                // look after calling it on the correct thread.
+                callInvoker->invokeBlocking(rt, jsLambda);
+        };
+        return callback;
+    }
+
+    // This method is called from the destructor of NativeUniffiRussh, which only happens
+    // when the jsi::Runtime is being destroyed.
+    static void cleanup() {
+        // The lambda holds a reference to the the Runtime, so when this is nulled out,
+        // then the pointer will no longer be left dangling.
+        rsLambda = nullptr;
+    }
+} // namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshellclosedcallback
+    // Implementation of CallbackInterfaceShellClosedCallbackMethod0 for vtable field on_change in VTableCallbackInterfaceShellClosedCallback
+
+
+// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0::vtablecallbackinterfaceshellclosedcallback::UniffiCallbackInterfaceShellClosedCallbackMethod0
+//
+// We have the following constraints:
+// - we need to pass a function pointer to Rust.
+// - we need a jsi::Runtime and jsi::Function to call into JS.
+// - function pointers can't store state, so we can't use a lamda.
+//
+// For this, we store a lambda as a global, as `rsLambda`. The `callback` function calls
+// the lambda, which itself calls the `body` which then calls into JS.
+//
+// We then give the `callback` function pointer to Rust which will call the lambda sometime in the
+// future.
+namespace uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0::vtablecallbackinterfaceshellclosedcallback {
     using namespace facebook;
 
     // We need to store a lambda in a global so we can call it from
@@ -3146,8 +3656,8 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0 
             rs_uniffiOutReturn, uniffi_call_status);
     }
 
-    static UniffiCallbackInterfaceShellClosedCallbackMethod0
-    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0
+    [[maybe_unused]] static UniffiCallbackInterfaceShellClosedCallbackMethod0
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0::vtablecallbackinterfaceshellclosedcallback
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
                      const jsi::Value &value) {
@@ -3193,10 +3703,47 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0 
         // then the pointer will no longer be left dangling.
         rsLambda = nullptr;
     }
-} // namespace uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0
-    // Implementation of callback function calling from Rust to JS CallbackInterfaceShellListenerMethod0
+} // namespace uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0::vtablecallbackinterfaceshellclosedcallback
+namespace uniffi::uniffi_russh {
+using namespace facebook;
+using CallInvoker = uniffi_runtime::UniffiCallInvoker;
 
-// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::UniffiCallbackInterfaceShellListenerMethod0
+template <> struct Bridging<UniffiVTableCallbackInterfaceShellClosedCallback> {
+  static UniffiVTableCallbackInterfaceShellClosedCallback fromJs(jsi::Runtime &rt,
+    std::shared_ptr<CallInvoker> callInvoker,
+    const jsi::Value &jsValue
+  ) {
+    // Check if the input is an object
+    if (!jsValue.isObject()) {
+      throw jsi::JSError(rt, "Expected an object for UniffiVTableCallbackInterfaceShellClosedCallback");
+    }
+
+    // Get the object from the jsi::Value
+    auto jsObject = jsValue.getObject(rt);
+
+    // Create the vtable struct
+    UniffiVTableCallbackInterfaceShellClosedCallback rsObject;
+
+    // Create the vtable from the js callbacks.
+    rsObject.uniffi_free = uniffi::uniffi_russh::st::vtablecallbackinterfaceshellclosedcallback::vtablecallbackinterfaceshellclosedcallback::free::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "uniffi_free")
+        );
+    rsObject.uniffi_clone = uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshellclosedcallback::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "uniffi_clone")
+        );
+    rsObject.on_change = uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0::vtablecallbackinterfaceshellclosedcallback::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "on_change")
+        );
+
+    return rsObject;
+  }
+};
+
+} // namespace uniffi::uniffi_russh
+    // Implementation of CallbackInterfaceClone for vtable field uniffi_clone in VTableCallbackInterfaceShellListener
+
+
+// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshelllistener::UniffiCallbackInterfaceClone
 //
 // We have the following constraints:
 // - we need to pass a function pointer to Rust.
@@ -3208,7 +3755,133 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0 
 //
 // We then give the `callback` function pointer to Rust which will call the lambda sometime in the
 // future.
-namespace uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0 {
+namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshelllistener {
+    using namespace facebook;
+
+    // We need to store a lambda in a global so we can call it from
+    // a function pointer. The function pointer is passed to Rust.
+    static std::function<void(uint64_t, uint64_t*)> rsLambda = nullptr;
+
+    // This is the main body of the callback. It's called from the lambda,
+    // which itself is called from the callback function which is passed to Rust.
+    static void body(jsi::Runtime &rt,
+                     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
+                     std::shared_ptr<jsi::Value> callbackValue
+            ,uint64_t rs_handle
+            , uint64_t* uniffi_direct_return) {
+
+        // Convert the arguments from Rust, into jsi::Values.
+        // We'll use the Bridging class to do this…
+        auto js_handle = uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, rs_handle);
+
+        // Now we are ready to call the callback.
+        // We are already on the JS thread, because this `body` function was
+        // invoked from the CallInvoker.
+        try {
+            // Getting the callback function
+            auto cb = callbackValue->asObject(rt).asFunction(rt);
+            auto uniffiResult = cb.call(rt, js_handle
+            );
+
+            
+
+            
+            // Write the direct return value back to the caller.
+            if (uniffi_direct_return != nullptr) {
+                *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
+                    rt, callInvoker, uniffiResult
+                );
+            }
+        } catch (const jsi::JSError &error) {
+            std::cout << "Error in callback UniffiCallbackInterfaceClone: "
+                    << error.what() << std::endl;
+            throw error;
+        }
+    }
+
+    static uint64_t callback(uint64_t rs_handle) {
+        // If the runtime has shutdown, then there is no point in trying to
+        // call into Javascript. BUT how do we tell if the runtime has shutdown?
+        //
+        // Answer: the module destructor calls into callback `cleanup` method,
+        // which nulls out the rsLamda.
+        //
+        // If rsLamda is null, then there is no runtime to call into.
+        if (rsLambda == nullptr) {
+            // This only occurs when destructors are calling into Rust free/drop,
+            // which causes the JS callback to be dropped.
+            return 0;
+        }
+        uint64_t uniffi_result = 0;
+
+        // The runtime, the actual callback jsi::funtion, and the callInvoker
+        // are all in the lambda.
+        rsLambda(
+            rs_handle, 
+            &uniffi_result);
+        return uniffi_result;
+    }
+
+    [[maybe_unused]] static UniffiCallbackInterfaceClone
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshelllistener
+                    jsi::Runtime &rt,
+                     std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
+                     const jsi::Value &value) {
+        if (rsLambda != nullptr) {
+            // `makeCallbackFunction` is called in two circumstances:
+            //
+            // 1. at startup, when initializing callback interface vtables.
+            // 2. when polling futures. This happens at least once per future that is
+            //    exposed to Javascript. We know that this is always the same function,
+            //    `uniffiFutureContinuationCallback` in `async-rust-calls.ts`.
+            //
+            // We can therefore return the callback function without making anything
+            // new if we've been initialized already.
+            return callback;
+        }
+        auto callbackFunction = value.asObject(rt).asFunction(rt);
+        auto callbackValue = std::make_shared<jsi::Value>(rt, callbackFunction);
+        rsLambda = [&rt, callInvoker, callbackValue](uint64_t rs_handle, uint64_t* uniffi_direct_return) {
+                // We immediately make a lambda which will do the work of transforming the
+                // arguments into JSI values and calling the callback.
+                uniffi_runtime::UniffiCallFunc jsLambda = [
+                    callInvoker,
+                    callbackValue
+                    , rs_handle, uniffi_direct_return](jsi::Runtime &rt) mutable {
+                    body(rt, callInvoker, callbackValue
+                        , rs_handle, uniffi_direct_return);
+                };
+                // We'll then call that lambda from the callInvoker which will
+                // look after calling it on the correct thread.
+                callInvoker->invokeBlocking(rt, jsLambda);
+        };
+        return callback;
+    }
+
+    // This method is called from the destructor of NativeUniffiRussh, which only happens
+    // when the jsi::Runtime is being destroyed.
+    static void cleanup() {
+        // The lambda holds a reference to the the Runtime, so when this is nulled out,
+        // then the pointer will no longer be left dangling.
+        rsLambda = nullptr;
+    }
+} // namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshelllistener
+    // Implementation of CallbackInterfaceShellListenerMethod0 for vtable field on_event in VTableCallbackInterfaceShellListener
+
+
+// Callback function: uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::vtablecallbackinterfaceshelllistener::UniffiCallbackInterfaceShellListenerMethod0
+//
+// We have the following constraints:
+// - we need to pass a function pointer to Rust.
+// - we need a jsi::Runtime and jsi::Function to call into JS.
+// - function pointers can't store state, so we can't use a lamda.
+//
+// For this, we store a lambda as a global, as `rsLambda`. The `callback` function calls
+// the lambda, which itself calls the `body` which then calls into JS.
+//
+// We then give the `callback` function pointer to Rust which will call the lambda sometime in the
+// future.
+namespace uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::vtablecallbackinterfaceshelllistener {
     using namespace facebook;
 
     // We need to store a lambda in a global so we can call it from
@@ -3276,8 +3949,8 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0 {
             rs_uniffiOutReturn, uniffi_call_status);
     }
 
-    static UniffiCallbackInterfaceShellListenerMethod0
-    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0
+    [[maybe_unused]] static UniffiCallbackInterfaceShellListenerMethod0
+    makeCallbackFunction( // uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::vtablecallbackinterfaceshelllistener
                     jsi::Runtime &rt,
                      std::shared_ptr<uniffi_runtime::UniffiCallInvoker> callInvoker,
                      const jsi::Value &value) {
@@ -3323,139 +3996,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0 {
         // then the pointer will no longer be left dangling.
         rsLambda = nullptr;
     }
-} // namespace uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0
-namespace uniffi::uniffi_russh {
-using namespace facebook;
-using CallInvoker = uniffi_runtime::UniffiCallInvoker;
-
-template <> struct Bridging<UniffiVTableCallbackInterfaceConnectProgressCallback> {
-  static UniffiVTableCallbackInterfaceConnectProgressCallback fromJs(jsi::Runtime &rt,
-    std::shared_ptr<CallInvoker> callInvoker,
-    const jsi::Value &jsValue
-  ) {
-    // Check if the input is an object
-    if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiVTableCallbackInterfaceConnectProgressCallback");
-    }
-
-    // Get the object from the jsi::Value
-    auto jsObject = jsValue.getObject(rt);
-
-    // Create the vtable struct
-    UniffiVTableCallbackInterfaceConnectProgressCallback rsObject;
-
-    // Create the vtable from the js callbacks.
-    rsObject.on_change = uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0::makeCallbackFunction(
-          rt, callInvoker, jsObject.getProperty(rt, "onChange")
-        );
-    rsObject.uniffi_free = uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectprogresscallback::vtablecallbackinterfaceconnectprogresscallback::free::makeCallbackFunction(
-          rt, callInvoker, jsObject.getProperty(rt, "uniffiFree")
-        );
-
-    return rsObject;
-  }
-};
-
-} // namespace uniffi::uniffi_russh
-namespace uniffi::uniffi_russh {
-using namespace facebook;
-using CallInvoker = uniffi_runtime::UniffiCallInvoker;
-
-template <> struct Bridging<UniffiVTableCallbackInterfaceConnectionDisconnectedCallback> {
-  static UniffiVTableCallbackInterfaceConnectionDisconnectedCallback fromJs(jsi::Runtime &rt,
-    std::shared_ptr<CallInvoker> callInvoker,
-    const jsi::Value &jsValue
-  ) {
-    // Check if the input is an object
-    if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiVTableCallbackInterfaceConnectionDisconnectedCallback");
-    }
-
-    // Get the object from the jsi::Value
-    auto jsObject = jsValue.getObject(rt);
-
-    // Create the vtable struct
-    UniffiVTableCallbackInterfaceConnectionDisconnectedCallback rsObject;
-
-    // Create the vtable from the js callbacks.
-    rsObject.on_change = uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0::makeCallbackFunction(
-          rt, callInvoker, jsObject.getProperty(rt, "onChange")
-        );
-    rsObject.uniffi_free = uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectiondisconnectedcallback::vtablecallbackinterfaceconnectiondisconnectedcallback::free::makeCallbackFunction(
-          rt, callInvoker, jsObject.getProperty(rt, "uniffiFree")
-        );
-
-    return rsObject;
-  }
-};
-
-} // namespace uniffi::uniffi_russh
-namespace uniffi::uniffi_russh {
-using namespace facebook;
-using CallInvoker = uniffi_runtime::UniffiCallInvoker;
-
-template <> struct Bridging<UniffiVTableCallbackInterfaceServerKeyCallback> {
-  static UniffiVTableCallbackInterfaceServerKeyCallback fromJs(jsi::Runtime &rt,
-    std::shared_ptr<CallInvoker> callInvoker,
-    const jsi::Value &jsValue
-  ) {
-    // Check if the input is an object
-    if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiVTableCallbackInterfaceServerKeyCallback");
-    }
-
-    // Get the object from the jsi::Value
-    auto jsObject = jsValue.getObject(rt);
-
-    // Create the vtable struct
-    UniffiVTableCallbackInterfaceServerKeyCallback rsObject;
-
-    // Create the vtable from the js callbacks.
-    rsObject.on_change = uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::makeCallbackFunction(
-          rt, callInvoker, jsObject.getProperty(rt, "onChange")
-        );
-    rsObject.uniffi_free = uniffi::uniffi_russh::st::vtablecallbackinterfaceserverkeycallback::vtablecallbackinterfaceserverkeycallback::free::makeCallbackFunction(
-          rt, callInvoker, jsObject.getProperty(rt, "uniffiFree")
-        );
-
-    return rsObject;
-  }
-};
-
-} // namespace uniffi::uniffi_russh
-namespace uniffi::uniffi_russh {
-using namespace facebook;
-using CallInvoker = uniffi_runtime::UniffiCallInvoker;
-
-template <> struct Bridging<UniffiVTableCallbackInterfaceShellClosedCallback> {
-  static UniffiVTableCallbackInterfaceShellClosedCallback fromJs(jsi::Runtime &rt,
-    std::shared_ptr<CallInvoker> callInvoker,
-    const jsi::Value &jsValue
-  ) {
-    // Check if the input is an object
-    if (!jsValue.isObject()) {
-      throw jsi::JSError(rt, "Expected an object for UniffiVTableCallbackInterfaceShellClosedCallback");
-    }
-
-    // Get the object from the jsi::Value
-    auto jsObject = jsValue.getObject(rt);
-
-    // Create the vtable struct
-    UniffiVTableCallbackInterfaceShellClosedCallback rsObject;
-
-    // Create the vtable from the js callbacks.
-    rsObject.on_change = uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0::makeCallbackFunction(
-          rt, callInvoker, jsObject.getProperty(rt, "onChange")
-        );
-    rsObject.uniffi_free = uniffi::uniffi_russh::st::vtablecallbackinterfaceshellclosedcallback::vtablecallbackinterfaceshellclosedcallback::free::makeCallbackFunction(
-          rt, callInvoker, jsObject.getProperty(rt, "uniffiFree")
-        );
-
-    return rsObject;
-  }
-};
-
-} // namespace uniffi::uniffi_russh
+} // namespace uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::vtablecallbackinterfaceshelllistener
 namespace uniffi::uniffi_russh {
 using namespace facebook;
 using CallInvoker = uniffi_runtime::UniffiCallInvoker;
@@ -3477,11 +4018,14 @@ template <> struct Bridging<UniffiVTableCallbackInterfaceShellListener> {
     UniffiVTableCallbackInterfaceShellListener rsObject;
 
     // Create the vtable from the js callbacks.
-    rsObject.on_event = uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::makeCallbackFunction(
-          rt, callInvoker, jsObject.getProperty(rt, "onEvent")
-        );
     rsObject.uniffi_free = uniffi::uniffi_russh::st::vtablecallbackinterfaceshelllistener::vtablecallbackinterfaceshelllistener::free::makeCallbackFunction(
-          rt, callInvoker, jsObject.getProperty(rt, "uniffiFree")
+          rt, callInvoker, jsObject.getProperty(rt, "uniffi_free")
+        );
+    rsObject.uniffi_clone = uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshelllistener::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "uniffi_clone")
+        );
+    rsObject.on_event = uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::vtablecallbackinterfaceshelllistener::makeCallbackFunction(
+          rt, callInvoker, jsObject.getProperty(rt, "on_event")
         );
 
     return rsObject;
@@ -3528,20 +4072,28 @@ NativeUniffiRussh::NativeUniffiRussh(
             return this->cpp_uniffi_internal_fn_func_ffi__string_to_byte_length(rt, thisVal, args, count);
         }
     );
-    props["ubrn_uniffi_internal_fn_func_ffi__string_to_arraybuffer"] = jsi::Function::createFromHostFunction(
+    props["ubrn_uniffi_internal_fn_func_ffi__string_to_buffer"] = jsi::Function::createFromHostFunction(
         rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_internal_fn_func_ffi__string_to_arraybuffer"),
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_internal_fn_func_ffi__string_to_buffer"),
         1,
         [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_internal_fn_func_ffi__string_to_arraybuffer(rt, thisVal, args, count);
+            return this->cpp_uniffi_internal_fn_func_ffi__string_to_buffer(rt, thisVal, args, count);
         }
     );
-    props["ubrn_uniffi_internal_fn_func_ffi__arraybuffer_to_string"] = jsi::Function::createFromHostFunction(
+    props["ubrn_uniffi_internal_fn_func_ffi__string_from_buffer"] = jsi::Function::createFromHostFunction(
         rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_internal_fn_func_ffi__arraybuffer_to_string"),
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_internal_fn_func_ffi__string_from_buffer"),
         1,
         [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_string(rt, thisVal, args, count);
+            return this->cpp_uniffi_internal_fn_func_ffi__string_from_buffer(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_internal_fn_func_ffi__read_string_from_buffer"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_internal_fn_func_ffi__read_string_from_buffer"),
+        3,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_internal_fn_func_ffi__read_string_from_buffer(rt, thisVal, args, count);
         }
     );
     props["ubrn_uniffi_uniffi_russh_fn_clone_connectprogresscallback"] = jsi::Function::createFromHostFunction(
@@ -4184,38 +4736,6 @@ NativeUniffiRussh::NativeUniffiRussh(
             return this->cpp_ffi_uniffi_russh_rust_future_complete_f64(rt, thisVal, args, count);
         }
     );
-    props["ubrn_ffi_uniffi_russh_rust_future_poll_pointer"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_ffi_uniffi_russh_rust_future_poll_pointer"),
-        3,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_ffi_uniffi_russh_rust_future_poll_pointer(rt, thisVal, args, count);
-        }
-    );
-    props["ubrn_ffi_uniffi_russh_rust_future_cancel_pointer"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_ffi_uniffi_russh_rust_future_cancel_pointer"),
-        1,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_ffi_uniffi_russh_rust_future_cancel_pointer(rt, thisVal, args, count);
-        }
-    );
-    props["ubrn_ffi_uniffi_russh_rust_future_free_pointer"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_ffi_uniffi_russh_rust_future_free_pointer"),
-        1,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_ffi_uniffi_russh_rust_future_free_pointer(rt, thisVal, args, count);
-        }
-    );
-    props["ubrn_ffi_uniffi_russh_rust_future_complete_pointer"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_ffi_uniffi_russh_rust_future_complete_pointer"),
-        1,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_ffi_uniffi_russh_rust_future_complete_pointer(rt, thisVal, args, count);
-        }
-    );
     props["ubrn_ffi_uniffi_russh_rust_future_poll_rust_buffer"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_ffi_uniffi_russh_rust_future_poll_rust_buffer"),
@@ -4512,6 +5032,85 @@ NativeUniffiRussh::NativeUniffiRussh(
             return this->cpp_uniffi_internal_fn_method_sshconnection_ffi__bless_pointer(rt, thisVal, args, count);
         }
     );
+
+    // `rustbuffer_alloc(n)` -> Uint8Array view over Rust-owned memory of capacity `n`.
+    // `rustbuffer_free(view)` -> hands the underlying (ptr, capacity) back to the
+    // crate's `rustbuffer_free`. Together they let JS allocate buffers that the
+    // codegen-emitted lowering path can fill in place and ship to Rust without copying.
+    props["rustbuffer_alloc"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "rustbuffer_alloc"),
+        1,
+        [](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            if (count < 1 || !args[0].isNumber()) {
+                throw jsi::JSError(rt, "rustbuffer_alloc expected a number argument");
+            }
+            double size = args[0].asNumber();
+            if (size < 0) {
+                throw jsi::JSError(rt, "rustbuffer_alloc: size must be non-negative");
+            }
+            if (size > INT32_MAX) {
+                throw jsi::JSError(rt, "rustbuffer_alloc: size exceeds INT32_MAX");
+            }
+            auto rb = uniffi::uniffi_russh::Bridging<RustBuffer>::rustbuffer_alloc(static_cast<int32_t>(size));
+            if (rb.data == nullptr) {
+                throw jsi::JSError(rt, "rustbuffer_alloc failed: alloc returned null");
+            }
+            // Non-owning view over Rust-allocated memory; CMutableBuffer's destructor
+            // is the default and does not free `rb.data`. JS must call rustbuffer_free
+            // explicitly before dropping the reference.
+            auto payload = std::make_shared<uniffi_jsi::CMutableBuffer>(
+                rb.data, static_cast<size_t>(rb.capacity));
+            // Wrap as Uint8Array so JS can index/assign bytes directly.
+            return jsi::Value(
+                rt, uniffi_jsi::arraybufferToUint8Array(
+                        rt, jsi::ArrayBuffer(rt, payload)));
+        }
+    );
+
+    props["rustbuffer_free"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "rustbuffer_free"),
+        1,
+        [](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            if (count < 1 || !args[0].isObject()) {
+                throw jsi::JSError(rt, "rustbuffer_free expected a Uint8Array argument");
+            }
+            auto view = args[0].asObject(rt);
+            auto byteLength =
+                static_cast<size_t>(view.getProperty(rt, "byteLength").asNumber());
+            // Empty views were never allocated by `rustbuffer_alloc`; nothing
+            // to free. Bail out before reading buffer/byteOffset/capacity to
+            // skip three JSI property traversals on the empty path.
+            if (byteLength == 0) {
+                return jsi::Value::undefined();
+            }
+            // Capacity resolution:
+            //   * For a view from `rustbuffer_alloc(n)`, `byteLength == n == capacity`,
+            //     and no `__ubrnRustCapacity` hint was set.
+            //   * For a view from a lift-handoff, the codegen-emitted
+            //     `Bridging<RustBuffer>::toJs` set `byteLength = len` and stashed
+            //     the original `capacity` on `__ubrnRustCapacity` whenever
+            //     `capacity != len`.
+            // So: prefer the hint, fall back to byteLength.
+            size_t capacity = byteLength;
+            if (view.hasProperty(rt, uniffi_jsi::kUbrnRustCapacity)) {
+                capacity = static_cast<size_t>(
+                    view.getProperty(rt, uniffi_jsi::kUbrnRustCapacity).asNumber());
+            }
+            auto buffer = view.getPropertyAsObject(rt, "buffer").getArrayBuffer(rt);
+            auto byteOffset =
+                static_cast<size_t>(view.getProperty(rt, "byteOffset").asNumber());
+            // Honour byteOffset for safety (defensive; currently always 0).
+            RustBuffer rb {
+                .capacity = static_cast<uint64_t>(capacity),
+                .len = 0,
+                .data = buffer.data(rt) + byteOffset,
+            };
+            uniffi::uniffi_russh::Bridging<RustBuffer>::rustbuffer_free(rb);
+            return jsi::Value::undefined();
+        }
+    );
 }
 
 void NativeUniffiRussh::registerModule(jsi::Runtime &rt, std::shared_ptr<react::CallInvoker> callInvoker) {
@@ -4529,7 +5128,7 @@ jsi::Value NativeUniffiRussh::get(jsi::Runtime& rt, const jsi::PropNameID& name)
     try {
         return jsi::Value(rt, props.at(name.utf8(rt)));
     }
-    catch (std::out_of_range &e) {
+    catch (std::out_of_range &) {
         return jsi::Value::undefined();
     }
 }
@@ -4549,18 +5148,20 @@ void NativeUniffiRussh::set(jsi::Runtime& rt, const jsi::PropNameID& name, const
 NativeUniffiRussh::~NativeUniffiRussh() {
     // Cleanup for callback function RustFutureContinuationCallback
 uniffi::uniffi_russh::cb::rustfuturecontinuationcallback::cleanup();
+    // Cleanup for callback function ForeignFutureDroppedCallback
+uniffi::uniffi_russh::cb::foreignfuturedroppedcallback::cleanup();
     // Cleanup for "free" callback function CallbackInterfaceFree
-uniffi::uniffi_russh::st::foreignfuture::foreignfuture::free::cleanup();uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectprogresscallback::vtablecallbackinterfaceconnectprogresscallback::free::cleanup();uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectiondisconnectedcallback::vtablecallbackinterfaceconnectiondisconnectedcallback::free::cleanup();uniffi::uniffi_russh::st::vtablecallbackinterfaceserverkeycallback::vtablecallbackinterfaceserverkeycallback::free::cleanup();uniffi::uniffi_russh::st::vtablecallbackinterfaceshellclosedcallback::vtablecallbackinterfaceshellclosedcallback::free::cleanup();uniffi::uniffi_russh::st::vtablecallbackinterfaceshelllistener::vtablecallbackinterfaceshelllistener::free::cleanup();
-    // Cleanup for callback function CallbackInterfaceConnectProgressCallbackMethod0
-uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0::cleanup();
-    // Cleanup for callback function CallbackInterfaceConnectionDisconnectedCallbackMethod0
-uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0::cleanup();
-    // Cleanup for callback function CallbackInterfaceServerKeyCallbackMethod0
-uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::cleanup();
-    // Cleanup for callback function CallbackInterfaceShellClosedCallbackMethod0
-uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0::cleanup();
-    // Cleanup for callback function CallbackInterfaceShellListenerMethod0
-uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::cleanup();
+uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectprogresscallback::vtablecallbackinterfaceconnectprogresscallback::free::cleanup();uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectiondisconnectedcallback::vtablecallbackinterfaceconnectiondisconnectedcallback::free::cleanup();uniffi::uniffi_russh::st::vtablecallbackinterfaceserverkeycallback::vtablecallbackinterfaceserverkeycallback::free::cleanup();uniffi::uniffi_russh::st::vtablecallbackinterfaceshellclosedcallback::vtablecallbackinterfaceshellclosedcallback::free::cleanup();uniffi::uniffi_russh::st::vtablecallbackinterfaceshelllistener::vtablecallbackinterfaceshelllistener::free::cleanup();
+uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectprogresscallback::cleanup();
+uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmethod0::vtablecallbackinterfaceconnectprogresscallback::cleanup();
+uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceconnectiondisconnectedcallback::cleanup();
+uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallbackmethod0::vtablecallbackinterfaceconnectiondisconnectedcallback::cleanup();
+uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceserverkeycallback::cleanup();
+uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::vtablecallbackinterfaceserverkeycallback::cleanup();
+uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshellclosedcallback::cleanup();
+uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0::vtablecallbackinterfaceshellclosedcallback::cleanup();
+uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterfaceshelllistener::cleanup();
+uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::vtablecallbackinterfaceshelllistener::cleanup();
 }
 
 // Utility functions for serialization/deserialization of strings.
@@ -4568,18 +5169,21 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__string_to_byte_le
     return uniffi_jsi::Bridging<std::string>::string_to_bytelength(rt, args[0]);
 }
 
-jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__string_to_arraybuffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-    return uniffi_jsi::Bridging<std::string>::string_to_arraybuffer(rt, args[0]);
+jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__string_to_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+    return uniffi_jsi::Bridging<std::string>::string_to_buffer(rt, args[0]);
 }
 
-jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_string(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-    return uniffi_jsi::Bridging<std::string>::arraybuffer_to_string(rt, args[0]);
+jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__string_from_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+    return uniffi_jsi::Bridging<std::string>::string_from_buffer(rt, args[0]);
+}
+
+jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__read_string_from_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+    return uniffi_jsi::Bridging<std::string>::read_string_from_buffer(rt, args[0], args[1], args[2]);
 }jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_method_connectprogresscallback_ffi__bless_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
     auto pointer = uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
     auto static destructor = [](uint64_t p) {
-        auto pointer = reinterpret_cast<void *>(static_cast<uintptr_t>(p));
         RustCallStatus status = {0};
-        uniffi_uniffi_russh_fn_free_connectprogresscallback(pointer, &status);
+        uniffi_uniffi_russh_fn_free_connectprogresscallback(p, &status);
     };
     auto ptrObj = std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
     auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
@@ -4587,9 +5191,8 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_st
 }jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_method_connectiondisconnectedcallback_ffi__bless_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
     auto pointer = uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
     auto static destructor = [](uint64_t p) {
-        auto pointer = reinterpret_cast<void *>(static_cast<uintptr_t>(p));
         RustCallStatus status = {0};
-        uniffi_uniffi_russh_fn_free_connectiondisconnectedcallback(pointer, &status);
+        uniffi_uniffi_russh_fn_free_connectiondisconnectedcallback(p, &status);
     };
     auto ptrObj = std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
     auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
@@ -4597,9 +5200,8 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_st
 }jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_method_serverkeycallback_ffi__bless_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
     auto pointer = uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
     auto static destructor = [](uint64_t p) {
-        auto pointer = reinterpret_cast<void *>(static_cast<uintptr_t>(p));
         RustCallStatus status = {0};
-        uniffi_uniffi_russh_fn_free_serverkeycallback(pointer, &status);
+        uniffi_uniffi_russh_fn_free_serverkeycallback(p, &status);
     };
     auto ptrObj = std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
     auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
@@ -4607,9 +5209,8 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_st
 }jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_method_shellclosedcallback_ffi__bless_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
     auto pointer = uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
     auto static destructor = [](uint64_t p) {
-        auto pointer = reinterpret_cast<void *>(static_cast<uintptr_t>(p));
         RustCallStatus status = {0};
-        uniffi_uniffi_russh_fn_free_shellclosedcallback(pointer, &status);
+        uniffi_uniffi_russh_fn_free_shellclosedcallback(p, &status);
     };
     auto ptrObj = std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
     auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
@@ -4617,9 +5218,8 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_st
 }jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_method_shelllistener_ffi__bless_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
     auto pointer = uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
     auto static destructor = [](uint64_t p) {
-        auto pointer = reinterpret_cast<void *>(static_cast<uintptr_t>(p));
         RustCallStatus status = {0};
-        uniffi_uniffi_russh_fn_free_shelllistener(pointer, &status);
+        uniffi_uniffi_russh_fn_free_shelllistener(p, &status);
     };
     auto ptrObj = std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
     auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
@@ -4627,9 +5227,8 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_st
 }jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_method_shellsession_ffi__bless_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
     auto pointer = uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
     auto static destructor = [](uint64_t p) {
-        auto pointer = reinterpret_cast<void *>(static_cast<uintptr_t>(p));
         RustCallStatus status = {0};
-        uniffi_uniffi_russh_fn_free_shellsession(pointer, &status);
+        uniffi_uniffi_russh_fn_free_shellsession(p, &status);
     };
     auto ptrObj = std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
     auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
@@ -4637,9 +5236,8 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_st
 }jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_method_sshconnection_ffi__bless_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
     auto pointer = uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]);
     auto static destructor = [](uint64_t p) {
-        auto pointer = reinterpret_cast<void *>(static_cast<uintptr_t>(p));
         RustCallStatus status = {0};
-        uniffi_uniffi_russh_fn_free_sshconnection(pointer, &status);
+        uniffi_uniffi_russh_fn_free_sshconnection(p, &status);
     };
     auto ptrObj = std::make_shared<uniffi_jsi::DestructibleObject>(pointer, destructor);
     auto obj = jsi::Object::createFromHostObject(rt, ptrObj);
@@ -4649,17 +5247,17 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_st
 // Methods calling directly into the uniffi generated C API of the Rust crate.
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_connectprogresscallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_connectprogresscallback(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_clone_connectprogresscallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
         
-        return uniffi_jsi::Bridging<void *>::toJs(rt, callInvoker, value);
+        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_connectprogresscallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_connectprogresscallback(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        uniffi_uniffi_russh_fn_free_connectprogresscallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4686,7 +5284,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_co
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_connectprogresscallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_connectprogresscallback_on_change(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), 
+        uniffi_uniffi_russh_fn_method_connectprogresscallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4696,17 +5294,17 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_connectprogressc
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_connectiondisconnectedcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_connectiondisconnectedcallback(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_clone_connectiondisconnectedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
         
-        return uniffi_jsi::Bridging<void *>::toJs(rt, callInvoker, value);
+        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_connectiondisconnectedcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_connectiondisconnectedcallback(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        uniffi_uniffi_russh_fn_free_connectiondisconnectedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4733,7 +5331,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_co
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_connectiondisconnectedcallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_connectiondisconnectedcallback_on_change(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), 
+        uniffi_uniffi_russh_fn_method_connectiondisconnectedcallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4743,17 +5341,17 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_connectiondiscon
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_serverkeycallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_serverkeycallback(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_clone_serverkeycallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
         
-        return uniffi_jsi::Bridging<void *>::toJs(rt, callInvoker, value);
+        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_serverkeycallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_serverkeycallback(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        uniffi_uniffi_russh_fn_free_serverkeycallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4779,7 +5377,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_se
     return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_serverkeycallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_uniffi_russh_fn_method_serverkeycallback_on_change(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
+        auto value = uniffi_uniffi_russh_fn_method_serverkeycallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -4787,17 +5385,17 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_serverkeycallbac
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_shellclosedcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_shellclosedcallback(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_clone_shellclosedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
         
-        return uniffi_jsi::Bridging<void *>::toJs(rt, callInvoker, value);
+        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_shellclosedcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_shellclosedcallback(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        uniffi_uniffi_russh_fn_free_shellclosedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4824,7 +5422,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_sh
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellclosedcallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_shellclosedcallback_on_change(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[1]), 
+        uniffi_uniffi_russh_fn_method_shellclosedcallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4834,17 +5432,17 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellclosedcallb
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_shelllistener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_shelllistener(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_clone_shelllistener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
         
-        return uniffi_jsi::Bridging<void *>::toJs(rt, callInvoker, value);
+        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_shelllistener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_shelllistener(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        uniffi_uniffi_russh_fn_free_shelllistener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4871,7 +5469,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_sh
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shelllistener_on_event(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_shelllistener_on_event(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), 
+        uniffi_uniffi_russh_fn_method_shelllistener_on_event(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4881,17 +5479,17 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shelllistener_on
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_shellsession(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_shellsession(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_clone_shellsession(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
         
-        return uniffi_jsi::Bridging<void *>::toJs(rt, callInvoker, value);
+        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_shellsession(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_shellsession(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        uniffi_uniffi_russh_fn_free_shellsession(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4901,7 +5499,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_shellsession(jsi::
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_add_listener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_add_listener(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[1]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), 
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_add_listener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[1]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4911,7 +5509,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_add
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_buffer_stats(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_buffer_stats(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_buffer_stats(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4920,7 +5518,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_buf
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_close(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_close(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0])
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_close(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
         
@@ -4928,7 +5526,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_clo
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_current_seq(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_current_seq(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_current_seq(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4938,7 +5536,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_cur
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_get_info(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_get_info(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_get_info(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4948,7 +5546,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_get
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_read_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_read_buffer(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), 
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_read_buffer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4958,7 +5556,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_rea
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_remove_listener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_shellsession_remove_listener(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[1]), 
+        uniffi_uniffi_russh_fn_method_shellsession_remove_listener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4967,14 +5565,14 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_rem
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_resize_pty(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_resize_pty(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[2]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4])
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_resize_pty(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[2]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4])
         );
 
         
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_send_data(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_send_data(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_send_data(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -4982,17 +5580,17 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_sen
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_sshconnection(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_sshconnection(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_clone_sshconnection(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
         
-        return uniffi_jsi::Bridging<void *>::toJs(rt, callInvoker, value);
+        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_sshconnection(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_sshconnection(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        uniffi_uniffi_russh_fn_free_sshconnection(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -5001,7 +5599,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_sshconnection(jsi:
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_sshconnection_disconnect(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_uniffi_russh_fn_method_sshconnection_disconnect(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0])
+        auto value = uniffi_uniffi_russh_fn_method_sshconnection_disconnect(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
         
@@ -5009,7 +5607,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_sshconnection_di
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_sshconnection_get_info(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_sshconnection_get_info(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), 
+        auto value = uniffi_uniffi_russh_fn_method_sshconnection_get_info(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -5018,7 +5616,7 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_sshconnection_ge
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_sshconnection_start_shell(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_uniffi_russh_fn_method_sshconnection_start_shell(uniffi_jsi::Bridging<void *>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
+        auto value = uniffi_uniffi_russh_fn_method_sshconnection_start_shell(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
         
@@ -5370,37 +5968,6 @@ jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_f64(jsi:
 
         
         return uniffi_jsi::Bridging<double>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        ffi_uniffi_russh_rust_future_poll_pointer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
-        );
-
-        
-        return jsi::Value::undefined();
-}
-jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        ffi_uniffi_russh_rust_future_cancel_pointer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
-        );
-
-        
-        return jsi::Value::undefined();
-}
-jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        ffi_uniffi_russh_rust_future_free_pointer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
-        );
-
-        
-        return jsi::Value::undefined();
-}
-jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_pointer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_pointer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
-            &status
-        );
-        uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
-
-        
-        return uniffi_jsi::Bridging<void *>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_rust_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_rust_buffer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
