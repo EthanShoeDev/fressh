@@ -120,8 +120,14 @@ void test('browser actions modal controller keeps static rows open in set mode',
 		{ id: 'diff', expectedCalls: ['close', 'diff'] },
 		{ id: 'github-issues', expectedCalls: ['close', 'github-issues'] },
 		{ id: 'github-pulls', expectedCalls: ['close', 'github-pulls'] },
-		{ id: 'open-detected-auto', expectedCalls: ['open-detected-auto', 'close'] },
-		{ id: 'open-detected-pick', expectedCalls: ['open-detected-pick', 'close'] },
+		{
+			id: 'open-detected-auto',
+			expectedCalls: ['open-detected-auto', 'close'],
+		},
+		{
+			id: 'open-detected-pick',
+			expectedCalls: ['open-detected-pick', 'close'],
+		},
 	];
 
 	for (const testCase of cases) {
