@@ -2166,6 +2166,13 @@ function ShellDetail() {
 			openBrowserActions: browserActions.open,
 			openHostDiffity: browserActions.browserActionsProps.onOpenDiff,
 			openHostUrlSlot: browserActions.browserActionsProps.onOpenUrlSlot,
+			openHostDetected: (mode) => {
+				if (mode === 'pick') {
+					browserActions.browserActionsProps.onOpenDetectedPick();
+					return;
+				}
+				browserActions.browserActionsProps.onOpenDetectedAuto();
+			},
 			editHostUrlSlot: browserActions.browserActionsProps.onEditUrlSlot,
 			cycleWorkmuxStatus: browserActions.cycleWorkmuxStatus,
 		}),

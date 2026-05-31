@@ -308,7 +308,7 @@ void test('browser keyboard exposes host navigation actions', () => {
 		browserKeyboard.grid.map((row) => row.length),
 		[10, 10, 10, 10],
 	);
-	assert.deepEqual(browserKeyboard.grid[0]?.slice(0, 6), [
+	assert.deepEqual(browserKeyboard.grid[0]?.slice(0, 7), [
 		{
 			type: 'action',
 			actionId: 'OPEN_MAIN_MENU',
@@ -341,17 +341,18 @@ void test('browser keyboard exposes host navigation actions', () => {
 		},
 		{
 			type: 'action',
-			actionId: 'OPEN_HOST_URL_APP',
-			label: 'App',
-			icon: 'PanelTop',
+			actionId: 'OPEN_HOST_DETECTED_AUTO',
+			label: 'Open',
+			icon: 'ExternalLink',
+		},
+		{
+			type: 'action',
+			actionId: 'OPEN_HOST_DETECTED_PICK',
+			label: 'Pick',
+			icon: 'List',
 		},
 	]);
-	assert.deepEqual(browserKeyboard.grid[0]?.slice(6, 10), [
-		null,
-		null,
-		null,
-		null,
-	]);
+	assert.deepEqual(browserKeyboard.grid[0]?.slice(7, 10), [null, null, null]);
 	for (const row of browserKeyboard.grid.slice(1, 4)) {
 		assert.deepEqual(row, [
 			null,
@@ -366,6 +367,10 @@ void test('browser keyboard exposes host navigation actions', () => {
 			null,
 		]);
 	}
+	const browserKeyboardActionIds = browserKeyboard.grid.flatMap((row) =>
+		row.flatMap((item) => (item?.type === 'action' ? [item.actionId] : [])),
+	);
+	assert.equal(browserKeyboardActionIds.includes('OPEN_HOST_URL_APP'), false);
 	assert.deepEqual(config.macrosByKeyboardId.browser_keyboard, []);
 });
 
