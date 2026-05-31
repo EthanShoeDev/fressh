@@ -123,3 +123,18 @@ else
 fi
 `.trim();
 }
+
+export function buildFeatureRequestSubmittedAlert(input: {
+	issueUrl: string | null;
+}): { title: string; message: string } {
+	const { issueUrl } = input;
+	const issueNumber = issueUrl?.match(/\/issues\/(\d+)$/)?.[1] ?? null;
+	return {
+		title: issueNumber
+			? `Issue #${issueNumber} Created`
+			: 'Feature Request Submitted',
+		message: issueUrl
+			? `Your request has been created:\n${issueUrl}`
+			: 'Your feature request has been submitted successfully.',
+	};
+}

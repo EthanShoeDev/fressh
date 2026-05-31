@@ -54,17 +54,6 @@ import {
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
 import {
-	buildDiffityShareCommand,
-	buildHostBrowserPanePathCommand,
-	buildHostBrowserStatusCycleCommand,
-	buildTmuxWindowConfigGetCommand,
-	buildTmuxWindowConfigSetCommand,
-	extractLastHttpsUrl,
-	getHostBrowserUrlSlotLabel,
-	parseHostBrowserUrlInput,
-	type HostBrowserUrlSlot,
-} from '@/lib/host-browser-actions';
-import {
 	HANDLE_DEV_SERVER_URL,
 	runAction,
 	type ActionContext,
@@ -73,13 +62,6 @@ import {
 import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
-import {
-	buildGitHubRepositoryTargetUrl,
-	buildCreateGitHubIssueCommand,
-	buildResolveGitHubRepositoryCommand,
-	parseGitHubRepositoryResolutionOutput,
-	type GitHubRepositoryTarget,
-} from '@/lib/repo-feature-request';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -100,10 +82,11 @@ import {
 } from '@/lib/shell-config-store-native';
 import { buildShellLiveInputSendPlan } from '@/lib/shell-live-input';
 import {
-	buildSkillDiscoveryCommand,
-	parseSkillDiscoveryOutput,
-	type DiscoveredSkill,
-} from '@/lib/skill-discovery';
+	useBrowserActionsController,
+	useFeatureRequestController,
+	useShellSimpleModals,
+	useSkillSelectorController,
+} from '@/lib/shell-modals';
 import { executeSideChannelCommand } from '@/lib/ssh-side-channel';
 import { useSshStore } from '@/lib/ssh-store';
 import {
@@ -141,7 +124,7 @@ import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
-import { HostUrlModal, type HostUrlModalMode } from './components/HostUrlModal';
+import { HostUrlModal } from './components/HostUrlModal';
 import { SkillSelectorModal } from './components/SkillSelectorModal';
 import { TerminalCommanderModal } from './components/TerminalCommanderModal';
 import { TerminalKeyboard } from './components/TerminalKeyboard';
@@ -341,13 +324,6 @@ type TerminalErrorBoundaryProps = {
 
 type TerminalErrorBoundaryState = {
 	hasError: boolean;
-};
-
-type HostUrlModalState = {
-	mode: HostUrlModalMode;
-	slot: HostBrowserUrlSlot;
-	panePath: string;
-	initialValue: string;
 };
 
 class TerminalErrorBoundary extends React.Component<
@@ -706,50 +682,17 @@ function ShellDetail() {
 	const lastKeyboardVisibleRef = useRef(false);
 	const appStateRef = useRef(AppState.currentState);
 	const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
-	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
-	const [browserActionsOpen, setBrowserActionsOpen] = useState(false);
-	const [commanderOpen, setCommanderOpen] = useState(false);
-	const [textEntryOpen, setTextEntryOpen] = useState(false);
-	const [skillSelectorOpen, setSkillSelectorOpen] = useState(false);
-	const [skillSelectorSkills, setSkillSelectorSkills] = useState<
-		DiscoveredSkill[]
-	>([]);
-	const [skillSelectorLoading, setSkillSelectorLoading] = useState(false);
-	const [skillSelectorError, setSkillSelectorError] = useState<string | null>(
-		null,
-	);
-	const skillSelectorRequestIdRef = useRef(0);
-	const skillSelectorActiveSourceKeyRef = useRef<string | null>(null);
-	const closeSkillSelector = useCallback(() => {
-		skillSelectorRequestIdRef.current += 1;
-		skillSelectorActiveSourceKeyRef.current = null;
-		setSkillSelectorOpen(false);
-		setSkillSelectorLoading(false);
-		setSkillSelectorError(null);
-		setSkillSelectorSkills([]);
-	}, []);
+	const {
+		commandPresets: commandPresetsModal,
+		commander: commanderModal,
+		textEntry: textEntryModal,
+		configure: configureModal,
+	} = useShellSimpleModals();
 	const [autoWisprEnabled, setAutoWisprEnabled] = useState(false);
 	const [wisprTextEditorAvailability, setWisprTextEditorAvailability] =
 		useState<WisprTextEditorAvailability>({ type: 'ready' });
 	const [wisprAutomationState, setWisprAutomationState] =
 		useState<WisprAutomationState>({ phase: 'idle' });
-	const [configureOpen, setConfigureOpen] = useState(false);
-	const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
-	const [featureRequestSubmitting, setFeatureRequestSubmitting] =
-		useState(false);
-	const [featureRequestTargetRepository, setFeatureRequestTargetRepository] =
-		useState<string | null>(null);
-	const [featureRequestResolvingTarget, setFeatureRequestResolvingTarget] =
-		useState(false);
-	const [featureRequestError, setFeatureRequestError] = useState<
-		string | undefined
-	>(undefined);
-	const [hostUrlModalState, setHostUrlModalState] =
-		useState<HostUrlModalState | null>(null);
-	const [hostUrlModalSubmitting, setHostUrlModalSubmitting] = useState(false);
-	const [hostUrlModalError, setHostUrlModalError] = useState<string | null>(
-		null,
-	);
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
@@ -762,7 +705,6 @@ function ShellDetail() {
 	const wisprAutomationStateRef = useRef<WisprAutomationState>({
 		phase: 'idle',
 	});
-	const textEntryOpenRef = useRef(false);
 	const autoWisprEnabledRef = useRef(false);
 	const wisprTextEntryValueRef = useRef('');
 	const cleanupWisprTextEntryOnUnmountRef = useRef<() => void>(() => {});
@@ -785,51 +727,6 @@ function ShellDetail() {
 	);
 	const wisprAutoCloseAttemptIdRef = useRef(0);
 	const wisprAutomationRequestIdRef = useRef(0);
-	const hostUrlReadRequestIdRef = useRef(0);
-	const hostUrlSubmitRequestIdRef = useRef(0);
-	const hostUrlSubmitInFlightRef = useRef(false);
-	const featureRequestResolveRequestIdRef = useRef(0);
-	const featureRequestSubmitRequestIdRef = useRef(0);
-	const featureRequestSubmitInFlightRef = useRef(false);
-	const featureRequestSourceStaleRef = useRef(false);
-	const browserGitHubTargetRequestIdRef = useRef(0);
-	const hostDiffityRequestIdRef = useRef(0);
-	const hostDiffityInFlightRef = useRef(false);
-	const invalidateHostUrlReads = useCallback(() => {
-		hostUrlReadRequestIdRef.current += 1;
-	}, []);
-	const resetHostUrlModal = useCallback(() => {
-		hostUrlReadRequestIdRef.current += 1;
-		hostUrlSubmitRequestIdRef.current += 1;
-		hostUrlSubmitInFlightRef.current = false;
-		setHostUrlModalState(null);
-		setHostUrlModalSubmitting(false);
-		setHostUrlModalError(null);
-	}, []);
-	const cancelFeatureRequestRequests = useCallback(() => {
-		featureRequestResolveRequestIdRef.current += 1;
-		featureRequestSubmitRequestIdRef.current += 1;
-	}, []);
-	const resetFeatureRequestState = useCallback(() => {
-		setFeatureRequestOpen(false);
-		setFeatureRequestSubmitting(false);
-		setFeatureRequestResolvingTarget(false);
-		setFeatureRequestTargetRepository(null);
-		setFeatureRequestError(undefined);
-	}, []);
-	const closeFeatureRequest = useCallback(() => {
-		if (featureRequestSubmitInFlightRef.current || featureRequestSubmitting) {
-			return false;
-		}
-		cancelFeatureRequestRequests();
-		featureRequestSourceStaleRef.current = false;
-		resetFeatureRequestState();
-		return true;
-	}, [
-		cancelFeatureRequestRequests,
-		featureRequestSubmitting,
-		resetFeatureRequestState,
-	]);
 	const agentNotificationAckRequestIdRef = useRef(0);
 	const handledAgentAlertRouteRef = useRef<string | null>(null);
 	const acknowledgeVisibleAgentNotificationRef = useRef<() => void>(() => {});
@@ -843,7 +740,6 @@ function ShellDetail() {
 	);
 	const lastSelectionRef = useRef<{ text: string; at: number } | null>(null);
 	const { width, height } = useWindowDimensions();
-	textEntryOpenRef.current = textEntryOpen;
 	autoWisprEnabledRef.current = autoWisprEnabled;
 	const touchScrollEnabled =
 		Platform.OS === 'android' &&
@@ -1139,9 +1035,9 @@ function ShellDetail() {
 				}, scheduledDelay);
 				commandTimeoutsRef.current.push(timeoutId);
 			});
-			setCommandPresetsOpen(false);
+			commandPresetsModal.onClose();
 		},
-		[clearCommandTimeouts, exitSelectionMode, sendCommandStep],
+		[clearCommandTimeouts, commandPresetsModal, exitSelectionMode, sendCommandStep],
 	);
 
 	const runCommandPreset = useCallback(
@@ -1623,7 +1519,7 @@ function ShellDetail() {
 							return;
 						}
 						if (
-							!textEntryOpenRef.current ||
+							!textEntryModal.openRef.current ||
 							!isWisprAutomationRequestActive(requestId) ||
 							wisprTextEntryAutoStartedRequestIdRef.current !== requestId
 						) {
@@ -1717,6 +1613,7 @@ function ShellDetail() {
 			expirePendingWisprAutoCloseRequest,
 			isWisprAutomationRequestActive,
 			tapWisprControlWithRetry,
+			textEntryModal,
 		],
 	);
 
@@ -1779,7 +1676,7 @@ function ShellDetail() {
 		const requestId = wisprDeferredAutoStartRequestIdRef.current;
 		if (requestId == null) return;
 		if (
-			!textEntryOpenRef.current ||
+			!textEntryModal.openRef.current ||
 			!autoWisprEnabledRef.current ||
 			!isWisprAutomationRequestActive(requestId)
 		) {
@@ -1800,7 +1697,7 @@ function ShellDetail() {
 			}
 			if (
 				!enabled ||
-				!textEntryOpen ||
+				!textEntryModal.open ||
 				wisprTextEditorAvailability.type !== 'ready'
 			) {
 				return;
@@ -1815,11 +1712,111 @@ function ShellDetail() {
 			wisprAutomationRequestIdRef.current = requestId;
 			startWisprTextEntryAutomation(requestId);
 		},
-		[startWisprTextEntryAutomation, textEntryOpen, wisprTextEditorAvailability],
+		[startWisprTextEntryAutomation, textEntryModal, wisprTextEditorAvailability],
 	);
 
+	const handleCloseTextEntry = useCallback(() => {
+		const autoCloseDecision = resolveWisprAutoCloseOnTextEntryClose({
+			autoStartedRequestId: wisprTextEntryAutoStartedRequestIdRef.current,
+			automationState: wisprAutomationStateRef.current,
+			controlTapStartedRequestId:
+				wisprTextEntryControlTapStartedRequestIdRef.current,
+			timedOutStartRequestId: wisprTextEntryTimedOutStartRequestIdRef.current,
+		});
+		textEntryModal.onClose();
+		wisprDeferredAutoStartRequestIdRef.current = null;
+		resetWisprAutomation();
+		consumeWisprAutoCloseDecision(autoCloseDecision);
+	}, [consumeWisprAutoCloseDecision, resetWisprAutomation, textEntryModal]);
+
+	const activeTmuxSessionName = tmuxTarget.trim() || 'main';
+	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${activeTmuxSessionName}`;
+
+	const skillSelectorCloseRef = useRef<() => void>(() => {});
+	const featureRequestCloseRef = useRef<() => boolean>(() => true);
+
+	const closeBrowserActionsOtherModals = useCallback((): boolean => {
+		commandPresetsModal.onClose();
+		commanderModal.onClose();
+		skillSelectorCloseRef.current();
+		handleCloseTextEntry();
+		configureModal.onClose();
+		if (!featureRequestCloseRef.current()) return false;
+		return true;
+	}, [
+		commandPresetsModal,
+		commanderModal,
+		configureModal,
+		handleCloseTextEntry,
+	]);
+
+	const browserActions = useBrowserActionsController({
+		connection: connection ?? null,
+		tmuxEnabled,
+		tmuxTarget,
+		executeSideChannelCommand,
+		getErrorMessage,
+		closeOtherModals: closeBrowserActionsOtherModals,
+	});
+
+	const closeFeatureRequestOtherModals = useCallback(() => {
+		browserActions.invalidateHostUrlReads();
+		skillSelectorCloseRef.current();
+		browserActions.close();
+		configureModal.onClose();
+	}, [browserActions, configureModal]);
+
+	const featureRequest = useFeatureRequestController({
+		connection: connection ?? null,
+		resolveCurrentGitHubRepository: browserActions.resolveCurrentGitHubRepository,
+		executeSideChannelCommand,
+		getErrorMessage,
+		logger,
+		closeOtherModals: closeFeatureRequestOtherModals,
+	});
+
+	const closeSkillSelectorOtherModals = useCallback(() => {
+		commandPresetsModal.onClose();
+		browserActions.close();
+		commanderModal.onClose();
+		configureModal.onClose();
+		if (!featureRequestCloseRef.current()) return false;
+		handleCloseTextEntry();
+		return true;
+	}, [
+		browserActions,
+		commandPresetsModal,
+		commanderModal,
+		configureModal,
+		handleCloseTextEntry,
+	]);
+
+	const skillSelector = useSkillSelectorController({
+		connection,
+		tmuxEnabled,
+		runHostBrowserCommand: browserActions.runHostBrowserCommand,
+		resolveHostBrowserPanePath: browserActions.resolveHostBrowserPanePath,
+		sendTextRaw,
+		sourceKey: skillSelectorSourceKey,
+		getErrorMessage,
+		closeOtherModals: closeSkillSelectorOtherModals,
+	});
+
+	skillSelectorCloseRef.current = skillSelector.close;
+	featureRequestCloseRef.current = featureRequest.close;
+
+	const sourceKeyChangeTrackerRef = useRef(skillSelectorSourceKey);
+
+	useLayoutEffect(() => {
+		if (sourceKeyChangeTrackerRef.current === skillSelectorSourceKey) return;
+		sourceKeyChangeTrackerRef.current = skillSelectorSourceKey;
+		browserActions.invalidateAll();
+		browserActions.close();
+		featureRequest.markSourceStale();
+	}, [browserActions, featureRequest, skillSelectorSourceKey]);
+
 	const handleOpenWisprTextEditor = useCallback(() => {
-		invalidateHostUrlReads();
+		browserActions.invalidateHostUrlReads();
 		const currentState = wisprAutomationStateRef.current;
 		if (currentState.phase !== 'idle' && currentState.phase !== 'failed') {
 			logger.info('Ignoring Wispr text entry while automation is busy', {
@@ -1827,19 +1824,18 @@ function ShellDetail() {
 			});
 			return;
 		}
-		closeSkillSelector();
-		setBrowserActionsOpen(false);
+		skillSelector.close();
+		browserActions.close();
 		if (Platform.OS !== 'android') {
-			setCommanderOpen(false);
-			setCommandPresetsOpen(false);
+			commanderModal.onClose();
+			commandPresetsModal.onClose();
 			setWisprTextEditorAvailability({
 				type: 'setup-required',
 				reason: 'service-disabled',
 				message: 'Wispr automation is only available on Android.',
 				openAccessibilitySettings: false,
 			});
-			textEntryOpenRef.current = true;
-			setTextEntryOpen(true);
+			textEntryModal.onOpen();
 			failWisprAutomation(
 				'unsupported-platform',
 				'Wispr automation is only available on Android.',
@@ -1856,10 +1852,9 @@ function ShellDetail() {
 				const availability = resolveWisprTextEditorAvailability(status);
 				setWisprTextEditorAvailability(availability);
 				if (availability.type === 'setup-required') {
-					setCommanderOpen(false);
-					setCommandPresetsOpen(false);
-					textEntryOpenRef.current = true;
-					setTextEntryOpen(true);
+					commanderModal.onClose();
+					commandPresetsModal.onClose();
+					textEntryModal.onOpen();
 					applyWisprAutomationEvent({
 						type: 'failed',
 						reason: availability.reason,
@@ -1868,25 +1863,23 @@ function ShellDetail() {
 					return;
 				}
 
-				setCommanderOpen(false);
-				setCommandPresetsOpen(false);
-				textEntryOpenRef.current = true;
-				setTextEntryOpen(true);
+				commanderModal.onClose();
+				commandPresetsModal.onClose();
+				textEntryModal.onOpen();
 				if (availability.type === 'ready' && autoWisprEnabledRef.current) {
 					startWisprTextEntryAutomation(requestId);
 				}
 			} catch (error) {
 				if (!isWisprAutomationRequestActive(requestId)) return;
-				setCommanderOpen(false);
-				setCommandPresetsOpen(false);
+				commanderModal.onClose();
+				commandPresetsModal.onClose();
 				setWisprTextEditorAvailability({
 					type: 'setup-required',
 					reason: 'service-disabled',
 					message: 'Wispr automation is unavailable.',
 					openAccessibilitySettings: false,
 				});
-				textEntryOpenRef.current = true;
-				setTextEntryOpen(true);
+				textEntryModal.onOpen();
 				applyWisprAutomationEvent({
 					type: 'failed',
 					reason: 'service-disabled',
@@ -1897,11 +1890,14 @@ function ShellDetail() {
 		})();
 	}, [
 		applyWisprAutomationEvent,
-		closeSkillSelector,
+		browserActions,
+		skillSelector,
+		commanderModal,
+		commandPresetsModal,
 		failWisprAutomation,
-		invalidateHostUrlReads,
 		isWisprAutomationRequestActive,
 		startWisprTextEntryAutomation,
+		textEntryModal,
 	]);
 
 	const handleOpenWisprAutomationSettings = useCallback(() => {
@@ -1910,21 +1906,6 @@ function ShellDetail() {
 			logger.warn('Failed to open accessibility settings', error);
 		});
 	}, []);
-
-	const handleCloseTextEntry = useCallback(() => {
-		const autoCloseDecision = resolveWisprAutoCloseOnTextEntryClose({
-			autoStartedRequestId: wisprTextEntryAutoStartedRequestIdRef.current,
-			automationState: wisprAutomationStateRef.current,
-			controlTapStartedRequestId:
-				wisprTextEntryControlTapStartedRequestIdRef.current,
-			timedOutStartRequestId: wisprTextEntryTimedOutStartRequestIdRef.current,
-		});
-		textEntryOpenRef.current = false;
-		wisprDeferredAutoStartRequestIdRef.current = null;
-		setTextEntryOpen(false);
-		resetWisprAutomation();
-		consumeWisprAutoCloseDecision(autoCloseDecision);
-	}, [consumeWisprAutoCloseDecision, resetWisprAutomation]);
 
 	cleanupWisprTextEntryOnUnmountRef.current = () => {
 		consumeWisprAutoCloseDecision(
@@ -1989,19 +1970,19 @@ function ShellDetail() {
 	}, []);
 
 	const openConfigDialog = useCallback(() => {
-		invalidateHostUrlReads();
-		closeSkillSelector();
-		setBrowserActionsOpen(false);
-		setConfigureOpen(true);
-	}, [closeSkillSelector, invalidateHostUrlReads]);
+		browserActions.invalidateHostUrlReads();
+		skillSelector.close();
+		browserActions.close();
+		configureModal.onOpen();
+	}, [browserActions, skillSelector, configureModal]);
 
 	const handleDevServer = useCallback(() => {
-		setConfigureOpen(false);
+		configureModal.onClose();
 		void Linking.openURL(HANDLE_DEV_SERVER_URL);
-	}, []);
+	}, [configureModal]);
 
 	const handleReloadConfig = useCallback(async () => {
-		setConfigureOpen(false);
+		configureModal.onClose();
 		try {
 			const nextState = await reloadRuntimeShellConfigFromRemote();
 			setShellConfigState(nextState);
@@ -2018,138 +1999,26 @@ function ShellDetail() {
 			}));
 			Alert.alert('Config reload failed', message);
 		}
-	}, []);
+	}, [configureModal]);
 
 	const handleHostConfig = useCallback(() => {
-		setConfigureOpen(false);
+		configureModal.onClose();
 		const editConnectionId = storedConnectionId ?? connectionId;
 		router.replace({
 			pathname: '/',
 			params: { editConnectionId },
 		});
-	}, [connectionId, router, storedConnectionId]);
+	}, [configureModal, connectionId, router, storedConnectionId]);
 
 	const handleOpenGitHubIssues = useCallback(() => {
-		setConfigureOpen(false);
+		configureModal.onClose();
 		void Linking.openURL(GITHUB_ISSUES_URL);
-	}, []);
+	}, [configureModal]);
 
 	const handleOpenShellConfigDocs = useCallback(() => {
-		setConfigureOpen(false);
+		configureModal.onClose();
 		void Linking.openURL(SHELL_CONFIG_DOC_URL);
-	}, []);
-
-	const handleFeatureRequestSubmit = useCallback(
-		async (description: string) => {
-			if (featureRequestSubmitInFlightRef.current) return;
-			const requestId = ++featureRequestSubmitRequestIdRef.current;
-			if (!connection) {
-				setFeatureRequestError('No SSH connection available');
-				return;
-			}
-			if (!featureRequestTargetRepository) {
-				setFeatureRequestError(
-					'Could not resolve GitHub repository for current window.',
-				);
-				return;
-			}
-
-			featureRequestSubmitInFlightRef.current = true;
-			featureRequestSourceStaleRef.current = false;
-			setFeatureRequestSubmitting(true);
-			setFeatureRequestError(undefined);
-			const command = buildCreateGitHubIssueCommand({
-				description,
-				repository: featureRequestTargetRepository,
-			});
-
-			try {
-				// Execute via side-channel SSH session (doesn't interfere with current terminal)
-				const result = await executeSideChannelCommand(
-					connection,
-					command,
-					60000,
-				);
-
-				if (requestId !== featureRequestSubmitRequestIdRef.current) return;
-				if (featureRequestSourceStaleRef.current) {
-					resetFeatureRequestState();
-					featureRequestSourceStaleRef.current = false;
-					return;
-				}
-				if (result.success) {
-					logger.info('Feature request submitted successfully', {
-						output: result.output,
-						issueUrl: result.issueUrl,
-					});
-					setFeatureRequestOpen(false);
-					setFeatureRequestError(undefined);
-					featureRequestSourceStaleRef.current = false;
-					// Extract issue number from URL (format: https://github.com/owner/repo/issues/123)
-					const issueUrl = result.issueUrl ?? null;
-					const issueNumberMatch = issueUrl?.match(/\/issues\/(\d+)$/);
-					const issueNumber = issueNumberMatch?.[1] ?? null;
-					Alert.alert(
-						issueNumber
-							? `Issue #${issueNumber} Created`
-							: 'Feature Request Submitted',
-						issueUrl
-							? `Your request has been created:\n${issueUrl}`
-							: 'Your feature request has been submitted successfully.',
-						[{ text: 'OK' }],
-					);
-				} else {
-					const errorMsg =
-						result.error ||
-						'Failed to create issue. Make sure gh and claude CLIs are installed and authenticated on the remote host.';
-					logger.error('Feature request failed', { error: errorMsg });
-					if (requestId !== featureRequestSubmitRequestIdRef.current) return;
-					setFeatureRequestError(errorMsg);
-				}
-			} catch (err) {
-				const errorMsg =
-					err instanceof Error ? err.message : 'Unknown error occurred';
-				logger.error('Feature request error', { error: err });
-				if (requestId !== featureRequestSubmitRequestIdRef.current) return;
-				if (featureRequestSourceStaleRef.current) {
-					resetFeatureRequestState();
-					featureRequestSourceStaleRef.current = false;
-					return;
-				}
-				setFeatureRequestError(errorMsg);
-			} finally {
-				if (requestId === featureRequestSubmitRequestIdRef.current) {
-					featureRequestSubmitInFlightRef.current = false;
-					setFeatureRequestSubmitting(false);
-				}
-			}
-		},
-		[connection, featureRequestTargetRepository, resetFeatureRequestState],
-	);
-
-	const showHostBrowserError = useCallback((title: string, message: string) => {
-		Alert.alert(title, message);
-	}, []);
-
-	const runHostBrowserCommand = useCallback(
-		async (command: string, timeoutMs = 30_000) => {
-			if (!connection) {
-				throw new Error('No SSH connection available.');
-			}
-			const result = await executeSideChannelCommand(
-				connection,
-				command,
-				timeoutMs,
-			);
-			if (!result.success) {
-				throw new Error(
-					result.error || result.output || 'Remote command failed.',
-				);
-			}
-			return result.output.trim();
-		},
-		[connection],
-	);
+	}, [configureModal]);
 
 	useEffect(() => {
 		void handleAgentNotificationRoute({
@@ -2167,7 +2036,7 @@ function ShellDetail() {
 			},
 			consumeAuthorizedRouteToken: consumeAuthorizedAgentNotificationRouteToken,
 			restoreAuthorizedRouteToken: restoreAuthorizedAgentNotificationRouteToken,
-			runCommand: runHostBrowserCommand,
+			runCommand: browserActions.runHostBrowserCommand,
 			acknowledge: (connectionId, session, windowId) => {
 				acknowledgeRoutedAgentNotification(connectionId, session, windowId);
 			},
@@ -2181,8 +2050,8 @@ function ShellDetail() {
 		agentSession,
 		agentTapToken,
 		agentWindowId,
+		browserActions.runHostBrowserCommand,
 		connectionStoredConnectionId,
-		runHostBrowserCommand,
 		tmuxTarget,
 	]);
 
@@ -2203,16 +2072,16 @@ function ShellDetail() {
 			nextRequestId: () => ++agentNotificationAckRequestIdRef.current,
 			isCurrentRequest: (requestId) =>
 				requestId === agentNotificationAckRequestIdRef.current,
-			runCommand: runHostBrowserCommand,
+			runCommand: browserActions.runHostBrowserCommand,
 			acknowledge: acknowledgeRoutedAgentNotification,
 			warn: (message, error) => {
 				logger.warn(message, error);
 			},
 		});
 	}, [
+		browserActions.runHostBrowserCommand,
 		channelId,
 		connectionStoredConnectionId,
-		runHostBrowserCommand,
 		tmuxEnabled,
 		tmuxTarget,
 	]);
@@ -2260,482 +2129,6 @@ function ShellDetail() {
 		});
 	}, []);
 
-	const resolveHostBrowserPanePath = useCallback(async () => {
-		if (!tmuxEnabled) {
-			throw new Error(
-				'Host browser actions require a tmux-enabled connection.',
-			);
-		}
-		const sessionName = tmuxTarget.trim() || 'main';
-		const output = await runHostBrowserCommand(
-			buildHostBrowserPanePathCommand(sessionName),
-			10_000,
-		);
-		const panePath = output
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.at(-1);
-		if (!panePath) {
-			throw new Error(
-				`Could not resolve pane path for tmux session ${sessionName}.`,
-			);
-		}
-		return panePath;
-	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
-
-	const resolveCurrentGitHubRepository = useCallback(async () => {
-		const panePath = await resolveHostBrowserPanePath();
-		const output = await runHostBrowserCommand(
-			buildResolveGitHubRepositoryCommand(panePath),
-			10_000,
-		);
-		const repository = parseGitHubRepositoryResolutionOutput(output);
-		if (!repository) {
-			throw new Error(
-				'Could not resolve GitHub repository for current window.',
-			);
-		}
-		return repository;
-	}, [resolveHostBrowserPanePath, runHostBrowserCommand]);
-
-	const handleOpenFeatureRequest = useCallback(() => {
-		if (featureRequestSubmitting) return;
-		const requestId = ++featureRequestResolveRequestIdRef.current;
-		featureRequestSubmitRequestIdRef.current += 1;
-		invalidateHostUrlReads();
-		closeSkillSelector();
-		setBrowserActionsOpen(false);
-		setConfigureOpen(false);
-		resetFeatureRequestState();
-		setFeatureRequestOpen(true);
-
-		void (async () => {
-			setFeatureRequestResolvingTarget(true);
-			try {
-				const repository = await resolveCurrentGitHubRepository();
-				if (requestId !== featureRequestResolveRequestIdRef.current) return;
-				setFeatureRequestTargetRepository(repository);
-				setFeatureRequestError(undefined);
-			} catch (error) {
-				if (requestId !== featureRequestResolveRequestIdRef.current) return;
-				setFeatureRequestTargetRepository(null);
-				setFeatureRequestError(getErrorMessage(error));
-			} finally {
-				if (requestId === featureRequestResolveRequestIdRef.current) {
-					setFeatureRequestResolvingTarget(false);
-				}
-			}
-		})();
-	}, [
-		closeSkillSelector,
-		featureRequestSubmitting,
-		invalidateHostUrlReads,
-		resetFeatureRequestState,
-		resolveCurrentGitHubRepository,
-	]);
-
-	const activeTmuxSessionName = tmuxTarget.trim() || 'main';
-	const skillSelectorSourceKey = `${connectionId}:${connectionStoredConnectionId ?? ''}:${channelId}:${tmuxEnabled ? 'tmux' : 'plain'}:${activeTmuxSessionName}`;
-	const skillSelectorSourceKeyRef = useRef(skillSelectorSourceKey);
-	const skillSelectorCurrentSourceKeyRef = useRef(skillSelectorSourceKey);
-	skillSelectorCurrentSourceKeyRef.current = skillSelectorSourceKey;
-	const skillSelectorVisible =
-		skillSelectorOpen &&
-		skillSelectorActiveSourceKeyRef.current === skillSelectorSourceKey;
-
-	const loadSkillSelectorSkills = useCallback(async () => {
-		const requestSourceKey = skillSelectorCurrentSourceKeyRef.current;
-		const requestId = skillSelectorRequestIdRef.current + 1;
-		skillSelectorRequestIdRef.current = requestId;
-		skillSelectorActiveSourceKeyRef.current = requestSourceKey;
-		setSkillSelectorLoading(true);
-		setSkillSelectorError(null);
-		setSkillSelectorSkills([]);
-
-		try {
-			if (!connection) {
-				throw new Error('No SSH connection available.');
-			}
-			if (!tmuxEnabled) {
-				throw new Error('Skill selector requires a tmux-enabled connection.');
-			}
-			const panePath = await resolveHostBrowserPanePath();
-			if (skillSelectorCurrentSourceKeyRef.current !== requestSourceKey) {
-				return;
-			}
-			const output = await runHostBrowserCommand(
-				buildSkillDiscoveryCommand(panePath),
-				10_000,
-			);
-			const skills = parseSkillDiscoveryOutput(output);
-			if (
-				skillSelectorRequestIdRef.current === requestId &&
-				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
-				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
-			) {
-				setSkillSelectorSkills(skills);
-			}
-		} catch (error) {
-			if (
-				skillSelectorRequestIdRef.current === requestId &&
-				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
-				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
-			) {
-				setSkillSelectorError(getErrorMessage(error));
-			}
-		} finally {
-			if (
-				skillSelectorRequestIdRef.current === requestId &&
-				skillSelectorActiveSourceKeyRef.current === requestSourceKey &&
-				skillSelectorCurrentSourceKeyRef.current === requestSourceKey
-			) {
-				setSkillSelectorLoading(false);
-			}
-		}
-	}, [
-		connection,
-		resolveHostBrowserPanePath,
-		runHostBrowserCommand,
-		tmuxEnabled,
-	]);
-
-	const handleOpenSkillSelector = useCallback(() => {
-		setCommandPresetsOpen(false);
-		setBrowserActionsOpen(false);
-		setCommanderOpen(false);
-		setConfigureOpen(false);
-		if (!closeFeatureRequest()) return;
-		resetHostUrlModal();
-		handleCloseTextEntry();
-		setSkillSelectorOpen(true);
-		void loadSkillSelectorSkills();
-	}, [
-		closeFeatureRequest,
-		handleCloseTextEntry,
-		loadSkillSelectorSkills,
-		resetHostUrlModal,
-	]);
-
-	const handleCloseSkillSelector = closeSkillSelector;
-
-	const handleSelectSkill = useCallback(
-		(skill: DiscoveredSkill) => {
-			if (
-				skillSelectorActiveSourceKeyRef.current !==
-				skillSelectorCurrentSourceKeyRef.current
-			) {
-				handleCloseSkillSelector();
-				return;
-			}
-			sendTextRaw(`$${skill.name} `);
-			handleCloseSkillSelector();
-		},
-		[handleCloseSkillSelector, sendTextRaw],
-	);
-
-	useLayoutEffect(() => {
-		if (skillSelectorSourceKeyRef.current === skillSelectorSourceKey) return;
-		skillSelectorSourceKeyRef.current = skillSelectorSourceKey;
-		resetHostUrlModal();
-		hostDiffityRequestIdRef.current += 1;
-		browserGitHubTargetRequestIdRef.current += 1;
-		if (featureRequestSubmitInFlightRef.current) {
-			featureRequestSourceStaleRef.current = true;
-		} else {
-			closeFeatureRequest();
-		}
-		if (skillSelectorOpen) {
-			handleCloseSkillSelector();
-		}
-	}, [
-		closeFeatureRequest,
-		handleCloseSkillSelector,
-		resetHostUrlModal,
-		skillSelectorOpen,
-		skillSelectorSourceKey,
-	]);
-
-	useEffect(() => {
-		return () => {
-			skillSelectorRequestIdRef.current += 1;
-			hostUrlReadRequestIdRef.current += 1;
-			hostUrlSubmitRequestIdRef.current += 1;
-			hostUrlSubmitInFlightRef.current = false;
-			cancelFeatureRequestRequests();
-			featureRequestSubmitInFlightRef.current = false;
-			featureRequestSourceStaleRef.current = false;
-			browserGitHubTargetRequestIdRef.current += 1;
-			hostDiffityRequestIdRef.current += 1;
-			hostDiffityInFlightRef.current = false;
-		};
-	}, [cancelFeatureRequestRequests]);
-
-	const openAndroidUrl = useCallback(async (url: string) => {
-		try {
-			await Linking.openURL(url);
-		} catch (error) {
-			throw new Error(
-				`Android could not open ${url}: ${getErrorMessage(error)}`,
-			);
-		}
-	}, []);
-
-	const handleOpenBrowserActions = useCallback(() => {
-		invalidateHostUrlReads();
-		setCommandPresetsOpen(false);
-		setCommanderOpen(false);
-		closeSkillSelector();
-		handleCloseTextEntry();
-		setConfigureOpen(false);
-		if (!closeFeatureRequest()) return;
-		resetHostUrlModal();
-		setBrowserActionsOpen(true);
-	}, [
-		closeFeatureRequest,
-		closeSkillSelector,
-		handleCloseTextEntry,
-		invalidateHostUrlReads,
-		resetHostUrlModal,
-	]);
-
-	const handleCloseBrowserActions = useCallback(() => {
-		setBrowserActionsOpen(false);
-	}, []);
-
-	const handleOpenGitHubTarget = useCallback(
-		(target: GitHubRepositoryTarget) => {
-			const requestId = ++browserGitHubTargetRequestIdRef.current;
-			const title =
-				target === 'issues'
-					? 'GitHub Issues failed'
-					: 'GitHub Pull Requests failed';
-			void (async () => {
-				try {
-					const repository = await resolveCurrentGitHubRepository();
-					if (requestId !== browserGitHubTargetRequestIdRef.current) return;
-					const url = buildGitHubRepositoryTargetUrl(repository, target);
-					await openAndroidUrl(url);
-				} catch (error) {
-					if (requestId !== browserGitHubTargetRequestIdRef.current) return;
-					showHostBrowserError(title, getErrorMessage(error));
-				}
-			})();
-		},
-		[
-			openAndroidUrl,
-			resolveCurrentGitHubRepository,
-			showHostBrowserError,
-		],
-	);
-
-	const handleOpenGitHubIssuesTarget = useCallback(() => {
-		handleOpenGitHubTarget('issues');
-	}, [handleOpenGitHubTarget]);
-
-	const handleOpenGitHubPullsTarget = useCallback(() => {
-		handleOpenGitHubTarget('pulls');
-	}, [handleOpenGitHubTarget]);
-
-	const handleOpenHostDiffity = useCallback(() => {
-		if (hostDiffityInFlightRef.current) return;
-		const requestId = ++hostDiffityRequestIdRef.current;
-		hostDiffityInFlightRef.current = true;
-		void (async () => {
-			try {
-				const panePath = await resolveHostBrowserPanePath();
-				const output = await runHostBrowserCommand(
-					buildDiffityShareCommand(panePath),
-					60_000,
-				);
-				const url = extractLastHttpsUrl(output);
-				if (!url) {
-					throw new Error(
-						output || 'mdev diffity share did not return an HTTPS URL.',
-					);
-				}
-				if (requestId !== hostDiffityRequestIdRef.current) return;
-				await openAndroidUrl(url);
-			} catch (error) {
-				if (requestId !== hostDiffityRequestIdRef.current) return;
-				showHostBrowserError('Diffity failed', getErrorMessage(error));
-			} finally {
-				hostDiffityInFlightRef.current = false;
-			}
-		})();
-	}, [
-		openAndroidUrl,
-		resolveHostBrowserPanePath,
-		runHostBrowserCommand,
-		showHostBrowserError,
-	]);
-
-	const handleOpenHostUrlSlot = useCallback(
-		(slot: HostBrowserUrlSlot) => {
-			closeSkillSelector();
-			setBrowserActionsOpen(false);
-			const requestId = ++hostUrlReadRequestIdRef.current;
-			void (async () => {
-				try {
-					const panePath = await resolveHostBrowserPanePath();
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					const value = await runHostBrowserCommand(
-						buildTmuxWindowConfigGetCommand(slot, panePath),
-						10_000,
-					);
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					const savedUrl = value.trim();
-					if (savedUrl) {
-						const parsed = parseHostBrowserUrlInput(savedUrl);
-						if (parsed.type === 'invalid') {
-							setHostUrlModalState({
-								mode: 'edit',
-								slot,
-								panePath,
-								initialValue: savedUrl,
-							});
-							setHostUrlModalError(parsed.message);
-							return;
-						}
-						if (parsed.type === 'empty') return;
-						await openAndroidUrl(parsed.url);
-						return;
-					}
-					setHostUrlModalError(null);
-					setHostUrlModalState({
-						mode: 'open-missing',
-						slot,
-						panePath,
-						initialValue: '',
-					});
-				} catch (error) {
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					showHostBrowserError(
-						`${getHostBrowserUrlSlotLabel(slot)} failed`,
-						getErrorMessage(error),
-					);
-				}
-			})();
-		},
-		[
-			closeSkillSelector,
-			openAndroidUrl,
-			resolveHostBrowserPanePath,
-			runHostBrowserCommand,
-			showHostBrowserError,
-		],
-	);
-
-	const handleEditHostUrlSlot = useCallback(
-		(slot: HostBrowserUrlSlot) => {
-			closeSkillSelector();
-			setBrowserActionsOpen(false);
-			const requestId = ++hostUrlReadRequestIdRef.current;
-			void (async () => {
-				try {
-					const panePath = await resolveHostBrowserPanePath();
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					const value = await runHostBrowserCommand(
-						buildTmuxWindowConfigGetCommand(slot, panePath),
-						10_000,
-					);
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					setHostUrlModalError(null);
-					setHostUrlModalState({
-						mode: 'edit',
-						slot,
-						panePath,
-						initialValue: value.trim(),
-					});
-				} catch (error) {
-					if (requestId !== hostUrlReadRequestIdRef.current) return;
-					showHostBrowserError(
-						`Edit ${getHostBrowserUrlSlotLabel(slot)} failed`,
-						getErrorMessage(error),
-					);
-				}
-			})();
-		},
-		[
-			closeSkillSelector,
-			resolveHostBrowserPanePath,
-			runHostBrowserCommand,
-			showHostBrowserError,
-		],
-	);
-
-	const handleCloseHostUrlModal = useCallback(() => {
-		if (hostUrlSubmitInFlightRef.current || hostUrlModalSubmitting) return;
-		resetHostUrlModal();
-	}, [hostUrlModalSubmitting, resetHostUrlModal]);
-
-	const handleSubmitHostUrlModal = useCallback(
-		(value: string) => {
-			const state = hostUrlModalState;
-			if (!state) return;
-			const parsed = parseHostBrowserUrlInput(value);
-			if (parsed.type === 'empty') {
-				setHostUrlModalState(null);
-				setHostUrlModalError(null);
-				return;
-			}
-			if (parsed.type === 'invalid') {
-				setHostUrlModalError(parsed.message);
-				return;
-			}
-
-			if (hostUrlSubmitInFlightRef.current) return;
-			const requestId = ++hostUrlSubmitRequestIdRef.current;
-			hostUrlSubmitInFlightRef.current = true;
-			void (async () => {
-				setHostUrlModalSubmitting(true);
-				setHostUrlModalError(null);
-				try {
-					await runHostBrowserCommand(
-						buildTmuxWindowConfigSetCommand(
-							state.slot,
-							state.panePath,
-							parsed.url,
-						),
-						10_000,
-					);
-					if (requestId !== hostUrlSubmitRequestIdRef.current) return;
-					if (state.mode === 'open-missing') {
-						await openAndroidUrl(parsed.url);
-						if (requestId !== hostUrlSubmitRequestIdRef.current) return;
-					}
-					setHostUrlModalState(null);
-				} catch (error) {
-					if (requestId !== hostUrlSubmitRequestIdRef.current) return;
-					setHostUrlModalError(getErrorMessage(error));
-				} finally {
-					if (requestId === hostUrlSubmitRequestIdRef.current) {
-						hostUrlSubmitInFlightRef.current = false;
-						setHostUrlModalSubmitting(false);
-					}
-				}
-			})();
-		},
-		[hostUrlModalState, openAndroidUrl, runHostBrowserCommand],
-	);
-
-	const handleCycleWorkmuxStatus = useCallback(() => {
-		void (async () => {
-			try {
-				if (!tmuxEnabled) {
-					throw new Error('Status cycle requires a tmux-enabled connection.');
-				}
-				const sessionName = tmuxTarget.trim() || 'main';
-				await runHostBrowserCommand(
-					buildHostBrowserStatusCycleCommand(sessionName),
-					10_000,
-				);
-			} catch (error) {
-				showHostBrowserError('Status cycle failed', getErrorMessage(error));
-			}
-		})();
-	}, [runHostBrowserCommand, showHostBrowserError, tmuxEnabled, tmuxTarget]);
-
 	const actionContext = useMemo<ActionContext>(
 		() => ({
 			availableKeyboardIds,
@@ -2748,45 +2141,45 @@ function ShellDetail() {
 			pasteClipboard: handlePasteClipboard,
 			copySelection: handleCopySelection,
 			toggleCommandPresets: () => {
-				invalidateHostUrlReads();
-				setCommanderOpen(false);
-				setBrowserActionsOpen(false);
-				closeSkillSelector();
+				browserActions.invalidateHostUrlReads();
+				commanderModal.onClose();
+				browserActions.close();
+				skillSelector.close();
 				handleCloseTextEntry();
-				setCommandPresetsOpen((prev) => !prev);
+				if (commandPresetsModal.open) {
+					commandPresetsModal.onClose();
+				} else {
+					commandPresetsModal.onOpen();
+				}
 			},
 			openCommander: () => {
-				invalidateHostUrlReads();
-				setCommandPresetsOpen(false);
-				setBrowserActionsOpen(false);
-				closeSkillSelector();
+				browserActions.invalidateHostUrlReads();
+				commandPresetsModal.onClose();
+				browserActions.close();
+				skillSelector.close();
 				handleCloseTextEntry();
-				setCommanderOpen(true);
+				commanderModal.onOpen();
 			},
-			openSkillSelector: handleOpenSkillSelector,
-			openRepoFeatureRequest: handleOpenFeatureRequest,
+			openSkillSelector: skillSelector.open,
+			openRepoFeatureRequest: featureRequest.open,
 			openWisprTextEditor: handleOpenWisprTextEditor,
-			openBrowserActions: handleOpenBrowserActions,
-			openHostDiffity: handleOpenHostDiffity,
-			openHostUrlSlot: handleOpenHostUrlSlot,
-			editHostUrlSlot: handleEditHostUrlSlot,
-			cycleWorkmuxStatus: handleCycleWorkmuxStatus,
+			openBrowserActions: browserActions.open,
+			openHostDiffity: browserActions.browserActionsProps.onOpenDiff,
+			openHostUrlSlot: browserActions.browserActionsProps.onOpenUrlSlot,
+			editHostUrlSlot: browserActions.browserActionsProps.onEditUrlSlot,
+			cycleWorkmuxStatus: browserActions.cycleWorkmuxStatus,
 		}),
 		[
 			availableKeyboardIds,
-			closeSkillSelector,
-			handleCycleWorkmuxStatus,
+			browserActions,
+			featureRequest.open,
+			skillSelector,
+			commandPresetsModal,
+			commanderModal,
 			handleCopySelection,
 			handleCloseTextEntry,
-			handleEditHostUrlSlot,
-			handleOpenHostDiffity,
-			handleOpenHostUrlSlot,
-			handleOpenFeatureRequest,
-			handleOpenBrowserActions,
-			handleOpenSkillSelector,
 			handlePasteClipboard,
 			handleOpenWisprTextEditor,
-			invalidateHostUrlReads,
 			openConfigDialog,
 			rotateKeyboard,
 			shellConfig,
@@ -3377,30 +2770,20 @@ function ShellDetail() {
 					onCopySelection={handleCopySelection}
 				/>
 				<CommandPresetsModal
-					open={commandPresetsOpen}
+					open={commandPresetsModal.open}
 					presets={shellConfig.commandMenus}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={() => {
-						setCommandPresetsOpen(false);
-					}}
+					onClose={commandPresetsModal.onClose}
 					onSelect={runCommandPreset}
 				/>
 				<BrowserActionsModal
-					open={browserActionsOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={handleCloseBrowserActions}
-					onOpenDiff={handleOpenHostDiffity}
-					onOpenGitHubIssues={handleOpenGitHubIssuesTarget}
-					onOpenGitHubPulls={handleOpenGitHubPullsTarget}
-					onOpenUrlSlot={handleOpenHostUrlSlot}
-					onEditUrlSlot={handleEditHostUrlSlot}
+					{...browserActions.browserActionsProps}
 				/>
 				<TerminalCommanderModal
-					open={commanderOpen}
+					open={commanderModal.open}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={() => {
-						setCommanderOpen(false);
-					}}
+					onClose={commanderModal.onClose}
 					onExecuteCommand={(value) => {
 						const segments = buildCommanderExecuteSegments(value);
 						if (!segments.length) return;
@@ -3417,17 +2800,11 @@ function ShellDetail() {
 					}}
 				/>
 				<SkillSelectorModal
-					open={skillSelectorVisible}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					skills={skillSelectorSkills}
-					isLoading={skillSelectorLoading}
-					error={skillSelectorError}
-					onClose={handleCloseSkillSelector}
-					onRetry={loadSkillSelectorSkills}
-					onSelect={handleSelectSkill}
+					{...skillSelector.modalProps}
 				/>
 				<TextEntryModal
-					open={textEntryOpen}
+					open={textEntryModal.open}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
 					wisprMode={wisprMode}
 					wisprControl={wisprControl}
@@ -3439,32 +2816,26 @@ function ShellDetail() {
 					onValueChange={handleWisprTextEntryValueChange}
 				/>
 				<HostUrlModal
-					open={hostUrlModalState != null}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					slotLabel={
-						hostUrlModalState
-							? getHostBrowserUrlSlotLabel(hostUrlModalState.slot)
-							: 'URL'
-					}
-					initialValue={hostUrlModalState?.initialValue ?? ''}
-					mode={hostUrlModalState?.mode ?? 'edit'}
-					isSubmitting={hostUrlModalSubmitting}
-					error={hostUrlModalError}
-					onClose={handleCloseHostUrlModal}
-					onSubmit={handleSubmitHostUrlModal}
+					open={browserActions.hostUrlProps.open}
+					slotLabel={browserActions.hostUrlProps.slotLabel}
+					initialValue={browserActions.hostUrlProps.initialValue}
+					mode={browserActions.hostUrlProps.mode}
+					isSubmitting={browserActions.hostUrlProps.isSubmitting}
+					error={browserActions.hostUrlProps.error}
+					onClose={browserActions.hostUrlProps.onClose}
+					onSubmit={browserActions.hostUrlProps.onSubmit}
 				/>
 				<ConfigureModal
-					open={configureOpen}
+					open={configureModal.open}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={() => {
-						setConfigureOpen(false);
-					}}
+					onClose={configureModal.onClose}
 					onDevServer={handleDevServer}
 					onReloadConfig={handleReloadConfig}
 					onHostConfig={handleHostConfig}
 					onOpenGitHubIssues={handleOpenGitHubIssues}
 					onOpenShellConfigDocs={handleOpenShellConfigDocs}
-					onRequestFeature={handleOpenFeatureRequest}
+					onRequestFeature={featureRequest.open}
 					configVersion={shellConfig.version}
 					configUpdatedAt={shellConfig.updatedAt}
 					configSource={shellConfigState.source}
@@ -3472,14 +2843,8 @@ function ShellDetail() {
 					configLastError={shellConfigState.lastError}
 				/>
 				<FeatureRequestModal
-					open={featureRequestOpen}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={closeFeatureRequest}
-					onSubmit={handleFeatureRequestSubmit}
-					targetRepository={featureRequestTargetRepository}
-					isResolvingTarget={featureRequestResolvingTarget}
-					isSubmitting={featureRequestSubmitting}
-					error={featureRequestError}
+					{...featureRequest.modalProps}
 				/>
 				{showReconnectOverlay && (
 					<View

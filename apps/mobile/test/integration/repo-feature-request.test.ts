@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
 	buildCreateGitHubIssueCommand,
+	buildFeatureRequestSubmittedAlert,
 	buildGitHubRepositoryTargetUrl,
 	buildResolveGitHubRepositoryCommand,
 	isGitHubRepositoryTarget,
@@ -91,5 +92,48 @@ void test('GitHub repository target helpers build Issues and Pull Requests URLs'
 	assert.throws(
 		() => buildGitHubRepositoryTargetUrl('not a repo', 'issues'),
 		/Invalid GitHub repository/,
+	);
+});
+
+void test('buildFeatureRequestSubmittedAlert formats title and message when issue URL has a number', () => {
+	const alert = buildFeatureRequestSubmittedAlert({
+		issueUrl: 'https://github.com/mulyoved/fressh/issues/123',
+	});
+	assert.equal(alert.title, 'Issue #123 Created');
+	assert.equal(
+		alert.message,
+		'Your request has been created:\nhttps://github.com/mulyoved/fressh/issues/123',
+	);
+});
+
+void test('buildFeatureRequestSubmittedAlert falls back to generic title when URL has no issue number', () => {
+	const alert = buildFeatureRequestSubmittedAlert({
+		issueUrl: 'https://github.com/mulyoved/fressh/pulls/123',
+	});
+	assert.equal(alert.title, 'Feature Request Submitted');
+	assert.equal(
+		alert.message,
+		'Your request has been created:\nhttps://github.com/mulyoved/fressh/pulls/123',
+	);
+});
+
+void test('buildFeatureRequestSubmittedAlert falls back to generic message when URL is null', () => {
+	const alert = buildFeatureRequestSubmittedAlert({ issueUrl: null });
+	assert.equal(alert.title, 'Feature Request Submitted');
+	assert.equal(
+		alert.message,
+		'Your feature request has been submitted successfully.',
+	);
+});
+
+void test('buildFeatureRequestSubmittedAlert tolerates trailing slash on issue URL', () => {
+	const alert = buildFeatureRequestSubmittedAlert({
+		issueUrl: 'https://github.com/owner/repo/issues/42/',
+	});
+	// Regex anchors at end so a trailing slash means no issue number is extracted.
+	assert.equal(alert.title, 'Feature Request Submitted');
+	assert.equal(
+		alert.message,
+		'Your request has been created:\nhttps://github.com/owner/repo/issues/42/',
 	);
 });
