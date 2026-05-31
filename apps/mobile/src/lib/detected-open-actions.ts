@@ -15,6 +15,11 @@ export type RunDetectedOpenCommandDeps = {
 
 export type DetectedOpenInFlightRef = { current: boolean };
 
+export type DetectedOpenCallbackTarget = {
+	onOpenDetectedAuto: () => boolean;
+	onOpenDetectedPick: () => boolean;
+};
+
 export function tryBeginDetectedOpenRequest({
 	inFlightRef,
 	onBusy,
@@ -38,6 +43,15 @@ export function finishDetectedOpenRequest(
 
 export function getDetectedOpenTimeoutMs(mode: HostBrowserOpenMode): number {
 	return mode === 'pick' ? 60_000 : 30_000;
+}
+
+export function runDetectedOpenCallback(
+	mode: HostBrowserOpenMode,
+	target: DetectedOpenCallbackTarget,
+): boolean {
+	return mode === 'pick'
+		? target.onOpenDetectedPick()
+		: target.onOpenDetectedAuto();
 }
 
 export async function runDetectedOpenCommand({

@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
 	finishDetectedOpenRequest,
 	getDetectedOpenTimeoutMs,
+	runDetectedOpenCallback,
 	runDetectedOpenCommand,
 	tryBeginDetectedOpenRequest,
 } from '../../src/lib/detected-open-actions';
@@ -64,6 +65,42 @@ void test('detected open request finish clears in-flight state', () => {
 	);
 	assert.equal(inFlightRef.current, true);
 	assert.equal(busyCalls, 0);
+});
+
+void test('detected open callback runs auto target only', () => {
+	const calls: string[] = [];
+
+	const result = runDetectedOpenCallback('auto', {
+		onOpenDetectedAuto: () => {
+			calls.push('auto');
+			return true;
+		},
+		onOpenDetectedPick: () => {
+			calls.push('pick');
+			return false;
+		},
+	});
+
+	assert.equal(result, true);
+	assert.deepEqual(calls, ['auto']);
+});
+
+void test('detected open callback runs pick target only', () => {
+	const calls: string[] = [];
+
+	const result = runDetectedOpenCallback('pick', {
+		onOpenDetectedAuto: () => {
+			calls.push('auto');
+			return true;
+		},
+		onOpenDetectedPick: () => {
+			calls.push('pick');
+			return false;
+		},
+	});
+
+	assert.equal(result, false);
+	assert.deepEqual(calls, ['pick']);
 });
 
 void test('detected open command runs auto mode with pane context', async () => {

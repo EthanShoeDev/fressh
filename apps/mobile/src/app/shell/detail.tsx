@@ -53,6 +53,7 @@ import {
 } from '@/lib/agent-notification-visibility';
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
+import { runDetectedOpenCallback } from '@/lib/detected-open-actions';
 import {
 	HANDLE_DEV_SERVER_URL,
 	runAction,
@@ -2167,11 +2168,7 @@ function ShellDetail() {
 			openHostDiffity: browserActions.browserActionsProps.onOpenDiff,
 			openHostUrlSlot: browserActions.browserActionsProps.onOpenUrlSlot,
 			openHostDetected: (mode) => {
-				if (mode === 'pick') {
-					browserActions.browserActionsProps.onOpenDetectedPick();
-					return;
-				}
-				browserActions.browserActionsProps.onOpenDetectedAuto();
+				runDetectedOpenCallback(mode, browserActions.browserActionsProps);
 			},
 			editHostUrlSlot: browserActions.browserActionsProps.onEditUrlSlot,
 			cycleWorkmuxStatus: browserActions.cycleWorkmuxStatus,

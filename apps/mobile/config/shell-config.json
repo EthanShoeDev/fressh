@@ -437,14 +437,14 @@
 						"icon": "BookOpen"
 					},
 					{
-						"type": "action",
-						"actionId": "OPEN_HOST_DETECTED_AUTO",
+						"type": "bytes",
+						"bytes": [27, 97],
 						"label": "Open",
 						"icon": "ExternalLink"
 					},
 					{
-						"type": "action",
-						"actionId": "OPEN_HOST_DETECTED_PICK",
+						"type": "bytes",
+						"bytes": [27, 65],
 						"label": "Pick",
 						"icon": "List"
 					},

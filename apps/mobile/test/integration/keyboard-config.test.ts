@@ -340,14 +340,14 @@ void test('browser keyboard exposes host navigation actions', () => {
 			icon: 'BookOpen',
 		},
 		{
-			type: 'action',
-			actionId: 'OPEN_HOST_DETECTED_AUTO',
+			type: 'bytes',
+			bytes: [27, 97],
 			label: 'Open',
 			icon: 'ExternalLink',
 		},
 		{
-			type: 'action',
-			actionId: 'OPEN_HOST_DETECTED_PICK',
+			type: 'bytes',
+			bytes: [27, 65],
 			label: 'Pick',
 			icon: 'List',
 		},
@@ -371,6 +371,14 @@ void test('browser keyboard exposes host navigation actions', () => {
 		row.flatMap((item) => (item?.type === 'action' ? [item.actionId] : [])),
 	);
 	assert.equal(browserKeyboardActionIds.includes('OPEN_HOST_URL_APP'), false);
+	assert.equal(
+		browserKeyboardActionIds.includes('OPEN_HOST_DETECTED_AUTO'),
+		false,
+	);
+	assert.equal(
+		browserKeyboardActionIds.includes('OPEN_HOST_DETECTED_PICK'),
+		false,
+	);
 	assert.deepEqual(config.macrosByKeyboardId.browser_keyboard, []);
 });
 
