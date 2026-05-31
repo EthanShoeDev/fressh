@@ -108,20 +108,23 @@ export function buildTmuxWindowConfigSetCommand(
 export function parseTmuxPaneContextOutput(
 	output: string,
 ): TmuxPaneContext | null {
-	const line = output
+	const lines = output
 		.split(/\r?\n/)
 		.map((item) => item.trim())
-		.filter(Boolean)
-		.at(-1);
-	if (!line) return null;
+		.filter(Boolean);
 
-	const [paneIdRaw, paneTtyRaw, ...panePathParts] = line.split('\t');
-	const paneId = paneIdRaw?.trim() ?? '';
-	const paneTty = paneTtyRaw?.trim() ?? '';
-	const panePath = panePathParts.join('\t').trim();
-	if (!paneId || !paneTty || !panePath) return null;
+	for (let index = lines.length - 1; index >= 0; index -= 1) {
+		const [paneIdRaw, paneTtyRaw, ...panePathParts] =
+			lines[index]?.split('\t') ?? [];
+		const paneId = paneIdRaw?.trim() ?? '';
+		const paneTty = paneTtyRaw?.trim() ?? '';
+		const panePath = panePathParts.join('\t').trim();
+		if (paneId && paneTty && panePath) {
+			return { paneId, paneTty, panePath };
+		}
+	}
 
-	return { paneId, paneTty, panePath };
+	return null;
 }
 
 export function buildMdevOpenCommand(

@@ -88,6 +88,7 @@ void test('parseTmuxPaneContextOutput returns the last complete pane context lin
 				'%2\t/dev/pts/7\t/home/muly/work repo',
 				'',
 				'%3\t/dev/pts/8\t/tmp/repo with spaces',
+				'trailing noise',
 			].join('\n'),
 		),
 		{
