@@ -20,6 +20,25 @@ export type DetectedOpenCallbackTarget = {
 	onOpenDetectedPick: () => boolean;
 };
 
+export type DetectedOpenShortcutItem = {
+	type: string;
+	bytes?: readonly number[];
+};
+
+const BROWSER_KEYBOARD_ID = 'browser_keyboard';
+const DETECTED_OPEN_AUTO_BYTES = [27, 97] as const;
+const DETECTED_OPEN_PICK_BYTES = [27, 65] as const;
+
+function bytesEqual(
+	actual: readonly number[] | undefined,
+	expected: readonly number[],
+): boolean {
+	return (
+		actual?.length === expected.length &&
+		expected.every((byte, index) => actual[index] === byte)
+	);
+}
+
 export function tryBeginDetectedOpenRequest({
 	inFlightRef,
 	onBusy,
@@ -52,6 +71,18 @@ export function runDetectedOpenCallback(
 	return mode === 'pick'
 		? target.onOpenDetectedPick()
 		: target.onOpenDetectedAuto();
+}
+
+export function resolveDetectedOpenShortcutMode(
+	keyboardId: string | null | undefined,
+	item: DetectedOpenShortcutItem,
+): HostBrowserOpenMode | null {
+	if (keyboardId !== BROWSER_KEYBOARD_ID || item.type !== 'bytes') {
+		return null;
+	}
+	if (bytesEqual(item.bytes, DETECTED_OPEN_AUTO_BYTES)) return 'auto';
+	if (bytesEqual(item.bytes, DETECTED_OPEN_PICK_BYTES)) return 'pick';
+	return null;
 }
 
 export async function runDetectedOpenCommand({

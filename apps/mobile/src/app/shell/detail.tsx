@@ -53,7 +53,10 @@ import {
 } from '@/lib/agent-notification-visibility';
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
-import { runDetectedOpenCallback } from '@/lib/detected-open-actions';
+import {
+	resolveDetectedOpenShortcutMode,
+	runDetectedOpenCallback,
+} from '@/lib/detected-open-actions';
 import {
 	HANDLE_DEV_SERVER_URL,
 	runAction,
@@ -2213,6 +2216,10 @@ function ShellDetail() {
 				availableKeyboardIds,
 				currentKeyboard?.id,
 			);
+			const detectedOpenShortcutMode = resolveDetectedOpenShortcutMode(
+				currentKeyboard?.id,
+				slot,
+			);
 
 			switch (slot.type) {
 				case 'modifier':
@@ -2222,7 +2229,13 @@ function ShellDetail() {
 					sendTextWithModifiers(slot.text);
 					break;
 				case 'bytes':
-					sendBytesWithModifiers(new Uint8Array(slot.bytes));
+					if (detectedOpenShortcutMode === 'auto') {
+						handleAction('OPEN_HOST_DETECTED_AUTO');
+					} else if (detectedOpenShortcutMode === 'pick') {
+						handleAction('OPEN_HOST_DETECTED_PICK');
+					} else {
+						sendBytesWithModifiers(new Uint8Array(slot.bytes));
+					}
 					break;
 				case 'macro': {
 					const macro = currentMacros.find(

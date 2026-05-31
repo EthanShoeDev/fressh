@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
 	finishDetectedOpenRequest,
 	getDetectedOpenTimeoutMs,
+	resolveDetectedOpenShortcutMode,
 	runDetectedOpenCallback,
 	runDetectedOpenCommand,
 	tryBeginDetectedOpenRequest,
@@ -101,6 +102,46 @@ void test('detected open callback runs pick target only', () => {
 
 	assert.equal(result, false);
 	assert.deepEqual(calls, ['pick']);
+});
+
+void test('detected open shortcut resolves browser keyboard bytes', () => {
+	assert.equal(
+		resolveDetectedOpenShortcutMode('browser_keyboard', {
+			type: 'bytes',
+			bytes: [27, 97],
+		}),
+		'auto',
+	);
+	assert.equal(
+		resolveDetectedOpenShortcutMode('browser_keyboard', {
+			type: 'bytes',
+			bytes: [27, 65],
+		}),
+		'pick',
+	);
+});
+
+void test('detected open shortcut ignores other keyboard items', () => {
+	assert.equal(
+		resolveDetectedOpenShortcutMode('base_keyboard', {
+			type: 'bytes',
+			bytes: [27, 97],
+		}),
+		null,
+	);
+	assert.equal(
+		resolveDetectedOpenShortcutMode('browser_keyboard', {
+			type: 'bytes',
+			bytes: [27, 66],
+		}),
+		null,
+	);
+	assert.equal(
+		resolveDetectedOpenShortcutMode('browser_keyboard', {
+			type: 'action',
+		}),
+		null,
+	);
 });
 
 void test('detected open command runs auto mode with pane context', async () => {
