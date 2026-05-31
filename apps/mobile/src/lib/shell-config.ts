@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import {
+	CONFIG_SUPPORTED_ACTION_IDS,
 	KEYBOARD_TARGET_ACTION_IDS,
-	KNOWN_ACTION_IDS,
 	type ActionId,
 	type KeyboardTargetActionId,
 } from '@/lib/keyboard-actions';
@@ -87,7 +87,7 @@ export type ShellConfig = {
 	commandMenus: CommandPresetEntry[];
 };
 
-const supportedActionIds = new Set<string>(KNOWN_ACTION_IDS);
+const supportedActionIds = new Set<string>(CONFIG_SUPPORTED_ACTION_IDS);
 const keyboardTargetActionIds = new Set<string>(KEYBOARD_TARGET_ACTION_IDS);
 
 const modifierKeySchema = z.enum(['CTRL', 'ALT', 'SHIFT', 'CMD']);

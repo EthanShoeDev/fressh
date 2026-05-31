@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { KNOWN_ACTION_IDS, runAction } from '../../src/lib/keyboard-actions';
+import {
+	CONFIG_SUPPORTED_ACTION_IDS,
+	KNOWN_ACTION_IDS,
+	runAction,
+} from '../../src/lib/keyboard-actions';
 
 void test('keyboard navigation actions use runtime-configured targets instead of hardcoded ids', async () => {
 	const selectedKeyboardIds: string[] = [];
@@ -91,6 +95,7 @@ void test('repo feature request action delegates to the action context', async (
 void test('host browser actions delegate to action context callbacks', async () => {
 	const openedSlots: string[] = [];
 	const editedSlots: string[] = [];
+	const detectedCalls: string[] = [];
 	let diffityOpened = 0;
 	let statusCycled = 0;
 
@@ -111,6 +116,9 @@ void test('host browser actions delegate to action context callbacks', async () 
 		editHostUrlSlot: (slot: string) => {
 			editedSlots.push(slot);
 		},
+		openHostDetected: (mode: string) => {
+			detectedCalls.push(mode);
+		},
 		cycleWorkmuxStatus: () => {
 			statusCycled += 1;
 		},
@@ -121,6 +129,8 @@ void test('host browser actions delegate to action context callbacks', async () 
 	await runAction('OPEN_HOST_URL_DEV_SERVER', context);
 	await runAction('OPEN_HOST_URL_STORYBOOK', context);
 	await runAction('OPEN_HOST_URL_APP', context);
+	await runAction('OPEN_HOST_DETECTED_AUTO', context);
+	await runAction('OPEN_HOST_DETECTED_PICK', context);
 	await runAction('EDIT_HOST_URL_WINDOW', context);
 	await runAction('EDIT_HOST_URL_DEV_SERVER', context);
 	await runAction('EDIT_HOST_URL_STORYBOOK', context);
@@ -134,6 +144,7 @@ void test('host browser actions delegate to action context callbacks', async () 
 		'storybook-url',
 		'app-url',
 	]);
+	assert.deepEqual(detectedCalls, ['auto', 'pick']);
 	assert.deepEqual(editedSlots, [
 		'window-url',
 		'dev-web-server-url',
@@ -141,6 +152,16 @@ void test('host browser actions delegate to action context callbacks', async () 
 		'app-url',
 	]);
 	assert.equal(statusCycled, 1);
+	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_HOST_DETECTED_AUTO'), true);
+	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_HOST_DETECTED_PICK'), true);
+	assert.equal(
+		CONFIG_SUPPORTED_ACTION_IDS.includes('OPEN_HOST_DETECTED_AUTO'),
+		false,
+	);
+	assert.equal(
+		CONFIG_SUPPORTED_ACTION_IDS.includes('OPEN_HOST_DETECTED_PICK'),
+		false,
+	);
 });
 
 void test('browser keyboard is a target keyboard action', () => {

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getBundledShellConfig } from '../../src/lib/shell-config';
+import { DETECTED_OPEN_SHORTCUTS } from '../../src/lib/detected-open-actions';
+import {
+	getBundledShellConfig,
+	parseShellConfigData,
+} from '../../src/lib/shell-config';
 
 void test('phone base keyboard exposes a continue command key between approve and shift-tab', () => {
 	const config = getBundledShellConfig();
@@ -308,7 +312,16 @@ void test('browser keyboard exposes host navigation actions', () => {
 		browserKeyboard.grid.map((row) => row.length),
 		[10, 10, 10, 10],
 	);
-	assert.deepEqual(browserKeyboard.grid[0]?.slice(0, 6), [
+	const openShortcut = DETECTED_OPEN_SHORTCUTS.find(
+		(shortcut) => shortcut.mode === 'auto',
+	);
+	const pickShortcut = DETECTED_OPEN_SHORTCUTS.find(
+		(shortcut) => shortcut.mode === 'pick',
+	);
+	assert.ok(openShortcut);
+	assert.ok(pickShortcut);
+
+	assert.deepEqual(browserKeyboard.grid[0]?.slice(0, 7), [
 		{
 			type: 'action',
 			actionId: 'OPEN_MAIN_MENU',
@@ -340,18 +353,19 @@ void test('browser keyboard exposes host navigation actions', () => {
 			icon: 'BookOpen',
 		},
 		{
-			type: 'action',
-			actionId: 'OPEN_HOST_URL_APP',
-			label: 'App',
-			icon: 'PanelTop',
+			type: 'bytes',
+			bytes: openShortcut.bytes,
+			label: 'Open',
+			icon: 'ExternalLink',
+		},
+		{
+			type: 'bytes',
+			bytes: pickShortcut.bytes,
+			label: 'Pick',
+			icon: 'List',
 		},
 	]);
-	assert.deepEqual(browserKeyboard.grid[0]?.slice(6, 10), [
-		null,
-		null,
-		null,
-		null,
-	]);
+	assert.deepEqual(browserKeyboard.grid[0]?.slice(7, 10), [null, null, null]);
 	for (const row of browserKeyboard.grid.slice(1, 4)) {
 		assert.deepEqual(row, [
 			null,
@@ -366,7 +380,52 @@ void test('browser keyboard exposes host navigation actions', () => {
 			null,
 		]);
 	}
+	const browserKeyboardActionIds = browserKeyboard.grid.flatMap((row) =>
+		row.flatMap((item) => (item?.type === 'action' ? [item.actionId] : [])),
+	);
+	assert.equal(browserKeyboardActionIds.includes('OPEN_HOST_URL_APP'), false);
+	assert.equal(
+		browserKeyboardActionIds.includes('OPEN_HOST_DETECTED_AUTO'),
+		false,
+	);
+	assert.equal(
+		browserKeyboardActionIds.includes('OPEN_HOST_DETECTED_PICK'),
+		false,
+	);
 	assert.deepEqual(config.macrosByKeyboardId.browser_keyboard, []);
+});
+
+void test('shell config rejects internal detected-open action ids', () => {
+	const config = getBundledShellConfig();
+	const actionConfig = JSON.parse(JSON.stringify(config));
+	actionConfig.keyboards[0].grid[0][0] = {
+		type: 'action',
+		actionId: 'OPEN_HOST_DETECTED_AUTO',
+		label: 'Open',
+		icon: 'ExternalLink',
+	};
+
+	assert.throws(
+		() => parseShellConfigData(actionConfig),
+		/Unsupported actionId OPEN_HOST_DETECTED_AUTO/,
+	);
+
+	const macroConfig = JSON.parse(JSON.stringify(config));
+	macroConfig.macrosByKeyboardId.phone_base.push({
+		id: 'internal_open',
+		name: 'Internal open',
+		label: 'Open',
+		category: 'Commands',
+		script: JSON.stringify({
+			type: 'action',
+			actionId: 'OPEN_HOST_DETECTED_PICK',
+		}),
+	});
+
+	assert.throws(
+		() => parseShellConfigData(macroConfig),
+		/Unsupported macro actionId OPEN_HOST_DETECTED_PICK/,
+	);
 });
 
 void test('advanced keyboard omits consolidated host URL setter actions', () => {

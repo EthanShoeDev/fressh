@@ -3,13 +3,14 @@ import { type HostBrowserUrlSlot } from '@/lib/host-browser-actions';
 export type BrowserActionStaticRowId =
 	| 'diff'
 	| 'github-issues'
-	| 'github-pulls';
+	| 'github-pulls'
+	| 'open-detected-auto'
+	| 'open-detected-pick';
 
 export type BrowserActionUrlRowId =
 	| 'url-window'
 	| 'url-dev-server'
-	| 'url-storybook'
-	| 'url-app';
+	| 'url-storybook';
 
 export type BrowserActionRow =
 	| {
@@ -34,6 +35,8 @@ export type BrowserActionPressIntent =
 	| { type: 'open-diff' }
 	| { type: 'open-github-issues' }
 	| { type: 'open-github-pulls' }
+	| { type: 'open-detected-auto' }
+	| { type: 'open-detected-pick' }
 	| { type: 'open-url-slot'; slot: HostBrowserUrlSlot }
 	| { type: 'edit-url-slot'; slot: HostBrowserUrlSlot };
 
@@ -72,6 +75,20 @@ export const BROWSER_ACTION_ROWS = [
 		icon: 'GitPullRequest',
 	},
 	{
+		id: 'open-detected-auto',
+		type: 'static',
+		label: 'Open',
+		description: 'Open detected URL or file from the active pane',
+		icon: 'ExternalLink',
+	},
+	{
+		id: 'open-detected-pick',
+		type: 'static',
+		label: 'Pick',
+		description: 'Choose from detected URLs and files in the active pane',
+		icon: 'List',
+	},
+	{
 		id: 'url-window',
 		type: 'url-slot',
 		label: 'URL',
@@ -94,14 +111,6 @@ export const BROWSER_ACTION_ROWS = [
 		description: 'Open or set the saved Storybook URL',
 		icon: 'BookOpen',
 		slot: 'storybook-url',
-	},
-	{
-		id: 'url-app',
-		type: 'url-slot',
-		label: 'App',
-		description: 'Open or set the saved app URL',
-		icon: 'PanelTop',
-		slot: 'app-url',
 	},
 ] as const satisfies readonly BrowserActionRow[];
 
@@ -132,6 +141,10 @@ export function getBrowserActionPressIntent(
 			return { type: 'open-github-issues' };
 		case 'github-pulls':
 			return { type: 'open-github-pulls' };
+		case 'open-detected-auto':
+			return { type: 'open-detected-auto' };
+		case 'open-detected-pick':
+			return { type: 'open-detected-pick' };
 	}
 
 	const exhaustive: never = row;

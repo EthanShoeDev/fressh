@@ -58,6 +58,14 @@ function createCallbacks(
 		onOpenGitHubPulls: () => {
 			state.calls.push('github-pulls');
 		},
+		onOpenDetectedAuto: () => {
+			state.calls.push('open-detected-auto');
+			return true;
+		},
+		onOpenDetectedPick: () => {
+			state.calls.push('open-detected-pick');
+			return true;
+		},
 		onOpenUrlSlot: (slot: HostBrowserUrlSlot) => {
 			state.calls.push(`open:${slot}`);
 		},
@@ -107,11 +115,19 @@ void test('browser actions modal controller edits URL rows in set mode', () => {
 void test('browser actions modal controller keeps static rows open in set mode', () => {
 	const cases: readonly {
 		id: BrowserActionRow['id'];
-		expected: string;
+		expectedCalls: string[];
 	}[] = [
-		{ id: 'diff', expected: 'diff' },
-		{ id: 'github-issues', expected: 'github-issues' },
-		{ id: 'github-pulls', expected: 'github-pulls' },
+		{ id: 'diff', expectedCalls: ['close', 'diff'] },
+		{ id: 'github-issues', expectedCalls: ['close', 'github-issues'] },
+		{ id: 'github-pulls', expectedCalls: ['close', 'github-pulls'] },
+		{
+			id: 'open-detected-auto',
+			expectedCalls: ['open-detected-auto', 'close'],
+		},
+		{
+			id: 'open-detected-pick',
+			expectedCalls: ['open-detected-pick', 'close'],
+		},
 	];
 
 	for (const testCase of cases) {
@@ -128,8 +144,31 @@ void test('browser actions modal controller keeps static rows open in set mode',
 			callbacks: createCallbacks(state),
 		});
 
-		assert.deepEqual(state.calls, ['close', testCase.expected]);
+		assert.deepEqual(state.calls, testCase.expectedCalls);
 	}
+});
+
+void test('browser actions modal controller keeps detected row open when rejected', () => {
+	const state = createState();
+	const callbacks = {
+		...createCallbacks(state),
+		onOpenDetectedAuto: () => {
+			state.calls.push('open-detected-auto:busy');
+			return false;
+		},
+	};
+
+	handleBrowserActionsModalRowPress({
+		row: row('open-detected-auto'),
+		menuMode: state.menuMode,
+		longPressedRowId: state.longPressedRowId,
+		setLongPressedRowId: (rowId) => {
+			state.longPressedRowId = rowId;
+		},
+		callbacks,
+	});
+
+	assert.deepEqual(state.calls, ['open-detected-auto:busy']);
 });
 
 void test('browser actions modal controller suppresses tap after URL long press', () => {

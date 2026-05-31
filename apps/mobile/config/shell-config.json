@@ -1,6 +1,6 @@
 {
-	"version": "2026-05-29.2",
-	"updatedAt": "2026-05-29T08:15:00Z",
+	"version": "2026-05-31.1",
+	"updatedAt": "2026-05-31T00:00:00Z",
 	"defaultKeyboardId": "phone_base",
 	"activeKeyboardIds": ["phone_base", "advanced_keyboard", "browser_keyboard"],
 	"keyboardRouting": {
@@ -437,12 +437,17 @@
 						"icon": "BookOpen"
 					},
 					{
-						"type": "action",
-						"actionId": "OPEN_HOST_URL_APP",
-						"label": "App",
-						"icon": "PanelTop"
+						"type": "bytes",
+						"bytes": [27, 97],
+						"label": "Open",
+						"icon": "ExternalLink"
 					},
-					null,
+					{
+						"type": "bytes",
+						"bytes": [27, 65],
+						"label": "Pick",
+						"icon": "List"
+					},
 					null,
 					null,
 					null

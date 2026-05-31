@@ -54,6 +54,10 @@ import {
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
 import {
+	planDetectedOpenShortcutPress,
+	runDetectedOpenCallback,
+} from '@/lib/detected-open-actions';
+import {
 	HANDLE_DEV_SERVER_URL,
 	runAction,
 	type ActionContext,
@@ -2166,6 +2170,9 @@ function ShellDetail() {
 			openBrowserActions: browserActions.open,
 			openHostDiffity: browserActions.browserActionsProps.onOpenDiff,
 			openHostUrlSlot: browserActions.browserActionsProps.onOpenUrlSlot,
+			openHostDetected: (mode) => {
+				runDetectedOpenCallback(mode, browserActions.browserActionsProps);
+			},
 			editHostUrlSlot: browserActions.browserActionsProps.onEditUrlSlot,
 			cycleWorkmuxStatus: browserActions.cycleWorkmuxStatus,
 		}),
@@ -2217,9 +2224,18 @@ function ShellDetail() {
 				case 'text':
 					sendTextWithModifiers(slot.text);
 					break;
-				case 'bytes':
-					sendBytesWithModifiers(new Uint8Array(slot.bytes));
+				case 'bytes': {
+					const pressPlan = planDetectedOpenShortcutPress(
+						currentKeyboard?.id,
+						slot,
+					);
+					if (pressPlan.type === 'action') {
+						handleAction(pressPlan.actionId);
+					} else {
+						sendBytesWithModifiers(new Uint8Array(pressPlan.bytes));
+					}
 					break;
+				}
 				case 'macro': {
 					const macro = currentMacros.find(
 						(entry) => entry.id === slot.macroId,

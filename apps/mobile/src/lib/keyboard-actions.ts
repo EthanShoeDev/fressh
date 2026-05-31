@@ -1,3 +1,4 @@
+import { DETECTED_OPEN_ACTION_IDS } from '@/lib/detected-open-actions';
 import { type HostBrowserUrlSlot } from '@/lib/host-browser-actions';
 import { rootLogger } from '@/lib/logger';
 
@@ -31,12 +32,20 @@ export const KNOWN_ACTION_IDS = [
 	'OPEN_HOST_URL_DEV_SERVER',
 	'OPEN_HOST_URL_STORYBOOK',
 	'OPEN_HOST_URL_APP',
+	'OPEN_HOST_DETECTED_AUTO',
+	'OPEN_HOST_DETECTED_PICK',
 	'EDIT_HOST_URL_WINDOW',
 	'EDIT_HOST_URL_DEV_SERVER',
 	'EDIT_HOST_URL_STORYBOOK',
 	'EDIT_HOST_URL_APP',
 	'CYCLE_WORKMUX_STATUS',
 ] as const;
+
+const INTERNAL_ACTION_IDS = new Set<string>(DETECTED_OPEN_ACTION_IDS);
+
+export const CONFIG_SUPPORTED_ACTION_IDS = KNOWN_ACTION_IDS.filter(
+	(actionId) => !INTERNAL_ACTION_IDS.has(actionId),
+);
 
 export type KnownActionId = (typeof KNOWN_ACTION_IDS)[number];
 export type KeyboardTargetActionId =
@@ -62,6 +71,7 @@ export type ActionContext = {
 	openWisprTextEditor?: () => void;
 	openHostDiffity?: () => void;
 	openHostUrlSlot?: (slot: HostBrowserUrlSlot) => void;
+	openHostDetected?: (mode: 'auto' | 'pick') => void;
 	editHostUrlSlot?: (slot: HostBrowserUrlSlot) => void;
 	cycleWorkmuxStatus?: () => void;
 };
@@ -141,6 +151,14 @@ export async function runAction(
 		}
 		case 'OPEN_HOST_URL_APP': {
 			context.openHostUrlSlot?.('app-url');
+			return;
+		}
+		case 'OPEN_HOST_DETECTED_AUTO': {
+			context.openHostDetected?.('auto');
+			return;
+		}
+		case 'OPEN_HOST_DETECTED_PICK': {
+			context.openHostDetected?.('pick');
 			return;
 		}
 		case 'EDIT_HOST_URL_WINDOW': {

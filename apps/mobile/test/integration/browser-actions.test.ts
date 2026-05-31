@@ -18,20 +18,21 @@ void test('browser action rows expose the approved order and URL editability', (
 			'diff',
 			'github-issues',
 			'github-pulls',
+			'open-detected-auto',
+			'open-detected-pick',
 			'url-window',
 			'url-dev-server',
 			'url-storybook',
-			'url-app',
 		],
 	);
 
 	assert.deepEqual(
 		BROWSER_ACTION_URL_ROWS.map((row) => row.slot),
-		['window-url', 'dev-web-server-url', 'storybook-url', 'app-url'],
+		['window-url', 'dev-web-server-url', 'storybook-url'],
 	);
 
 	assert.equal(isBrowserActionUrlRow(BROWSER_ACTION_ROWS[0]!), false);
-	assert.equal(isBrowserActionUrlRow(BROWSER_ACTION_ROWS[3]!), true);
+	assert.equal(isBrowserActionUrlRow(BROWSER_ACTION_ROWS[5]!), true);
 });
 
 void test('browser action press intent keeps static rows as open actions in every mode', () => {
@@ -49,6 +50,14 @@ void test('browser action press intent keeps static rows as open actions in ever
 		assert.deepEqual(
 			getBrowserActionPressIntent(BROWSER_ACTION_ROWS[2]!, mode),
 			{ type: 'open-github-pulls' },
+		);
+		assert.deepEqual(
+			getBrowserActionPressIntent(BROWSER_ACTION_ROWS[3]!, mode),
+			{ type: 'open-detected-auto' },
+		);
+		assert.deepEqual(
+			getBrowserActionPressIntent(BROWSER_ACTION_ROWS[4]!, mode),
+			{ type: 'open-detected-pick' },
 		);
 	}
 });
@@ -70,7 +79,6 @@ void test('browser action press intent opens URL slots in open mode', () => {
 			{ type: 'open-url-slot', slot: 'window-url' },
 			{ type: 'open-url-slot', slot: 'dev-web-server-url' },
 			{ type: 'open-url-slot', slot: 'storybook-url' },
-			{ type: 'open-url-slot', slot: 'app-url' },
 		],
 	);
 });
@@ -84,7 +92,6 @@ void test('browser action press intent edits URL slots in set mode', () => {
 			{ type: 'edit-url-slot', slot: 'window-url' },
 			{ type: 'edit-url-slot', slot: 'dev-web-server-url' },
 			{ type: 'edit-url-slot', slot: 'storybook-url' },
-			{ type: 'edit-url-slot', slot: 'app-url' },
 		],
 	);
 });
