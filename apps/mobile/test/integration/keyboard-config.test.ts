@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { DETECTED_OPEN_SHORTCUTS } from '../../src/lib/detected-open-actions';
 import {
 	getBundledShellConfig,
 	parseShellConfigData,
@@ -311,6 +312,15 @@ void test('browser keyboard exposes host navigation actions', () => {
 		browserKeyboard.grid.map((row) => row.length),
 		[10, 10, 10, 10],
 	);
+	const openShortcut = DETECTED_OPEN_SHORTCUTS.find(
+		(shortcut) => shortcut.mode === 'auto',
+	);
+	const pickShortcut = DETECTED_OPEN_SHORTCUTS.find(
+		(shortcut) => shortcut.mode === 'pick',
+	);
+	assert.ok(openShortcut);
+	assert.ok(pickShortcut);
+
 	assert.deepEqual(browserKeyboard.grid[0]?.slice(0, 7), [
 		{
 			type: 'action',
@@ -344,13 +354,13 @@ void test('browser keyboard exposes host navigation actions', () => {
 		},
 		{
 			type: 'bytes',
-			bytes: [27, 97],
+			bytes: openShortcut.bytes,
 			label: 'Open',
 			icon: 'ExternalLink',
 		},
 		{
 			type: 'bytes',
-			bytes: [27, 65],
+			bytes: pickShortcut.bytes,
 			label: 'Pick',
 			icon: 'List',
 		},

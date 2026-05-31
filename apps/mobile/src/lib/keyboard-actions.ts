@@ -1,3 +1,4 @@
+import { DETECTED_OPEN_ACTION_IDS } from '@/lib/detected-open-actions';
 import { type HostBrowserUrlSlot } from '@/lib/host-browser-actions';
 import { rootLogger } from '@/lib/logger';
 
@@ -40,10 +41,7 @@ export const KNOWN_ACTION_IDS = [
 	'CYCLE_WORKMUX_STATUS',
 ] as const;
 
-const INTERNAL_ACTION_IDS = new Set<string>([
-	'OPEN_HOST_DETECTED_AUTO',
-	'OPEN_HOST_DETECTED_PICK',
-]);
+const INTERNAL_ACTION_IDS = new Set<string>(DETECTED_OPEN_ACTION_IDS);
 
 export const CONFIG_SUPPORTED_ACTION_IDS = KNOWN_ACTION_IDS.filter(
 	(actionId) => !INTERNAL_ACTION_IDS.has(actionId),

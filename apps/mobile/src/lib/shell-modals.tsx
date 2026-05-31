@@ -9,11 +9,7 @@ import {
 	type RefObject,
 } from 'react';
 import { Alert } from 'react-native';
-import {
-	finishDetectedOpenRequest,
-	runDetectedOpenCommand,
-	tryBeginDetectedOpenRequest,
-} from '@/lib/detected-open-actions';
+import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
 import {
 	buildDiffityShareCommand,
 	buildHostBrowserPaneContextCommand,
@@ -832,44 +828,17 @@ export function useBrowserActionsController<TConnection>(
 
 	const handleOpenDetected = useCallback(
 		(mode: HostBrowserOpenMode): boolean => {
-			if (
-				!tryBeginDetectedOpenRequest({
-					inFlightRef: hostDetectedOpenInFlightRef,
-					onBusy: () => {
-						showError(
-							'Open already running',
-							'Wait for the current browser action to finish.',
-						);
-					},
-				})
-			) {
-				return false;
-			}
-			setOpen(false);
-			const id = hostDetectedOpenRequestId.next();
-			void (async () => {
-				try {
-					await runDetectedOpenCommand({
-						mode,
-						resolvePaneContext: resolveHostBrowserPaneContext,
-						runHostBrowserCommand: async (command, timeoutMs) => {
-							if (!hostDetectedOpenRequestId.isCurrent(id)) return '';
-							return runHostBrowserCommand(command, timeoutMs);
-						},
-					});
-				} catch (err) {
-					if (!hostDetectedOpenRequestId.isCurrent(id)) return;
-					showError(
-						mode === 'pick' ? 'Pick failed' : 'Open failed',
-						getErrorMessage(err),
-					);
-				} finally {
-					if (hostDetectedOpenRequestId.isCurrent(id)) {
-						finishDetectedOpenRequest(hostDetectedOpenInFlightRef);
-					}
-				}
-			})();
-			return true;
+			const result = runDetectedOpenControllerRequest({
+				mode,
+				inFlightRef: hostDetectedOpenInFlightRef,
+				requestId: hostDetectedOpenRequestId,
+				resolvePaneContext: resolveHostBrowserPaneContext,
+				runHostBrowserCommand,
+				setOpen,
+				showError,
+				getErrorMessage,
+			});
+			return result.accepted;
 		},
 		[
 			getErrorMessage,

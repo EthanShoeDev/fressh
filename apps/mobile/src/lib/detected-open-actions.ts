@@ -25,6 +25,13 @@ export type DetectedOpenShortcutItem = {
 	bytes?: readonly number[];
 };
 
+export type DetectedOpenShortcutSpec = {
+	mode: HostBrowserOpenMode;
+	keyboardId: string;
+	bytes: readonly number[];
+	actionId: DetectedOpenShortcutActionId;
+};
+
 export type DetectedOpenShortcutActionId =
 	| 'OPEN_HOST_DETECTED_AUTO'
 	| 'OPEN_HOST_DETECTED_PICK';
@@ -33,11 +40,44 @@ export type DetectedOpenShortcutPressPlan =
 	| { type: 'action'; actionId: DetectedOpenShortcutActionId }
 	| { type: 'bytes'; bytes: readonly number[] };
 
-const BROWSER_KEYBOARD_ID = 'browser_keyboard';
 // These bytes are reserved by the bundled browser keyboard for old-client
 // compatibility; new clients intercept them before writing to the terminal.
-const DETECTED_OPEN_AUTO_BYTES = [27, 97] as const;
-const DETECTED_OPEN_PICK_BYTES = [27, 65] as const;
+export const DETECTED_OPEN_SHORTCUTS = [
+	{
+		mode: 'auto',
+		keyboardId: 'browser_keyboard',
+		bytes: [27, 97],
+		actionId: 'OPEN_HOST_DETECTED_AUTO',
+	},
+	{
+		mode: 'pick',
+		keyboardId: 'browser_keyboard',
+		bytes: [27, 65],
+		actionId: 'OPEN_HOST_DETECTED_PICK',
+	},
+] as const satisfies readonly DetectedOpenShortcutSpec[];
+
+export const DETECTED_OPEN_ACTION_IDS = DETECTED_OPEN_SHORTCUTS.map(
+	(shortcut) => shortcut.actionId,
+);
+
+export type DetectedOpenRequestId = {
+	next: () => number;
+	isCurrent: (requestId: number) => boolean;
+};
+
+export type RunDetectedOpenControllerRequestDeps =
+	RunDetectedOpenCommandDeps & {
+		inFlightRef: DetectedOpenInFlightRef;
+		requestId: DetectedOpenRequestId;
+		setOpen: (open: boolean) => void;
+		showError: (title: string, message: string) => void;
+		getErrorMessage: (error: unknown) => string;
+	};
+
+export type DetectedOpenControllerRequestResult =
+	| { accepted: false; completion: null }
+	| { accepted: true; completion: Promise<void> };
 
 function bytesEqual(
 	actual: readonly number[] | undefined,
@@ -87,12 +127,13 @@ export function resolveDetectedOpenShortcutMode(
 	keyboardId: string | null | undefined,
 	item: DetectedOpenShortcutItem,
 ): HostBrowserOpenMode | null {
-	if (keyboardId !== BROWSER_KEYBOARD_ID || item.type !== 'bytes') {
-		return null;
-	}
-	if (bytesEqual(item.bytes, DETECTED_OPEN_AUTO_BYTES)) return 'auto';
-	if (bytesEqual(item.bytes, DETECTED_OPEN_PICK_BYTES)) return 'pick';
-	return null;
+	const shortcut = DETECTED_OPEN_SHORTCUTS.find(
+		(entry) =>
+			entry.keyboardId === keyboardId &&
+			item.type === 'bytes' &&
+			bytesEqual(item.bytes, entry.bytes),
+	);
+	return shortcut?.mode ?? null;
 }
 
 export function planDetectedOpenShortcutPress(
@@ -100,12 +141,8 @@ export function planDetectedOpenShortcutPress(
 	item: { type: 'bytes'; bytes: readonly number[] },
 ): DetectedOpenShortcutPressPlan {
 	const mode = resolveDetectedOpenShortcutMode(keyboardId, item);
-	if (mode === 'auto') {
-		return { type: 'action', actionId: 'OPEN_HOST_DETECTED_AUTO' };
-	}
-	if (mode === 'pick') {
-		return { type: 'action', actionId: 'OPEN_HOST_DETECTED_PICK' };
-	}
+	const shortcut = DETECTED_OPEN_SHORTCUTS.find((entry) => entry.mode === mode);
+	if (shortcut) return { type: 'action', actionId: shortcut.actionId };
 	return { type: 'bytes', bytes: item.bytes };
 }
 
@@ -119,4 +156,54 @@ export async function runDetectedOpenCommand({
 		buildMdevOpenCommand(mode, context),
 		getDetectedOpenTimeoutMs(mode),
 	);
+}
+
+export function runDetectedOpenControllerRequest({
+	mode,
+	inFlightRef,
+	requestId,
+	resolvePaneContext,
+	runHostBrowserCommand,
+	setOpen,
+	showError,
+	getErrorMessage,
+}: RunDetectedOpenControllerRequestDeps): DetectedOpenControllerRequestResult {
+	if (
+		!tryBeginDetectedOpenRequest({
+			inFlightRef,
+			onBusy: () => {
+				showError(
+					'Open already running',
+					'Wait for the current browser action to finish.',
+				);
+			},
+		})
+	) {
+		return { accepted: false, completion: null };
+	}
+	setOpen(false);
+	const id = requestId.next();
+	const completion = (async () => {
+		try {
+			await runDetectedOpenCommand({
+				mode,
+				resolvePaneContext,
+				runHostBrowserCommand: async (command, timeoutMs) => {
+					if (!requestId.isCurrent(id)) return '';
+					return runHostBrowserCommand(command, timeoutMs);
+				},
+			});
+		} catch (err) {
+			if (!requestId.isCurrent(id)) return;
+			showError(
+				mode === 'pick' ? 'Pick failed' : 'Open failed',
+				getErrorMessage(err),
+			);
+		} finally {
+			if (requestId.isCurrent(id)) {
+				finishDetectedOpenRequest(inFlightRef);
+			}
+		}
+	})();
+	return { accepted: true, completion };
 }
