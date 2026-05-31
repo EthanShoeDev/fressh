@@ -26,6 +26,8 @@ export type DetectedOpenShortcutItem = {
 };
 
 const BROWSER_KEYBOARD_ID = 'browser_keyboard';
+// These bytes are reserved by the bundled browser keyboard for old-client
+// compatibility; new clients intercept them before writing to the terminal.
 const DETECTED_OPEN_AUTO_BYTES = [27, 97] as const;
 const DETECTED_OPEN_PICK_BYTES = [27, 65] as const;
 
