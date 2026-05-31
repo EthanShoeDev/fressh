@@ -23,7 +23,11 @@ import {
 	type HostBrowserOpenMode,
 	type HostBrowserUrlSlot,
 } from './host-browser-actions';
-import { runDetectedOpenCommand } from './detected-open-actions';
+import {
+	finishDetectedOpenRequest,
+	runDetectedOpenCommand,
+	tryBeginDetectedOpenRequest,
+} from '@/lib/detected-open-actions';
 import {
 	buildCreateGitHubIssueCommand,
 	buildFeatureRequestSubmittedAlert,
@@ -828,16 +832,21 @@ export function useBrowserActionsController<TConnection>(
 
 	const handleOpenDetected = useCallback(
 		(mode: HostBrowserOpenMode): boolean => {
-			if (hostDetectedOpenInFlightRef.current) {
-				showError(
-					'Open already running',
-					'Wait for the current browser action to finish.',
-				);
+			if (
+				!tryBeginDetectedOpenRequest({
+					inFlightRef: hostDetectedOpenInFlightRef,
+					onBusy: () => {
+						showError(
+							'Open already running',
+							'Wait for the current browser action to finish.',
+						);
+					},
+				})
+			) {
 				return false;
 			}
 			setOpen(false);
 			const id = hostDetectedOpenRequestId.next();
-			hostDetectedOpenInFlightRef.current = true;
 			void (async () => {
 				try {
 					await runDetectedOpenCommand({
@@ -856,7 +865,7 @@ export function useBrowserActionsController<TConnection>(
 					);
 				} finally {
 					if (hostDetectedOpenRequestId.isCurrent(id)) {
-						hostDetectedOpenInFlightRef.current = false;
+						finishDetectedOpenRequest(hostDetectedOpenInFlightRef);
 					}
 				}
 			})();

@@ -13,6 +13,29 @@ export type RunDetectedOpenCommandDeps = {
 	) => Promise<string>;
 };
 
+export type DetectedOpenInFlightRef = { current: boolean };
+
+export function tryBeginDetectedOpenRequest({
+	inFlightRef,
+	onBusy,
+}: {
+	inFlightRef: DetectedOpenInFlightRef;
+	onBusy: () => void;
+}): boolean {
+	if (inFlightRef.current) {
+		onBusy();
+		return false;
+	}
+	inFlightRef.current = true;
+	return true;
+}
+
+export function finishDetectedOpenRequest(
+	inFlightRef: DetectedOpenInFlightRef,
+) {
+	inFlightRef.current = false;
+}
+
 export function getDetectedOpenTimeoutMs(mode: HostBrowserOpenMode): number {
 	return mode === 'pick' ? 60_000 : 30_000;
 }
