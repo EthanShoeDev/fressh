@@ -7,11 +7,6 @@
 /* eslint-disable */
 // @ts-nocheck
 
-// Casting globalThis to any allows us to look for `NativeUniffiRussh`
-// if it was added via JSI.
-//
-// We use a getter here rather than simply `globalThis.NativeUniffiRussh` so that
-// if/when the startup sequence isn't just so, an empty value isn't inadvertantly cached.
 const getter = () => globalThis.NativeUniffiRussh;
 export default getter;
 
@@ -19,29 +14,7 @@ export default getter;
 
 // UniffiRustFutureContinuationCallback is generated as part of the component interface's
 // ffi_definitions. However, we need it in the runtime.
-// We could:
-// (a) do some complicated template logic to ensure the declaration is not generated here (possible)
-// (b) import the generated declaration into the runtime (m a y b e) or…
-// (c) generate the declaration anyway, and use a different declaration in the runtime.
-//
-// We chose (c) here as the simplest. In addition, we perform a compile time check that
-// the two versions of `UniffiRustFutureContinuationCallback` are structurally equivalent.
-//
-// If you see the error:
-// ```
-// Type 'true' is not assignable to type 'false'.(2322)
-// ```
-// Then a new version of uniffi has changed the signature of the callback. Most likely, code in
-// `typescript/src/async-rust-call.ts` will need to be changed.
-//
-// If you see the error:
-// ```
-// Cannot find name 'UniffiRustFutureContinuationCallback'. Did you mean 'RuntimeUniffiRustFutureContinuationCallback'?(2552)
-// ```
-// then you may not be using callbacks or promises, and uniffi is now not generating Futures and callbacks.
-// You should not generate this if that is the case.
-//
-// ('You' being the bindings generator maintainer).
+// We chose to generate the declaration anyway, and use a different declaration in the runtime.
+// We perform a compile time check that the two versions are structurally equivalent.
 const isRustFutureContinuationCallbackTypeCompatible = true;
-const isUniffiForeignFutureTypeCompatible = true;
 //# sourceMappingURL=uniffi_russh-ffi.js.map

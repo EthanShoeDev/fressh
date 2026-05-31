@@ -1,0 +1,49 @@
+diff --git a/dist/cjs/objects.js b/dist/cjs/objects.js
+index ff892a8fa69e42e1a1458cba7a978c49d24b3a86..37a78474a35e919bcad031482e5fdc5b0a48f8c8 100644
+--- a/dist/cjs/objects.js
++++ b/dist/cjs/objects.js
+@@ -79,6 +79,11 @@ class FfiConverterObjectWithCallbacks extends FfiConverterObject {
+         }
+         return this.handleMap.insert(value);
+     }
++    write(value, into) {
++        pointerConverter.write(this.lower(value, () => {
++            throw new Error("Callback object lowering does not allocate Rust buffers");
++        }), into);
++    }
+     lift(value) {
+         if (this.handleMap.has(value)) {
+             return this.handleMap.get(value);
+diff --git a/dist/esm/objects.js b/dist/esm/objects.js
+index bf316c60771901281603d49a4789d06588a3f7c0..b1023472d3b461cab167a5d5a4d14c441f4ea7dc 100644
+--- a/dist/esm/objects.js
++++ b/dist/esm/objects.js
+@@ -74,6 +74,11 @@ export class FfiConverterObjectWithCallbacks extends FfiConverterObject {
+         }
+         return this.handleMap.insert(value);
+     }
++    write(value, into) {
++        pointerConverter.write(this.lower(value, () => {
++            throw new Error("Callback object lowering does not allocate Rust buffers");
++        }), into);
++    }
+     lift(value) {
+         if (this.handleMap.has(value)) {
+             return this.handleMap.get(value);
+diff --git a/src/objects.ts b/src/objects.ts
+index a949d1a06b7bf23b17885f8069f3893f6caf8c2d..8636de19ffc74487acaf00442cdb54344e0dc32a 100644
+--- a/src/objects.ts
++++ b/src/objects.ts
+@@ -110,6 +110,12 @@ export class FfiConverterObjectWithCallbacks<T> extends FfiConverterObject<T> {
+     return this.handleMap.insert(value);
+   }
+ 
++  write(value: T, into: RustBuffer): void {
++    pointerConverter.write(this.lower(value, () => {
++      throw new Error("Callback object lowering does not allocate Rust buffers");
++    }), into);
++  }
++
+   lift(value: UniffiHandle): T {
+     if (this.handleMap.has(value)) {
+       return this.handleMap.get(value);
