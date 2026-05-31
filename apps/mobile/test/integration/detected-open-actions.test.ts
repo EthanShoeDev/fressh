@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
 	finishDetectedOpenRequest,
 	getDetectedOpenTimeoutMs,
+	planDetectedOpenShortcutPress,
 	resolveDetectedOpenShortcutMode,
 	runDetectedOpenCallback,
 	runDetectedOpenCommand,
@@ -141,6 +142,40 @@ void test('detected open shortcut ignores other keyboard items', () => {
 			type: 'action',
 		}),
 		null,
+	);
+});
+
+void test('detected open shortcut press plans guarded actions for browser keyboard bytes', () => {
+	assert.deepEqual(
+		planDetectedOpenShortcutPress('browser_keyboard', {
+			type: 'bytes',
+			bytes: [27, 97],
+		}),
+		{ type: 'action', actionId: 'OPEN_HOST_DETECTED_AUTO' },
+	);
+	assert.deepEqual(
+		planDetectedOpenShortcutPress('browser_keyboard', {
+			type: 'bytes',
+			bytes: [27, 65],
+		}),
+		{ type: 'action', actionId: 'OPEN_HOST_DETECTED_PICK' },
+	);
+});
+
+void test('detected open shortcut press falls back to raw bytes for nonmatches', () => {
+	assert.deepEqual(
+		planDetectedOpenShortcutPress('base_keyboard', {
+			type: 'bytes',
+			bytes: [27, 97],
+		}),
+		{ type: 'bytes', bytes: [27, 97] },
+	);
+	assert.deepEqual(
+		planDetectedOpenShortcutPress('browser_keyboard', {
+			type: 'bytes',
+			bytes: [27, 66],
+		}),
+		{ type: 'bytes', bytes: [27, 66] },
 	);
 });
 

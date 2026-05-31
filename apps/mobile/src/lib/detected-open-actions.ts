@@ -25,6 +25,14 @@ export type DetectedOpenShortcutItem = {
 	bytes?: readonly number[];
 };
 
+export type DetectedOpenShortcutActionId =
+	| 'OPEN_HOST_DETECTED_AUTO'
+	| 'OPEN_HOST_DETECTED_PICK';
+
+export type DetectedOpenShortcutPressPlan =
+	| { type: 'action'; actionId: DetectedOpenShortcutActionId }
+	| { type: 'bytes'; bytes: readonly number[] };
+
 const BROWSER_KEYBOARD_ID = 'browser_keyboard';
 // These bytes are reserved by the bundled browser keyboard for old-client
 // compatibility; new clients intercept them before writing to the terminal.
@@ -85,6 +93,20 @@ export function resolveDetectedOpenShortcutMode(
 	if (bytesEqual(item.bytes, DETECTED_OPEN_AUTO_BYTES)) return 'auto';
 	if (bytesEqual(item.bytes, DETECTED_OPEN_PICK_BYTES)) return 'pick';
 	return null;
+}
+
+export function planDetectedOpenShortcutPress(
+	keyboardId: string | null | undefined,
+	item: { type: 'bytes'; bytes: readonly number[] },
+): DetectedOpenShortcutPressPlan {
+	const mode = resolveDetectedOpenShortcutMode(keyboardId, item);
+	if (mode === 'auto') {
+		return { type: 'action', actionId: 'OPEN_HOST_DETECTED_AUTO' };
+	}
+	if (mode === 'pick') {
+		return { type: 'action', actionId: 'OPEN_HOST_DETECTED_PICK' };
+	}
+	return { type: 'bytes', bytes: item.bytes };
 }
 
 export async function runDetectedOpenCommand({

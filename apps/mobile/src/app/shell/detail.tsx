@@ -54,7 +54,7 @@ import {
 import { useAutoConnectStore } from '@/lib/auto-connect';
 import { getStoredConnectionId } from '@/lib/connection-utils';
 import {
-	resolveDetectedOpenShortcutMode,
+	planDetectedOpenShortcutPress,
 	runDetectedOpenCallback,
 } from '@/lib/detected-open-actions';
 import {
@@ -2216,10 +2216,6 @@ function ShellDetail() {
 				availableKeyboardIds,
 				currentKeyboard?.id,
 			);
-			const detectedOpenShortcutMode = resolveDetectedOpenShortcutMode(
-				currentKeyboard?.id,
-				slot,
-			);
 
 			switch (slot.type) {
 				case 'modifier':
@@ -2228,15 +2224,18 @@ function ShellDetail() {
 				case 'text':
 					sendTextWithModifiers(slot.text);
 					break;
-				case 'bytes':
-					if (detectedOpenShortcutMode === 'auto') {
-						handleAction('OPEN_HOST_DETECTED_AUTO');
-					} else if (detectedOpenShortcutMode === 'pick') {
-						handleAction('OPEN_HOST_DETECTED_PICK');
+				case 'bytes': {
+					const pressPlan = planDetectedOpenShortcutPress(
+						currentKeyboard?.id,
+						slot,
+					);
+					if (pressPlan.type === 'action') {
+						handleAction(pressPlan.actionId);
 					} else {
-						sendBytesWithModifiers(new Uint8Array(slot.bytes));
+						sendBytesWithModifiers(new Uint8Array(pressPlan.bytes));
 					}
 					break;
+				}
 				case 'macro': {
 					const macro = currentMacros.find(
 						(entry) => entry.id === slot.macroId,
