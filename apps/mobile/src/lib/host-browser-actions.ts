@@ -7,6 +7,14 @@ export const HOST_BROWSER_URL_SLOTS = [
 
 export type HostBrowserUrlSlot = (typeof HOST_BROWSER_URL_SLOTS)[number];
 
+export type HostBrowserOpenMode = 'auto' | 'pick';
+
+export type TmuxPaneContext = {
+	paneId: string;
+	paneTty: string;
+	panePath: string;
+};
+
 export type ParsedHostBrowserUrlInput =
 	| { type: 'empty' }
 	| { type: 'invalid'; message: string }
@@ -66,6 +74,12 @@ export function buildHostBrowserPanePathCommand(
 	return `tmux display-message -p -t ${quoteShell(`${tmuxSessionName}:`)} '#{pane_current_path}'`;
 }
 
+export function buildHostBrowserPaneContextCommand(
+	tmuxSessionName: string,
+): string {
+	return `tmux display-message -p -t ${quoteShell(`${tmuxSessionName}:`)} '#{pane_id}\t#{pane_tty}\t#{pane_current_path}'`;
+}
+
 export function buildTmuxCurrentWindowIdCommand(
 	tmuxSessionName: string,
 ): string {
@@ -89,6 +103,39 @@ export function buildTmuxWindowConfigSetCommand(
 	url: string,
 ): string {
 	return `TMUX_PANE_PATH=${quoteShell(panePath)} mdev tmux url set-value ${quoteShell(slot)} ${quoteShell(url)}`;
+}
+
+export function parseTmuxPaneContextOutput(
+	output: string,
+): TmuxPaneContext | null {
+	const line = output
+		.split(/\r?\n/)
+		.map((item) => item.trim())
+		.filter(Boolean)
+		.at(-1);
+	if (!line) return null;
+
+	const [paneIdRaw, paneTtyRaw, ...panePathParts] = line.split('\t');
+	const paneId = paneIdRaw?.trim() ?? '';
+	const paneTty = paneTtyRaw?.trim() ?? '';
+	const panePath = panePathParts.join('\t').trim();
+	if (!paneId || !paneTty || !panePath) return null;
+
+	return { paneId, paneTty, panePath };
+}
+
+export function buildMdevOpenCommand(
+	mode: HostBrowserOpenMode,
+	context: TmuxPaneContext,
+): string {
+	return [
+		`TMUX_PANE=${quoteShell(context.paneId)}`,
+		`TMUX_PANE_TTY=${quoteShell(context.paneTty)}`,
+		`TMUX_PANE_PATH=${quoteShell(context.panePath)}`,
+		'mdev',
+		'open',
+		mode,
+	].join(' ');
 }
 
 export function buildHostBrowserStatusCycleCommand(

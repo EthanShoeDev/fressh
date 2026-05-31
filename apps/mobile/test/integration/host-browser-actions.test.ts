@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	buildDiffityShareCommand,
+	buildHostBrowserPaneContextCommand,
 	buildHostBrowserPanePathCommand,
 	buildHostBrowserStatusCycleCommand,
+	buildMdevOpenCommand,
 	buildTmuxCurrentWindowIdCommand,
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
@@ -11,6 +13,7 @@ import {
 	getHostBrowserUrlSlotLabel,
 	isHostBrowserUrlSlot,
 	parseHostBrowserUrlInput,
+	parseTmuxPaneContextOutput,
 } from '../../src/lib/host-browser-actions';
 
 void test('extractLastHttpsUrl returns the final https URL from helper output', () => {
@@ -67,6 +70,58 @@ void test('current window id command shell-quotes tmux session', () => {
 	assert.equal(
 		buildTmuxCurrentWindowIdCommand("main'quoted"),
 		"tmux display-message -p -t 'main'\\''quoted:' '#{window_id}'",
+	);
+});
+
+void test('pane context command shell-quotes tmux session', () => {
+	assert.equal(
+		buildHostBrowserPaneContextCommand("main'quoted"),
+		"tmux display-message -p -t 'main'\\''quoted:' '#{pane_id}\t#{pane_tty}\t#{pane_current_path}'",
+	);
+});
+
+void test('parseTmuxPaneContextOutput returns the last complete pane context line', () => {
+	assert.deepEqual(
+		parseTmuxPaneContextOutput(
+			[
+				'noise',
+				'%2\t/dev/pts/7\t/home/muly/work repo',
+				'',
+				'%3\t/dev/pts/8\t/tmp/repo with spaces',
+			].join('\n'),
+		),
+		{
+			paneId: '%3',
+			paneTty: '/dev/pts/8',
+			panePath: '/tmp/repo with spaces',
+		},
+	);
+});
+
+void test('parseTmuxPaneContextOutput rejects malformed pane context output', () => {
+	assert.equal(parseTmuxPaneContextOutput(''), null);
+	assert.equal(parseTmuxPaneContextOutput('%1\t/dev/pts/1'), null);
+	assert.equal(parseTmuxPaneContextOutput('\t/dev/pts/1\t/tmp/repo'), null);
+	assert.equal(parseTmuxPaneContextOutput('%1\t\t/tmp/repo'), null);
+	assert.equal(parseTmuxPaneContextOutput('%1\t/dev/pts/1\t'), null);
+});
+
+void test('mdev open command shell-quotes pane context values', () => {
+	assert.equal(
+		buildMdevOpenCommand('auto', {
+			paneId: '%12',
+			paneTty: '/dev/pts/7',
+			panePath: "/home/muly/work repo's",
+		}),
+		"TMUX_PANE='%12' TMUX_PANE_TTY='/dev/pts/7' TMUX_PANE_PATH='/home/muly/work repo'\\''s' mdev open auto",
+	);
+	assert.equal(
+		buildMdevOpenCommand('pick', {
+			paneId: '%12',
+			paneTty: '/dev/pts/7',
+			panePath: '/home/muly/work repo',
+		}),
+		"TMUX_PANE='%12' TMUX_PANE_TTY='/dev/pts/7' TMUX_PANE_PATH='/home/muly/work repo' mdev open pick",
 	);
 });
 
