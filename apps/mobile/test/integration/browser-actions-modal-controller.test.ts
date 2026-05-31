@@ -58,6 +58,12 @@ function createCallbacks(
 		onOpenGitHubPulls: () => {
 			state.calls.push('github-pulls');
 		},
+		onOpenDetectedAuto: () => {
+			state.calls.push('open-detected-auto');
+		},
+		onOpenDetectedPick: () => {
+			state.calls.push('open-detected-pick');
+		},
 		onOpenUrlSlot: (slot: HostBrowserUrlSlot) => {
 			state.calls.push(`open:${slot}`);
 		},
@@ -112,6 +118,8 @@ void test('browser actions modal controller keeps static rows open in set mode',
 		{ id: 'diff', expected: 'diff' },
 		{ id: 'github-issues', expected: 'github-issues' },
 		{ id: 'github-pulls', expected: 'github-pulls' },
+		{ id: 'open-detected-auto', expected: 'open-detected-auto' },
+		{ id: 'open-detected-pick', expected: 'open-detected-pick' },
 	];
 
 	for (const testCase of cases) {

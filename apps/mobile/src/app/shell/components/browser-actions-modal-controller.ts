@@ -14,6 +14,8 @@ export type BrowserActionsModalCallbacks = {
 	onOpenDiff: () => void;
 	onOpenGitHubIssues: () => void;
 	onOpenGitHubPulls: () => void;
+	onOpenDetectedAuto: () => void;
+	onOpenDetectedPick: () => void;
 	onOpenUrlSlot: (slot: HostBrowserUrlSlot) => void;
 	onEditUrlSlot: (slot: HostBrowserUrlSlot) => void;
 };
@@ -78,6 +80,12 @@ export function handleBrowserActionsModalRowPress({
 			return;
 		case 'open-github-pulls':
 			runAndClose(callbacks, callbacks.onOpenGitHubPulls);
+			return;
+		case 'open-detected-auto':
+			runAndClose(callbacks, callbacks.onOpenDetectedAuto);
+			return;
+		case 'open-detected-pick':
+			runAndClose(callbacks, callbacks.onOpenDetectedPick);
 			return;
 		case 'open-url-slot':
 			runAndClose(callbacks, () => callbacks.onOpenUrlSlot(intent.slot));
