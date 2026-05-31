@@ -10,6 +10,11 @@ import {
 } from 'react';
 import { Alert } from 'react-native';
 import {
+	finishDetectedOpenRequest,
+	runDetectedOpenCommand,
+	tryBeginDetectedOpenRequest,
+} from '@/lib/detected-open-actions';
+import {
 	buildDiffityShareCommand,
 	buildHostBrowserPaneContextCommand,
 	buildHostBrowserPanePathCommand,
@@ -23,11 +28,6 @@ import {
 	type HostBrowserOpenMode,
 	type HostBrowserUrlSlot,
 } from './host-browser-actions';
-import {
-	finishDetectedOpenRequest,
-	runDetectedOpenCommand,
-	tryBeginDetectedOpenRequest,
-} from '@/lib/detected-open-actions';
 import {
 	buildCreateGitHubIssueCommand,
 	buildFeatureRequestSubmittedAlert,
