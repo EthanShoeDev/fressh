@@ -14,7 +14,6 @@ import {
 	buildHostBrowserPaneContextCommand,
 	buildHostBrowserPanePathCommand,
 	buildHostBrowserStatusCycleCommand,
-	buildMdevOpenCommand,
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
 	extractLastHttpsUrl,
@@ -24,6 +23,7 @@ import {
 	type HostBrowserOpenMode,
 	type HostBrowserUrlSlot,
 } from './host-browser-actions';
+import { runDetectedOpenCommand } from './detected-open-actions';
 import {
 	buildCreateGitHubIssueCommand,
 	buildFeatureRequestSubmittedAlert,
@@ -563,8 +563,8 @@ export type BrowserActionsModalProps = {
 	onOpenDiff: () => void;
 	onOpenGitHubIssues: () => void;
 	onOpenGitHubPulls: () => void;
-	onOpenDetectedAuto: () => void;
-	onOpenDetectedPick: () => void;
+	onOpenDetectedAuto: () => boolean;
+	onOpenDetectedPick: () => boolean;
 	onOpenUrlSlot: (slot: HostBrowserUrlSlot) => void;
 	onEditUrlSlot: (slot: HostBrowserUrlSlot) => void;
 };
@@ -827,19 +827,27 @@ export function useBrowserActionsController<TConnection>(
 	]);
 
 	const handleOpenDetected = useCallback(
-		(mode: HostBrowserOpenMode) => {
-			if (hostDetectedOpenInFlightRef.current) return;
+		(mode: HostBrowserOpenMode): boolean => {
+			if (hostDetectedOpenInFlightRef.current) {
+				showError(
+					'Open already running',
+					'Wait for the current browser action to finish.',
+				);
+				return false;
+			}
 			setOpen(false);
 			const id = hostDetectedOpenRequestId.next();
 			hostDetectedOpenInFlightRef.current = true;
 			void (async () => {
 				try {
-					const context = await resolveHostBrowserPaneContext();
-					if (!hostDetectedOpenRequestId.isCurrent(id)) return;
-					await runHostBrowserCommand(
-						buildMdevOpenCommand(mode, context),
-						mode === 'pick' ? 60_000 : 30_000,
-					);
+					await runDetectedOpenCommand({
+						mode,
+						resolvePaneContext: resolveHostBrowserPaneContext,
+						runHostBrowserCommand: async (command, timeoutMs) => {
+							if (!hostDetectedOpenRequestId.isCurrent(id)) return '';
+							return runHostBrowserCommand(command, timeoutMs);
+						},
+					});
 				} catch (err) {
 					if (!hostDetectedOpenRequestId.isCurrent(id)) return;
 					showError(
@@ -852,6 +860,7 @@ export function useBrowserActionsController<TConnection>(
 					}
 				}
 			})();
+			return true;
 		},
 		[
 			getErrorMessage,

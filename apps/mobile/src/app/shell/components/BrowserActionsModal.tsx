@@ -44,8 +44,8 @@ export function BrowserActionsModal({
 	onOpenDiff: () => void;
 	onOpenGitHubIssues: () => void;
 	onOpenGitHubPulls: () => void;
-	onOpenDetectedAuto: () => void;
-	onOpenDetectedPick: () => void;
+	onOpenDetectedAuto: () => boolean;
+	onOpenDetectedPick: () => boolean;
 	onOpenUrlSlot: (slot: HostBrowserUrlSlot) => void;
 	onEditUrlSlot: (slot: HostBrowserUrlSlot) => void;
 }) {
