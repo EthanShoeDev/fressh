@@ -26,8 +26,6 @@ import {
 	type BrowserActionsModalCallbacks,
 } from './browser-actions-modal-controller';
 
-function noop() {}
-
 export function BrowserActionsModal({
 	open,
 	bottomOffset,
@@ -46,8 +44,8 @@ export function BrowserActionsModal({
 	onOpenDiff: () => void;
 	onOpenGitHubIssues: () => void;
 	onOpenGitHubPulls: () => void;
-	onOpenDetectedAuto?: () => void;
-	onOpenDetectedPick?: () => void;
+	onOpenDetectedAuto: () => void;
+	onOpenDetectedPick: () => void;
 	onOpenUrlSlot: (slot: HostBrowserUrlSlot) => void;
 	onEditUrlSlot: (slot: HostBrowserUrlSlot) => void;
 }) {
@@ -90,8 +88,8 @@ export function BrowserActionsModal({
 			onOpenDiff,
 			onOpenGitHubIssues,
 			onOpenGitHubPulls,
-			onOpenDetectedAuto: onOpenDetectedAuto ?? noop,
-			onOpenDetectedPick: onOpenDetectedPick ?? noop,
+			onOpenDetectedAuto,
+			onOpenDetectedPick,
 			onOpenUrlSlot,
 			onEditUrlSlot,
 		}),

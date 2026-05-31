@@ -11,13 +11,17 @@ import {
 import { Alert } from 'react-native';
 import {
 	buildDiffityShareCommand,
+	buildHostBrowserPaneContextCommand,
 	buildHostBrowserPanePathCommand,
 	buildHostBrowserStatusCycleCommand,
+	buildMdevOpenCommand,
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
 	extractLastHttpsUrl,
 	getHostBrowserUrlSlotLabel,
 	parseHostBrowserUrlInput,
+	parseTmuxPaneContextOutput,
+	type HostBrowserOpenMode,
 	type HostBrowserUrlSlot,
 } from './host-browser-actions';
 import {
@@ -559,6 +563,8 @@ export type BrowserActionsModalProps = {
 	onOpenDiff: () => void;
 	onOpenGitHubIssues: () => void;
 	onOpenGitHubPulls: () => void;
+	onOpenDetectedAuto: () => void;
+	onOpenDetectedPick: () => void;
 	onOpenUrlSlot: (slot: HostBrowserUrlSlot) => void;
 	onEditUrlSlot: (slot: HostBrowserUrlSlot) => void;
 };
@@ -625,6 +631,8 @@ export function useBrowserActionsController<TConnection>(
 	const browserGitHubTargetRequestId = useRequestId();
 	const hostDiffityRequestId = useRequestId();
 	const hostDiffityInFlightRef = useRef(false);
+	const hostDetectedOpenRequestId = useRequestId();
+	const hostDetectedOpenInFlightRef = useRef(false);
 
 	const showError = useCallback((title: string, message: string) => {
 		Alert.alert(title, message);
@@ -672,6 +680,26 @@ export function useBrowserActionsController<TConnection>(
 			);
 		}
 		return panePath;
+	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
+
+	const resolveHostBrowserPaneContext = useCallback(async () => {
+		if (!tmuxEnabled) {
+			throw new Error(
+				'Host browser actions require a tmux-enabled connection.',
+			);
+		}
+		const sessionName = tmuxTarget.trim() || 'main';
+		const output = await runHostBrowserCommand(
+			buildHostBrowserPaneContextCommand(sessionName),
+			10_000,
+		);
+		const context = parseTmuxPaneContextOutput(output);
+		if (!context) {
+			throw new Error(
+				`Could not resolve pane context for tmux session ${sessionName}.`,
+			);
+		}
+		return context;
 	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
 	const resolveCurrentGitHubRepository = useCallback(async () => {
@@ -797,6 +825,52 @@ export function useBrowserActionsController<TConnection>(
 		runHostBrowserCommand,
 		showError,
 	]);
+
+	const handleOpenDetected = useCallback(
+		(mode: HostBrowserOpenMode) => {
+			if (hostDetectedOpenInFlightRef.current) return;
+			setOpen(false);
+			const id = hostDetectedOpenRequestId.next();
+			hostDetectedOpenInFlightRef.current = true;
+			void (async () => {
+				try {
+					const context = await resolveHostBrowserPaneContext();
+					if (!hostDetectedOpenRequestId.isCurrent(id)) return;
+					await runHostBrowserCommand(
+						buildMdevOpenCommand(mode, context),
+						mode === 'pick' ? 60_000 : 30_000,
+					);
+				} catch (err) {
+					if (!hostDetectedOpenRequestId.isCurrent(id)) return;
+					showError(
+						mode === 'pick' ? 'Pick failed' : 'Open failed',
+						getErrorMessage(err),
+					);
+				} finally {
+					if (hostDetectedOpenRequestId.isCurrent(id)) {
+						hostDetectedOpenInFlightRef.current = false;
+					}
+				}
+			})();
+		},
+		[
+			getErrorMessage,
+			hostDetectedOpenRequestId,
+			resolveHostBrowserPaneContext,
+			runHostBrowserCommand,
+			showError,
+		],
+	);
+
+	const handleOpenDetectedAuto = useCallback(
+		() => handleOpenDetected('auto'),
+		[handleOpenDetected],
+	);
+
+	const handleOpenDetectedPick = useCallback(
+		() => handleOpenDetected('pick'),
+		[handleOpenDetected],
+	);
 
 	const handleOpenHostUrlSlot = useCallback(
 		(slot: HostBrowserUrlSlot) => {
@@ -980,13 +1054,16 @@ export function useBrowserActionsController<TConnection>(
 		hostUrlSubmitRequestId.invalidate();
 		browserGitHubTargetRequestId.invalidate();
 		hostDiffityRequestId.invalidate();
+		hostDetectedOpenRequestId.invalidate();
 		hostUrlSubmitInFlightRef.current = false;
 		hostDiffityInFlightRef.current = false;
+		hostDetectedOpenInFlightRef.current = false;
 		setHostUrlModalState(null);
 		setHostUrlModalSubmitting(false);
 		setHostUrlModalError(null);
 	}, [
 		browserGitHubTargetRequestId,
+		hostDetectedOpenRequestId,
 		hostDiffityRequestId,
 		hostUrlReadRequestId,
 		hostUrlSubmitRequestId,
@@ -1000,9 +1077,12 @@ export function useBrowserActionsController<TConnection>(
 			browserGitHubTargetRequestId.invalidate();
 			hostDiffityRequestId.invalidate();
 			hostDiffityInFlightRef.current = false;
+			hostDetectedOpenRequestId.invalidate();
+			hostDetectedOpenInFlightRef.current = false;
 		};
 	}, [
 		browserGitHubTargetRequestId,
+		hostDetectedOpenRequestId,
 		hostDiffityRequestId,
 		hostUrlReadRequestId,
 		hostUrlSubmitRequestId,
@@ -1015,12 +1095,16 @@ export function useBrowserActionsController<TConnection>(
 			onOpenDiff: handleOpenHostDiffity,
 			onOpenGitHubIssues: handleOpenGitHubIssuesTarget,
 			onOpenGitHubPulls: handleOpenGitHubPullsTarget,
+			onOpenDetectedAuto: handleOpenDetectedAuto,
+			onOpenDetectedPick: handleOpenDetectedPick,
 			onOpenUrlSlot: handleOpenHostUrlSlot,
 			onEditUrlSlot: handleEditHostUrlSlot,
 		}),
 		[
 			close,
 			handleEditHostUrlSlot,
+			handleOpenDetectedAuto,
+			handleOpenDetectedPick,
 			handleOpenGitHubIssuesTarget,
 			handleOpenGitHubPullsTarget,
 			handleOpenHostDiffity,
