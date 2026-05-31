@@ -119,7 +119,11 @@ export function parseTmuxPaneContextOutput(
 		const paneId = paneIdRaw?.trim() ?? '';
 		const paneTty = paneTtyRaw?.trim() ?? '';
 		const panePath = panePathParts.join('\t').trim();
-		if (paneId && paneTty && panePath) {
+		if (
+			paneId.startsWith('%') &&
+			paneTty.startsWith('/dev/') &&
+			panePath
+		) {
 			return { paneId, paneTty, panePath };
 		}
 	}
