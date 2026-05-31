@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getBundledShellConfig } from '../../src/lib/shell-config';
+import {
+	getBundledShellConfig,
+	parseShellConfigData,
+} from '../../src/lib/shell-config';
 
 void test('phone base keyboard exposes a continue command key between approve and shift-tab', () => {
 	const config = getBundledShellConfig();
@@ -380,6 +383,39 @@ void test('browser keyboard exposes host navigation actions', () => {
 		false,
 	);
 	assert.deepEqual(config.macrosByKeyboardId.browser_keyboard, []);
+});
+
+void test('shell config rejects internal detected-open action ids', () => {
+	const config = getBundledShellConfig();
+	const actionConfig = JSON.parse(JSON.stringify(config));
+	actionConfig.keyboards[0].grid[0][0] = {
+		type: 'action',
+		actionId: 'OPEN_HOST_DETECTED_AUTO',
+		label: 'Open',
+		icon: 'ExternalLink',
+	};
+
+	assert.throws(
+		() => parseShellConfigData(actionConfig),
+		/Unsupported actionId OPEN_HOST_DETECTED_AUTO/,
+	);
+
+	const macroConfig = JSON.parse(JSON.stringify(config));
+	macroConfig.macrosByKeyboardId.phone_base.push({
+		id: 'internal_open',
+		name: 'Internal open',
+		label: 'Open',
+		category: 'Commands',
+		script: JSON.stringify({
+			type: 'action',
+			actionId: 'OPEN_HOST_DETECTED_PICK',
+		}),
+	});
+
+	assert.throws(
+		() => parseShellConfigData(macroConfig),
+		/Unsupported macro actionId OPEN_HOST_DETECTED_PICK/,
+	);
 });
 
 void test('advanced keyboard omits consolidated host URL setter actions', () => {

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { KNOWN_ACTION_IDS, runAction } from '../../src/lib/keyboard-actions';
+import {
+	CONFIG_SUPPORTED_ACTION_IDS,
+	KNOWN_ACTION_IDS,
+	runAction,
+} from '../../src/lib/keyboard-actions';
 
 void test('keyboard navigation actions use runtime-configured targets instead of hardcoded ids', async () => {
 	const selectedKeyboardIds: string[] = [];
@@ -150,6 +154,14 @@ void test('host browser actions delegate to action context callbacks', async () 
 	assert.equal(statusCycled, 1);
 	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_HOST_DETECTED_AUTO'), true);
 	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_HOST_DETECTED_PICK'), true);
+	assert.equal(
+		CONFIG_SUPPORTED_ACTION_IDS.includes('OPEN_HOST_DETECTED_AUTO'),
+		false,
+	);
+	assert.equal(
+		CONFIG_SUPPORTED_ACTION_IDS.includes('OPEN_HOST_DETECTED_PICK'),
+		false,
+	);
 });
 
 void test('browser keyboard is a target keyboard action', () => {

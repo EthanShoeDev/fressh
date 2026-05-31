@@ -40,6 +40,15 @@ export const KNOWN_ACTION_IDS = [
 	'CYCLE_WORKMUX_STATUS',
 ] as const;
 
+const INTERNAL_ACTION_IDS = new Set<string>([
+	'OPEN_HOST_DETECTED_AUTO',
+	'OPEN_HOST_DETECTED_PICK',
+]);
+
+export const CONFIG_SUPPORTED_ACTION_IDS = KNOWN_ACTION_IDS.filter(
+	(actionId) => !INTERNAL_ACTION_IDS.has(actionId),
+);
+
 export type KnownActionId = (typeof KNOWN_ACTION_IDS)[number];
 export type KeyboardTargetActionId =
 	(typeof KEYBOARD_TARGET_ACTION_IDS)[number];
