@@ -292,7 +292,7 @@ function TmuxAttachErrorScreen({
 					textAlign: 'center',
 				}}
 			>
-				Tmux session not found
+				Workmux session not found
 			</Text>
 			<Text
 				style={{
@@ -302,8 +302,8 @@ function TmuxAttachErrorScreen({
 					marginBottom: 20,
 				}}
 			>
-				We could not attach to tmux session &quot;{sessionName}&quot;. Create it
-				on the server and try again.
+				We could not attach to Workmux session &quot;{sessionName}&quot;. Create
+				it on the server and try again.
 			</Text>
 			<Pressable
 				onPress={onEdit}
