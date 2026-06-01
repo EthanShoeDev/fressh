@@ -75,6 +75,27 @@ void test('buildTmuxScrollbackBatchCommand returns null for empty scroll batches
 	);
 });
 
+void test('buildTmuxScrollbackBatchCommand clamps negative scroll counts', () => {
+	assert.equal(
+		buildTmuxScrollbackBatchCommand({
+			targetName: 'main',
+			direction: 'up',
+			pages: -1,
+			lines: 2,
+		}),
+		"tmux send-keys -t 'main' -N 2 -X scroll-up",
+	);
+	assert.equal(
+		buildTmuxScrollbackBatchCommand({
+			targetName: 'main',
+			direction: 'down',
+			pages: -1,
+			lines: -2,
+		}),
+		null,
+	);
+});
+
 void test('buildTmuxScrollbackBatchCommand escapes single quotes in target names', () => {
 	assert.equal(
 		buildTmuxScrollbackBatchCommand({

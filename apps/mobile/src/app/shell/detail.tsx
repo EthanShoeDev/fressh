@@ -125,6 +125,7 @@ import {
 	type WisprTextEditorAvailability,
 } from '@/lib/wispr-automation';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
+import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
@@ -273,6 +274,7 @@ function TmuxAttachErrorScreen({
 	onEdit,
 }: TmuxAttachErrorScreenProps) {
 	const theme = useTheme();
+	const copy = getWorkmuxAttachErrorCopy(sessionName);
 	return (
 		<View
 			style={{
@@ -292,7 +294,7 @@ function TmuxAttachErrorScreen({
 					textAlign: 'center',
 				}}
 			>
-				Workmux session not found
+				{copy.title}
 			</Text>
 			<Text
 				style={{
@@ -302,8 +304,7 @@ function TmuxAttachErrorScreen({
 					marginBottom: 20,
 				}}
 			>
-				We could not attach to Workmux session &quot;{sessionName}&quot;. Create
-				it on the server and try again.
+				{copy.body}
 			</Text>
 			<Pressable
 				onPress={onEdit}
