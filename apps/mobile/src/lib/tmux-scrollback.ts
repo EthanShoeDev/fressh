@@ -8,9 +8,42 @@ function escapeTmuxTarget(targetName: string): string {
 	return targetName.replace(/'/g, "'\\''");
 }
 
+// Temporary mdev-boundary violation: scrollback entry and notification window
+// selection still call tmux directly until mdev exposes app-callable wrappers.
+// Do not add new direct tmux helpers here; move them behind mdev first.
 export function buildTmuxScrollbackCopyModeCommand(targetName: string): string {
 	const safeTarget = escapeTmuxTarget(targetName);
 	return `tmux copy-mode -t '${safeTarget}'`;
+}
+
+export function buildTmuxScrollbackBatchCommand({
+	targetName,
+	direction,
+	pages,
+	lines,
+}: {
+	targetName: string;
+	direction: 'up' | 'down';
+	pages: number;
+	lines: number;
+}): string | null {
+	const safeTarget = escapeTmuxTarget(targetName);
+	const targetArg = `'${safeTarget}'`;
+	const clampedPages = Math.max(0, pages);
+	const clampedLines = Math.max(0, lines);
+	const pageCmd = direction === 'up' ? 'page-up' : 'page-down';
+	const lineCmd = direction === 'up' ? 'scroll-up' : 'scroll-down';
+	const parts: string[] = [];
+
+	if (clampedPages > 0) {
+		parts.push(`send-keys -t ${targetArg} -N ${clampedPages} -X ${pageCmd}`);
+	}
+	if (clampedLines > 0) {
+		parts.push(`send-keys -t ${targetArg} -N ${clampedLines} -X ${lineCmd}`);
+	}
+	if (parts.length === 0) return null;
+
+	return `tmux ${parts.join(' \\; ')}`;
 }
 
 export function buildTmuxSelectWindowCommand(

@@ -100,6 +100,7 @@ import {
 } from '@/lib/terminal-input-payloads';
 import { useTheme } from '@/lib/theme';
 import {
+	buildTmuxScrollbackBatchCommand,
 	buildTmuxScrollbackCopyModeCommand,
 	getTmuxScrollbackControlFailurePolicy,
 	isValidTmuxCancelKey,
@@ -1041,7 +1042,12 @@ function ShellDetail() {
 			});
 			commandPresetsModal.onClose();
 		},
-		[clearCommandTimeouts, commandPresetsModal, exitSelectionMode, sendCommandStep],
+		[
+			clearCommandTimeouts,
+			commandPresetsModal,
+			exitSelectionMode,
+			sendCommandStep,
+		],
 	);
 
 	const runCommandPreset = useCallback(
@@ -1716,7 +1722,11 @@ function ShellDetail() {
 			wisprAutomationRequestIdRef.current = requestId;
 			startWisprTextEntryAutomation(requestId);
 		},
-		[startWisprTextEntryAutomation, textEntryModal, wisprTextEditorAvailability],
+		[
+			startWisprTextEntryAutomation,
+			textEntryModal,
+			wisprTextEditorAvailability,
+		],
 	);
 
 	const handleCloseTextEntry = useCallback(() => {
@@ -1772,7 +1782,8 @@ function ShellDetail() {
 
 	const featureRequest = useFeatureRequestController({
 		connection: connection ?? null,
-		resolveCurrentGitHubRepository: browserActions.resolveCurrentGitHubRepository,
+		resolveCurrentGitHubRepository:
+			browserActions.resolveCurrentGitHubRepository,
 		executeSideChannelCommand,
 		getErrorMessage,
 		logger,
@@ -2464,24 +2475,14 @@ function ShellDetail() {
 			if (selectionModeEnabled) return;
 			if (!tmuxEnabled || !tmuxControlReady) return;
 
-			const pages = Math.max(0, event.pages);
-			const lines = Math.max(0, event.lines);
-			if (!pages && !lines) return;
-
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-			const safeTarget = targetName.replace(/'/g, "'\\''");
-			const targetArg = `'${safeTarget}'`;
-			const pageCmd = event.direction === 'up' ? 'page-up' : 'page-down';
-			const lineCmd = event.direction === 'up' ? 'scroll-up' : 'scroll-down';
-			const parts: string[] = [];
-			if (pages > 0) {
-				parts.push(`send-keys -t ${targetArg} -N ${pages} -X ${pageCmd}`);
-			}
-			if (lines > 0) {
-				parts.push(`send-keys -t ${targetArg} -N ${lines} -X ${lineCmd}`);
-			}
-			if (parts.length === 0) return;
-			const command = `tmux ${parts.join(' \\; ')}`;
+			const command = buildTmuxScrollbackBatchCommand({
+				targetName,
+				direction: event.direction,
+				pages: event.pages,
+				lines: event.lines,
+			});
+			if (!command) return;
 			void (async () => {
 				if (await sendTmuxControlCommand(command)) return;
 				logger.warn(

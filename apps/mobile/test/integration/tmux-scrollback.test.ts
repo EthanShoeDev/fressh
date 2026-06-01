@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+	buildTmuxScrollbackBatchCommand,
 	buildTmuxScrollbackCopyModeCommand,
 	buildTmuxScrollbackLiveInputSendPlan,
 	buildTmuxSelectWindowCommand,
@@ -23,6 +24,66 @@ void test('buildTmuxSelectWindowCommand targets an agent alert tmux window id', 
 	assert.equal(
 		buildTmuxSelectWindowCommand("main's", '@12'),
 		"tmux select-window -t 'main'\\''s:@12'",
+	);
+});
+
+void test('buildTmuxScrollbackBatchCommand builds page scroll batches', () => {
+	assert.equal(
+		buildTmuxScrollbackBatchCommand({
+			targetName: 'main',
+			direction: 'up',
+			pages: 2,
+			lines: 0,
+		}),
+		"tmux send-keys -t 'main' -N 2 -X page-up",
+	);
+});
+
+void test('buildTmuxScrollbackBatchCommand builds line scroll batches', () => {
+	assert.equal(
+		buildTmuxScrollbackBatchCommand({
+			targetName: 'main',
+			direction: 'down',
+			pages: 0,
+			lines: 7,
+		}),
+		"tmux send-keys -t 'main' -N 7 -X scroll-down",
+	);
+});
+
+void test('buildTmuxScrollbackBatchCommand combines page and line scroll batches', () => {
+	assert.equal(
+		buildTmuxScrollbackBatchCommand({
+			targetName: 'main',
+			direction: 'up',
+			pages: 1,
+			lines: 3,
+		}),
+		"tmux send-keys -t 'main' -N 1 -X page-up \\; send-keys -t 'main' -N 3 -X scroll-up",
+	);
+});
+
+void test('buildTmuxScrollbackBatchCommand returns null for empty scroll batches', () => {
+	assert.equal(
+		buildTmuxScrollbackBatchCommand({
+			targetName: 'main',
+			direction: 'down',
+			pages: 0,
+			lines: 0,
+		}),
+		null,
+	);
+});
+
+void test('buildTmuxScrollbackBatchCommand escapes single quotes in target names', () => {
+	assert.equal(
+		buildTmuxScrollbackBatchCommand({
+			targetName: "main's",
+			direction: 'down',
+			pages: 1,
+			lines: 1,
+		}),
+		"tmux send-keys -t 'main'\\''s' -N 1 -X page-down \\; send-keys -t 'main'\\''s' -N 1 -X scroll-down",
 	);
 });
 
@@ -82,12 +143,7 @@ void test('live input plan drops empty payload segments while inactive', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: false,
 		cancelKey: bytes([0x71]),
-		payloadSegments: [
-			bytes([]),
-			bytes([0x68]),
-			bytes([]),
-			bytes([0x69, 0x21]),
-		],
+		payloadSegments: [bytes([]), bytes([0x68]), bytes([]), bytes([0x69, 0x21])],
 		interSegmentDelayMs: 3,
 		scrollbackExitDelayMs: 10,
 	});
@@ -140,12 +196,7 @@ void test('live input plan drops empty payload segments while preserving order',
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		cancelKey: bytes([0x71]),
-		payloadSegments: [
-			bytes([]),
-			bytes([0x68]),
-			bytes([]),
-			bytes([0x69, 0x21]),
-		],
+		payloadSegments: [bytes([]), bytes([0x68]), bytes([]), bytes([0x69, 0x21])],
 		interSegmentDelayMs: 3,
 		scrollbackExitDelayMs: 10,
 	});

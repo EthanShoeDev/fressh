@@ -68,6 +68,10 @@ export function parseHostBrowserUrlInput(
 	return { type: 'valid', url: parsed.href };
 }
 
+// Temporary mdev-boundary violation: these pane/window context helpers still
+// call tmux directly because mdev does not yet expose app-callable wrappers for
+// current pane path, pane context, or visible window id. Do not add new direct
+// tmux helpers here; move them behind mdev first.
 export function buildHostBrowserPanePathCommand(
 	tmuxSessionName: string,
 ): string {
