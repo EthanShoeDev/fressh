@@ -1,4 +1,5 @@
 {
+	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
 		"target": "ESNext",
 		"module": "ESNext",
@@ -9,8 +10,7 @@
 		"noEmit": true,
 		"declaration": true,
 		"declarationMap": true,
-		"outDir": "./dist",
-		"rootDir": "./src"
+		"outDir": "./dist"
 	},
 	"include": ["src/**/*.ts", "tsdown.config.ts"]
 }

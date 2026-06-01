@@ -39,3 +39,5 @@ mnt/*
 .turbo/
 .direnv/
 .cache/
+
+docs/cloned-repos-as-docs/

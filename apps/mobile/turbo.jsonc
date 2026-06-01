@@ -1,66 +1,31 @@
 {
-	"extends": [
-		"//"
-	],
+	"extends": ["//"],
 	"tasks": {
 		// Override default tasks for mobile
+		// oxlint runs once at the root; we only add the mobile-specific
+		// expo:doctor check alongside the per-package tsgo typecheck.
 		"lint": {
-			"dependsOn": [
-				"//#oxfmt:fix",
-				"oxlint:fix"
-			],
-			"with": [
-				"expo:doctor"
-			],
+			"with": ["tsgo:check", "//#oxfmt:fix", "//#oxlint:fix", "expo:doctor"],
 		},
 		"lint:check": {
-			"dependsOn": [
+			"with": [
+				"tsgo:check",
 				"//#oxfmt:check",
-				"oxlint:check"
-			],
-			"with": [
-				"expo:doctor"
-			],
-		},
-		"oxlint:fix": {
-			"dependsOn": [
-				"^build",
-				"@fressh/oxlint-plugins#build"
-			],
-			"with": [
-				"tsgo:check"
-			],
-		},
-		"oxlint:check": {
-			"dependsOn": [
-				"^build",
-				"@fressh/oxlint-plugins#build"
-			],
-			"with": [
-				"tsgo:check"
+				"//#oxlint:check",
+				"expo:doctor",
 			],
 		},
 		"test": {
-			"dependsOn": [
-				"^build"
-			],
-			"with": [
-				"maestro:test"
-			],
+			"dependsOn": ["^build"],
+			"with": ["maestro:test"],
 		},
 		"dev:android": {
-			"dependsOn": [
-				"^build",
-				"^ubrn:build:android"
-			],
+			"dependsOn": ["^build", "^ubrn:build:android"],
 			"cache": false,
 			"persistent": true,
 		},
 		"dev:ios": {
-			"dependsOn": [
-				"^build",
-				"^ubrn:build:ios"
-			],
+			"dependsOn": ["^build", "^ubrn:build:ios"],
 			"cache": false,
 			"persistent": true,
 		},
@@ -68,13 +33,8 @@
 		"expo:doctor": {},
 		"maestro:test": {},
 		"gradle:build:signed:apk": {
-			"dependsOn": [
-				"^build",
-				"^ubrn:build:android"
-			],
-			"outputs": [
-				"android/app/build/outputs/**"
-			],
+			"dependsOn": ["^build", "^ubrn:build:android"],
+			"outputs": ["android/app/build/outputs/**"],
 		},
 	},
 }

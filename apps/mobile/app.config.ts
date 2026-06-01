@@ -1,11 +1,14 @@
-import { type ExpoConfig } from 'expo/config';
+import type { ExpoConfig } from 'expo/config';
 import 'tsx/cjs';
 import packageJson from './package.json';
 
 function semverToCode(v: string) {
-	const [maj, min, pat] = v.split('.').map((n) => Number.parseInt(n || '0', 10));
-	if (maj === undefined || min === undefined || pat === undefined)
-		{throw new Error(`Invalid version: ${v}`);}
+	const [maj, min, pat] = v
+		.split('.')
+		.map((n) => Number.parseInt(n || '0', 10));
+	if (maj === undefined || min === undefined || pat === undefined) {
+		throw new Error(`Invalid version: ${v}`);
+	}
 	return maj * 10_000 + min * 100 + pat;
 }
 const versionCode = semverToCode(packageJson.version);

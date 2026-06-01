@@ -19,13 +19,14 @@ function FieldInfo() {
 	const errs = meta.errors;
 	let errorMessage: string | null = null;
 	if (errs && errs.length > 0) {
-		const first = errs[0] as { message: string };
+		const first: unknown = errs[0];
 		if (
 			first &&
 			typeof first === 'object' &&
+			'message' in first &&
 			typeof first.message === 'string'
 		) {
-			errorMessage = first.message as string;
+			errorMessage = first.message;
 		} else {
 			errorMessage = String(first);
 		}
@@ -66,7 +67,7 @@ export function TextField(
 					},
 					style,
 				]}
-				placeholderTextColor="#9AA0A6"
+				placeholderTextColor='#9AA0A6'
 				value={field.state.value}
 				onChangeText={field.handleChange}
 				onBlur={field.handleBlur}
@@ -82,7 +83,13 @@ export function NumberField(
 		label?: string;
 	},
 ) {
-	const { label, style, keyboardType, onChangeText: _onChangeText, ...rest } = props;
+	const {
+		label,
+		style,
+		keyboardType,
+		onChangeText: _onChangeText,
+		...rest
+	} = props;
 	const field = useFieldContext<number>();
 	return (
 		<View style={{ marginBottom: 16 }}>
@@ -113,7 +120,7 @@ export function NumberField(
 					},
 					style,
 				]}
-				placeholderTextColor="#9AA0A6"
+				placeholderTextColor='#9AA0A6'
 				value={field.state.value.toString()}
 				onChangeText={(text) => {
 					field.handleChange(Number(text));

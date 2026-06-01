@@ -4,20 +4,8 @@
 	"tasks": {
 		// Override default tasks for uniffi-russh
 		// Cargo tasks are optional - they require rust toolchain
-		"lint": {
-			"dependsOn": ["//#oxfmt:fix", "oxlint:fix"],
-		},
-		"lint:check": {
-			"dependsOn": ["//#oxfmt:check", "oxlint:check"],
-		},
-		"oxlint:fix": {
-			"dependsOn": ["^build", "@fressh/oxlint-plugins#build"],
-			"with": ["tsgo:check"],
-		},
-		"oxlint:check": {
-			"dependsOn": ["^build", "@fressh/oxlint-plugins#build"],
-			"with": ["tsgo:check"],
-		},
+		// lint/lint:check are inherited from the root config (root-only oxlint
+		// + per-package tsgo:check).
 		"tsgo:check": {
 			// Note: Requires generated files to exist (from ubrn:build:android/ios)
 			// If tsgo fails with missing files, run: turbo ubrn:build:android

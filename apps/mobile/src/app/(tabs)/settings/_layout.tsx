@@ -11,7 +11,7 @@ export default function SettingsStackLayout() {
 				headerTintColor: theme.colors.textPrimary,
 			}}
 		>
-			<Stack.Screen name="index" options={{ title: 'Settings' }} />
+			<Stack.Screen name='index' options={{ title: 'Settings' }} />
 		</Stack>
 	);
 }

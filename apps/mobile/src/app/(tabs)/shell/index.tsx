@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import {
-	type SshShell,
-	type SshConnection,
+import type {
+	SshShell,
+	SshConnection,
 } from '@fressh/react-native-uniffi-russh';
 import { FlashList } from '@shopify/flash-list';
 import { formatDistanceToNow } from 'date-fns';
@@ -85,8 +85,12 @@ function LoadedState() {
 					setActionTarget(null);
 				}}
 				onCloseShell={() => {
-					if (!actionTarget) {return;}
-					if (!('shell' in actionTarget)) {return;}
+					if (!actionTarget) {
+						return;
+					}
+					if (!('shell' in actionTarget)) {
+						return;
+					}
 					void actionTarget.shell.close();
 					setActionTarget(null);
 				}}
@@ -99,14 +103,22 @@ function LoadedState() {
 					setActionTarget(null);
 				}}
 				onDisconnect={() => {
-					if (!actionTarget) {return;}
-					if (!('connection' in actionTarget)) {return;}
+					if (!actionTarget) {
+						return;
+					}
+					if (!('connection' in actionTarget)) {
+						return;
+					}
 					void actionTarget.connection.disconnect();
 					setActionTarget(null);
 				}}
 				onStartShell={() => {
-					if (!actionTarget) {return;}
-					if (!('connection' in actionTarget)) {return;}
+					if (!actionTarget) {
+						return;
+					}
+					if (!('connection' in actionTarget)) {
+						return;
+					}
 					void actionTarget.connection
 						.startShell({
 							term: 'Xterm',
@@ -274,7 +286,7 @@ function EmptyState() {
 			<Text style={{ color: theme.colors.muted }}>
 				No active shells. Connect from Host tab.
 			</Text>
-			<Link href="/" style={{ color: theme.colors.primary, fontWeight: '600' }}>
+			<Link href='/' style={{ color: theme.colors.primary, fontWeight: '600' }}>
 				Go to Hosts
 			</Link>
 		</View>
@@ -294,7 +306,9 @@ function ShellCard({
 		addSuffix: true,
 	});
 	const connection = useSshStore((s) => s.connections[shell.connectionId]);
-	if (!connection) {return null;}
+	if (!connection) {
+		return null;
+	}
 	return (
 		<Pressable
 			style={{
@@ -373,7 +387,7 @@ function ShellActionsSheet({
 
 	return (
 		<ActionSheetModal
-			title="Shell Actions"
+			title='Shell Actions'
 			actions={[
 				{ label: 'Close Shell', onPress: onCloseShell },
 				{ label: 'Cancel', onPress: onClose, variant: 'outline' },
@@ -401,7 +415,7 @@ function ConnectionActionsSheet({
 
 	return (
 		<ActionSheetModal
-			title="Connection Actions"
+			title='Connection Actions'
 			actions={[
 				{ label: 'Disconnect', onPress: onDisconnect },
 				{ label: 'Start Shell', onPress: onStartShell },
@@ -441,7 +455,7 @@ function ActionSheetModal({
 		<Modal
 			transparent
 			visible={open}
-			animationType="slide"
+			animationType='slide'
 			onRequestClose={onClose}
 		>
 			<View
@@ -550,7 +564,9 @@ function HeaderViewModeButton() {
 	}, [setShellListViewMode, shellListViewMode]);
 
 	const handleLongPress = React.useCallback(() => {
-		if (Platform.OS !== 'ios') {return;}
+		if (Platform.OS !== 'ios') {
+			return;
+		}
 		ActionSheetIOS.showActionSheetWithOptions(
 			{
 				title: 'View Mode',
@@ -558,8 +574,12 @@ function HeaderViewModeButton() {
 				cancelButtonIndex: 2,
 			},
 			(buttonIndex) => {
-				if (buttonIndex === 0) {setShellListViewMode('flat');}
-				if (buttonIndex === 1) {setShellListViewMode('grouped');}
+				if (buttonIndex === 0) {
+					setShellListViewMode('flat');
+				}
+				if (buttonIndex === 1) {
+					setShellListViewMode('grouped');
+				}
 			},
 		);
 	}, [setShellListViewMode]);
@@ -569,7 +589,7 @@ function HeaderViewModeButton() {
 			onPress={handleToggle}
 			onLongPress={handleLongPress}
 			hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-			accessibilityRole="button"
+			accessibilityRole='button'
 			accessibilityLabel={accessibilityLabel}
 			style={({ pressed }) => ({
 				opacity: pressed ? 0.4 : 1,
@@ -577,13 +597,13 @@ function HeaderViewModeButton() {
 		>
 			{shellListViewMode === 'grouped' ? (
 				<MaterialCommunityIcons
-					name="file-tree-outline"
+					name='file-tree-outline'
 					size={22}
 					color={theme.colors.textPrimary}
 				/>
 			) : (
 				<Ionicons
-					name="list-outline"
+					name='list-outline'
 					size={22}
 					color={theme.colors.textPrimary}
 				/>

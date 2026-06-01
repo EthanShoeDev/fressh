@@ -1,5 +1,7 @@
 {
+	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
+		"types": ["node"],
 		"rootDir": ".",
 		"paths": {
 			"react-native-uniffi-russh": ["./src/index"]

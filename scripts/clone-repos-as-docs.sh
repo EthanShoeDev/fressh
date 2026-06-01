@@ -8,7 +8,6 @@ mkdir -p docs/cloned-repos-as-docs ; cd docs/cloned-repos-as-docs
 # Linting
 gh repo clone oxc-project/oxc
 gh repo clone oxc-project/oxc-project.github.io
-gh repo clone haydenbleasel/ultracite
 
 # Build Tools
 gh repo clone rolldown/tsdown

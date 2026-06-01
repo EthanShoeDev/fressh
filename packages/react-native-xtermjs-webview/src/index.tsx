@@ -1,4 +1,4 @@
-import  { type ITerminalOptions } from '@xterm/xterm';
+import type { ITerminalOptions } from '@xterm/xterm';
 import React, {
 	useEffect,
 	useImperativeHandle,
@@ -101,16 +101,24 @@ function xTermOptionsEquals(
 	a: Partial<ITerminalOptions> | null,
 	b: Partial<ITerminalOptions> | null,
 ): boolean {
-	if (a === b) {return true;}
-	if (a === null && b === null) {return true;}
-	if (a === null || b === null) {return false;}
+	if (a === b) {
+		return true;
+	}
+	if (a === null && b === null) {
+		return true;
+	}
+	if (a === null || b === null) {
+		return false;
+	}
 	const keys = new Set<string>([
 		...Object.keys(a as object),
 		...Object.keys(b as object),
 	]);
 	for (const k of keys) {
 		const key = k as keyof ITerminalOptions;
-		if (a[key] !== b[key]) {return false;}
+		if (a[key] !== b[key]) {
+			return false;
+		}
 	}
 	return true;
 }
@@ -134,7 +142,9 @@ export function XtermJsWebView({
 	const sendToWebView = useCallback(
 		(obj: BridgeOutboundMessage) => {
 			const webViewRef = webRef.current;
-			if (!webViewRef) {return;}
+			if (!webViewRef) {
+				return;
+			}
 			const payload = JSON.stringify(obj);
 			logger?.debug?.(`sending msg to webview: ${payload}`);
 			const js = `window.dispatchEvent(new MessageEvent('message',{data:${payload}})); true;`;
@@ -148,7 +158,9 @@ export function XtermJsWebView({
 	const rafRef = useRef<number | null>(null);
 
 	const flush = useCallback(() => {
-		if (!bufRef.current) {return;}
+		if (!bufRef.current) {
+			return;
+		}
 		const bStr = binaryToBStr(bufRef.current);
 		bufRef.current = null;
 		if (rafRef.current !== null) {
@@ -159,7 +171,9 @@ export function XtermJsWebView({
 	}, [sendToWebView]);
 
 	const schedule = useCallback(() => {
-		if (rafRef.current !== null) {return;}
+		if (rafRef.current !== null) {
+			return;
+		}
 		rafRef.current = requestAnimationFrame(() => {
 			rafRef.current = null;
 			flush();
@@ -168,7 +182,9 @@ export function XtermJsWebView({
 
 	const write = useCallback(
 		(data: Uint8Array) => {
-			if (!data || data.length === 0) {return;}
+			if (!data || data.length === 0) {
+				return;
+			}
 			if (bufRef.current) {
 				const a = bufRef.current;
 				const merged = new Uint8Array(a.length + data.length);
@@ -178,15 +194,20 @@ export function XtermJsWebView({
 			} else {
 				bufRef.current = data;
 			}
-			if ((bufRef.current?.length ?? 0) >= coalescingThreshold) {flush();}
-			else {schedule();}
+			if ((bufRef.current?.length ?? 0) >= coalescingThreshold) {
+				flush();
+			} else {
+				schedule();
+			}
 		},
 		[coalescingThreshold, flush, schedule],
 	);
 
 	const writeMany = useCallback(
 		(chunks: Uint8Array[]) => {
-			if (!chunks || chunks.length === 0) {return;}
+			if (!chunks || chunks.length === 0) {
+				return;
+			}
 			flush(); // Ensure any pending small buffered write is flushed before bulk write
 			const bStrs = chunks.map(binaryToBStr);
 			sendToWebView({ type: 'writeMany', chunks: bStrs });
@@ -195,29 +216,41 @@ export function XtermJsWebView({
 	);
 
 	// Cleanup pending rAF on unmount
-	useEffect(() => () => {
-			if (rafRef.current !== null) {cancelAnimationFrame(rafRef.current);}
+	useEffect(
+		() => () => {
+			if (rafRef.current !== null) {
+				cancelAnimationFrame(rafRef.current);
+			}
 			rafRef.current = null;
 			bufRef.current = null;
-		}, []);
+		},
+		[],
+	);
 
 	const fit = useCallback(() => {
 		sendToWebView({ type: 'fit' });
 	}, [sendToWebView]);
 
 	const autoFitFn = useCallback(() => {
-		if (!autoFit) {return;}
+		if (!autoFit) {
+			return;
+		}
 		fit();
 	}, [autoFit, fit]);
 
 	const appliedSizeRef = useRef<{ cols: number; rows: number } | null>(null);
 
 	useEffect(() => {
-		if (!initialized) {return;}
+		if (!initialized) {
+			return;
+		}
 		const appliedSize = appliedSizeRef.current;
-		if (!size) {return;}
-		if (appliedSize?.cols === size.cols && appliedSize?.rows === size.rows)
-			{return;}
+		if (!size) {
+			return;
+		}
+		if (appliedSize?.cols === size.cols && appliedSize?.rows === size.rows) {
+			return;
+		}
 
 		logger?.log?.(`calling resize`, size);
 		sendToWebView({ type: 'resize', cols: size.cols, rows: size.rows });
@@ -230,7 +263,9 @@ export function XtermJsWebView({
 		write,
 		writeMany,
 		flush,
-		clear: () =>{  sendToWebView({ type: 'clear' }); },
+		clear: () => {
+			sendToWebView({ type: 'clear' });
+		},
 		focus: () => {
 			sendToWebView({ type: 'focus' });
 			webRef.current?.requestFocus();
@@ -254,9 +289,13 @@ export function XtermJsWebView({
 	const appliedXtermOptionsRef = useRef<Partial<ITerminalOptions> | null>(null);
 
 	useEffect(() => {
-		if (!initialized) {return;}
+		if (!initialized) {
+			return;
+		}
 		const appliedXtermOptions = appliedXtermOptionsRef.current;
-		if (xTermOptionsEquals(appliedXtermOptions, mergedXTermOptions)) {return;}
+		if (xTermOptionsEquals(appliedXtermOptions, mergedXTermOptions)) {
+			return;
+		}
 		logger?.log?.(`setting options: `, mergedXTermOptions);
 		sendToWebView({ type: 'setOptions', opts: mergedXTermOptions });
 		autoFitFn();

@@ -1,28 +1,26 @@
 {
-  "name": "@fressh/oxlint-plugins",
-  "type": "module",
-  "exports": {
-    "./require-disable-description": {
-      "types": "./dist/require-disable-description.d.mts",
-      "default": "./dist/require-disable-description.mjs"
-    },
-    "./require-unknown-cast-comment": {
-      "types": "./dist/require-unknown-cast-comment.d.mts",
-      "default": "./dist/require-unknown-cast-comment.mjs"
-    }
-  },
-  "scripts": {
-    "build": "bun run tsdown:build",
-    "tsdown:build": "tsdown",
-    "oxlint:fix": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error --fix .",
-    "oxlint:check": "oxlint -c .oxlintrc.json --type-aware --type-check --report-unused-disable-directives-severity=error .",
-    "tsgo:check": "tsgo --noEmit"
-  },
-  "devDependencies": {
-    "@types/eslint": "^9.6.1",
-    "tsdown": "catalog:"
-  },
-  "peerDependencies": {
-    "typescript": "catalog:"
-  }
+	"name": "@fressh/oxlint-plugins",
+	"type": "module",
+	"exports": {
+		"./require-disable-description": {
+			"types": "./dist/require-disable-description.d.mts",
+			"default": "./dist/require-disable-description.mjs"
+		},
+		"./require-unknown-cast-comment": {
+			"types": "./dist/require-unknown-cast-comment.d.mts",
+			"default": "./dist/require-unknown-cast-comment.mjs"
+		}
+	},
+	"scripts": {
+		"build": "bun run tsdown:build",
+		"tsdown:build": "tsdown",
+		"tsgo:check": "tsgo --noEmit"
+	},
+	"devDependencies": {
+		"@types/eslint": "^9.6.1",
+		"tsdown": "catalog:"
+	},
+	"peerDependencies": {
+		"typescript": "catalog:"
+	}
 }

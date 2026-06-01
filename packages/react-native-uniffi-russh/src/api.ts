@@ -76,7 +76,11 @@ export interface TerminalChunk {
 	bytes: ArrayBuffer;
 }
 
-export interface DropNotice { kind: 'dropped'; fromSeq: bigint; toSeq: bigint }
+export interface DropNotice {
+	kind: 'dropped';
+	fromSeq: bigint;
+	toSeq: bigint;
+}
 export type ListenerEvent = TerminalChunk | DropNotice;
 
 export type Cursor =
@@ -239,6 +243,11 @@ function cursorToGenerated(cursor: Cursor): GeneratedRussh.Cursor {
 		case 'live': {
 			return new GeneratedRussh.Cursor.Live();
 		}
+		default: {
+			throw new Error(
+				`Unhandled cursor mode: ${(cursor as { mode: string }).mode}`,
+			);
+		}
 	}
 }
 
@@ -291,7 +300,8 @@ function wrapShellSession(
 			return id;
 		} catch (error) {
 			throw new Error(
-				`addListener failed: ${String(error instanceof Error ? error.message : error)}`, { cause: error },
+				`addListener failed: ${String(error instanceof Error ? error.message : error)}`,
+				{ cause: error },
 			);
 		}
 	};
@@ -309,7 +319,9 @@ function wrapShellSession(
 		currentSeq: () => Number(shell.currentSeq()),
 		readBuffer,
 		addListener,
-		removeListener: (id) =>{  shell.removeListener(id); },
+		removeListener: (id) => {
+			shell.removeListener(id);
+		},
 	};
 }
 
@@ -332,7 +344,9 @@ function wrapConnection(
 					term: terminalTypeLiteralToEnum[params.term],
 					onClosedCallback: onClosed
 						? {
-								onChange: (channelId) =>{  onClosed(channelId); },
+								onChange: (channelId) => {
+									onClosed(channelId);
+								},
 							}
 						: undefined,
 					terminalMode: params.terminalMode,
@@ -372,13 +386,16 @@ async function connect({
 			},
 			onConnectionProgressCallback: onConnectionProgress
 				? {
-						onChange: (statusEnum) =>{ 
-							onConnectionProgress(sshConnProgressEnumToLiteral[statusEnum]); },
+						onChange: (statusEnum) => {
+							onConnectionProgress(sshConnProgressEnumToLiteral[statusEnum]);
+						},
 					}
 				: undefined,
 			onDisconnectedCallback: onDisconnected
 				? {
-						onChange: (connectionId) =>{  onDisconnected(connectionId); },
+						onChange: (connectionId) => {
+							onDisconnected(connectionId);
+						},
 					}
 				: undefined,
 			onServerKeyCallback: {

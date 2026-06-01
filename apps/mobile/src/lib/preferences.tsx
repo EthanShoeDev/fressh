@@ -1,5 +1,5 @@
 import { createMMKV, useMMKVString } from 'react-native-mmkv';
-import { type ThemeName } from './theme';
+import type { ThemeName } from './theme';
 
 const storage = createMMKV({ id: 'settings' });
 

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { type ListenerEvent } from '@fressh/react-native-uniffi-russh';
+import type { ListenerEvent } from '@fressh/react-native-uniffi-russh';
 import {
 	XtermJsWebView,
 	type XtermWebViewHandle,
@@ -57,7 +57,9 @@ export default function TabsShellDetail() {
 		}, []),
 	);
 
-	if (!ready) {return <RouteSkeleton />;}
+	if (!ready) {
+		return <RouteSkeleton />;
+	}
 	return <ShellDetail />;
 }
 
@@ -90,11 +92,12 @@ function ShellDetail() {
 		channelId?: string;
 	}>();
 
-	if (!searchParams.connectionId || !searchParams.channelId)
-		{throw new Error('Missing connectionId or channelId');}
+	if (!searchParams.connectionId || !searchParams.channelId) {
+		throw new Error('Missing connectionId or channelId');
+	}
 
-	const {connectionId} = searchParams;
-	const channelId = Number.parseInt(searchParams.channelId);
+	const { connectionId } = searchParams;
+	const channelId = Number.parseInt(searchParams.channelId, 10);
 
 	const router = useRouter();
 	const theme = useTheme();
@@ -105,7 +108,9 @@ function ShellDetail() {
 	const connection = useSshStore((s) => s.connections[connectionId]);
 
 	useEffect(() => {
-		if (shell && connection) {return;}
+		if (shell && connection) {
+			return;
+		}
 		logger.info('shell or connection not found, replacing route with /shell');
 		router.back();
 	}, [connection, router, shell]);
@@ -113,10 +118,13 @@ function ShellDetail() {
 	useEffect(() => {
 		const xterm = xtermRef.current;
 		return () => {
-			if (shell && listenerIdRef.current != null)
-				{shell.removeListener(listenerIdRef.current);}
+			if (shell && listenerIdRef.current !== null) {
+				shell.removeListener(listenerIdRef.current);
+			}
 			listenerIdRef.current = null;
-			if (xterm) {xterm.flush();}
+			if (xterm) {
+				xterm.flush();
+			}
 		};
 	}, [shell]);
 
@@ -128,16 +136,21 @@ function ShellDetail() {
 
 	const sendBytes = useCallback(
 		(bytes: Uint8Array<ArrayBuffer>) => {
-			if (!shell) {return;}
+			if (!shell) {
+				return;
+			}
 
+			let modifiedBytes = bytes;
 			modifierKeysActive
 				.toSorted((a, b) => a.orderPreference - b.orderPreference)
 				.forEach((m) => {
-					if (!m.canApplyModifierToBytes(bytes)) {return;}
-					bytes = m.applyModifierToBytes(bytes);
+					if (!m.canApplyModifierToBytes(modifiedBytes)) {
+						return;
+					}
+					modifiedBytes = m.applyModifierToBytes(modifiedBytes);
 				});
 
-			shell.sendData(bytes.buffer).catch((error: unknown) => {
+			shell.sendData(modifiedBytes.buffer).catch((error: unknown) => {
 				logger.warn('sendData failed', error);
 				router.back();
 			});
@@ -173,11 +186,13 @@ function ShellDetail() {
 						title: `${connection?.connectionDetails.username}@${connection?.connectionDetails.host}`,
 						headerRight: () => (
 							<Pressable
-								accessibilityLabel="Close Shell"
+								accessibilityLabel='Close Shell'
 								hitSlop={10}
 								onPress={async () => {
 									logger.info('Close Shell button pressed');
-									if (!shell) {return;}
+									if (!shell) {
+										return;
+									}
 									try {
 										await shell.close();
 									} catch (error) {
@@ -187,7 +202,7 @@ function ShellDetail() {
 								style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
 							>
 								<Ionicons
-									name="close"
+									name='close'
 									size={20}
 									color={theme.colors.textPrimary}
 								/>
@@ -199,7 +214,7 @@ function ShellDetail() {
 					}}
 				/>
 				<KeyboardAvoidingView
-					behavior="height"
+					behavior='height'
 					keyboardVerticalOffset={120}
 					style={{ flex: 1, gap: 4 }}
 				>
@@ -231,10 +246,12 @@ function ShellDetail() {
 									},
 								}}
 								onInitialized={() => {
-									if (!shell) {throw new Error('Shell not found');}
+									if (!shell) {
+										throw new Error('Shell not found');
+									}
 
 									// Replay from head, then attach live listener
-									void (async () => {
+									(() => {
 										const res = shell.readBuffer({ mode: 'head' });
 										logger.info('readBuffer(head)', {
 											chunks: res.chunks.length,
@@ -257,7 +274,9 @@ function ShellDetail() {
 												}
 												const chunk = ev;
 												const xr3 = xtermRef.current;
-												if (xr3) {xr3.write(new Uint8Array(chunk.bytes));}
+												if (xr3) {
+													xr3.write(new Uint8Array(chunk.bytes));
+												}
 											},
 											{ cursor: { mode: 'seq', seq: res.nextSeq } },
 										);
@@ -266,10 +285,14 @@ function ShellDetail() {
 									})();
 									// Focus to pop the keyboard (iOS needs the prop we set)
 									const xr2 = xtermRef.current;
-									if (xr2) {xr2.focus();}
+									if (xr2) {
+										xr2.focus();
+									}
 								}}
 								onData={(terminalMessage) => {
-									if (!shell) {return;}
+									if (!shell) {
+										return;
+									}
 									const bytes = encoder.encode(terminalMessage);
 									sendBytes(bytes);
 								}}
@@ -310,22 +333,22 @@ function KeyboardToolbar() {
 			}}
 		>
 			<KeyboardToolbarRow>
-				<KeyboardToolbarButtonPreset preset="esc" />
-				<KeyboardToolbarButtonPreset preset="/" />
-				<KeyboardToolbarButtonPreset preset="|" />
-				<KeyboardToolbarButtonPreset preset="home" />
-				<KeyboardToolbarButtonPreset preset="up" />
-				<KeyboardToolbarButtonPreset preset="end" />
-				<KeyboardToolbarButtonPreset preset="pgup" />
+				<KeyboardToolbarButtonPreset preset='esc' />
+				<KeyboardToolbarButtonPreset preset='/' />
+				<KeyboardToolbarButtonPreset preset='|' />
+				<KeyboardToolbarButtonPreset preset='home' />
+				<KeyboardToolbarButtonPreset preset='up' />
+				<KeyboardToolbarButtonPreset preset='end' />
+				<KeyboardToolbarButtonPreset preset='pgup' />
 			</KeyboardToolbarRow>
 			<KeyboardToolbarRow>
-				<KeyboardToolbarButtonPreset preset="tab" />
-				<KeyboardToolbarButtonPreset preset="ctrl" />
-				<KeyboardToolbarButtonPreset preset="alt" />
-				<KeyboardToolbarButtonPreset preset="left" />
-				<KeyboardToolbarButtonPreset preset="down" />
-				<KeyboardToolbarButtonPreset preset="right" />
-				<KeyboardToolbarButtonPreset preset="pgdn" />
+				<KeyboardToolbarButtonPreset preset='tab' />
+				<KeyboardToolbarButtonPreset preset='ctrl' />
+				<KeyboardToolbarButtonPreset preset='alt' />
+				<KeyboardToolbarButtonPreset preset='left' />
+				<KeyboardToolbarButtonPreset preset='down' />
+				<KeyboardToolbarButtonPreset preset='right' />
+				<KeyboardToolbarButtonPreset preset='pgdn' />
 			</KeyboardToolbarRow>
 		</View>
 	);
@@ -384,21 +407,28 @@ const ctrlModifier: ModifierContract = {
 	orderPreference: 10,
 	canApplyModifierToBytes: (bytes) => {
 		const firstByte = bytes[0];
-		if (firstByte === undefined) {return false;}
-		return mapByteToCtrl(firstByte) != null;
+		if (firstByte === undefined) {
+			return false;
+		}
+		return mapByteToCtrl(firstByte) !== null;
 	},
 	applyModifierToBytes: (bytes) => {
 		const firstByte = bytes[0];
-		if (firstByte === undefined) {return bytes;}
+		if (firstByte === undefined) {
+			return bytes;
+		}
 		const ctrlByte = mapByteToCtrl(firstByte);
-		if (ctrlByte == null) {return bytes;}
+		if (ctrlByte === null) {
+			return bytes;
+		}
 		return new Uint8Array([ctrlByte]);
 	},
 };
 
 const altModifier: ModifierContract = {
 	orderPreference: 20,
-	canApplyModifierToBytes: (bytes) => bytes.length > 0 && bytes[0] !== escapeByte,
+	canApplyModifierToBytes: (bytes) =>
+		bytes.length > 0 && bytes[0] !== escapeByte,
 	applyModifierToBytes: (bytes) => {
 		const result = new Uint8Array(bytes.length + 1);
 		result[0] = escapeByte;
@@ -408,12 +438,16 @@ const altModifier: ModifierContract = {
 };
 
 function mapByteToCtrl(byte: number): number | null {
-	if (byte === 32) {return 0;} // Ctrl+Space
+	if (byte === 32) {
+		return 0;
+	} // Ctrl+Space
 	const uppercase = byte & 0b1101_1111; // Fold to uppercase / control range
 	if (uppercase >= 64 && uppercase <= 95) {
-		return uppercase & 0x1F;
+		return uppercase & 0x1f;
 	}
-	if (byte === 63) {return 127;} // Ctrl+?
+	if (byte === 63) {
+		return 127;
+	} // Ctrl+?
 	return null;
 }
 
@@ -489,7 +523,7 @@ function KeyboardToolbarButton({
 
 	const modifierActive =
 		props.type === 'modifier' &&
-		!!modifierKeysActive.some((m) => propsToKey(m) === propsToKey(props));
+		modifierKeysActive.some((m) => propsToKey(m) === propsToKey(props));
 
 	return (
 		<Pressable

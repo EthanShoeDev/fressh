@@ -19,7 +19,7 @@ export default function TabsLayout() {
 			tintColor={theme.colors.primary}
 			shadowColor={theme.colors.shadow}
 			// android
-			backBehavior="initialRoute"
+			backBehavior='initialRoute'
 			indicatorColor={theme.colors.primary}
 			// labelVisibilityMode="labeled"
 			// rippleColor={theme.colors.transparent}
@@ -27,25 +27,25 @@ export default function TabsLayout() {
 			// blurEffect="systemChromeMaterial"
 			// disableTransparentOnScrollEdge={true}
 		>
-			<NativeTabs.Trigger name="index">
+			<NativeTabs.Trigger name='index'>
 				<Label selectedStyle={{ color: theme.colors.textPrimary }}>Hosts</Label>
 				<Icon
-					src={<VectorIcon family={FontAwesome6} name="server" />}
+					src={<VectorIcon family={FontAwesome6} name='server' />}
 					selectedColor={theme.colors.textPrimary}
 				/>
 			</NativeTabs.Trigger>
-			<NativeTabs.Trigger name="shell">
+			<NativeTabs.Trigger name='shell'>
 				<Icon
-					src={<VectorIcon family={MaterialCommunityIcons} name="console" />}
+					src={<VectorIcon family={MaterialCommunityIcons} name='console' />}
 					selectedColor={theme.colors.textPrimary}
 				/>
 				<Label selectedStyle={{ color: theme.colors.textPrimary }}>
 					Shells
 				</Label>
 			</NativeTabs.Trigger>
-			<NativeTabs.Trigger name="settings">
+			<NativeTabs.Trigger name='settings'>
 				<Icon
-					src={<VectorIcon family={MaterialCommunityIcons} name="cog" />}
+					src={<VectorIcon family={MaterialCommunityIcons} name='cog' />}
 					selectedColor={theme.colors.textPrimary}
 				/>
 				<Label selectedStyle={{ color: theme.colors.textPrimary }}>

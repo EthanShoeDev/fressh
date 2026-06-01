@@ -1,10 +1,6 @@
 [workspace]
 
-members = [
-    "uniffi-russh",
-    "uniffi-bindgen",
-    "uniffi-bindgen-swift",
-]
+members = ["uniffi-russh", "uniffi-bindgen", "uniffi-bindgen-swift"]
 resolver = "2"
 
 [workspace.dependencies]

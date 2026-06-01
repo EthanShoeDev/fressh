@@ -76,18 +76,21 @@ window.addEventListener('load', () => {
 		});
 
 		// Remove old handler if any (just in case)
-		if (window.__FRESSH_XTERM_MSG_HANDLER__)
-			{window.removeEventListener(
+		if (window.__FRESSH_XTERM_MSG_HANDLER__) {
+			window.removeEventListener(
 				'message',
 				window.__FRESSH_XTERM_MSG_HANDLER__,
-			);}
+			);
+		}
 
 		// RN -> WebView handler (write, resize, setFont, setTheme, setOptions, clear, focus)
 		const handler = (e: MessageEvent<BridgeOutboundMessage>) => {
 			try {
 				const msg = e.data;
 
-				if (!msg || typeof msg.type !== 'string') {return;}
+				if (!msg || typeof msg.type !== 'string') {
+					return;
+				}
 
 				// TODO: https://xtermjs.org/docs/guides/flowcontrol/#ideas-for-a-better-mechanism
 				const termWrite = (bStr: string) => {
@@ -126,10 +129,7 @@ window.addEventListener('load', () => {
 						delete newOpts.cols;
 						delete newOpts.rows;
 						term.options = newOpts;
-						if (
-							'theme' in newOpts &&
-							newOpts.theme?.background
-						) {
+						if ('theme' in newOpts && newOpts.theme?.background) {
 							document.body.style.backgroundColor = newOpts.theme.background;
 						}
 						break;
@@ -160,10 +160,10 @@ window.addEventListener('load', () => {
 
 		// Initial handshake (send once)
 		setTimeout(() => {
-			const ta = document.querySelector(
-				'.xterm-helper-textarea',
-			);
-			if (!ta) {throw new Error('xterm-helper-textarea not found');}
+			const ta = document.querySelector('.xterm-helper-textarea');
+			if (!ta) {
+				throw new Error('xterm-helper-textarea not found');
+			}
 			ta.setAttribute('autocomplete', 'off');
 			ta.setAttribute('autocorrect', 'off');
 			ta.setAttribute('autocapitalize', 'none');

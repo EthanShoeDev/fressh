@@ -1,4 +1,4 @@
-import  { type ITerminalInitOnlyOptions, type ITerminalOptions } from '@xterm/xterm';
+import type { ITerminalInitOnlyOptions, ITerminalOptions } from '@xterm/xterm';
 import { Base64 } from 'js-base64';
 // Messages posted from the WebView (xterm page) to React Native
 export type BridgeInboundMessage =

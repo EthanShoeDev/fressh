@@ -1,4 +1,4 @@
-import { type SshConnectionProgress } from '@fressh/react-native-uniffi-russh';
+import type { SshConnectionProgress } from '@fressh/react-native-uniffi-russh';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { rootLogger } from './logger';

@@ -10,4 +10,3 @@ uniffi = { workspace = true, features = ["cli"] }
 [[bin]]
 name = "uniffi-bindgen-swift"
 path = "src/main.rs"
- 

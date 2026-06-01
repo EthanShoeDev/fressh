@@ -92,7 +92,9 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 	const importMutation = useMutation({
 		mutationFn: async () => {
 			const trimmed = content.trim();
-			if (!trimmed) {throw new Error('No key content provided');}
+			if (!trimmed) {
+				throw new Error('No key content provided');
+			}
 			await secretsManager.keys.utils.upsertPrivateKey({
 				metadata: {
 					priority: 0,
@@ -117,15 +119,19 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 		});
 		// Newer expo-document-picker: { canceled: boolean, assets?: [{ uri, name, ... }] }
 		const canceled = 'canceled' in res ? res.canceled : false;
-		if (canceled) {return;}
+		if (canceled) {
+			return;
+		}
 		const asset = res.assets?.[0];
 		const file = asset?.file;
-		if (!file) {return;}
+		if (!file) {
+			return;
+		}
 		setFileName(asset.name ?? null);
 		const data = await file.text();
 		setContent(data);
 		if (asset.name && (!label || label === 'Imported Key')) {
-			setLabel(String(asset.name).replace(/\.[^.]+$/, ''));
+			setLabel(asset.name.replace(/\.[^.]+$/, ''));
 		}
 	}, [label]);
 
@@ -190,7 +196,7 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 			{mode === 'paste' ? (
 				<TextInput
 					multiline
-					placeholder="Paste your private key here"
+					placeholder='Paste your private key here'
 					placeholderTextColor={theme.colors.muted}
 					value={content}
 					onChangeText={setContent}
@@ -254,7 +260,7 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 					Label
 				</Text>
 				<TextInput
-					placeholder="Display name"
+					placeholder='Display name'
 					placeholderTextColor={theme.colors.muted}
 					value={label}
 					onChangeText={setLabel}
@@ -315,7 +321,7 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 
 			{importMutation.isError ? (
 				<Text style={{ color: theme.colors.danger }}>
-					{(importMutation.error as Error).message || 'Import failed'}
+					{importMutation.error.message || 'Import failed'}
 				</Text>
 			) : null}
 		</View>
@@ -336,7 +342,9 @@ function KeyRow(props: {
 
 	const renameMutation = useMutation({
 		mutationFn: async (newLabel: string) => {
-			if (!entry) {return;}
+			if (!entry) {
+				return;
+			}
 			await secretsManager.keys.utils.upsertPrivateKey({
 				keyId: entry.manifestEntry.id,
 				value: entry.value,
@@ -382,7 +390,9 @@ function KeyRow(props: {
 		},
 	});
 
-	if (!entry) {return null;}
+	if (!entry) {
+		return null;
+	}
 
 	return (
 		<View
@@ -425,7 +435,7 @@ function KeyRow(props: {
 							fontSize: 16,
 							marginTop: 8,
 						}}
-						placeholder="Display name"
+						placeholder='Display name'
 						placeholderTextColor={theme.colors.muted}
 						value={label}
 						onChangeText={setLabel}

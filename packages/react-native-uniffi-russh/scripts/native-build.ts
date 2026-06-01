@@ -5,14 +5,17 @@ const targetOptions = ['ios', 'android'] as const;
 type Target = (typeof targetOptions)[number];
 
 const envTarget = process.env.MOBILE_TARGET as Target | undefined;
-if (envTarget && !targetOptions.includes(envTarget))
-	{throw new Error(`Invalid target: ${envTarget}`);}
+if (envTarget && !targetOptions.includes(envTarget)) {
+	throw new Error(`Invalid target: ${envTarget}`);
+}
 
 const target =
 	envTarget ??
 	(() => {
 		const uname = os.platform();
-		if (uname === 'darwin') {return 'ios';}
+		if (uname === 'darwin') {
+			return 'ios';
+		}
 		return 'android';
 	})();
 

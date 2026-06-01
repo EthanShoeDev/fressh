@@ -32,24 +32,19 @@
 		// ========================================
 		// Combined lint tasks (formatting + linting)
 		// ========================================
+		// oxlint runs once at the repo root (single oxlint.config.ts) while tsgo
+		// typechecks per-package. The root oxlint/oxfmt tasks are deduped by
+		// turbo so they execute only once across the whole lint run.
 		"lint": {
-			"dependsOn": ["//#oxfmt:fix", "oxlint:fix"],
+			"with": ["tsgo:check", "//#oxfmt:fix", "//#oxlint:fix"],
 		},
 		"lint:check": {
-			"dependsOn": ["//#oxfmt:check", "oxlint:check"],
+			"with": ["tsgo:check", "//#oxfmt:check", "//#oxlint:check"],
 		},
 
 		// ========================================
 		// Workspace tasks (run per-package)
 		// ========================================
-		"oxlint:fix": {
-			"dependsOn": ["^build", "@fressh/oxlint-plugins#build"],
-			"with": ["tsgo:check"],
-		},
-		"oxlint:check": {
-			"dependsOn": ["^build", "@fressh/oxlint-plugins#build"],
-			"with": ["tsgo:check"],
-		},
 		"tsgo:check": {
 			"dependsOn": ["^build"],
 		},

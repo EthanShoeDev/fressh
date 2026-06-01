@@ -1,4 +1,5 @@
 {
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"target": "ESNext",
 		"module": "ESNext",
@@ -8,7 +9,10 @@
 		"strict": true,
 		"skipLibCheck": true,
 		"noEmit": true,
-		"types": ["bun-types"]
+		"types": ["node"],
+		// Build/CLI scripts are tooling, not shipped Effect code — keep the
+		// Effect LS for editor help but don't enforce its diagnostics as errors.
+		"plugins": [{ "name": "@effect/language-service", "diagnostics": false }]
 	},
 	"include": ["**/*.ts"]
 }

@@ -9,7 +9,7 @@ export default function SettingsKeyManager() {
 	return (
 		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
 			<Stack.Screen options={{ title: 'Manage Keys' }} />
-			<KeyList mode="manage" />
+			<KeyList mode='manage' />
 		</SafeAreaView>
 	);
 }

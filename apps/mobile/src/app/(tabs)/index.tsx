@@ -1,4 +1,4 @@
-import { type SshConnectionProgress } from '@fressh/react-native-uniffi-russh';
+import type { SshConnectionProgress } from '@fressh/react-native-uniffi-russh';
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
 import { useStore } from '@tanstack/react-form';
 import { useQuery } from '@tanstack/react-query';
@@ -54,7 +54,7 @@ function Host() {
 		defaultValues,
 		validators: {
 			onChange: connectionDetailsSchema,
-			onSubmitAsync: async ({ value }) =>
+			onSubmitAsync: ({ value }) =>
 				sshConnMutation.mutateAsync(value).then(() => {
 					setLastConnectionProgressEvent(null);
 				}),
@@ -67,7 +67,9 @@ function Host() {
 	);
 	const formErrors = useStore(connectionForm.store, (state) => state.errorMap);
 	useEffect(() => {
-		if (!formErrors || Object.keys(formErrors).length === 0) {return;}
+		if (!formErrors || Object.keys(formErrors).length === 0) {
+			return;
+		}
 		logger.info('formErrors', JSON.stringify(formErrors, null, 2));
 	}, [formErrors]);
 
@@ -77,12 +79,18 @@ function Host() {
 	);
 
 	const buttonLabel = (() => {
-		if (!sshConnMutation.isPending) {return 'Connect';}
-		if (lastConnectionProgressEvent === null) {return 'TCP Connecting...';}
-		if (lastConnectionProgressEvent === 'tcpConnected')
-			{return 'SSH Handshake...';}
-		if (lastConnectionProgressEvent === 'sshHandshake')
-			{return 'Authenticating...';}
+		if (!sshConnMutation.isPending) {
+			return 'Connect';
+		}
+		if (lastConnectionProgressEvent === null) {
+			return 'TCP Connecting...';
+		}
+		if (lastConnectionProgressEvent === 'tcpConnected') {
+			return 'SSH Handshake...';
+		}
+		if (lastConnectionProgressEvent === 'sshHandshake') {
+			return 'Authenticating...';
+		}
 		return 'Connected!';
 	})();
 
@@ -90,7 +98,7 @@ function Host() {
 		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
 			<ScrollView
 				contentContainerStyle={[{ marginBottom }]}
-				keyboardShouldPersistTaps="handled"
+				keyboardShouldPersistTaps='handled'
 				style={{ backgroundColor: theme.colors.background }}
 			>
 				<View
@@ -139,38 +147,38 @@ function Host() {
 						{/* Status lives inside the Connect button via submittingTitle */}
 
 						<connectionForm.AppForm>
-							<connectionForm.AppField name="host">
+							<connectionForm.AppField name='host'>
 								{(field) => (
 									<field.TextField
-										label="Host"
-										testID="host"
-										placeholder="example.com or 192.168.0.10"
-										autoCapitalize="none"
+										label='Host'
+										testID='host'
+										placeholder='example.com or 192.168.0.10'
+										autoCapitalize='none'
 										autoCorrect={false}
 									/>
 								)}
 							</connectionForm.AppField>
-							<connectionForm.AppField name="port">
+							<connectionForm.AppField name='port'>
 								{(field) => (
 									<field.NumberField
-										label="Port"
-										placeholder="22"
-										testID="port"
+										label='Port'
+										placeholder='22'
+										testID='port'
 									/>
 								)}
 							</connectionForm.AppField>
-							<connectionForm.AppField name="username">
+							<connectionForm.AppField name='username'>
 								{(field) => (
 									<field.TextField
-										label="Username"
-										testID="username"
-										placeholder="root"
-										autoCapitalize="none"
+										label='Username'
+										testID='username'
+										placeholder='root'
+										autoCapitalize='none'
 										autoCorrect={false}
 									/>
 								)}
 							</connectionForm.AppField>
-							<connectionForm.AppField name="security.type">
+							<connectionForm.AppField name='security.type'>
 								{(field) => (
 									<View style={{ marginBottom: 12 }}>
 										<SegmentedControl
@@ -188,40 +196,39 @@ function Host() {
 								)}
 							</connectionForm.AppField>
 							{securityType === 'password' ? (
-								<connectionForm.AppField name="security.password">
+								<connectionForm.AppField name='security.password'>
 									{(field) => (
 										<field.TextField
-											label="Password"
-											testID="password"
-											placeholder="••••••••"
+											label='Password'
+											testID='password'
+											placeholder='••••••••'
 											secureTextEntry
 										/>
 									)}
 								</connectionForm.AppField>
 							) : (
-								<connectionForm.AppField name="security.keyId">
+								<connectionForm.AppField name='security.keyId'>
 									{() => <KeyIdPickerField />}
 								</connectionForm.AppField>
 							)}
 
 							<View style={{ marginTop: 20 }}>
 								<connectionForm.SubmitButton
-									title="Connect"
+									title='Connect'
 									submittingTitle={buttonLabel}
-									testID="connect"
+									testID='connect'
 									onPress={() => {
 										logger.info('Connect button pressed', { isSubmitting });
-										if (isSubmitting) {return;}
+										if (isSubmitting) {
+											return;
+										}
 										void connectionForm.handleSubmit();
 									}}
 								/>
 							</View>
 							{sshConnMutation.isError ? (
 								<Text style={{ color: theme.colors.danger, marginTop: 8 }}>
-									{String(
-										(sshConnMutation.error as Error)?.message ??
-											'Failed to connect',
-									)}
+									{sshConnMutation.error?.message ?? 'Failed to connect'}
 								</Text>
 							) : null}
 						</connectionForm.AppForm>
@@ -335,7 +342,7 @@ function KeyIdPickerField() {
 			<Modal
 				visible={open}
 				transparent
-				animationType="slide"
+				animationType='slide'
 				onRequestClose={() => {
 					setOpen(false);
 				}}
@@ -398,7 +405,7 @@ function KeyIdPickerField() {
 							</Pressable>
 						</View>
 						<KeyList
-							mode="select"
+							mode='select'
 							onSelect={(id) => {
 								field.handleChange(id);
 								setOpen(false);
@@ -485,7 +492,9 @@ function ConnectionRow(props: {
 				marginBottom: 8,
 			}}
 			onPress={() => {
-				if (details) {props.onFillForm(details);}
+				if (details) {
+					props.onFillForm(details);
+				}
 			}}
 			disabled={!details}
 		>
@@ -519,7 +528,7 @@ function ConnectionRow(props: {
 			<Modal
 				transparent
 				visible={open}
-				animationType="fade"
+				animationType='fade'
 				onRequestClose={() => setOpen(false)}
 			>
 				<Pressable
@@ -623,7 +632,7 @@ function ConnectionRow(props: {
 			<Modal
 				transparent
 				visible={renameOpen}
-				animationType="fade"
+				animationType='fade'
 				onRequestClose={() => setRenameOpen(false)}
 			>
 				<Pressable
@@ -663,7 +672,7 @@ function ConnectionRow(props: {
 						<TextInput
 							value={newId}
 							onChangeText={setNewId}
-							autoCapitalize="none"
+							autoCapitalize='none'
 							style={{
 								backgroundColor: theme.colors.inputBackground,
 								color: theme.colors.textPrimary,
@@ -678,7 +687,9 @@ function ConnectionRow(props: {
 						<View style={{ flexDirection: 'row', gap: 8 }}>
 							<Pressable
 								onPress={async () => {
-									if (!details) {return;}
+									if (!details) {
+										return;
+									}
 									if (!newId || newId === props.id) {
 										setRenameOpen(false);
 										return;

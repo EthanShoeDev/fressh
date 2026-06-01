@@ -11,7 +11,7 @@ import { Array as A, Effect } from 'effect';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { coerce, gt } from 'semver';
-import { type SemVer } from 'semver';
+import type { SemVer } from 'semver';
 
 const COMMAND_NAME = 'catalog-check';
 

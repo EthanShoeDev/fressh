@@ -23,14 +23,14 @@ export default function Tab() {
 				</Text>
 				<View style={{ gap: 8 }}>
 					<Row
-						label="Dark"
+						label='Dark'
 						selected={themeName === 'dark'}
 						onPress={() => {
 							setThemeName('dark');
 						}}
 					/>
 					<Row
-						label="Light"
+						label='Light'
 						selected={themeName === 'light'}
 						onPress={() => {
 							setThemeName('light');
@@ -49,7 +49,7 @@ export default function Tab() {
 				>
 					Security
 				</Text>
-				<Link href="/(tabs)/settings/key-manager" asChild>
+				<Link href='/(tabs)/settings/key-manager' asChild>
 					<Pressable
 						style={{
 							backgroundColor: theme.colors.surface,
@@ -62,7 +62,7 @@ export default function Tab() {
 							alignItems: 'center',
 							justifyContent: 'space-between',
 						}}
-						accessibilityRole="button"
+						accessibilityRole='button'
 					>
 						<Text
 							style={{
@@ -116,7 +116,7 @@ function Row({
 				},
 				selected ? { borderColor: theme.colors.primary } : undefined,
 			]}
-			accessibilityRole="button"
+			accessibilityRole='button'
 			accessibilityState={{ selected }}
 		>
 			<Text

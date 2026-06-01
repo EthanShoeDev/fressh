@@ -7,7 +7,7 @@ export default function SharedKeyManager() {
 	return (
 		<SafeAreaView style={{ flex: 1, backgroundColor: '#0B1324' }}>
 			<Stack.Screen options={{ title: 'Manage Keys' }} />
-			<KeyList mode="manage" />
+			<KeyList mode='manage' />
 		</SafeAreaView>
 	);
 }
