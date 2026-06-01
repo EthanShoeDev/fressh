@@ -27,8 +27,16 @@ use std::{
 // Mobile-friendly keepalive defaults.
 const KEEPALIVE_INTERVAL_SECS: u64 = 15;
 const KEEPALIVE_MAX: usize = 6;
-// Short probe window to catch immediate tmux attach failures.
+// Short probe window to catch immediate Workmux attach failures.
 const TMUX_ATTACH_PROBE_TIMEOUT_MS: u64 = 300;
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn build_workmux_attach_command(session_name: &str) -> String {
+    format!("mdev tmux attach {}", shell_quote(session_name))
+}
 
 fn server_public_key_to_info(
     host: &str,
@@ -258,10 +266,10 @@ impl SshConnection {
             if tmux_name.is_empty() {
                 self.disconnect().await.ok();
                 return Err(SshError::TmuxAttachFailed(
-                    "Missing tmux session name".to_string(),
+                    "Missing Workmux session name".to_string(),
                 ));
             }
-            let cmd = format!("tmux attach -t {tmux_name}");
+            let cmd = build_workmux_attach_command(&tmux_name);
             ch.exec(true, cmd).await?;
         } else {
             ch.request_shell(true).await?;
@@ -293,7 +301,7 @@ impl SshConnection {
         let on_closed_callback_for_reader = on_closed_callback.clone();
 
         if use_tmux {
-            // Probe once for an immediate tmux attach failure before surfacing the shell.
+            // Probe once for an immediate Workmux attach failure before surfacing the shell.
             let probe = tokio::time::timeout(
                 Duration::from_millis(TMUX_ATTACH_PROBE_TIMEOUT_MS),
                 reader.wait(),
@@ -303,13 +311,13 @@ impl SshConnection {
                 Ok(Some(ChannelMsg::ExitStatus { exit_status })) if exit_status != 0 => {
                     self.disconnect().await.ok();
                     return Err(SshError::TmuxAttachFailed(format!(
-                        "tmux attach exited with status {exit_status}"
+                        "Workmux attach exited with status {exit_status}"
                     )));
                 }
                 Ok(Some(ChannelMsg::Close)) | Ok(None) => {
                     self.disconnect().await.ok();
                     return Err(SshError::TmuxAttachFailed(
-                        "tmux attach closed the channel".to_string(),
+                        "Workmux attach closed the channel".to_string(),
                     ));
                 }
                 Ok(Some(ChannelMsg::Data { data })) => {
@@ -530,4 +538,25 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
     // Initialize weak self reference.
     *conn.self_weak.lock().await = Arc::downgrade(&conn);
     Ok(conn)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workmux_attach_command_uses_mdev_tmux_attach() {
+        assert_eq!(
+            build_workmux_attach_command("main"),
+            "mdev tmux attach 'main'"
+        );
+    }
+
+    #[test]
+    fn workmux_attach_command_shell_quotes_session_names() {
+        assert_eq!(
+            build_workmux_attach_command("main's work"),
+            "mdev tmux attach 'main'\\''s work'"
+        );
+    }
 }
