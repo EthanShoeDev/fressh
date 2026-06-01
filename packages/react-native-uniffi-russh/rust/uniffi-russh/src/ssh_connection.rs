@@ -38,6 +38,28 @@ fn build_workmux_attach_command(session_name: &str) -> String {
     format!("mdev tmux attach {}", shell_quote(session_name))
 }
 
+enum WorkmuxAttachProbeDecision {
+    Continue,
+    Failed(String),
+}
+
+fn classify_workmux_attach_probe_message(message: &ChannelMsg) -> WorkmuxAttachProbeDecision {
+    match message {
+        ChannelMsg::ExitStatus { exit_status } if *exit_status != 0 => {
+            WorkmuxAttachProbeDecision::Failed(format!(
+                "Workmux attach exited with status {exit_status}"
+            ))
+        }
+        ChannelMsg::ExitSignal { signal_name, .. } => WorkmuxAttachProbeDecision::Failed(format!(
+            "Workmux attach exited with signal {signal_name:?}"
+        )),
+        ChannelMsg::Eof | ChannelMsg::Close => {
+            WorkmuxAttachProbeDecision::Failed("Workmux attach closed the channel".to_string())
+        }
+        _ => WorkmuxAttachProbeDecision::Continue,
+    }
+}
+
 fn server_public_key_to_info(
     host: &str,
     port: u16,
@@ -301,56 +323,60 @@ impl SshConnection {
         let on_closed_callback_for_reader = on_closed_callback.clone();
 
         if use_tmux {
-            // Probe once for an immediate Workmux attach failure before surfacing the shell.
-            let probe = tokio::time::timeout(
-                Duration::from_millis(TMUX_ATTACH_PROBE_TIMEOUT_MS),
-                reader.wait(),
-            )
-            .await;
-            match probe {
-                Ok(Some(ChannelMsg::ExitStatus { exit_status })) if exit_status != 0 => {
-                    self.disconnect().await.ok();
-                    return Err(SshError::TmuxAttachFailed(format!(
-                        "Workmux attach exited with status {exit_status}"
-                    )));
-                }
-                Ok(Some(ChannelMsg::Close)) | Ok(None) => {
+            let probe_deadline =
+                tokio::time::Instant::now() + Duration::from_millis(TMUX_ATTACH_PROBE_TIMEOUT_MS);
+            loop {
+                let probe = tokio::time::timeout_at(probe_deadline, reader.wait()).await;
+                let Some(message) = (match probe {
+                    Ok(message) => message,
+                    Err(_) => break,
+                }) else {
                     self.disconnect().await.ok();
                     return Err(SshError::TmuxAttachFailed(
                         "Workmux attach closed the channel".to_string(),
                     ));
+                };
+
+                if let WorkmuxAttachProbeDecision::Failed(message) =
+                    classify_workmux_attach_probe_message(&message)
+                {
+                    self.disconnect().await.ok();
+                    return Err(SshError::TmuxAttachFailed(message));
                 }
-                Ok(Some(ChannelMsg::Data { data })) => {
-                    append_and_broadcast(
-                        &data,
-                        StreamKind::Stdout,
-                        &ring_clone,
-                        &used_bytes_clone,
-                        &ring_bytes_capacity_c,
-                        &dropped_bytes_total_c,
-                        &head_seq_c,
-                        &tail_seq_c,
-                        &next_seq_c,
-                        &tx_clone,
-                        DEFAULT_MAX_CHUNK_SIZE,
-                    );
+
+                match message {
+                    ChannelMsg::Data { data } => {
+                        append_and_broadcast(
+                            &data,
+                            StreamKind::Stdout,
+                            &ring_clone,
+                            &used_bytes_clone,
+                            &ring_bytes_capacity_c,
+                            &dropped_bytes_total_c,
+                            &head_seq_c,
+                            &tail_seq_c,
+                            &next_seq_c,
+                            &tx_clone,
+                            DEFAULT_MAX_CHUNK_SIZE,
+                        );
+                    }
+                    ChannelMsg::ExtendedData { data, .. } => {
+                        append_and_broadcast(
+                            &data,
+                            StreamKind::Stderr,
+                            &ring_clone,
+                            &used_bytes_clone,
+                            &ring_bytes_capacity_c,
+                            &dropped_bytes_total_c,
+                            &head_seq_c,
+                            &tail_seq_c,
+                            &next_seq_c,
+                            &tx_clone,
+                            DEFAULT_MAX_CHUNK_SIZE,
+                        );
+                    }
+                    _ => {}
                 }
-                Ok(Some(ChannelMsg::ExtendedData { data, .. })) => {
-                    append_and_broadcast(
-                        &data,
-                        StreamKind::Stderr,
-                        &ring_clone,
-                        &used_bytes_clone,
-                        &ring_bytes_capacity_c,
-                        &dropped_bytes_total_c,
-                        &head_seq_c,
-                        &tail_seq_c,
-                        &next_seq_c,
-                        &tx_clone,
-                        DEFAULT_MAX_CHUNK_SIZE,
-                    );
-                }
-                _ => {}
             }
         }
 
@@ -543,6 +569,7 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use russh::CryptoVec;
 
     #[test]
     fn workmux_attach_command_uses_mdev_tmux_attach() {
@@ -558,5 +585,61 @@ mod tests {
             build_workmux_attach_command("main's work"),
             "mdev tmux attach 'main'\\''s work'"
         );
+    }
+
+    #[test]
+    fn workmux_attach_probe_continues_after_output_messages() {
+        let stdout = ChannelMsg::Data {
+            data: CryptoVec::from_slice(b"starting"),
+        };
+        let stderr = ChannelMsg::ExtendedData {
+            data: CryptoVec::from_slice(b"missing session"),
+            ext: 1,
+        };
+
+        assert!(matches!(
+            classify_workmux_attach_probe_message(&stdout),
+            WorkmuxAttachProbeDecision::Continue
+        ));
+        assert!(matches!(
+            classify_workmux_attach_probe_message(&stderr),
+            WorkmuxAttachProbeDecision::Continue
+        ));
+    }
+
+    #[test]
+    fn workmux_attach_probe_fails_on_nonzero_exit_after_output() {
+        let output = ChannelMsg::ExtendedData {
+            data: CryptoVec::from_slice(b"missing session"),
+            ext: 1,
+        };
+        let exit = ChannelMsg::ExitStatus { exit_status: 1 };
+
+        assert!(matches!(
+            classify_workmux_attach_probe_message(&output),
+            WorkmuxAttachProbeDecision::Continue
+        ));
+        match classify_workmux_attach_probe_message(&exit) {
+            WorkmuxAttachProbeDecision::Failed(message) => {
+                assert_eq!(message, "Workmux attach exited with status 1");
+            }
+            WorkmuxAttachProbeDecision::Continue => panic!("expected failure"),
+        }
+    }
+
+    #[test]
+    fn workmux_attach_probe_fails_on_channel_end() {
+        match classify_workmux_attach_probe_message(&ChannelMsg::Eof) {
+            WorkmuxAttachProbeDecision::Failed(message) => {
+                assert_eq!(message, "Workmux attach closed the channel");
+            }
+            WorkmuxAttachProbeDecision::Continue => panic!("expected failure"),
+        }
+        match classify_workmux_attach_probe_message(&ChannelMsg::Close) {
+            WorkmuxAttachProbeDecision::Failed(message) => {
+                assert_eq!(message, "Workmux attach closed the channel");
+            }
+            WorkmuxAttachProbeDecision::Continue => panic!("expected failure"),
+        }
     }
 }
