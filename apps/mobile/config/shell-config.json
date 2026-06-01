@@ -1,6 +1,6 @@
 {
-	"version": "2026-05-31.1",
-	"updatedAt": "2026-05-31T00:00:00Z",
+	"version": "2026-06-01.1",
+	"updatedAt": "2026-06-01T09:49:09Z",
 	"defaultKeyboardId": "phone_base",
 	"activeKeyboardIds": ["phone_base", "advanced_keyboard", "browser_keyboard"],
 	"keyboardRouting": {
@@ -53,13 +53,53 @@
 					{
 						"type": "bytes",
 						"bytes": [27, 91, 49, 59, 53, 66],
-						"label": "Pane",
-						"icon": "SquareSplitVertical"
+						"label": "Role",
+						"icon": "SquareSplitVertical",
+						"longPress": {
+							"options": [
+								{
+									"type": "bytes",
+									"bytes": [27, 91, 49, 59, 53, 66],
+									"label": "Next role",
+									"icon": null
+								},
+								{
+									"type": "bytes",
+									"bytes": [27, 91, 49, 59, 53, 65],
+									"label": "Prev role",
+									"icon": null
+								},
+								{
+									"type": "bytes",
+									"bytes": [27, 99],
+									"label": "Claude",
+									"icon": null
+								},
+								{
+									"type": "bytes",
+									"bytes": [27, 103],
+									"label": "Git",
+									"icon": null
+								},
+								{
+									"type": "bytes",
+									"bytes": [27, 120],
+									"label": "Codex",
+									"icon": null
+								},
+								{
+									"type": "bytes",
+									"bytes": [27, 98],
+									"label": "Bash",
+									"icon": null
+								}
+							]
+						}
 					},
 					{
 						"type": "bytes",
 						"bytes": [27, 91, 49, 59, 53, 67],
-						"label": "Window",
+						"label": "Work",
 						"icon": "AppWindow",
 						"span": 2,
 						"longPress": {
@@ -67,13 +107,13 @@
 								{
 									"type": "bytes",
 									"bytes": [27, 91, 49, 59, 53, 67],
-									"label": "Window",
-									"icon": "AppWindow"
+									"label": "Next work",
+									"icon": null
 								},
 								{
 									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 55, 68],
-									"label": "Prev all",
+									"bytes": [27, 91, 49, 59, 53, 68],
+									"label": "Prev work",
 									"icon": null
 								},
 								{
@@ -83,9 +123,9 @@
 									"icon": null
 								},
 								{
-									"type": "macro",
-									"macroId": "alt_w",
-									"label": "Alt-w",
+									"type": "bytes",
+									"bytes": [27, 91, 49, 59, 55, 68],
+									"label": "Prev all",
 									"icon": null
 								}
 							]
@@ -557,13 +597,6 @@
 				"label": "2",
 				"category": "Replies",
 				"script": "{\n  \"type\": \"command\",\n  \"value\": \"2\",\n  \"enter\": true\n}"
-			},
-			{
-				"id": "alt_w",
-				"name": "Meta: Alt-w",
-				"label": "Alt-w",
-				"category": "Navigation",
-				"script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
 			}
 		],
 		"advanced_keyboard": [],

@@ -130,7 +130,7 @@ void test('phone base keyboard replaces raw dollar key with skill selector macro
 	});
 });
 
-void test('phone base keyboard exposes long-press navigation options on arrows and window', () => {
+void test('phone base keyboard exposes role and workspace navigation controls', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -200,10 +200,57 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 		},
 	});
 
+	assert.deepEqual(phoneBaseKeyboard.grid[0]?.[5], {
+		type: 'bytes',
+		bytes: [27, 91, 49, 59, 53, 66],
+		label: 'Role',
+		icon: 'SquareSplitVertical',
+		longPress: {
+			options: [
+				{
+					type: 'bytes',
+					bytes: [27, 91, 49, 59, 53, 66],
+					label: 'Next role',
+					icon: null,
+				},
+				{
+					type: 'bytes',
+					bytes: [27, 91, 49, 59, 53, 65],
+					label: 'Prev role',
+					icon: null,
+				},
+				{
+					type: 'bytes',
+					bytes: [27, 99],
+					label: 'Claude',
+					icon: null,
+				},
+				{
+					type: 'bytes',
+					bytes: [27, 103],
+					label: 'Git',
+					icon: null,
+				},
+				{
+					type: 'bytes',
+					bytes: [27, 120],
+					label: 'Codex',
+					icon: null,
+				},
+				{
+					type: 'bytes',
+					bytes: [27, 98],
+					label: 'Bash',
+					icon: null,
+				},
+			],
+		},
+	});
+
 	assert.deepEqual(phoneBaseKeyboard.grid[0]?.[6], {
 		type: 'bytes',
 		bytes: [27, 91, 49, 59, 53, 67],
-		label: 'Window',
+		label: 'Work',
 		icon: 'AppWindow',
 		span: 2,
 		longPress: {
@@ -211,13 +258,13 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 				{
 					type: 'bytes',
 					bytes: [27, 91, 49, 59, 53, 67],
-					label: 'Window',
-					icon: 'AppWindow',
+					label: 'Next work',
+					icon: null,
 				},
 				{
 					type: 'bytes',
-					bytes: [27, 91, 49, 59, 55, 68],
-					label: 'Prev all',
+					bytes: [27, 91, 49, 59, 53, 68],
+					label: 'Prev work',
 					icon: null,
 				},
 				{
@@ -227,14 +274,20 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 					icon: null,
 				},
 				{
-					type: 'macro',
-					macroId: 'alt_w',
-					label: 'Alt-w',
+					type: 'bytes',
+					bytes: [27, 91, 49, 59, 55, 68],
+					label: 'Prev all',
 					icon: null,
 				},
 			],
 		},
 	});
+
+	const phoneBaseMacros = config.macrosByKeyboardId.phone_base ?? [];
+	assert.equal(
+		phoneBaseMacros.some((macro) => macro.id === 'alt_w'),
+		false,
+	);
 });
 
 void test('bundled keyboards do not expose tmux history actions', () => {
@@ -250,6 +303,24 @@ void test('bundled keyboards do not expose tmux history actions', () => {
 	);
 
 	assert.deepEqual(historySlots, []);
+});
+
+void test('phone base keyboard does not expose stale pane labels', () => {
+	const config = getBundledShellConfig();
+	const labels = config.keyboards.flatMap((keyboard) =>
+		keyboard.grid.flatMap((row) =>
+			row.flatMap((slot) => {
+				if (!slot) return [];
+				const longPressLabels =
+					slot.longPress?.options.map((option) => option.label) ?? [];
+				return [slot.label, ...longPressLabels];
+			}),
+		),
+	);
+
+	assert.equal(labels.includes('Pane'), false);
+	assert.equal(labels.includes('Window'), false);
+	assert.equal(labels.includes('Alt-w'), false);
 });
 
 void test('phone base keyboard exposes explain, browser actions, and status actions', () => {
