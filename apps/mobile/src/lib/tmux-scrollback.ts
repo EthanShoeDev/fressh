@@ -426,24 +426,12 @@ export function handleWorkmuxScrollbackCommandFailureActions({
 
 export function handleWorkmuxScrollbackDisposeExitFailureActions({
 	message,
-	alert,
-	copyMessage,
 	warn,
 }: {
 	message: string;
-	alert: (
-		title: string,
-		message: string,
-		buttons?: { text: string; onPress?: () => void }[],
-	) => void;
-	copyMessage: (message: string) => void;
 	warn: (message: string) => void;
 }): void {
 	warn(message);
-	alert('Workmux scroll cleanup failed', message, [
-		{ text: 'Copy Message', onPress: () => copyMessage(message) },
-		{ text: 'OK' },
-	]);
 }
 
 async function runSingleCommand(
@@ -629,6 +617,10 @@ export async function handleTmuxScrollbackEnterRequested({
 	event,
 	isAppActive,
 	currentInstanceId,
+	shellAvailable,
+	selectionModeEnabled,
+	tmuxEnabled,
+	connectionAvailable,
 	targetName,
 	commandExecutor,
 	remoteCopyModeActiveRef,
@@ -639,6 +631,10 @@ export async function handleTmuxScrollbackEnterRequested({
 	event: { instanceId: string; requestId: number };
 	isAppActive: boolean;
 	currentInstanceId?: string | null;
+	shellAvailable: boolean;
+	selectionModeEnabled: boolean;
+	tmuxEnabled: boolean;
+	connectionAvailable: boolean;
 	targetName: string;
 	commandExecutor: WorkmuxScrollbackCommandExecutor;
 	remoteCopyModeActiveRef: { current: boolean };
@@ -646,6 +642,10 @@ export async function handleTmuxScrollbackEnterRequested({
 	clearLocalScrollbackUiState: () => void;
 	sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
 }): Promise<void> {
+	if (!shellAvailable) return;
+	if (selectionModeEnabled) return;
+	if (!tmuxEnabled || !connectionAvailable) return;
+
 	const requestResolution = resolveTmuxScrollbackEnterRequest({
 		isAppActive,
 		instanceId: event.instanceId,

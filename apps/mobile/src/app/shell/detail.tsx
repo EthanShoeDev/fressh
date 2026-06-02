@@ -859,18 +859,6 @@ function ShellDetail() {
 			onDisposeExitFailure: (message) =>
 				handleWorkmuxScrollbackDisposeExitFailureActions({
 					message,
-					alert: (title, alertMessage, buttons) =>
-						Alert.alert(title, alertMessage, buttons),
-					copyMessage: (copyMessage) => {
-						void Clipboard.setStringAsync(copyMessage).catch(
-							(error: unknown) => {
-								logger.warn(
-									'copy Workmux scroll dispose failure message failed',
-									error,
-								);
-							},
-						);
-					},
 					warn: (warning) => logger.warn(warning),
 				}),
 		}),
@@ -2487,6 +2475,10 @@ function ShellDetail() {
 				event,
 				isAppActive: isAppActiveRef.current,
 				currentInstanceId: currentInstanceIdRef.current,
+				shellAvailable: Boolean(shell),
+				selectionModeEnabled,
+				tmuxEnabled,
+				connectionAvailable: Boolean(connection),
 				targetName,
 				commandExecutor: workmuxScrollbackCommandExecutor,
 				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
@@ -2496,7 +2488,15 @@ function ShellDetail() {
 					xtermRef.current?.sendScrollbackEnterAck(requestId, instanceId),
 			});
 		},
-		[clearLocalScrollbackUiState, workmuxScrollbackCommandExecutor, tmuxTarget],
+		[
+			clearLocalScrollbackUiState,
+			connection,
+			selectionModeEnabled,
+			shell,
+			tmuxEnabled,
+			workmuxScrollbackCommandExecutor,
+			tmuxTarget,
+		],
 	);
 
 	const handleScrollbackBatch = useCallback(
