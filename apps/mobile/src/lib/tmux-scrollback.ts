@@ -30,7 +30,6 @@ export type WorkmuxScrollbackCommandExecutor = {
 	clearPendingScrollBatches: () => void;
 	reset: (options?: { exitCommand?: string }) => Promise<boolean> | null;
 	dispose: (options?: { exitCommand?: string }) => Promise<boolean> | null;
-	getPendingScrollBatchCount: () => number;
 };
 
 export function createWorkmuxScrollbackCommandExecutor({
@@ -183,7 +182,6 @@ export function createWorkmuxScrollbackCommandExecutor({
 			}
 			return exit;
 		},
-		getPendingScrollBatchCount: () => (pendingScrollBatch ? 1 : 0),
 	};
 }
 
@@ -214,15 +212,6 @@ export function resetTmuxScrollbackRuntimeState({
 	return (
 		commandExecutor?.reset({ exitCommand: remoteCopyModeExitCommand }) ?? null
 	);
-}
-
-export function handleTmuxScrollbackInactiveCleanup({
-	clearScrollbackState,
-}: {
-	remoteCopyModeActive: boolean;
-	clearScrollbackState: () => Promise<boolean> | null;
-}): Promise<boolean> | null {
-	return clearScrollbackState();
 }
 
 export function buildWorkmuxScrollbackBatchCommands({

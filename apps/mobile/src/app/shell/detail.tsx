@@ -100,7 +100,6 @@ import {
 	buildWorkmuxScrollbackBatchCommands,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
-	handleTmuxScrollbackInactiveCleanup,
 	handleWorkmuxScrollbackCommandFailureActions,
 	resetTmuxScrollbackRuntimeState,
 	type WorkmuxScrollbackCommandExecutor,
@@ -2358,10 +2357,7 @@ function ShellDetail() {
 			}
 			// Capture once when transitioning away from active.
 			if (previousState === 'active') {
-				const scrollbackCleanup = handleTmuxScrollbackInactiveCleanup({
-					remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
-					clearScrollbackState,
-				});
+				const scrollbackCleanup = clearScrollbackState();
 				void scrollbackCleanup?.catch((error: unknown) => {
 					logger.warn('Workmux inactive scrollback cleanup failed', error);
 				});

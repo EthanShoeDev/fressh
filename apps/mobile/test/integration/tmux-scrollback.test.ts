@@ -7,11 +7,11 @@ import {
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
-	handleTmuxScrollbackInactiveCleanup,
 	handleWorkmuxScrollbackCommandFailureActions,
 	resetTmuxScrollbackRuntimeState,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 } from '../../src/lib/tmux-scrollback';
+import * as tmuxScrollback from '../../src/lib/tmux-scrollback';
 import { WORKMUX_APP_SCROLL_MAX_COUNT } from '../../src/lib/workmux-app-commands';
 
 const bytes = (values: number[]) => new Uint8Array(values);
@@ -351,13 +351,21 @@ void test('workmux scrollback executor coalesces pending scroll batches while sl
 
 	const stale = executor.enqueueScrollBatch(['stale']);
 	const latest = executor.enqueueScrollBatch(['latest']);
-	assert.equal(executor.getPendingScrollBatchCount(), 1);
 	firstBlock.resolve(undefined);
 
 	assert.equal(await first, true);
 	assert.equal(await stale, false);
 	assert.equal(await latest, true);
 	assert.deepEqual(commands, ['first', 'latest']);
+});
+
+void test('workmux scrollback executor does not expose pending queue count', () => {
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async () => ({ success: true, output: '' }),
+		onFailure: () => {},
+	});
+
+	assert.equal('getPendingScrollBatchCount' in executor, false);
 });
 
 void test('workmux scrollback executor dispose clears pending scroll and blocks queued execution', async () => {
@@ -480,12 +488,10 @@ void test('resetTmuxScrollbackRuntimeState cancels pending Workmux scroll batche
 	await Promise.resolve();
 	const batch = executor.enqueueScrollBatch(['page']);
 
-	assert.equal(executor.getPendingScrollBatchCount(), 1);
 	void resetTmuxScrollbackRuntimeState({
 		lineAccumulator,
 		commandExecutor: executor,
 	});
-	assert.equal(executor.getPendingScrollBatchCount(), 0);
 	assert.equal(await batch, false);
 	commandBlock.resolve(undefined);
 	assert.equal(await enter, false);
@@ -598,23 +604,25 @@ void test('workmux scrollback executor dispose requests Workmux scroll exit for 
 	assert.deepEqual(commands, ['slow-page', 'exit']);
 });
 
-void test('inactive cleanup requests app scroll exit after remote copy mode ack', async () => {
+void test('tmux scrollback module does not expose inactive cleanup callback wrapper', () => {
+	assert.equal('handleTmuxScrollbackInactiveCleanup' in tmuxScrollback, false);
+});
+
+void test('inactive cleanup site requests app scroll exit after remote copy mode ack', async () => {
 	const events: string[] = [];
 
-	const cleanup = handleTmuxScrollbackInactiveCleanup({
-		remoteCopyModeActive: true,
-		clearScrollbackState: () => {
-			events.push('app-scroll-exit');
-			return Promise.resolve(true);
-		},
-	});
+	const clearScrollbackState = () => {
+		events.push('app-scroll-exit');
+		return Promise.resolve(true);
+	};
+	const cleanup = clearScrollbackState();
 
 	assert.notEqual(cleanup, null);
 	assert.equal(await cleanup, true);
 	assert.deepEqual(events, ['app-scroll-exit']);
 });
 
-void test('inactive cleanup cancels in-flight app scroll enter before remote copy mode ack', async () => {
+void test('inactive cleanup site cancels in-flight app scroll enter before remote copy mode ack', async () => {
 	const commandBlock = deferred<void>();
 	const commands: string[] = [];
 	const primaryShellBytes: string[] = [];
@@ -632,15 +640,12 @@ void test('inactive cleanup cancels in-flight app scroll enter before remote cop
 		rollbackExitCommand: 'exit',
 	});
 	await Promise.resolve();
-	const cleanup = handleTmuxScrollbackInactiveCleanup({
-		remoteCopyModeActive: false,
-		clearScrollbackState: () => {
-			return resetTmuxScrollbackRuntimeState({
-				lineAccumulator,
-				commandExecutor: executor,
-			});
-		},
-	});
+	const clearScrollbackState = () =>
+		resetTmuxScrollbackRuntimeState({
+			lineAccumulator,
+			commandExecutor: executor,
+		});
+	const cleanup = clearScrollbackState();
 
 	assert.equal(cleanup, null);
 	assert.deepEqual(primaryShellBytes, []);
@@ -649,16 +654,14 @@ void test('inactive cleanup cancels in-flight app scroll enter before remote cop
 	assert.deepEqual(commands, ['enter', 'exit']);
 });
 
-void test('inactive cleanup resets without app scroll exit before remote copy mode ack', () => {
+void test('inactive cleanup site resets without app scroll exit before remote copy mode ack', () => {
 	const events: string[] = [];
 
-	const cleanup = handleTmuxScrollbackInactiveCleanup({
-		remoteCopyModeActive: false,
-		clearScrollbackState: () => {
-			events.push('clear-without-exit');
-			return null;
-		},
-	});
+	const clearScrollbackState = () => {
+		events.push('clear-without-exit');
+		return null;
+	};
+	const cleanup = clearScrollbackState();
 
 	assert.equal(cleanup, null);
 	assert.deepEqual(events, ['clear-without-exit']);
