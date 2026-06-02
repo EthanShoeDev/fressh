@@ -24,6 +24,7 @@ import {
 	resolveTmuxScrollbackLiveInputCleanup,
 	TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
+	type WorkmuxScrollbackPageCommand,
 } from '../../src/lib/tmux-scrollback';
 
 const bytes = (values: number[]) => new Uint8Array(values);
@@ -150,7 +151,9 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 	assert.notEqual(cleanup, null);
 	assert.equal(await cleanup, false);
 	assert.deepEqual(commands, ['enter', workmuxScrollExitCommand]);
-	assert.deepEqual(failures, ['exit:exit failed']);
+	assert.deepEqual(failures, [
+		'exit:Update mdev on the remote machine; this action requires mdev tmux app commands.',
+	]);
 	assert.equal(localScrollbackActive, false);
 	assert.equal(remoteCopyModeActiveRef.current, true);
 	assert.equal(cleanupBarrier.current(), null);
@@ -369,7 +372,9 @@ void test('pending enter rollback exit failure notifies active reset policy and 
 	assert.equal(await cleanup, false);
 	await sendAfterCleanup;
 	assert.deepEqual(commands, ['enter', 'exit']);
-	assert.deepEqual(failures, ['exit failed']);
+	assert.deepEqual(failures, [
+		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
+	]);
 	assert.deepEqual(sentPayloads, []);
 });
 
@@ -1058,7 +1063,7 @@ void test('scrollback enter request adapter ignores stale guarded events', async
 
 void test('scrollback batch adapter gates events and passes pageStep into command building', async () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
-	const commands: string[][] = [];
+	const commands: WorkmuxScrollbackPageCommand[][] = [];
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async () => ({ success: true, output: '' }),
 		onFailure: () => {},
@@ -1156,8 +1161,8 @@ void test('scrollback batch adapter gates events and passes pageStep into comman
 	assert.equal(runBatch({}), true);
 
 	assert.deepEqual(commands, [
-		["mdev tmux app scroll page-up --count '1' --session 'main'"],
-		["mdev tmux app scroll page-up --count '1' --session 'main'"],
+		[{ sessionName: 'main', direction: 'up', count: 1 }],
+		[{ sessionName: 'main', direction: 'up', count: 1 }],
 	]);
 });
 

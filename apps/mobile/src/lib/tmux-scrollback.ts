@@ -16,6 +16,44 @@ export type TmuxScrollbackLineAccumulator = {
 	lines: number;
 };
 
+export type WorkmuxScrollbackPageCommand = {
+	sessionName: string;
+	direction: WorkmuxScrollDirection;
+	count: number;
+};
+
+export function mergeWorkmuxScrollbackPageCommands(
+	commands: WorkmuxScrollbackPageCommand[],
+): WorkmuxScrollbackPageCommand[] {
+	const merged: WorkmuxScrollbackPageCommand[] = [];
+	for (const command of commands) {
+		let remainingCount = command.count;
+		while (remainingCount > 0) {
+			const count = Math.min(remainingCount, WORKMUX_APP_SCROLL_MAX_COUNT);
+			const previous = merged[merged.length - 1];
+			if (
+				previous &&
+				previous.sessionName === command.sessionName &&
+				previous.direction === command.direction &&
+				previous.count < WORKMUX_APP_SCROLL_MAX_COUNT
+			) {
+				const available = WORKMUX_APP_SCROLL_MAX_COUNT - previous.count;
+				const appended = Math.min(available, count);
+				previous.count += appended;
+				remainingCount -= appended;
+				continue;
+			}
+			merged.push({
+				sessionName: command.sessionName,
+				direction: command.direction,
+				count,
+			});
+			remainingCount -= count;
+		}
+	}
+	return merged;
+}
+
 export function registerTmuxScrollbackLocalExitRequest({
 	requestIds,
 	requestId,
@@ -67,7 +105,7 @@ export type WorkmuxScrollbackCommandExecutor = {
 		command: string,
 		options?: { rollbackExitCommand?: string },
 	) => Promise<boolean>;
-	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
+	enqueueScrollBatch: (commands: WorkmuxScrollbackPageCommand[]) => Promise<boolean>;
 	reset: (options?: {
 		exitCommand?: string;
 		failurePolicy?: WorkmuxScrollbackFailurePolicy;
@@ -99,7 +137,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 		'notify';
 	let scrollDrainQueued = false;
 	let pendingScrollBatch: {
-		commands: string[];
+		commands: WorkmuxScrollbackPageCommand[];
 		generation: number;
 		resolveAll: (value: boolean) => void;
 	} | null = null;
@@ -207,6 +245,25 @@ export function createWorkmuxScrollbackCommandExecutor({
 		return true;
 	};
 
+	const runScrollCommands = ({
+		commands,
+		operationGeneration,
+	}: {
+		commands: WorkmuxScrollbackPageCommand[];
+		operationGeneration: number;
+	}) =>
+		runCommands({
+			commands: mergeWorkmuxScrollbackPageCommands(commands).map((command) =>
+				buildWorkmuxAppScrollPageCommand(
+					command.sessionName,
+					command.direction,
+					command.count,
+				),
+			),
+			commandKind: 'scroll',
+			operationGeneration,
+		});
+
 	const reset = (options?: {
 		exitCommand?: string;
 		failurePolicy?: WorkmuxScrollbackFailurePolicy;
@@ -260,7 +317,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 							}
 						});
 					})(),
-		enqueueScrollBatch: (commands: string[]) => {
+		enqueueScrollBatch: (commands: WorkmuxScrollbackPageCommand[]) => {
 			if (closed || disposed) return Promise.resolve(false);
 			if (commands.length === 0) return Promise.resolve(true);
 			const promise = new Promise<boolean>((resolve) => {
@@ -294,9 +351,8 @@ export function createWorkmuxScrollbackCommandExecutor({
 					if (!batch) return true;
 					let success = false;
 					try {
-						success = await runCommands({
+						success = await runScrollCommands({
 							commands: batch.commands,
-							commandKind: 'scroll',
 							operationGeneration: batch.generation,
 						});
 					} finally {
@@ -450,7 +506,7 @@ export function accumulateWorkmuxScrollbackBatchCommands({
 	lines: number;
 	linesPerPage: number;
 	lineAccumulator: TmuxScrollbackLineAccumulator;
-}): string[] {
+}): WorkmuxScrollbackPageCommand[] {
 	const explicitPageCount = truncateNonNegativeInteger(pages);
 	const lineCount = truncateNonNegativeInteger(lines);
 	const pageSize = Math.max(1, truncateNonNegativeInteger(linesPerPage));
@@ -476,22 +532,23 @@ export function accumulateWorkmuxScrollbackBatchCommands({
 
 	if (pageCount === 0) return [];
 
-	const commands: string[] = [];
+	const commands: WorkmuxScrollbackPageCommand[] = [];
 	for (
 		let remainingPages = pageCount;
 		remainingPages > 0;
 		remainingPages -= WORKMUX_APP_SCROLL_MAX_COUNT
 	) {
-		commands.push(
-			buildWorkmuxAppScrollPageCommand(
-				sessionName,
-				totalDirection,
-				Math.min(remainingPages, WORKMUX_APP_SCROLL_MAX_COUNT),
-			),
-		);
+		commands.push({
+			sessionName,
+			direction: totalDirection,
+			count: Math.min(remainingPages, WORKMUX_APP_SCROLL_MAX_COUNT),
+		});
 	}
 	return commands;
 }
+
+export const buildWorkmuxScrollbackBatchCommands =
+	accumulateWorkmuxScrollbackBatchCommands;
 
 export function formatWorkmuxScrollbackCommandFailureMessage(result: {
 	success: boolean;
@@ -949,7 +1006,9 @@ export function handleTmuxScrollbackBatchEvent({
 	scrollbackActive: boolean;
 	targetName: string;
 	lineAccumulator: TmuxScrollbackLineAccumulator;
-	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
+	enqueueScrollBatch: (
+		commands: WorkmuxScrollbackPageCommand[],
+	) => Promise<boolean>;
 }): boolean {
 	if (!shellAvailable) return false;
 	if (currentInstanceId && event.instanceId !== currentInstanceId) return false;

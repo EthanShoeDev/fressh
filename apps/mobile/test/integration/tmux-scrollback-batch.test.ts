@@ -6,6 +6,7 @@ import {
 	clearTmuxScrollbackLineAccumulator,
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
+	mergeWorkmuxScrollbackPageCommands,
 	resetTmuxScrollbackRuntimeState,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 } from '../../src/lib/tmux-scrollback';
@@ -21,7 +22,7 @@ void test('accumulateWorkmuxScrollbackBatchCommands builds page scroll commands'
 			linesPerPage: 24,
 			lineAccumulator: createTmuxScrollbackLineAccumulator(),
 		}),
-		["mdev tmux app scroll page-up --count '2' --session 'main'"],
+		[{ sessionName: 'main', direction: 'up', count: 2 }],
 	);
 });
 
@@ -48,7 +49,7 @@ void test('accumulateWorkmuxScrollbackBatchCommands accumulates sub-page lines b
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		["mdev tmux app scroll page-down --count '1' --session 'main'"],
+		[{ sessionName: 'main', direction: 'down', count: 1 }],
 	);
 });
 
@@ -76,7 +77,7 @@ void test('accumulateWorkmuxScrollbackBatchCommands accumulates rows-minus-one l
 			linesPerPage: pageStep,
 			lineAccumulator,
 		}),
-		["mdev tmux app scroll page-up --count '1' --session 'main'"],
+		[{ sessionName: 'main', direction: 'up', count: 1 }],
 	);
 });
 
@@ -125,7 +126,7 @@ void test('accumulateWorkmuxScrollbackBatchCommands nets line leftovers on direc
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		["mdev tmux app scroll page-down --count '1' --session 'main'"],
+		[{ sessionName: 'main', direction: 'down', count: 1 }],
 	);
 });
 
@@ -199,8 +200,24 @@ void test('accumulateWorkmuxScrollbackBatchCommands splits page commands above W
 			lineAccumulator: createTmuxScrollbackLineAccumulator(),
 		}),
 		[
-			"mdev tmux app scroll page-up --count '20' --session 'main'",
-			"mdev tmux app scroll page-up --count '5' --session 'main'",
+			{ sessionName: 'main', direction: 'up', count: 20 },
+			{ sessionName: 'main', direction: 'up', count: 5 },
+		],
+	);
+});
+
+void test('mergeWorkmuxScrollbackPageCommands coalesces adjacent page intents', () => {
+	assert.deepEqual(
+		mergeWorkmuxScrollbackPageCommands([
+			{ sessionName: 'main', direction: 'up', count: 3 },
+			{ sessionName: 'main', direction: 'up', count: 4 },
+			{ sessionName: 'main', direction: 'down', count: 2 },
+			{ sessionName: 'main', direction: 'down', count: 19 },
+		]),
+		[
+			{ sessionName: 'main', direction: 'up', count: 7 },
+			{ sessionName: 'main', direction: 'down', count: 20 },
+			{ sessionName: 'main', direction: 'down', count: 1 },
 		],
 	);
 });
@@ -223,11 +240,11 @@ void test('accumulateWorkmuxScrollbackBatchCommands clamps malformed huge batche
 		),
 	);
 	assert.deepEqual(commands, [
-		"mdev tmux app scroll page-down --count '20' --session 'main'",
-		"mdev tmux app scroll page-down --count '20' --session 'main'",
-		"mdev tmux app scroll page-down --count '20' --session 'main'",
-		"mdev tmux app scroll page-down --count '20' --session 'main'",
-		"mdev tmux app scroll page-down --count '20' --session 'main'",
+		{ sessionName: 'main', direction: 'down', count: 20 },
+		{ sessionName: 'main', direction: 'down', count: 20 },
+		{ sessionName: 'main', direction: 'down', count: 20 },
+		{ sessionName: 'main', direction: 'down', count: 20 },
+		{ sessionName: 'main', direction: 'down', count: 20 },
 	]);
 });
 

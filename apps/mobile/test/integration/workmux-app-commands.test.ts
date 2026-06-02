@@ -344,6 +344,6 @@ void test('workmux app update message is explicit', () => {
 	);
 	assert.equal(
 		formatWorkmuxAppCommandFailureMessage('permission denied'),
-		'permission denied',
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
 });
