@@ -46,7 +46,8 @@ export function createWorkmuxScrollbackCommandExecutor({
 	let tail: Promise<unknown> = Promise.resolve();
 	let closed = false;
 	let disposed = false;
-	let generation = 0;
+	let workGeneration = 0;
+	let exitGeneration = 0;
 	let scrollDrainQueued = false;
 	let pendingScrollBatch: {
 		commands: string[];
@@ -65,20 +66,25 @@ export function createWorkmuxScrollbackCommandExecutor({
 		return next;
 	};
 
-	const isActive = (operationGeneration: number) =>
-		!disposed && operationGeneration === generation;
+	const isWorkActive = (operationGeneration: number) =>
+		!disposed && operationGeneration === workGeneration;
+	const isExitActive = (operationGeneration: number) =>
+		!disposed && operationGeneration === exitGeneration;
 
 	const runCommands = async ({
 		commands,
 		commandKind,
 		operationGeneration,
 		cancelCommand,
+		durableExit = false,
 	}: {
 		commands: string[];
 		commandKind: WorkmuxScrollbackCommandKind;
 		operationGeneration: number;
 		cancelCommand?: string;
+		durableExit?: boolean;
 	}) => {
+		const isActive = durableExit ? isExitActive : isWorkActive;
 		if (disposed) return false;
 		for (const command of commands) {
 			if (!isActive(operationGeneration)) return false;
@@ -100,17 +106,19 @@ export function createWorkmuxScrollbackCommandExecutor({
 	};
 
 	const reset = (options?: { exitCommand?: string }) => {
-		generation += 1;
+		workGeneration += 1;
 		clearPendingScrollBatches();
 		const exitCommand = options?.exitCommand;
 		if (disposed || !exitCommand) return null;
 
-		const operationGeneration = generation;
+		exitGeneration += 1;
+		const operationGeneration = exitGeneration;
 		return enqueueSerialized(() =>
 			runCommands({
 				commands: [exitCommand],
 				commandKind: 'scroll',
 				operationGeneration,
+				durableExit: true,
 			}),
 		);
 	};
@@ -120,7 +128,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 			closed || disposed
 				? Promise.resolve(false)
 				: (() => {
-						const operationGeneration = generation;
+						const operationGeneration = workGeneration;
 						return enqueueSerialized(() =>
 							runCommands({
 								commands: [command],
@@ -135,7 +143,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 			if (commands.length === 0) return Promise.resolve(true);
 			const promise = new Promise<boolean>((resolve) => {
 				pendingScrollBatch?.resolve(false);
-				pendingScrollBatch = { commands, generation, resolve };
+				pendingScrollBatch = { commands, generation: workGeneration, resolve };
 			});
 
 			if (!scrollDrainQueued) {
