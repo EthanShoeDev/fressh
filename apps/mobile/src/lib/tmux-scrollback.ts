@@ -415,13 +415,15 @@ export function handleWorkmuxScrollbackCommandFailureActions({
 	clearScrollbackState: () => void;
 	warn: (message: string) => void;
 }): void {
-	warn(message);
-	alert('Workmux scroll unavailable', message, [
-		{ text: 'Copy Message', onPress: () => copyMessage(message) },
-		{ text: 'OK' },
-	]);
-
-	clearScrollbackState();
+	try {
+		warn(message);
+		alert('Workmux scroll unavailable', message, [
+			{ text: 'Copy Message', onPress: () => copyMessage(message) },
+			{ text: 'OK' },
+		]);
+	} finally {
+		clearScrollbackState();
+	}
 }
 
 export function handleWorkmuxScrollbackDisposeExitFailureActions({

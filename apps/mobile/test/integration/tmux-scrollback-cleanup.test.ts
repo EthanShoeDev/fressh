@@ -611,6 +611,42 @@ void test('workmux scrollback failure actions alert and clear without cancel bef
 	]);
 });
 
+void test('workmux scrollback failure actions clear even when notification throws', () => {
+	const alertEvents: string[] = [];
+	assert.throws(
+		() =>
+			handleWorkmuxScrollbackCommandFailureActions({
+				message: 'Update mdev',
+				alert: () => {
+					alertEvents.push('alert');
+					throw new Error('alert failed');
+				},
+				copyMessage: () => {},
+				clearScrollbackState: () => alertEvents.push('clear'),
+				warn: () => alertEvents.push('warn'),
+			}),
+		/alert failed/,
+	);
+	assert.deepEqual(alertEvents, ['warn', 'alert', 'clear']);
+
+	const warnEvents: string[] = [];
+	assert.throws(
+		() =>
+			handleWorkmuxScrollbackCommandFailureActions({
+				message: 'Update mdev',
+				alert: () => warnEvents.push('alert'),
+				copyMessage: () => {},
+				clearScrollbackState: () => warnEvents.push('clear'),
+				warn: () => {
+					warnEvents.push('warn');
+					throw new Error('warn failed');
+				},
+			}),
+		/warn failed/,
+	);
+	assert.deepEqual(warnEvents, ['warn', 'clear']);
+});
+
 void test('workmux scrollback failure actions use supplied app-exit cleanup after remote copy mode is acknowledged', () => {
 	const events: string[] = [];
 
