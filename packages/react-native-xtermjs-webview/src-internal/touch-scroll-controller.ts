@@ -28,14 +28,12 @@ export const createTouchScrollController = ({
 }): TouchScrollController => {
 	type ScrollState = 'Idle' | 'Tracking' | 'Scrolling' | 'ScrollbackActive';
 	type CopyModeState = 'off' | 'entering' | 'on';
-	type EntryIntent = 'scroll';
 
 	let config: TouchScrollConfig = { enabled: false };
 	let enabled = false;
 
 	let state: ScrollState = 'Idle';
 	let copyModeState: CopyModeState = 'off';
-	let entryIntent: EntryIntent | null = null;
 
 	let scrollbackActive = false;
 	let scrollbackPhase: 'dragging' | 'active' = 'active';
@@ -246,7 +244,6 @@ export const createTouchScrollController = ({
 		resetPointerTracking();
 		state = 'Idle';
 		copyModeState = 'off';
-		entryIntent = null;
 		scrollbackActive = false;
 		scrollbackPhase = 'active';
 	};
@@ -375,10 +372,9 @@ export const createTouchScrollController = ({
 		if (Math.trunc(desiredLines - sentLines) !== 0) scheduleFlush();
 	};
 
-	const beginCopyModeEntry = (intent: EntryIntent) => {
+	const beginCopyModeEntry = () => {
 		if (copyModeState !== 'off' || pendingEnterRequestId != null) return;
 		copyModeState = 'entering';
-		entryIntent = intent;
 		const requestId = ++enterRequestCounter;
 		pendingEnterRequestId = requestId;
 		sendToRn({ type: 'tmuxEnterCopyMode', instanceId, requestId });
@@ -393,12 +389,10 @@ export const createTouchScrollController = ({
 		const pointerDownNow = pointerIsDown;
 		const phase = pointerDownNow ? 'dragging' : 'active';
 
-		if (entryIntent === 'scroll') {
-			if (!scrollbackActive) {
-				emitScrollbackMode(true, phase);
-			} else if (scrollbackPhase !== phase) {
-				emitScrollbackMode(true, phase);
-			}
+		if (!scrollbackActive) {
+			emitScrollbackMode(true, phase);
+		} else if (scrollbackPhase !== phase) {
+			emitScrollbackMode(true, phase);
 		}
 
 		if (pendingPointerUp && !pointerDownNow) {
@@ -428,7 +422,6 @@ export const createTouchScrollController = ({
 		const previousPhase = scrollbackPhase;
 		pendingEnterRequestId = null;
 		copyModeState = 'off';
-		entryIntent = null;
 		resetPendingScroll();
 		releasePointerCapture();
 		resetPointerTracking();
@@ -489,7 +482,7 @@ export const createTouchScrollController = ({
 
 				cancelLongPress();
 				state = 'Scrolling';
-				beginCopyModeEntry('scroll');
+				beginCopyModeEntry();
 				emitScrollbackMode(true, 'dragging');
 				try {
 					target?.setPointerCapture(event.pointerId);
@@ -638,7 +631,6 @@ export const createTouchScrollController = ({
 		pendingPointerUp = false;
 		pointerIsDown = false;
 		copyModeState = 'off';
-		entryIntent = null;
 		emitScrollbackMode(false, scrollbackPhase, requestId);
 	};
 
