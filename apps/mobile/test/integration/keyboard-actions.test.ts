@@ -187,3 +187,38 @@ void test('browser actions menu action delegates to the action context', async (
 	assert.equal(opened, 1);
 	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_BROWSER_ACTIONS'), true);
 });
+
+void test('Workmux keyboard actions delegate semantic commands without sending bytes', async () => {
+	const commands: unknown[] = [];
+	let sentBytes = 0;
+
+	const context = {
+		availableKeyboardIds: new Set(),
+		selectKeyboard: () => {},
+		rotateKeyboard: () => {},
+		openConfigurator: () => {},
+		sendBytes: () => {
+			sentBytes += 1;
+		},
+		pasteClipboard: async () => {},
+		copySelection: () => {},
+		runWorkmuxKeyboardCommand: (command: unknown) => {
+			commands.push(command);
+		},
+	} as Parameters<typeof runAction>[1];
+
+	await runAction('WORKMUX_FOCUS_CLAUDE', context);
+	await runAction('WORKMUX_FOCUS_PREV', context);
+	await runAction('WORKMUX_NAV_NEXT', context);
+	await runAction('WORKMUX_NAV_PREV_ALL', context);
+
+	assert.deepEqual(commands, [
+		{ type: 'focus', target: 'claude' },
+		{ type: 'focus', target: 'prev' },
+		{ type: 'nav', action: 'next' },
+		{ type: 'nav', action: 'prev-all' },
+	]);
+	assert.equal(sentBytes, 0);
+	assert.equal(KNOWN_ACTION_IDS.includes('WORKMUX_FOCUS_CLAUDE'), true);
+	assert.equal(KNOWN_ACTION_IDS.includes('WORKMUX_NAV_NEXT'), true);
+});

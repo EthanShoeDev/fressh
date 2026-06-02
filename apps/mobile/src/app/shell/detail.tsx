@@ -59,6 +59,7 @@ import {
 	runAction,
 	type ActionContext,
 	type ActionId,
+	type WorkmuxKeyboardCommand,
 } from '@/lib/keyboard-actions';
 import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
@@ -130,6 +131,12 @@ import {
 	type WisprTextEditorAvailability,
 } from '@/lib/wispr-automation';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
+import {
+	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	buildWorkmuxAppFocusCommand,
+	buildWorkmuxAppNavCommand,
+	formatWorkmuxAppCommandFailureMessage,
+} from '@/lib/workmux-app-commands';
 import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
@@ -2158,6 +2165,36 @@ function ShellDetail() {
 		});
 	}, []);
 
+	const runWorkmuxKeyboardCommand = useCallback(
+		(command: WorkmuxKeyboardCommand) => {
+			void (async () => {
+				try {
+					if (!tmuxEnabled) {
+						throw new Error(
+							'Workmux actions require a Workmux-enabled connection.',
+						);
+					}
+					const sessionName = tmuxTarget.trim() || 'main';
+					const remoteCommand =
+						command.type === 'focus'
+							? buildWorkmuxAppFocusCommand(sessionName, command.target)
+							: buildWorkmuxAppNavCommand(
+									sessionName,
+									command.action,
+									command.index,
+								);
+					await browserActions.runHostBrowserCommand(remoteCommand, 10_000);
+				} catch (error) {
+					const message =
+						formatWorkmuxAppCommandFailureMessage(getErrorMessage(error)) ||
+						WORKMUX_APP_COMMAND_UPDATE_MESSAGE;
+					Alert.alert('Workmux action failed', message);
+				}
+			})();
+		},
+		[browserActions, tmuxEnabled, tmuxTarget],
+	);
+
 	const actionContext = useMemo<ActionContext>(
 		() => ({
 			availableKeyboardIds,
@@ -2199,6 +2236,7 @@ function ShellDetail() {
 				runDetectedOpenCallback(mode, browserActions.browserActionsProps);
 			},
 			editHostUrlSlot: browserActions.browserActionsProps.onEditUrlSlot,
+			runWorkmuxKeyboardCommand,
 			cycleWorkmuxStatus: browserActions.cycleWorkmuxStatus,
 		}),
 		[
@@ -2214,6 +2252,7 @@ function ShellDetail() {
 			handleOpenWisprTextEditor,
 			openConfigDialog,
 			rotateKeyboard,
+			runWorkmuxKeyboardCommand,
 			shellConfig,
 			selectKeyboardIfExists,
 			sendBytesRaw,

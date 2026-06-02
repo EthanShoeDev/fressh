@@ -1,6 +1,10 @@
 import { DETECTED_OPEN_ACTION_IDS } from '@/lib/detected-open-actions';
 import { type HostBrowserUrlSlot } from '@/lib/host-browser-actions';
 import { rootLogger } from '@/lib/logger';
+import {
+	type WorkmuxFocusTarget,
+	type WorkmuxNavAction,
+} from '@/lib/workmux-app-commands';
 
 // Action IDs emitted by runtime config are handled here at runtime.
 
@@ -38,6 +42,17 @@ export const KNOWN_ACTION_IDS = [
 	'EDIT_HOST_URL_DEV_SERVER',
 	'EDIT_HOST_URL_STORYBOOK',
 	'EDIT_HOST_URL_APP',
+	'WORKMUX_FOCUS_CLAUDE',
+	'WORKMUX_FOCUS_GIT',
+	'WORKMUX_FOCUS_CODEX',
+	'WORKMUX_FOCUS_BASH',
+	'WORKMUX_FOCUS_PREV',
+	'WORKMUX_FOCUS_NEXT',
+	'WORKMUX_FOCUS_TOGGLE_GIT_BASH',
+	'WORKMUX_NAV_PREV',
+	'WORKMUX_NAV_NEXT',
+	'WORKMUX_NAV_PREV_ALL',
+	'WORKMUX_NAV_NEXT_ALL',
 	'CYCLE_WORKMUX_STATUS',
 ] as const;
 
@@ -51,6 +66,9 @@ export type KnownActionId = (typeof KNOWN_ACTION_IDS)[number];
 export type KeyboardTargetActionId =
 	(typeof KEYBOARD_TARGET_ACTION_IDS)[number];
 export type ActionId = KnownActionId | (string & {});
+export type WorkmuxKeyboardCommand =
+	| { type: 'focus'; target: WorkmuxFocusTarget }
+	| { type: 'nav'; action: WorkmuxNavAction; index?: number };
 
 export type ActionContext = {
 	availableKeyboardIds: Set<string>;
@@ -73,6 +91,7 @@ export type ActionContext = {
 	openHostUrlSlot?: (slot: HostBrowserUrlSlot) => void;
 	openHostDetected?: (mode: 'auto' | 'pick') => void;
 	editHostUrlSlot?: (slot: HostBrowserUrlSlot) => void;
+	runWorkmuxKeyboardCommand?: (command: WorkmuxKeyboardCommand) => void;
 	cycleWorkmuxStatus?: () => void;
 };
 
@@ -175,6 +194,53 @@ export async function runAction(
 		}
 		case 'EDIT_HOST_URL_APP': {
 			context.editHostUrlSlot?.('app-url');
+			return;
+		}
+		case 'WORKMUX_FOCUS_CLAUDE': {
+			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'claude' });
+			return;
+		}
+		case 'WORKMUX_FOCUS_GIT': {
+			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'git' });
+			return;
+		}
+		case 'WORKMUX_FOCUS_CODEX': {
+			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'codex' });
+			return;
+		}
+		case 'WORKMUX_FOCUS_BASH': {
+			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'bash' });
+			return;
+		}
+		case 'WORKMUX_FOCUS_PREV': {
+			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'prev' });
+			return;
+		}
+		case 'WORKMUX_FOCUS_NEXT': {
+			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'next' });
+			return;
+		}
+		case 'WORKMUX_FOCUS_TOGGLE_GIT_BASH': {
+			context.runWorkmuxKeyboardCommand?.({
+				type: 'focus',
+				target: 'toggle-git-bash',
+			});
+			return;
+		}
+		case 'WORKMUX_NAV_PREV': {
+			context.runWorkmuxKeyboardCommand?.({ type: 'nav', action: 'prev' });
+			return;
+		}
+		case 'WORKMUX_NAV_NEXT': {
+			context.runWorkmuxKeyboardCommand?.({ type: 'nav', action: 'next' });
+			return;
+		}
+		case 'WORKMUX_NAV_PREV_ALL': {
+			context.runWorkmuxKeyboardCommand?.({ type: 'nav', action: 'prev-all' });
+			return;
+		}
+		case 'WORKMUX_NAV_NEXT_ALL': {
+			context.runWorkmuxKeyboardCommand?.({ type: 'nav', action: 'next-all' });
 			return;
 		}
 		case 'CYCLE_WORKMUX_STATUS': {
