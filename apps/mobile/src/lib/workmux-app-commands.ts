@@ -57,6 +57,8 @@ export function formatWorkmuxAppCommandFailureMessage(message: string): string {
 
 	if (
 		/(?:^|\s)(?:mdev|tmux): command not found(?:\s|$)/i.test(trimmed) ||
+		/command not found: (?:mdev|tmux)(?:\s|$)/i.test(trimmed) ||
+		/(?:^|\s)(?:mdev|tmux): not found(?:\s|$)/i.test(trimmed) ||
 		/unknown tmux app/i.test(trimmed) ||
 		/unknown tmux command/i.test(trimmed)
 	) {
@@ -134,7 +136,7 @@ export function buildWorkmuxAppNavCommand(
 		if (index === undefined) {
 			throw new Error('Missing Workmux nav select index');
 		}
-		if (!isSafePositiveInteger(index)) {
+		if (!isSafeNonNegativeInteger(index)) {
 			throw new Error(`Invalid Workmux nav select index: ${index}`);
 		}
 		return [
@@ -191,11 +193,7 @@ export function parseWorkmuxAppContextOutput(
 			'Invalid Workmux app context',
 		),
 		paneId: requireNonEmptyString(value, 'paneId', 'Invalid Workmux app context'),
-		paneTty: requireNonEmptyString(
-			value,
-			'paneTty',
-			'Invalid Workmux app context',
-		),
+		paneTty: requireString(value, 'paneTty', 'Invalid Workmux app context'),
 		panePath: requireNonEmptyString(
 			value,
 			'panePath',
@@ -267,6 +265,10 @@ function isSafePositiveInteger(value: number): boolean {
 	return Number.isSafeInteger(value) && value > 0;
 }
 
+function isSafeNonNegativeInteger(value: number): boolean {
+	return Number.isSafeInteger(value) && value >= 0;
+}
+
 function parseSingleJsonObject(output: string, errorMessage: string): JsonRecord {
 	const trimmed = output.trim();
 	if (!trimmed) {
@@ -295,6 +297,18 @@ function requireNonEmptyString(
 ): string {
 	const field = value[fieldName];
 	if (typeof field !== 'string' || field.trim().length === 0) {
+		throw new Error(errorMessage);
+	}
+	return field;
+}
+
+function requireString(
+	value: JsonRecord,
+	fieldName: string,
+	errorMessage: string,
+): string {
+	const field = value[fieldName];
+	if (typeof field !== 'string') {
 		throw new Error(errorMessage);
 	}
 	return field;

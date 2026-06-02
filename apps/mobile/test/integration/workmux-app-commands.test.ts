@@ -78,6 +78,10 @@ void test('workmux app command builders shell-quote app arguments', () => {
 		buildWorkmuxAppNavCommand('main', 'select', 7),
 		"mdev tmux app nav 'select' '7' --session 'main'",
 	);
+	assert.equal(
+		buildWorkmuxAppNavCommand('main', 'select', 0),
+		"mdev tmux app nav 'select' '0' --session 'main'",
+	);
 });
 
 void test('workmux app builders normalize blank sessions to main', () => {
@@ -96,11 +100,37 @@ void test('workmux scroll page builder rejects invalid counts', () => {
 	}
 });
 
+void test('workmux scroll page builder rejects invalid directions', () => {
+	assert.throws(
+		() =>
+			buildWorkmuxAppScrollPageCommand(
+				'main',
+				'left' as Parameters<typeof buildWorkmuxAppScrollPageCommand>[1],
+				1,
+			),
+		/Invalid Workmux scroll direction/,
+	);
+});
+
 void test('workmux nav select builder requires an index', () => {
 	assert.throws(
 		() => buildWorkmuxAppNavCommand('main', 'select'),
 		/Missing Workmux nav select index/,
 	);
+});
+
+void test('workmux nav select builder rejects invalid indexes', () => {
+	for (const index of [
+		-1,
+		Number.NaN,
+		1.5,
+		Number.MAX_SAFE_INTEGER + 1,
+	]) {
+		assert.throws(
+			() => buildWorkmuxAppNavCommand('main', 'select', index),
+			/Invalid Workmux nav select index/,
+		);
+	}
 });
 
 void test('workmux nav builder rejects indexes for non-select actions', () => {
@@ -114,6 +144,12 @@ void test('workmux app context parser accepts one complete JSON object', () => {
 	assert.deepEqual(
 		parseWorkmuxAppContextOutput(`${JSON.stringify(context)}\n`),
 		context,
+	);
+	assert.deepEqual(
+		parseWorkmuxAppContextOutput(
+			`${JSON.stringify({ ...context, paneTty: '' })}\n`,
+		),
+		{ ...context, paneTty: '' },
 	);
 });
 
@@ -130,7 +166,8 @@ void test('workmux app parsers reject bad or ambiguous output', () => {
 		'not json',
 		`${JSON.stringify(context)}\n${JSON.stringify(context)}`,
 		JSON.stringify({ ...context, paneId: '' }),
-		JSON.stringify({ ...context, paneTty: '   ' }),
+		JSON.stringify({ ...context, paneTty: undefined }),
+		JSON.stringify({ ...context, paneTty: 12 }),
 		JSON.stringify({ ...context, windowIndex: '12' }),
 	]) {
 		assert.throws(
@@ -156,6 +193,46 @@ void test('workmux app parsers reject bad or ambiguous output', () => {
 	);
 });
 
+void test('workmux app parsers default missing optional strings', () => {
+	const { role: _contextRole, workspaceId: _contextWorkspaceId, ...baseContext } =
+		context;
+	const { role: _windowRole, workspaceId: _windowWorkspaceId, ...baseWindow } =
+		windowProjection;
+
+	assert.deepEqual(parseWorkmuxAppContextOutput(JSON.stringify(baseContext)), {
+		...baseContext,
+		workspaceId: '',
+		role: '',
+	});
+	assert.deepEqual(parseWorkmuxAppWindowOutput(JSON.stringify(baseWindow)), {
+		...baseWindow,
+		workspaceId: '',
+		role: '',
+	});
+});
+
+void test('workmux app parsers reject non-string optional fields', () => {
+	for (const output of [
+		JSON.stringify({ ...context, workspaceId: 1 }),
+		JSON.stringify({ ...context, role: false }),
+	]) {
+		assert.throws(
+			() => parseWorkmuxAppContextOutput(output),
+			/Invalid Workmux app context/,
+		);
+	}
+
+	for (const output of [
+		JSON.stringify({ ...windowProjection, workspaceId: 1 }),
+		JSON.stringify({ ...windowProjection, role: false }),
+	]) {
+		assert.throws(
+			() => parseWorkmuxAppWindowOutput(output),
+			/Invalid Workmux app window/,
+		);
+	}
+});
+
 void test('workmux app update message is explicit', () => {
 	assert.equal(
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
@@ -171,6 +248,22 @@ void test('workmux app update message is explicit', () => {
 	);
 	assert.equal(
 		formatWorkmuxAppCommandFailureMessage('tmux: command not found'),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
+		formatWorkmuxAppCommandFailureMessage('zsh: command not found: mdev'),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
+		formatWorkmuxAppCommandFailureMessage('zsh: command not found: tmux'),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
+		formatWorkmuxAppCommandFailureMessage('sh: 1: mdev: not found'),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
+		formatWorkmuxAppCommandFailureMessage('sh: 1: tmux: not found'),
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
 	assert.equal(
