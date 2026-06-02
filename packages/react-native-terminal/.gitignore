@@ -16,3 +16,4 @@ android/generated/
 # The alacritty fork lives at rust/vendor/alacritty as a git SUBMODULE (tracked
 # via .gitmodules — do NOT ignore it). Only its build output:
 rust/vendor/alacritty/target/
+rust/vendor/crossfont/target/

@@ -13,8 +13,15 @@ members = ["fressh-ssh", "fressh-render", "fressh-core", "shim-uniffi"]
 # vendor/alacritty is our fork checkout — its OWN cargo workspace. Exclude it so
 # cargo doesn't try to absorb its crates as members of ours. We still path-dep
 # into it (exclude only affects membership, not path deps). (§6)
-exclude = ["vendor/alacritty"]
+exclude = ["vendor/alacritty", "vendor/crossfont"]
 resolver = "2"
+
+# Use our crossfont fork (submodule) everywhere in the graph — including inside
+# alacritty_renderer (which depends on crossfont 0.8.1 from crates.io). Same
+# version, different source: adds a Fontconfig-free FreeType path so the renderer
+# links on Android/iOS, which lack fontconfig. (§6 font decision)
+[patch.crates-io]
+crossfont = { path = "vendor/crossfont" }
 
 [workspace.dependencies]
 # Async runtime — self-hosted in fressh-core (not driven by the binding tool),

@@ -2,3 +2,7 @@
 	path = packages/react-native-terminal/rust/vendor/alacritty
 	url = https://github.com/EthanShoeDev/alacritty.git
 	branch = fressh
+[submodule "packages/react-native-terminal/rust/vendor/crossfont"]
+	path = packages/react-native-terminal/rust/vendor/crossfont
+	url = https://github.com/EthanShoeDev/crossfont.git
+	branch = fressh

@@ -611,12 +611,28 @@ Under `docs/cloned-repos-as-docs/`:
       instance (engine `Point` → renderer `RenderableCell`). This de-risks the
       core renderer-reuse bet.
 
-### Next
+### Done (proven) — cont.
 
-- [ ] **Cross-compile the renderer for Android** (the real font risk): does
-      `crossfont`/FreeType build under `cargo-ndk` for `aarch64-linux-android`?
-      If painful, evaluate a pure-Rust rasterizer (swash/cosmic-text) — would
-      change `glyph_cache.rs`, so prefer keeping crossfont if it cross-compiles.
+- [x] **Renderer cross-compiles AND links for Android.** FreeType builds bundled
+      under `cargo-ndk` (`libfreetype2.a`). The wall was **fontconfig**: crossfont
+      routes *both* Android and iOS (only `target_os="macos"` → CoreText) through
+      its FreeType+fontconfig backend, and fontconfig isn't on mobile. **Option A
+      chosen + implemented**: forked crossfont (submodule `rust/vendor/crossfont`,
+      branch `fressh`) with a **Fontconfig-free FreeType path** — backend chosen by
+      target via `build.rs` (`crossfont_fontconfig` cfg = desktop-unix only),
+      `yeslogic-fontconfig-sys` target-gated out of android/ios, fontconfig code
+      gated, new `src/ft/direct.rs` loads a font by **direct file path** (the
+      embedder supplies a bundled monospace font) with default render settings, no
+      fallback; rasterization core shared. Consumed via `[patch.crates-io]
+      crossfont` in our workspace. **Verified:** `libfressh_render.so` links for
+      `aarch64-linux-android` with `NEEDED` = only `libdl/libc` (no fontconfig;
+      FreeType static). Desktop-unix keeps the fontconfig path unchanged.
+
+      "Proper way" confirmed by research: on mobile you don't use fontconfig
+      (discovery); you bundle/point at a font and rasterize directly. So the
+      RN-driven config (§6) must carry a **bundled monospace font path**.
+
+### Next
 - [ ] Write the **`Term → RenderableCell` iterator** (ours) + the small RN-driven
       **config struct** (§6) in `fressh-render`.
 - [ ] **Android GLES PoC view**: wire `ANativeWindow* → EGL → render thread`,
