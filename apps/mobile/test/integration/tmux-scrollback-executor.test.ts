@@ -247,6 +247,34 @@ void test('resetTmuxScrollbackRuntimeState cancels in-flight enter and unwinds r
 	assert.deepEqual(failures, []);
 });
 
+void test('resetTmuxScrollbackRuntimeState reports canceled enter command failures', async () => {
+	const commandBlock = deferred<void>();
+	const failures: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async () => {
+			await commandBlock.promise;
+			return { success: false, output: '', error: 'mdev: command not found' };
+		},
+		onFailure: (message) => failures.push(message),
+	});
+
+	const enter = executor.runEnterCommand('enter', {
+		rollbackExitCommand: 'exit',
+	});
+	await Promise.resolve();
+	void resetTmuxScrollbackRuntimeState({
+		lineAccumulator,
+		commandExecutor: executor,
+	});
+	commandBlock.resolve(undefined);
+
+	assert.equal(await enter, false);
+	assert.deepEqual(failures, [
+		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
+	]);
+});
+
 void test('resetTmuxScrollbackRuntimeState cancels queued enter before it starts', async () => {
 	const commandBlock = deferred<void>();
 	const commands: string[] = [];

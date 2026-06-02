@@ -101,14 +101,14 @@ import {
 	createTmuxScrollbackLineAccumulator,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
 	buildTmuxScrollbackLiveInputSendPlan,
+	handleTmuxScrollbackAppStateChange,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
-	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleWorkmuxScrollbackDisposeExitFailureActions,
 	registerTmuxScrollbackLocalExitRequest,
 	runTmuxScrollbackLiveInputSendPlan,
-	resetTmuxScrollbackLocalExitRequests,
+	resetTmuxScrollbackLocalStateForTerminalInitialization,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	type WorkmuxScrollbackCommandExecutor,
@@ -133,7 +133,6 @@ import {
 	type WisprTextEditorAvailability,
 } from '@/lib/wispr-automation';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
-import { buildWorkmuxAppScrollExitCommand } from '@/lib/workmux-app-commands';
 import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
@@ -793,7 +792,7 @@ function ShellDetail() {
 			cleanupBarrier: scrollbackCleanupBarrierRef.current,
 			remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
 			cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
-			remoteCopyModeExitCommand: buildWorkmuxAppScrollExitCommand(targetName),
+			targetName,
 		});
 		void cleanup?.catch((error: unknown) => {
 			logger.warn('Workmux scrollback reset exit failed', error);
@@ -883,7 +882,7 @@ function ShellDetail() {
 				cleanupBarrier: scrollbackCleanupBarrier,
 				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
 				cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
-				remoteCopyModeExitCommand: buildWorkmuxAppScrollExitCommand(targetName),
+				targetName,
 			});
 			void cleanup?.catch((error: unknown) => {
 				logger.warn('Workmux scrollback dispose exit failed', error);
@@ -2353,6 +2352,14 @@ function ShellDetail() {
 		const dismissKeyboard = () => {
 			if (isAndroid) Keyboard.dismiss();
 		};
+		const scheduleKeyboardDismiss = () => {
+			if (resumeDismissTimeoutRef.current) {
+				clearTimeout(resumeDismissTimeoutRef.current);
+			}
+			resumeDismissTimeoutRef.current = setTimeout(() => {
+				dismissKeyboard();
+			}, 150);
+		};
 		appStateRef.current = AppState.currentState;
 		if (isAndroid) {
 			dismissKeyboard();
@@ -2363,43 +2370,27 @@ function ShellDetail() {
 			const previousState = appStateRef.current;
 			appStateRef.current = nextState;
 			isAppActiveRef.current = nextState === 'active';
-			if (nextState === 'active') {
-				if (isAndroid) {
-					xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
-				}
-				acknowledgeVisibleAgentNotificationRef.current();
-				// Preserve the previous OS keyboard visibility when returning to the app.
-				if (
-					isAndroid &&
-					(!systemKeyboardEnabled || !lastKeyboardVisibleRef.current)
-				) {
-					dismissKeyboard();
-					// Some devices show the keyboard after focus settles; dismiss again.
-					if (resumeDismissTimeoutRef.current) {
-						clearTimeout(resumeDismissTimeoutRef.current);
-					}
-					resumeDismissTimeoutRef.current = setTimeout(() => {
-						dismissKeyboard();
-					}, 150);
-					systemKeyboardVisibleRef.current = false;
-				}
-				return;
-			}
-			void handleTmuxScrollbackInactiveAppStateTransition({
+			void handleTmuxScrollbackAppStateChange({
 				previousState,
 				nextState,
+				isAndroid,
+				systemKeyboardEnabled,
+				lastKeyboardVisibleRef,
+				systemKeyboardVisibleRef,
+				setSystemKeyboardEnabled: (enabled) =>
+					xtermRef.current?.setSystemKeyboardEnabled(enabled),
+				acknowledgeVisibleAgentNotification: () =>
+					acknowledgeVisibleAgentNotificationRef.current(),
+				dismissKeyboard,
+				scheduleKeyboardDismiss,
 				clearScrollbackState,
 				onCleanupError: (error) => {
 					logger.warn('Workmux inactive scrollback cleanup failed', error);
 				},
+				onLeftActive: () => {
+					agentNotificationAckRequestIdRef.current += 1;
+				},
 			});
-			// Capture once when transitioning away from active.
-			if (previousState === 'active') {
-				agentNotificationAckRequestIdRef.current += 1;
-				if (isAndroid) {
-					lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
-				}
-			}
 		});
 		return () => {
 			subscription.remove();
@@ -2641,11 +2632,11 @@ function ShellDetail() {
 	const handleTerminalInitialized = useCallback(
 		(instanceId: string) => {
 			currentInstanceIdRef.current = instanceId;
-			scrollbackActiveRef.current = false;
-			scrollbackPhaseRef.current = 'active';
-			resetTmuxScrollbackLocalExitRequests(
-				localScrollbackExitRequestIdsRef.current,
-			);
+			resetTmuxScrollbackLocalStateForTerminalInitialization({
+				localExitRequestIds: localScrollbackExitRequestIdsRef.current,
+				scrollbackActiveRef,
+				scrollbackPhaseRef,
+			});
 			void resetTmuxScrollbackForUiReset();
 			setScrollbackActive(false);
 			hasAttachedOnceRef.current = false;

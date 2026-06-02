@@ -597,6 +597,87 @@ void test('touch scroll clears pending scrollback entry when scrollback is force
 	);
 });
 
+void test('touch scroll clears pending scrollback entry when enter ack is lost', async (t) => {
+	installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	const messages: BridgeInboundMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+		scrollbackEnterTimeoutMs: 1,
+	});
+
+	controller.setConfig({ enabled: true, slopPx: 8, pxPerLine: 10 });
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 64,
+		timeStamp: 16,
+	});
+
+	await new Promise((resolve) => setTimeout(resolve, 5));
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 2,
+		clientX: 48,
+		clientY: 48,
+		timeStamp: 32,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 2,
+		clientX: 48,
+		clientY: 72,
+		timeStamp: 48,
+	});
+
+	const entryRequests = messages.filter(
+		(
+			message,
+		): message is Extract<
+			BridgeInboundMessage,
+			{ type: 'scrollbackEnterRequested' }
+		> => message.type === 'scrollbackEnterRequested',
+	);
+	const timeoutExit = messages.find(
+		(
+			message,
+		): message is Extract<
+			BridgeInboundMessage,
+			{ type: 'scrollbackModeChanged' }
+		> =>
+			message.type === 'scrollbackModeChanged' &&
+			!message.active &&
+			message.requestId === 1,
+	);
+
+	assert.deepEqual(
+		entryRequests.map(({ requestId }) => requestId),
+		[1, 2],
+	);
+	assert.notEqual(timeoutExit, undefined);
+});
+
 void test('selection overlay tap exits even when pointer releases outside the overlay', (t) => {
 	const { document } = installDomGlobals(t);
 	const originalDateNow = Date.now;

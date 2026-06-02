@@ -1,7 +1,5 @@
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import test from 'node:test';
 import {
 	buildTmuxScrollbackLiveInputSendPlan,
@@ -9,6 +7,7 @@ import {
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
+	handleTmuxScrollbackAppStateChange,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
 	handleTmuxScrollbackInactiveAppStateTransition,
@@ -17,6 +16,7 @@ import {
 	registerTmuxScrollbackLocalExitRequest,
 	registerTmuxScrollbackLiveInputCleanup,
 	resetTmuxScrollbackLocalExitRequests,
+	resetTmuxScrollbackLocalStateForTerminalInitialization,
 	runTmuxScrollbackLiveInputSendPlan,
 	resetTmuxScrollbackRuntimeState,
 	resetTmuxScrollbackRuntimeStateForUiReset,
@@ -29,6 +29,7 @@ import {
 const bytes = (values: number[]) => new Uint8Array(values);
 const segmentValues = (segments: readonly Uint8Array<ArrayBuffer>[]) =>
 	segments.map((segment) => Array.from(segment));
+const workmuxScrollExitCommand = "mdev tmux app scroll exit --session 'main'";
 const deferred = <T>() => {
 	let resolve: (value: T) => void = () => {};
 	let reject: (reason?: unknown) => void = () => {};
@@ -39,32 +40,63 @@ const deferred = <T>() => {
 	return { promise, resolve, reject };
 };
 
-void test('shell AppState scrollback cleanup is not Android-only', () => {
-	const source = readFileSync(
-		join(process.cwd(), 'src/app/shell/detail.tsx'),
-		'utf8',
-	);
-	const listenerIndex = source.indexOf("AppState.addEventListener('change'");
-	assert.notEqual(listenerIndex, -1);
-	const effectIndex = source.lastIndexOf('useEffect(() => {', listenerIndex);
-	assert.notEqual(effectIndex, -1);
-	const cleanupIndex = source.indexOf(
-		'handleTmuxScrollbackInactiveAppStateTransition',
-		effectIndex,
-	);
-	assert.notEqual(cleanupIndex, -1);
-	const appStateEffectBeforeCleanup = source.slice(effectIndex, cleanupIndex);
+void test('AppState scrollback cleanup runs on inactive non-Android transitions', async () => {
+	const events: string[] = [];
+	const cleanup = handleTmuxScrollbackAppStateChange({
+		previousState: 'active',
+		nextState: 'background',
+		isAndroid: false,
+		systemKeyboardEnabled: false,
+		lastKeyboardVisibleRef: { current: true },
+		systemKeyboardVisibleRef: { current: true },
+		setSystemKeyboardEnabled: () => events.push('keyboard'),
+		acknowledgeVisibleAgentNotification: () => events.push('ack'),
+		dismissKeyboard: () => events.push('dismiss'),
+		scheduleKeyboardDismiss: () => events.push('schedule-dismiss'),
+		clearScrollbackState: () => {
+			events.push('cleanup');
+			return Promise.resolve(true);
+		},
+		onCleanupError: (error) => events.push(`error:${String(error)}`),
+		onLeftActive: () => events.push('left-active'),
+	});
 
-	assert.doesNotMatch(
-		appStateEffectBeforeCleanup,
-		/if\s*\(\s*Platform\.OS\s*!==\s*['"]android['"]\s*\)\s*return/,
-		'AppState scrollback cleanup must not be behind an Android-only effect guard',
-	);
-	assert.match(
-		appStateEffectBeforeCleanup,
-		/const\s+isAndroid\s*=\s*Platform\.OS\s*===\s*['"]android['"]/,
-		'keyboard-only AppState behavior remains platform-gated separately',
-	);
+	assert.notEqual(cleanup, null);
+	assert.equal(await cleanup, true);
+	assert.deepEqual(events, ['cleanup', 'left-active']);
+});
+
+void test('AppState active transition keeps keyboard handling Android-only', () => {
+	const events: string[] = [];
+	const lastKeyboardVisibleRef = { current: false };
+	const systemKeyboardVisibleRef = { current: true };
+
+	void handleTmuxScrollbackAppStateChange({
+		previousState: 'background',
+		nextState: 'active',
+		isAndroid: true,
+		systemKeyboardEnabled: true,
+		lastKeyboardVisibleRef,
+		systemKeyboardVisibleRef,
+		setSystemKeyboardEnabled: (enabled) => events.push(`keyboard:${enabled}`),
+		acknowledgeVisibleAgentNotification: () => events.push('ack'),
+		dismissKeyboard: () => events.push('dismiss'),
+		scheduleKeyboardDismiss: () => events.push('schedule-dismiss'),
+		clearScrollbackState: () => {
+			events.push('cleanup');
+			return null;
+		},
+		onCleanupError: (error) => events.push(`error:${String(error)}`),
+		onLeftActive: () => events.push('left-active'),
+	});
+
+	assert.deepEqual(events, [
+		'keyboard:true',
+		'ack',
+		'dismiss',
+		'schedule-dismiss',
+	]);
+	assert.equal(systemKeyboardVisibleRef.current, false);
 });
 
 void test('failed active Workmux scroll exit clears local UI without recursive exit retry', async () => {
@@ -78,7 +110,7 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
 			commands.push(command);
-			if (command === 'exit') {
+			if (command === workmuxScrollExitCommand) {
 				return { success: false, output: '', error: 'exit failed' };
 			}
 			return { success: true, output: '' };
@@ -94,7 +126,7 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 				commandExecutor: executor,
 				cleanupBarrier,
 				remoteCopyModeActiveRef,
-				remoteCopyModeExitCommand: 'exit',
+				targetName: 'main',
 			});
 		},
 	});
@@ -112,12 +144,12 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 		commandExecutor: executor,
 		cleanupBarrier,
 		remoteCopyModeActiveRef,
-		remoteCopyModeExitCommand: 'exit',
+		targetName: 'main',
 	});
 
 	assert.notEqual(cleanup, null);
 	assert.equal(await cleanup, false);
-	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.deepEqual(commands, ['enter', workmuxScrollExitCommand]);
 	assert.deepEqual(failures, ['exit:exit failed']);
 	assert.equal(localScrollbackActive, false);
 	assert.equal(remoteCopyModeActiveRef.current, true);
@@ -134,7 +166,7 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 				commandExecutor: executor,
 				cleanupBarrier,
 				remoteCopyModeActiveRef,
-				remoteCopyModeExitCommand: 'exit',
+				targetName: 'main',
 			})
 		: cleanupBarrier.current();
 
@@ -146,7 +178,11 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 		sentPayloads.push(...segmentValues(plan.segments));
 	}
 
-	assert.deepEqual(commands, ['enter', 'exit', 'exit']);
+	assert.deepEqual(commands, [
+		'enter',
+		workmuxScrollExitCommand,
+		workmuxScrollExitCommand,
+	]);
 	assert.deepEqual(sentPayloads, []);
 	assert.equal(remoteCopyModeActiveRef.current, true);
 });
@@ -174,13 +210,13 @@ void test('component disposal UI reset clears line accumulator and disposes exec
 		cleanupBarrier,
 		remoteCopyModeActiveRef,
 		cleanupGeneration,
-		remoteCopyModeExitCommand: 'exit',
+		targetName: 'main',
 	});
 
 	assert.notEqual(cleanup, null);
 	assert.deepEqual(lineAccumulator, { direction: null, lines: 0 });
 	assert.equal(await cleanup, true);
-	assert.deepEqual(commands, ['exit']);
+	assert.deepEqual(commands, [workmuxScrollExitCommand]);
 	assert.equal(remoteCopyModeActiveRef.current, false);
 	assert.equal(await executor.runEnterCommand('after-dispose'), false);
 });
@@ -194,7 +230,7 @@ void test('failed UI reset exit keeps remote copy mode active and blocks later l
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
 			commands.push(command);
-			if (command === 'exit') {
+			if (command === workmuxScrollExitCommand) {
 				return { success: false, output: '', error: 'exit failed' };
 			}
 			return { success: true, output: '' };
@@ -215,7 +251,7 @@ void test('failed UI reset exit keeps remote copy mode active and blocks later l
 		commandExecutor: executor,
 		cleanupBarrier,
 		remoteCopyModeActiveRef,
-		remoteCopyModeExitCommand: 'exit',
+		targetName: 'main',
 	});
 
 	assert.notEqual(cleanup, null);
@@ -234,7 +270,7 @@ void test('failed UI reset exit keeps remote copy mode active and blocks later l
 				commandExecutor: executor,
 				cleanupBarrier,
 				remoteCopyModeActiveRef,
-				remoteCopyModeExitCommand: 'exit',
+				targetName: 'main',
 			})
 		: cleanupBarrier.current();
 
@@ -248,7 +284,11 @@ void test('failed UI reset exit keeps remote copy mode active and blocks later l
 
 	assert.deepEqual(sentPayloads, []);
 	assert.equal(remoteCopyModeActiveRef.current, true);
-	assert.deepEqual(commands, ['enter', 'exit', 'exit']);
+	assert.deepEqual(commands, [
+		'enter',
+		workmuxScrollExitCommand,
+		workmuxScrollExitCommand,
+	]);
 });
 
 void test('live input waits for pending app scroll enter rollback before sending primary payload', async () => {
@@ -360,7 +400,7 @@ void test('pending enter rollback exit failure marks remote copy mode active for
 		commandExecutor: executor,
 		cleanupBarrier,
 		remoteCopyModeActiveRef,
-		remoteCopyModeExitCommand: 'exit',
+		targetName: 'main',
 	});
 
 	assert.notEqual(cleanup, null);
@@ -566,6 +606,23 @@ void test('inactive AppState transition reports rejected cleanup', async () => {
 	assert.deepEqual(reportedErrors, [cleanupError]);
 });
 
+void test('inactive AppState transition reports synchronous cleanup failures', () => {
+	const cleanupError = new Error('cleanup failed');
+	const reportedErrors: unknown[] = [];
+
+	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
+		previousState: 'active',
+		nextState: 'background',
+		clearScrollbackState: () => {
+			throw cleanupError;
+		},
+		onCleanupError: (error) => reportedErrors.push(error),
+	});
+
+	assert.equal(cleanup, null);
+	assert.deepEqual(reportedErrors, [cleanupError]);
+});
+
 void test('Workmux scrollback enter request resolution clears inactive current instance only', () => {
 	assert.deepEqual(
 		resolveTmuxScrollbackEnterRequest({
@@ -648,6 +705,34 @@ void test('local scrollback exit request tracking is bounded and resettable', ()
 	resetTmuxScrollbackLocalExitRequests(localExitRequestIds);
 
 	assert.deepEqual(Array.from(localExitRequestIds), []);
+});
+
+void test('terminal initialization clears local scrollback state and stale exit requests', () => {
+	const localExitRequestIds = new Set<number>();
+	const scrollbackActiveRef = { current: true };
+	const scrollbackPhaseRef = { current: 'dragging' as 'dragging' | 'active' };
+
+	registerTmuxScrollbackLocalExitRequest({
+		requestIds: localExitRequestIds,
+		requestId: 7,
+	});
+
+	resetTmuxScrollbackLocalStateForTerminalInitialization({
+		localExitRequestIds,
+		scrollbackActiveRef,
+		scrollbackPhaseRef,
+	});
+
+	assert.equal(scrollbackActiveRef.current, false);
+	assert.equal(scrollbackPhaseRef.current, 'active');
+	assert.equal(
+		shouldRunTmuxScrollbackRemoteResetForModeChange({
+			active: false,
+			requestId: 7,
+			localExitRequestIds,
+		}),
+		true,
+	);
 });
 
 void test('workmux scrollback failure actions alert and clear without cancel before remote ack', () => {

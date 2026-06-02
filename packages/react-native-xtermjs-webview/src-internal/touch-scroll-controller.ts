@@ -18,6 +18,7 @@ export const createTouchScrollController = ({
 	sendToRn,
 	isSelectionModeEnabled,
 	cancelLongPress,
+	scrollbackEnterTimeoutMs = 2_000,
 }: {
 	term: Terminal;
 	root: HTMLElement;
@@ -25,6 +26,7 @@ export const createTouchScrollController = ({
 	sendToRn: (msg: BridgeInboundMessage) => void;
 	isSelectionModeEnabled: () => boolean;
 	cancelLongPress: () => void;
+	scrollbackEnterTimeoutMs?: number;
 }): TouchScrollController => {
 	type ScrollState = 'Idle' | 'Tracking' | 'Scrolling' | 'ScrollbackActive';
 	type ScrollbackEnterState = 'off' | 'entering' | 'on';
@@ -69,6 +71,7 @@ export const createTouchScrollController = ({
 
 	let pendingEnterRequestId: number | null = null;
 	let enterRequestCounter = 0;
+	let pendingEnterTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 	let lineHeightPx = 16;
 	let target: HTMLElement | null = null;
@@ -219,6 +222,17 @@ export const createTouchScrollController = ({
 		updateDebugOverlay({ force: true });
 	};
 
+	const clearPendingEnterTimeout = () => {
+		if (pendingEnterTimeoutId == null) return;
+		clearTimeout(pendingEnterTimeoutId);
+		pendingEnterTimeoutId = null;
+	};
+
+	const clearPendingEnterRequest = () => {
+		clearPendingEnterTimeout();
+		pendingEnterRequestId = null;
+	};
+
 	const resetPointerTracking = () => {
 		pointerIsDown = false;
 		pendingPointerUp = false;
@@ -239,6 +253,7 @@ export const createTouchScrollController = ({
 
 	const resetState = () => {
 		resetPendingScroll();
+		clearPendingEnterRequest();
 		releasePointerCapture();
 		resetPointerTracking();
 		state = 'Idle';
@@ -377,13 +392,18 @@ export const createTouchScrollController = ({
 		scrollbackEnterState = 'entering';
 		const requestId = ++enterRequestCounter;
 		pendingEnterRequestId = requestId;
+		clearPendingEnterTimeout();
+		pendingEnterTimeoutId = setTimeout(() => {
+			if (pendingEnterRequestId !== requestId) return;
+			exitScrollback({ requestId });
+		}, scrollbackEnterTimeoutMs);
 		sendToRn({ type: 'scrollbackEnterRequested', instanceId, requestId });
 		return true;
 	};
 
 	const handleEnterAck = (requestId: number) => {
 		if (pendingEnterRequestId !== requestId) return;
-		pendingEnterRequestId = null;
+		clearPendingEnterRequest();
 		scrollbackEnterState = 'on';
 
 		const pointerDownNow = pointerIsDown;
@@ -420,7 +440,7 @@ export const createTouchScrollController = ({
 
 	const cancelTrackingForSelectionMode = () => {
 		const previousPhase = scrollbackPhase;
-		pendingEnterRequestId = null;
+		clearPendingEnterRequest();
 		scrollbackEnterState = 'off';
 		resetPendingScroll();
 		releasePointerCapture();
@@ -625,7 +645,7 @@ export const createTouchScrollController = ({
 	const exitScrollback = (opts?: { requestId?: number }) => {
 		const requestId = opts?.requestId;
 		resetPendingScroll();
-		pendingEnterRequestId = null;
+		clearPendingEnterRequest();
 		releasePointerCapture();
 		state = 'Idle';
 		pendingPointerUp = false;

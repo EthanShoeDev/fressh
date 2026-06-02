@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-	buildWorkmuxScrollbackBatchCommands,
+	accumulateWorkmuxScrollbackBatchCommands,
 	clearTmuxScrollbackLineAccumulator,
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
@@ -11,9 +11,9 @@ import {
 } from '../../src/lib/tmux-scrollback';
 import { WORKMUX_APP_SCROLL_MAX_COUNT } from '../../src/lib/workmux-app-commands';
 
-void test('buildWorkmuxScrollbackBatchCommands builds page scroll commands', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands builds page scroll commands', () => {
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'up',
 			pages: 2,
@@ -25,11 +25,11 @@ void test('buildWorkmuxScrollbackBatchCommands builds page scroll commands', () 
 	);
 });
 
-void test('buildWorkmuxScrollbackBatchCommands accumulates sub-page lines by direction', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands accumulates sub-page lines by direction', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
@@ -40,7 +40,7 @@ void test('buildWorkmuxScrollbackBatchCommands accumulates sub-page lines by dir
 		[],
 	);
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
@@ -52,12 +52,12 @@ void test('buildWorkmuxScrollbackBatchCommands accumulates sub-page lines by dir
 	);
 });
 
-void test('buildWorkmuxScrollbackBatchCommands accumulates rows-minus-one line batches into one receiver page', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands accumulates rows-minus-one line batches into one receiver page', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 	const pageStep = 24;
 
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'up',
 			pages: 0,
@@ -68,7 +68,7 @@ void test('buildWorkmuxScrollbackBatchCommands accumulates rows-minus-one line b
 		[],
 	);
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'up',
 			pages: 0,
@@ -80,11 +80,11 @@ void test('buildWorkmuxScrollbackBatchCommands accumulates rows-minus-one line b
 	);
 });
 
-void test('buildWorkmuxScrollbackBatchCommands nets line leftovers on direction change', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands nets line leftovers on direction change', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'up',
 			pages: 0,
@@ -95,7 +95,7 @@ void test('buildWorkmuxScrollbackBatchCommands nets line leftovers on direction 
 		[],
 	);
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
@@ -106,7 +106,7 @@ void test('buildWorkmuxScrollbackBatchCommands nets line leftovers on direction 
 		[],
 	);
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
@@ -117,7 +117,7 @@ void test('buildWorkmuxScrollbackBatchCommands nets line leftovers on direction 
 		[],
 	);
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
@@ -129,11 +129,11 @@ void test('buildWorkmuxScrollbackBatchCommands nets line leftovers on direction 
 	);
 });
 
-void test('buildWorkmuxScrollbackBatchCommands nets explicit pages and lines on reversal', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands nets explicit pages and lines on reversal', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'up',
 			pages: 0,
@@ -144,7 +144,7 @@ void test('buildWorkmuxScrollbackBatchCommands nets explicit pages and lines on 
 		[],
 	);
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 1,
@@ -164,7 +164,7 @@ void test('clearTmuxScrollbackLineAccumulator drops line leftovers', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
@@ -176,7 +176,7 @@ void test('clearTmuxScrollbackLineAccumulator drops line leftovers', () => {
 	);
 	clearTmuxScrollbackLineAccumulator(lineAccumulator);
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
@@ -188,9 +188,9 @@ void test('clearTmuxScrollbackLineAccumulator drops line leftovers', () => {
 	);
 });
 
-void test('buildWorkmuxScrollbackBatchCommands splits page commands above Workmux max count', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands splits page commands above Workmux max count', () => {
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'up',
 			pages: 25,
@@ -205,8 +205,8 @@ void test('buildWorkmuxScrollbackBatchCommands splits page commands above Workmu
 	);
 });
 
-void test('buildWorkmuxScrollbackBatchCommands clamps malformed huge batches before splitting', () => {
-	const commands = buildWorkmuxScrollbackBatchCommands({
+void test('accumulateWorkmuxScrollbackBatchCommands clamps malformed huge batches before splitting', () => {
+	const commands = accumulateWorkmuxScrollbackBatchCommands({
 		sessionName: 'main',
 		direction: 'down',
 		pages: 1_000_000,
@@ -253,7 +253,7 @@ void test('resetTmuxScrollbackRuntimeState clears stale line leftovers', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
@@ -265,7 +265,7 @@ void test('resetTmuxScrollbackRuntimeState clears stale line leftovers', () => {
 	);
 	void resetTmuxScrollbackRuntimeState({ lineAccumulator });
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
