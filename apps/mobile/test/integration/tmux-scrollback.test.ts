@@ -11,8 +11,10 @@ import {
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleTmuxScrollbackInactiveAppStateTransition,
 	registerTmuxScrollbackLiveInputCleanup,
+	registerTmuxScrollbackRemoteCopyModeExitCleanup,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resetTmuxScrollbackRuntimeState,
+	shouldRequestWorkmuxScrollbackEnter,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 } from '../../src/lib/tmux-scrollback';
@@ -879,6 +881,44 @@ void test('workmux scrollback executor routes dispose rollback failures to dispo
 	assert.deepEqual(disposeFailures, ['rollback exit failed']);
 });
 
+void test('dispose rollback exit failure can mark remote copy mode active for caller cleanup state', async () => {
+	const commandBlock = deferred<void>();
+	const commands: string[] = [];
+	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const remoteCopyModeActiveRef = { current: false };
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'enter') await commandBlock.promise;
+			if (command === 'exit') {
+				return { success: false, output: '', error: 'rollback exit failed' };
+			}
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+		onDisposeExitFailure: () => {},
+	});
+
+	const enter = executor.runEnterCommand('enter', {
+		rollbackExitCommand: 'exit',
+	});
+	await Promise.resolve();
+	const cleanup = registerTmuxScrollbackRemoteCopyModeExitCleanup({
+		barrier: cleanupBarrier,
+		cleanup: executor.dispose(),
+		remoteCopyModeActiveRef,
+		remoteCopyModeWasActive: remoteCopyModeActiveRef.current,
+		markRemoteCopyModeActiveOnFailedCleanup: true,
+	});
+
+	assert.notEqual(cleanup, null);
+	commandBlock.resolve(undefined);
+	assert.equal(await enter, false);
+	assert.equal(await cleanup, false);
+	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.equal(remoteCopyModeActiveRef.current, true);
+});
+
 void test('resetTmuxScrollbackRuntimeState returns a cleanup barrier for inactive in-flight app scroll enter before remote copy mode ack', async () => {
 	const commandBlock = deferred<void>();
 	const commands: string[] = [];
@@ -1155,6 +1195,33 @@ void test('inactive AppState transition ignores non-active previous states', () 
 
 	assert.equal(cleanup, null);
 	assert.equal(cleanupCount, 0);
+});
+
+void test('Workmux scrollback enter is not requested for inactive app or stale instance', () => {
+	assert.equal(
+		shouldRequestWorkmuxScrollbackEnter({
+			isAppActive: true,
+			instanceId: 'current',
+			currentInstanceId: 'current',
+		}),
+		true,
+	);
+	assert.equal(
+		shouldRequestWorkmuxScrollbackEnter({
+			isAppActive: false,
+			instanceId: 'current',
+			currentInstanceId: 'current',
+		}),
+		false,
+	);
+	assert.equal(
+		shouldRequestWorkmuxScrollbackEnter({
+			isAppActive: true,
+			instanceId: 'stale',
+			currentInstanceId: 'current',
+		}),
+		false,
+	);
 });
 
 void test('locally requested WebView scrollback inactive event does not run remote reset', () => {

@@ -92,7 +92,7 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 				content,
 				/export type \{ TmuxScrollBatchEvent, TouchScrollConfig \}/,
 			);
-		} else if (path !== 'dist/bridge.d.ts') {
+		} else {
 			assert.match(content, /pageStep/);
 		}
 		for (const removedContract of removedContracts) {

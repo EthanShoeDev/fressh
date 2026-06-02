@@ -105,6 +105,7 @@ import {
 	handleWorkmuxScrollbackCommandFailureActions,
 	registerTmuxScrollbackRemoteCopyModeExitCleanup,
 	resetTmuxScrollbackRuntimeStateForUiReset,
+	shouldRequestWorkmuxScrollbackEnter,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	type WorkmuxScrollbackCommandExecutor,
 	type WorkmuxScrollbackFailureContext,
@@ -877,6 +878,7 @@ function ShellDetail() {
 				cleanup: exit,
 				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
 				remoteCopyModeWasActive,
+				markRemoteCopyModeActiveOnFailedCleanup: true,
 			});
 			void cleanup?.catch((error: unknown) => {
 				logger.warn('Workmux scrollback dispose exit failed', error);
@@ -2458,13 +2460,15 @@ function ShellDetail() {
 	const handleTmuxEnterCopyMode = useCallback(
 		async (event: { instanceId: string; requestId: number }) => {
 			if (
-				currentInstanceIdRef.current &&
-				event.instanceId !== currentInstanceIdRef.current
+				!shouldRequestWorkmuxScrollbackEnter({
+					isAppActive: isAppActiveRef.current,
+					instanceId: event.instanceId,
+					currentInstanceId: currentInstanceIdRef.current,
+				})
 			) {
-				return;
-			}
-			if (!isAppActiveRef.current) {
-				clearLocalScrollbackUiState();
+				if (event.instanceId === currentInstanceIdRef.current) {
+					clearLocalScrollbackUiState();
+				}
 				return;
 			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
