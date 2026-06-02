@@ -544,19 +544,6 @@ export function shouldRunTmuxScrollbackRemoteResetForModeChange({
 	return true;
 }
 
-export function shouldRequestWorkmuxScrollbackEnter({
-	isAppActive,
-	instanceId,
-	currentInstanceId,
-}: {
-	isAppActive: boolean;
-	instanceId: string;
-	currentInstanceId?: string | null;
-}): boolean {
-	if (currentInstanceId && instanceId !== currentInstanceId) return false;
-	return isAppActive;
-}
-
 export type TmuxScrollbackEnterRequestResolution =
 	| { action: 'enter' }
 	| { action: 'clear-local-ui' }
