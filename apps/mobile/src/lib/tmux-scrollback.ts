@@ -576,6 +576,39 @@ export function resetTmuxScrollbackRuntimeStateForUiReset({
 	});
 }
 
+export function disposeTmuxScrollbackRuntimeStateForUiReset({
+	lineAccumulator,
+	commandExecutor,
+	cleanupBarrier,
+	remoteCopyModeActiveRef,
+	cleanupGeneration,
+	remoteCopyModeExitCommand,
+}: {
+	lineAccumulator: TmuxScrollbackLineAccumulator;
+	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
+	cleanupBarrier: TmuxScrollbackLiveInputCleanupBarrier;
+	remoteCopyModeActiveRef: { current: boolean };
+	cleanupGeneration?: { current: number };
+	remoteCopyModeExitCommand: string;
+}): Promise<boolean> | null {
+	const disposeCommandExecutor: WorkmuxScrollbackCommandExecutor | null =
+		commandExecutor
+			? {
+					...commandExecutor,
+					reset: (options) =>
+						commandExecutor.dispose({ exitCommand: options?.exitCommand }),
+				}
+			: null;
+	return resetTmuxScrollbackRuntimeStateForUiReset({
+		lineAccumulator,
+		commandExecutor: disposeCommandExecutor,
+		cleanupBarrier,
+		remoteCopyModeActiveRef,
+		cleanupGeneration,
+		remoteCopyModeExitCommand,
+	});
+}
+
 export function shouldRunTmuxScrollbackRemoteResetForModeChange({
 	active,
 	requestId,

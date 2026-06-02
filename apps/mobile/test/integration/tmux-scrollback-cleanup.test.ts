@@ -6,6 +6,7 @@ import {
 	createTmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
+	disposeTmuxScrollbackRuntimeStateForUiReset,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
 	handleTmuxScrollbackInactiveAppStateTransition,
@@ -114,6 +115,40 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 	assert.deepEqual(commands, ['enter', 'exit', 'exit']);
 	assert.deepEqual(sentPayloads, []);
 	assert.equal(remoteCopyModeActiveRef.current, true);
+});
+
+void test('component disposal UI reset clears line accumulator and disposes executor', async () => {
+	const commands: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const remoteCopyModeActiveRef = { current: true };
+	const cleanupGeneration = { current: 0 };
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	lineAccumulator.direction = 'up';
+	lineAccumulator.lines = 12;
+
+	const cleanup = disposeTmuxScrollbackRuntimeStateForUiReset({
+		lineAccumulator,
+		commandExecutor: executor,
+		cleanupBarrier,
+		remoteCopyModeActiveRef,
+		cleanupGeneration,
+		remoteCopyModeExitCommand: 'exit',
+	});
+
+	assert.notEqual(cleanup, null);
+	assert.deepEqual(lineAccumulator, { direction: null, lines: 0 });
+	assert.equal(await cleanup, true);
+	assert.deepEqual(commands, ['exit']);
+	assert.equal(remoteCopyModeActiveRef.current, false);
+	assert.equal(await executor.runEnterCommand('after-dispose'), false);
 });
 
 void test('failed UI reset exit keeps remote copy mode active and blocks later live input', async () => {

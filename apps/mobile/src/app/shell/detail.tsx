@@ -99,13 +99,13 @@ import {
 	createTmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
+	disposeTmuxScrollbackRuntimeStateForUiReset,
 	buildTmuxScrollbackLiveInputSendPlan,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
 	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleWorkmuxScrollbackDisposeExitFailureActions,
-	registerTmuxScrollbackRemoteCopyModeExitCleanup,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resolveTmuxScrollbackLiveInputCleanup,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
@@ -866,27 +866,19 @@ function ShellDetail() {
 	);
 
 	useEffect(() => {
+		const lineAccumulator = tmuxScrollbackLineAccumulatorRef.current;
 		const scrollbackCleanupBarrier = scrollbackCleanupBarrierRef.current;
-		const remoteCopyModeActiveRef = tmuxRemoteScrollbackCopyModeActiveRef;
-		const remoteCopyModeGenerationRef =
-			tmuxRemoteScrollbackCopyModeGenerationRef;
 		workmuxScrollbackCommandExecutorRef.current =
 			workmuxScrollbackCommandExecutor;
 		return () => {
-			const remoteCopyModeWasActive = remoteCopyModeActiveRef.current;
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-			const exit = workmuxScrollbackCommandExecutor.dispose({
-				exitCommand: remoteCopyModeWasActive
-					? buildWorkmuxAppScrollExitCommand(targetName)
-					: undefined,
-			});
-			const cleanup = registerTmuxScrollbackRemoteCopyModeExitCleanup({
-				barrier: scrollbackCleanupBarrier,
-				cleanup: exit,
-				remoteCopyModeActiveRef,
-				remoteCopyModeWasActive,
-				markRemoteCopyModeActiveOnFailedCleanup: true,
-				cleanupGeneration: remoteCopyModeGenerationRef,
+			const cleanup = disposeTmuxScrollbackRuntimeStateForUiReset({
+				lineAccumulator,
+				commandExecutor: workmuxScrollbackCommandExecutor,
+				cleanupBarrier: scrollbackCleanupBarrier,
+				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
+				cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
+				remoteCopyModeExitCommand: buildWorkmuxAppScrollExitCommand(targetName),
 			});
 			void cleanup?.catch((error: unknown) => {
 				logger.warn('Workmux scrollback dispose exit failed', error);
