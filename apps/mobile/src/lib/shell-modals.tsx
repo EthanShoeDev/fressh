@@ -9,9 +9,13 @@ import {
 	type RefObject,
 } from 'react';
 import { Alert } from 'react-native';
+import {
+	resolveBrowserActionsPaneContext,
+	resolveBrowserActionsPanePath,
+	runBrowserActionsDiffityShare,
+} from '@/lib/browser-actions-controller-actions';
 import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
 import {
-	buildDiffityShareCommand,
 	buildHostBrowserStatusCycleCommand,
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
@@ -22,9 +26,7 @@ import {
 	type HostBrowserUrlSlot,
 } from './host-browser-actions';
 import {
-	buildWorkmuxAppContextCommand,
 	formatWorkmuxAppCommandFailureMessage,
-	parseWorkmuxAppContextOutput,
 } from '@/lib/workmux-app-commands';
 import {
 	buildCreateGitHubIssueCommand,
@@ -665,48 +667,21 @@ export function useBrowserActionsController<TConnection>(
 	);
 
 	const resolveHostBrowserPanePath = useCallback(async () => {
-		if (!tmuxEnabled) {
-			throw new Error(
-				'Host browser actions require a Workmux-enabled connection.',
-			);
-		}
-		const sessionName = tmuxTarget.trim() || 'main';
-		const output = await runHostBrowserCommand(
-			buildWorkmuxAppContextCommand(sessionName),
-			10_000,
-		);
-		try {
-			return parseWorkmuxAppContextOutput(output).panePath;
-		} catch (error) {
-			throw new Error(
-				`Could not resolve pane path for Workmux-enabled connection ${sessionName}: ${getErrorMessage(error)}`,
-			);
-		}
+		return resolveBrowserActionsPanePath({
+			tmuxEnabled,
+			tmuxTarget,
+			runHostBrowserCommand,
+			getErrorMessage,
+		});
 	}, [getErrorMessage, runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
 	const resolveHostBrowserPaneContext = useCallback(async () => {
-		if (!tmuxEnabled) {
-			throw new Error(
-				'Host browser actions require a Workmux-enabled connection.',
-			);
-		}
-		const sessionName = tmuxTarget.trim() || 'main';
-		const output = await runHostBrowserCommand(
-			buildWorkmuxAppContextCommand(sessionName),
-			10_000,
-		);
-		try {
-			const context = parseWorkmuxAppContextOutput(output);
-			return {
-				paneId: context.paneId,
-				paneTty: context.paneTty,
-				panePath: context.panePath,
-			};
-		} catch (error) {
-			throw new Error(
-				`Could not resolve pane context for Workmux-enabled connection ${sessionName}: ${getErrorMessage(error)}`,
-			);
-		}
+		return resolveBrowserActionsPaneContext({
+			tmuxEnabled,
+			tmuxTarget,
+			runHostBrowserCommand,
+			getErrorMessage,
+		});
 	}, [getErrorMessage, runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
 	const resolveCurrentGitHubRepository = useCallback(async () => {
@@ -804,11 +779,12 @@ export function useBrowserActionsController<TConnection>(
 		hostDiffityInFlightRef.current = true;
 		void (async () => {
 			try {
-				const panePath = await resolveHostBrowserPanePath();
-				const output = await runHostBrowserCommand(
-					buildDiffityShareCommand(panePath),
-					60_000,
-				);
+				const output = await runBrowserActionsDiffityShare({
+					tmuxEnabled,
+					tmuxTarget,
+					runHostBrowserCommand,
+					getErrorMessage,
+				});
 				const url = extractLastHttpsUrl(output);
 				if (!url) {
 					throw new Error(
@@ -828,9 +804,10 @@ export function useBrowserActionsController<TConnection>(
 		getErrorMessage,
 		hostDiffityRequestId,
 		openAndroidUrl,
-		resolveHostBrowserPanePath,
 		runHostBrowserCommand,
 		showError,
+		tmuxEnabled,
+		tmuxTarget,
 	]);
 
 	const handleOpenDetected = useCallback(
