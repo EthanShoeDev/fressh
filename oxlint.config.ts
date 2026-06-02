@@ -42,6 +42,9 @@ export default defineConfig({
 		'docs/**',
 		'docs/cloned-repos-as-docs/**',
 		'submodules/**',
+		// Vendored third-party submodules (our alacritty/crossfont forks) live
+		// under packages/*/rust/vendor — never lint upstream code.
+		'**/vendor/**',
 		'.sst/**',
 		'**/.nitro/**',
 		'**/dist/**',

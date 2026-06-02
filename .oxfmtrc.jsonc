@@ -12,6 +12,10 @@
 	"bracketSameLine": false,
 	"ignorePatterns": [
 		"docs/**",
+		// Vendored third-party submodules (e.g. our alacritty/crossfont forks);
+		// never reformat upstream code — it churns huge fixtures and pollutes
+		// fork diffs/rebases.
+		"**/vendor/**",
 		"**/dist/**",
 		"**/dist-internal/**",
 		"**/lib/**",
