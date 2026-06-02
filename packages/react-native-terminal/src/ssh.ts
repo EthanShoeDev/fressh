@@ -22,6 +22,7 @@ import {
 	validatePrivateKey as _validatePrivateKey,
 	type ConnectionDetails,
 	type FresshEvent,
+	FresshEvent_Tags,
 	type FresshEventListener,
 	KeyType,
 	type ServerPublicKeyInfo,
@@ -33,7 +34,7 @@ import {
 
 // Re-export the generated enums/factories (values) the app needs to construct
 // inputs and match events.
-export { KeyType, Security, SshConnectionProgressEvent, TerminalType };
+export { FresshEvent_Tags, KeyType, Security, SshConnectionProgressEvent, TerminalType };
 // Records + the event union are plain object types — re-export as types.
 export type { ConnectionDetails, FresshEvent, FresshEventListener, ServerPublicKeyInfo, ShellOptions };
 

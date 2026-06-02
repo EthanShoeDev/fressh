@@ -1,4 +1,4 @@
-import { RnRussh } from '@fressh/react-native-uniffi-russh';
+import { generateKeyPair, KeyType } from '@fressh/react-native-terminal';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import React from 'react';
@@ -17,7 +17,7 @@ export function KeyList(props: {
 
 	const generateMutation = useMutation({
 		mutationFn: async () => {
-			const pair = await RnRussh.generateKeyPair('ed25519');
+			const pair = generateKeyPair(KeyType.Ed25519);
 			await secretsManager.keys.utils.upsertPrivateKey({
 				metadata: { priority: 0, label: 'New Key', isDefault: false },
 				value: pair,

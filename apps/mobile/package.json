@@ -27,8 +27,6 @@
 		"@expo/vector-icons": "^15.0.3",
 		"@fressh/assets": "workspace:*",
 		"@fressh/react-native-terminal": "workspace:*",
-		"@fressh/react-native-uniffi-russh": "workspace:*",
-		"@fressh/react-native-xtermjs-webview": "workspace:*",
 		"@react-native-segmented-control/segmented-control": "2.5.7",
 		"@shopify/flash-list": "2.0.2",
 		"@tanstack/react-form": "^1.33.0",

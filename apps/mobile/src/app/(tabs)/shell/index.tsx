@@ -1,8 +1,4 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import type {
-	SshShell,
-	SshConnection,
-} from '@fressh/react-native-uniffi-russh';
 import { FlashList } from '@shopify/flash-list';
 import { formatDistanceToNow } from 'date-fns';
 import { Link, Stack, useRouter } from 'expo-router';
@@ -22,9 +18,12 @@ import { useShallow } from 'zustand/react/shallow';
 import { rootLogger } from '@/lib/logger';
 import { preferences } from '@/lib/preferences';
 
-import { useSshStore } from '@/lib/ssh-store';
+import {
+	useSshStore,
+	type StoreConnection,
+	type StoreShell,
+} from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
-import { AbortSignalTimeout } from '@/lib/utils';
 
 const logger = rootLogger.extend('TabsShellList');
 
@@ -57,10 +56,10 @@ function ShellContent() {
 
 type ActionTarget =
 	| {
-			shell: SshShell;
+			shell: StoreShell;
 	  }
 	| {
-			connection: SshConnection;
+			connection: StoreConnection;
 	  };
 
 function LoadedState() {
@@ -120,10 +119,7 @@ function LoadedState() {
 						return;
 					}
 					void actionTarget.connection
-						.startShell({
-							term: 'Xterm',
-							abortSignal: AbortSignalTimeout(5000),
-						})
+						.startShell()
 						.then((shellHandle) => {
 							router.push({
 								pathname: '/shell/detail',
@@ -148,7 +144,7 @@ function FlatView({
 	const shells = useSshStore(useShallow((s) => Object.values(s.shells)));
 
 	return (
-		<FlashList<SshShell>
+		<FlashList<StoreShell>
 			data={shells}
 			keyExtractor={(item) => `${item.connectionId}:${item.channelId}`}
 			renderItem={({ item }) => (
@@ -183,7 +179,7 @@ function GroupedView({
 	);
 	const shells = useSshStore(useShallow((s) => Object.values(s.shells)));
 	return (
-		<FlashList<SshConnection>
+		<FlashList<StoreConnection>
 			data={connections}
 			// estimatedItemSize={80}
 			keyExtractor={(item) => item.connectionId}
@@ -297,7 +293,7 @@ function ShellCard({
 	shell,
 	onLongPress,
 }: {
-	shell: SshShell;
+	shell: StoreShell;
 	onLongPress?: () => void;
 }) {
 	const theme = useTheme();
@@ -378,7 +374,7 @@ function ShellActionsSheet({
 	onCloseShell,
 }: {
 	target: null | {
-		shell: SshShell;
+		shell: StoreShell;
 	};
 	onClose: () => void;
 	onCloseShell: () => void;
@@ -405,7 +401,7 @@ function ConnectionActionsSheet({
 	onStartShell,
 }: {
 	target: null | {
-		connection: SshConnection;
+		connection: StoreConnection;
 	};
 	onClose: () => void;
 	onDisconnect: () => void;

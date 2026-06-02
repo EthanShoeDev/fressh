@@ -1,4 +1,4 @@
-import { RnRussh, SshError_Tags } from '@fressh/react-native-uniffi-russh';
+import { validatePrivateKey } from '@fressh/react-native-terminal';
 import { queryOptions } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
@@ -330,14 +330,12 @@ async function upsertPrivateKey(params: {
 	metadata: StrictOmit<KeyMetadata, 'createdAtMs'>;
 	value: string;
 }) {
-	const validateKeyResult = RnRussh.validatePrivateKey(params.value);
-	if (!validateKeyResult.valid) {
-		logger.info('Invalid private key', validateKeyResult.error);
-		if (validateKeyResult.error.tag === SshError_Tags.RusshKeys) {
-			logger.info('Invalid private key inner', validateKeyResult.error.inner);
-			logger.info('Invalid private key content', params.value);
-		}
-		throw new Error('Invalid private key', { cause: validateKeyResult.error });
+	try {
+		// Throws SshError on invalid input; returns the canonical OpenSSH form.
+		validatePrivateKey(params.value);
+	} catch (error) {
+		logger.info('Invalid private key', error);
+		throw new Error('Invalid private key', { cause: error });
 	}
 	const keyId = params.keyId ?? `key_${Crypto.randomUUID()}`;
 	logger.info(

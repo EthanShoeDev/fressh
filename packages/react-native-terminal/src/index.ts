@@ -10,6 +10,7 @@ export {
 	closeShell,
 	connect,
 	disconnect,
+	FresshEvent_Tags,
 	generateKeyPair,
 	KeyType,
 	resize,

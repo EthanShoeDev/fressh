@@ -1,9 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import type { ListenerEvent } from '@fressh/react-native-uniffi-russh';
-import {
-	XtermJsWebView,
-	type XtermWebViewHandle,
-} from '@fressh/react-native-xtermjs-webview';
+import { Terminal } from '@fressh/react-native-terminal';
 
 import {
 	Stack,
@@ -24,6 +20,7 @@ import {
 	KeyboardAvoidingView,
 	Pressable,
 	Text,
+	TextInput,
 	View,
 	type StyleProp,
 	type ViewStyle,
@@ -84,8 +81,7 @@ function RouteSkeleton() {
 const encoder = new TextEncoder();
 
 function ShellDetail() {
-	const xtermRef = useRef<XtermWebViewHandle>(null);
-	const listenerIdRef = useRef<bigint | null>(null);
+	const inputRef = useRef<TextInput>(null);
 
 	const searchParams = useLocalSearchParams<{
 		connectionId?: string;
@@ -114,19 +110,6 @@ function ShellDetail() {
 		logger.info('shell or connection not found, replacing route with /shell');
 		router.back();
 	}, [connection, router, shell]);
-
-	useEffect(() => {
-		const xterm = xtermRef.current;
-		return () => {
-			if (shell && listenerIdRef.current !== null) {
-				shell.removeListener(listenerIdRef.current);
-			}
-			listenerIdRef.current = null;
-			if (xterm) {
-				xterm.flush();
-			}
-		};
-	}, [shell]);
 
 	const marginBottom = useBottomTabSpacing();
 
@@ -226,76 +209,54 @@ function ShellDetail() {
 								borderColor: theme.colors.border,
 							}}
 						>
-							<XtermJsWebView
-								ref={xtermRef}
-								style={{ flex: 1 }}
-								webViewOptions={{
-									// Prevent iOS from adding automatic top inset inside WebView
-									contentInsetAdjustmentBehavior: 'never',
-								}}
-								logger={{
-									log: logger.info,
-									// debug: logger.debug,
-									warn: logger.warn,
-									error: logger.error,
-								}}
-								xtermOptions={{
-									theme: {
-										background: theme.colors.background,
-										foreground: theme.colors.textPrimary,
-									},
-								}}
-								onInitialized={() => {
-									if (!shell) {
-										throw new Error('Shell not found');
+							{shell ? (
+								<Pressable
+									style={{ flex: 1 }}
+									onPress={() => inputRef.current?.focus()}
+								>
+									<Terminal
+										shellId={shell.shellId}
+										fontPath=''
+										style={{ flex: 1 }}
+									/>
+								</Pressable>
+							) : null}
+							{/* Hidden input: captures soft-keyboard text/keys and forwards
+									bytes to the shell. The native <Terminal/> only renders; input
+									rides the control plane via sendBytes -> shell.sendData. */}
+							<TextInput
+								ref={inputRef}
+								autoFocus
+								value=''
+								onChangeText={(text) => {
+									if (!shell || !text) {
+										return;
 									}
-
-									// Replay from head, then attach live listener
-									(() => {
-										const res = shell.readBuffer({ mode: 'head' });
-										logger.info('readBuffer(head)', {
-											chunks: res.chunks.length,
-											nextSeq: res.nextSeq,
-											dropped: res.dropped,
-										});
-										if (res.chunks.length) {
-											const chunks = res.chunks.map((c) => c.bytes);
-											const xr = xtermRef.current;
-											if (xr) {
-												xr.writeMany(chunks.map((c) => new Uint8Array(c)));
-												xr.flush();
-											}
-										}
-										const id = shell.addListener(
-											(ev: ListenerEvent) => {
-												if ('kind' in ev) {
-													logger.warn('listener.dropped', ev);
-													return;
-												}
-												const chunk = ev;
-												const xr3 = xtermRef.current;
-												if (xr3) {
-													xr3.write(new Uint8Array(chunk.bytes));
-												}
-											},
-											{ cursor: { mode: 'seq', seq: res.nextSeq } },
-										);
-										logger.info('shell listener attached', id.toString());
-										listenerIdRef.current = id;
-									})();
-									// Focus to pop the keyboard (iOS needs the prop we set)
-									const xr2 = xtermRef.current;
-									if (xr2) {
-										xr2.focus();
+									// Enter/Backspace are handled in onKeyPress; send the rest.
+									const printable = text.replace(/\n/g, '');
+									if (printable) {
+										sendBytes(encoder.encode(printable));
 									}
 								}}
-								onData={(terminalMessage) => {
+								onKeyPress={(e) => {
 									if (!shell) {
 										return;
 									}
-									const bytes = encoder.encode(terminalMessage);
-									sendBytes(bytes);
+									const key = e.nativeEvent.key;
+									if (key === 'Enter') {
+										sendBytes(new Uint8Array([13]));
+									} else if (key === 'Backspace') {
+										sendBytes(new Uint8Array([127]));
+									}
 								}}
+								autoCapitalize='none'
+								autoComplete='off'
+								autoCorrect={false}
+								spellCheck={false}
+								blurOnSubmit={false}
+								caretHidden
+								multiline
+								style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
 							/>
 						</View>
 						<KeyboardToolbar />

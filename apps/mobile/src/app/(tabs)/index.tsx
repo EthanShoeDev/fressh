@@ -1,4 +1,3 @@
-import type { SshConnectionProgress } from '@fressh/react-native-uniffi-russh';
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
 import { useStore } from '@tanstack/react-form';
 import { useQuery } from '@tanstack/react-query';
@@ -15,7 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppForm, useFieldContext } from '@/components/form-components';
 import { KeyList } from '@/components/key-manager/KeyList';
 import { rootLogger } from '@/lib/logger';
-import { useSshConnMutation } from '@/lib/query-fns';
+import {
+	useSshConnMutation,
+	type SshConnectionProgress,
+} from '@/lib/query-fns';
 import {
 	connectionDetailsSchema,
 	secretsManager,
