@@ -146,11 +146,23 @@ void test('workmux app update message is explicit', () => {
 		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
 	);
 	assert.equal(
+		formatWorkmuxAppCommandFailureMessage('   '),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
 		formatWorkmuxAppCommandFailureMessage('mdev: command not found'),
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
 	assert.equal(
+		formatWorkmuxAppCommandFailureMessage('tmux: command not found'),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
 		formatWorkmuxAppCommandFailureMessage('Unknown tmux app action: context'),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
+		formatWorkmuxAppCommandFailureMessage('Unknown tmux command: app'),
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
 	assert.equal(
