@@ -13,6 +13,7 @@ import {
 	registerTmuxScrollbackLiveInputCleanup,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resetTmuxScrollbackRuntimeState,
+	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 } from '../../src/lib/tmux-scrollback';
 import { WORKMUX_APP_SCROLL_MAX_COUNT } from '../../src/lib/workmux-app-commands';
@@ -998,6 +999,44 @@ void test('pending enter rollback exit failure notifies active reset policy and 
 	assert.deepEqual(sentPayloads, []);
 });
 
+void test('pending enter rollback exit failure marks remote copy mode active for UI reset', async () => {
+	const enterBlock = deferred<void>();
+	const commands: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const remoteCopyModeActiveRef = { current: false };
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'enter') await enterBlock.promise;
+			if (command === 'exit') {
+				return { success: false, output: '', error: 'exit failed' };
+			}
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const enter = executor.runEnterCommand('enter', {
+		rollbackExitCommand: 'exit',
+	});
+	await Promise.resolve();
+	const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
+		lineAccumulator,
+		commandExecutor: executor,
+		cleanupBarrier,
+		remoteCopyModeActiveRef,
+		remoteCopyModeExitCommand: 'exit',
+	});
+
+	assert.notEqual(cleanup, null);
+	enterBlock.resolve(undefined);
+	assert.equal(await enter, false);
+	assert.equal(await cleanup, false);
+	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.equal(remoteCopyModeActiveRef.current, true);
+});
+
 void test('multiple live input events wait behind the same pending scrollback cleanup barrier', async () => {
 	const cleanupBlock = deferred<void>();
 	const barrierRef = createTmuxScrollbackLiveInputCleanupBarrier();
@@ -1116,6 +1155,36 @@ void test('inactive AppState transition ignores non-active previous states', () 
 
 	assert.equal(cleanup, null);
 	assert.equal(cleanupCount, 0);
+});
+
+void test('locally requested WebView scrollback inactive event does not run remote reset', () => {
+	const localExitRequestIds = new Set([7]);
+
+	assert.equal(
+		shouldRunTmuxScrollbackRemoteResetForModeChange({
+			active: false,
+			requestId: 7,
+			localExitRequestIds,
+		}),
+		false,
+	);
+	assert.deepEqual(Array.from(localExitRequestIds), []);
+	assert.equal(
+		shouldRunTmuxScrollbackRemoteResetForModeChange({
+			active: false,
+			requestId: 8,
+			localExitRequestIds,
+		}),
+		true,
+	);
+	assert.equal(
+		shouldRunTmuxScrollbackRemoteResetForModeChange({
+			active: true,
+			requestId: 8,
+			localExitRequestIds,
+		}),
+		false,
+	);
 });
 
 void test('workmux scrollback failure actions alert and clear without cancel before remote ack', () => {

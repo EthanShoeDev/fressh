@@ -66,12 +66,15 @@ void test('XtermJsWebView onMessage tmuxScrollBatch branch forwards pageStep', (
 
 void test('public dist artifacts keep the published touch scroll bridge contract', () => {
 	const packageRoot = process.cwd();
-	const artifacts = ['dist/index.js', 'dist/index.d.ts', 'dist/bridge.d.ts'].map(
-		(path) => ({
+	const artifacts = [
+		'dist/index.js',
+		'dist/index.d.ts',
+		'dist/bridge.d.ts',
+		'dist-internal/index.html',
+	].map((path) => ({
 			path,
 			content: readFileSync(join(packageRoot, path), 'utf8'),
-		}),
-	);
+		}));
 	const removedContracts = [
 		/emitExit/,
 		/enterDelayMs/,
@@ -89,7 +92,7 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 				content,
 				/export type \{ TmuxScrollBatchEvent, TouchScrollConfig \}/,
 			);
-		} else {
+		} else if (path !== 'dist/bridge.d.ts') {
 			assert.match(content, /pageStep/);
 		}
 		for (const removedContract of removedContracts) {

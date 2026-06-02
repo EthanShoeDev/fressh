@@ -105,6 +105,7 @@ import {
 	handleWorkmuxScrollbackCommandFailureActions,
 	registerTmuxScrollbackRemoteCopyModeExitCleanup,
 	resetTmuxScrollbackRuntimeStateForUiReset,
+	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	type WorkmuxScrollbackCommandExecutor,
 	type WorkmuxScrollbackFailureContext,
 } from '@/lib/tmux-scrollback';
@@ -406,7 +407,6 @@ function TerminalErrorFallback({ onRetry }: { onRetry: () => void }) {
 }
 
 const encoder = new TextEncoder();
-const tmuxExitKey = 'q';
 const scrollbackExitDelayMs = 10;
 
 function ShellDetail() {
@@ -651,6 +651,8 @@ function ShellDetail() {
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
+	const nextLocalScrollbackExitRequestIdRef = useRef(0);
+	const localScrollbackExitRequestIdsRef = useRef(new Set<number>());
 	const scrollbackCleanupBarrierRef = useRef(
 		createTmuxScrollbackLiveInputCleanupBarrier(),
 	);
@@ -740,8 +742,6 @@ function ShellDetail() {
 				: { enabled: false },
 		[touchScrollEnabled],
 	);
-	const exitKeyBytes = useMemo(() => encoder.encode(tmuxExitKey), []);
-
 	const exitSelectionMode = useCallback(() => {
 		setSelectionModeEnabled(false);
 		xtermRef.current?.setSelectionModeEnabled(false);
@@ -800,7 +800,12 @@ function ShellDetail() {
 		scrollbackActiveRef.current = false;
 		scrollbackPhaseRef.current = 'active';
 		setScrollbackActive(false);
-		xtermRef.current?.exitScrollback();
+		const xterm = xtermRef.current;
+		if (!xterm) return;
+		nextLocalScrollbackExitRequestIdRef.current += 1;
+		const requestId = nextLocalScrollbackExitRequestIdRef.current;
+		localScrollbackExitRequestIdsRef.current.add(requestId);
+		xterm.exitScrollback({ requestId });
 	}, []);
 
 	const clearScrollbackState = useCallback(() => {
@@ -897,7 +902,6 @@ function ShellDetail() {
 				scrollbackActive:
 					scrollbackActiveRef.current ||
 					tmuxRemoteScrollbackCopyModeActiveRef.current,
-				exitKeyBytes,
 				payloadSegments,
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
 				scrollbackExitDelayMs,
@@ -928,7 +932,7 @@ function ShellDetail() {
 			}
 			void send()?.catch(() => {});
 		},
-		[clearScrollbackState, exitKeyBytes, sendBytesQueued],
+		[clearScrollbackState, sendBytesQueued],
 	);
 
 	const sendBytesRaw = useCallback(
@@ -2430,6 +2434,7 @@ function ShellDetail() {
 			active: boolean;
 			phase: 'dragging' | 'active';
 			instanceId: string;
+			requestId?: number;
 		}) => {
 			if (
 				currentInstanceIdRef.current &&
@@ -2440,7 +2445,13 @@ function ShellDetail() {
 			scrollbackActiveRef.current = event.active;
 			scrollbackPhaseRef.current = event.phase;
 			setScrollbackActive(event.active);
-			if (!event.active) {
+			if (
+				shouldRunTmuxScrollbackRemoteResetForModeChange({
+					active: event.active,
+					requestId: event.requestId,
+					localExitRequestIds: localScrollbackExitRequestIdsRef.current,
+				})
+			) {
 				void resetTmuxScrollbackForUiReset();
 			}
 		},
@@ -2453,6 +2464,10 @@ function ShellDetail() {
 				currentInstanceIdRef.current &&
 				event.instanceId !== currentInstanceIdRef.current
 			) {
+				return;
+			}
+			if (!isAppActiveRef.current) {
+				clearLocalScrollbackUiState();
 				return;
 			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
@@ -2470,7 +2485,7 @@ function ShellDetail() {
 				event.instanceId,
 			);
 		},
-		[workmuxScrollbackCommandExecutor, tmuxTarget],
+		[clearLocalScrollbackUiState, workmuxScrollbackCommandExecutor, tmuxTarget],
 	);
 
 	const handleTmuxScrollBatch = useCallback(

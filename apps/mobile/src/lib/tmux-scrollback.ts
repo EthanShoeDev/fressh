@@ -441,21 +441,26 @@ export function registerTmuxScrollbackRemoteCopyModeExitCleanup({
 	cleanup,
 	remoteCopyModeActiveRef,
 	remoteCopyModeWasActive = remoteCopyModeActiveRef.current,
+	markRemoteCopyModeActiveOnFailedCleanup = false,
 }: {
 	barrier: TmuxScrollbackLiveInputCleanupBarrier;
 	cleanup?: Promise<boolean> | null;
 	remoteCopyModeActiveRef: { current: boolean };
 	remoteCopyModeWasActive?: boolean;
+	markRemoteCopyModeActiveOnFailedCleanup?: boolean;
 }): Promise<boolean> | null {
 	const trackedCleanup = registerTmuxScrollbackLiveInputCleanup(
 		barrier,
 		cleanup,
 	);
-	if (!remoteCopyModeWasActive) return trackedCleanup;
 	void trackedCleanup
 		?.then((exited) => {
 			if (exited) {
 				remoteCopyModeActiveRef.current = false;
+				return;
+			}
+			if (remoteCopyModeWasActive || markRemoteCopyModeActiveOnFailedCleanup) {
+				remoteCopyModeActiveRef.current = true;
 			}
 		})
 		.catch(() => {});
@@ -488,7 +493,24 @@ export function resetTmuxScrollbackRuntimeStateForUiReset({
 		cleanup: reset,
 		remoteCopyModeActiveRef,
 		remoteCopyModeWasActive,
+		markRemoteCopyModeActiveOnFailedCleanup: true,
 	});
+}
+
+export function shouldRunTmuxScrollbackRemoteResetForModeChange({
+	active,
+	requestId,
+	localExitRequestIds,
+}: {
+	active: boolean;
+	requestId?: number;
+	localExitRequestIds: Set<number>;
+}): boolean {
+	if (active) return false;
+	if (requestId !== undefined && localExitRequestIds.delete(requestId)) {
+		return false;
+	}
+	return true;
 }
 
 export function buildTmuxScrollbackLiveInputSendPlan({
