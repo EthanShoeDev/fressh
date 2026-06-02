@@ -416,11 +416,17 @@ export function handleWorkmuxScrollbackCommandFailureActions({
 	warn: (message: string) => void;
 }): void {
 	try {
-		warn(message);
+		let warningError: unknown;
+		try {
+			warn(message);
+		} catch (error) {
+			warningError = error;
+		}
 		alert('Workmux scroll unavailable', message, [
 			{ text: 'Copy Message', onPress: () => copyMessage(message) },
 			{ text: 'OK' },
 		]);
+		if (warningError) throw warningError;
 	} finally {
 		clearScrollbackState();
 	}

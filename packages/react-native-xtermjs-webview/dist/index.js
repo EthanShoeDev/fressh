@@ -30,13 +30,13 @@ function MA(e, {
   onInitialized: C,
   autoFitFn: y,
   setInitialized: _,
-  onInput: Y,
-  onData: u,
-  onResize: U,
-  onSelection: R,
-  onSelectionModeChange: f,
-  onScrollbackModeChange: S,
-  onScrollbackEnterRequested: m,
+  onInput: u,
+  onData: U,
+  onResize: R,
+  onSelection: f,
+  onSelectionModeChange: S,
+  onScrollbackModeChange: m,
+  onScrollbackEnterRequested: d,
   onScrollbackEnterRequestFailure: t,
   onScrollbackBatch: g
 }) {
@@ -52,22 +52,22 @@ function MA(e, {
     ), !0;
   if (e.type === "input") {
     const Q = e.kind ?? "typing";
-    return Y == null || Y({ str: e.str, kind: Q, instanceId: e.instanceId }), u == null || u(e.str), !0;
+    return u == null || u({ str: e.str, kind: Q, instanceId: e.instanceId }), U == null || U(e.str), !0;
   }
   if (e.type === "debug")
     return (a = r == null ? void 0 : r.log) == null || a.call(r, "received debug msg from webview: ", e.message), !0;
   if (e.type === "sizeChanged")
-    return (p = r == null ? void 0 : r.log) == null || p.call(r, `terminal size changed: ${e.cols}x${e.rows}`), U == null || U(e.cols, e.rows), !0;
+    return (p = r == null ? void 0 : r.log) == null || p.call(r, `terminal size changed: ${e.cols}x${e.rows}`), R == null || R(e.cols, e.rows), !0;
   if (e.type === "selection") {
     const Q = s.current.get(e.requestId);
     return Q && (s.current.delete(e.requestId), Q.resolve(e.text)), !0;
   }
   if (e.type === "selectionChanged")
-    return R == null || R(e.text), !0;
+    return f == null || f(e.text), !0;
   if (e.type === "selectionModeChanged")
-    return f == null || f(e.enabled), !0;
+    return S == null || S(e.enabled), !0;
   if (e.type === "scrollbackModeChanged")
-    return S == null || S({
+    return m == null || m({
       active: e.active,
       phase: e.phase,
       instanceId: e.instanceId,
@@ -78,9 +78,12 @@ function MA(e, {
       instanceId: e.instanceId,
       requestId: e.requestId
     };
-    return Promise.resolve(m == null ? void 0 : m(Q)).catch((c) => {
+    return d ? (Promise.resolve(d == null ? void 0 : d(Q)).catch((c) => {
       t == null || t(Q, c);
-    }), !0;
+    }), !0) : (t == null || t(
+      Q,
+      new Error("Missing scrollback enter handler.")
+    ), !0);
   }
   return lA(e, g);
 }
@@ -150,13 +153,13 @@ function pA({
   onInitialized: C,
   onData: y,
   onInput: _,
-  onSelection: Y,
-  onSelectionModeChange: u,
-  onResize: U,
-  onScrollbackModeChange: R,
-  onScrollbackEnterRequested: f,
-  onScrollbackBatch: S,
-  coalescingThreshold: m = FA,
+  onSelection: u,
+  onSelectionModeChange: U,
+  onResize: R,
+  onScrollbackModeChange: f,
+  onScrollbackEnterRequested: S,
+  onScrollbackBatch: m,
+  coalescingThreshold: d = FA,
   logger: t,
   size: g,
   autoFit: G = !0,
@@ -167,24 +170,24 @@ function pA({
     /* @__PURE__ */ new Map()
   ), $ = I(null), n = o(
     (A) => {
-      var D;
+      var Y;
       const i = Q.current;
       if (!i) return;
       const E = JSON.stringify(A);
-      (D = t == null ? void 0 : t.debug) == null || D.call(t, `sending msg to webview: ${E}`);
+      (Y = t == null ? void 0 : t.debug) == null || Y.call(t, `sending msg to webview: ${E}`);
       const M = `window.dispatchEvent(new MessageEvent('message',{data:${E}})); true;`;
       i.injectJavaScript(M);
     },
     [t]
-  ), l = I(null), w = I(null), d = o(() => {
+  ), l = I(null), w = I(null), F = o(() => {
     if (!l.current) return;
     const A = O(l.current);
     l.current = null, w.current != null && (cancelAnimationFrame(w.current), w.current = null), n({ type: "write", bStr: A });
   }, [n]), b = o(() => {
     w.current == null && (w.current = requestAnimationFrame(() => {
-      w.current = null, d();
+      w.current = null, F();
     }));
-  }, [d]), AA = o(
+  }, [F]), AA = o(
     (A) => {
       var i;
       if (!(!A || A.length === 0)) {
@@ -194,18 +197,18 @@ function pA({
           const E = l.current, M = new Uint8Array(E.length + A.length);
           M.set(E, 0), M.set(A, E.length), l.current = M;
         }
-        (((i = l.current) == null ? void 0 : i.length) ?? 0) >= m ? d() : b();
+        (((i = l.current) == null ? void 0 : i.length) ?? 0) >= d ? F() : b();
       }
     },
-    [m, d, b]
+    [d, F, b]
   ), eA = o(
     (A) => {
       if (!A || A.length === 0) return;
-      d();
+      F();
       const i = A.map(O);
       n({ type: "writeMany", chunks: i });
     },
-    [d, n]
+    [F, n]
   );
   T(() => {
     const A = J.current;
@@ -247,18 +250,18 @@ function pA({
       n({ type: "setSelectionMode", enabled: A });
     },
     [n]
-  ), F = o(() => {
+  ), D = o(() => {
     G && k();
   }, [G, k]), v = I(null);
   T(() => {
     var i;
     if (!c) return;
     const A = v.current;
-    g && ((A == null ? void 0 : A.cols) === g.cols && (A == null ? void 0 : A.rows) === g.rows || ((i = t == null ? void 0 : t.log) == null || i.call(t, "calling resize", g), n({ type: "resize", cols: g.cols, rows: g.rows }), F(), v.current = g));
-  }, [g, n, t, F, c]), cA(e, () => ({
+    g && ((A == null ? void 0 : A.cols) === g.cols && (A == null ? void 0 : A.rows) === g.rows || ((i = t == null ? void 0 : t.log) == null || i.call(t, "calling resize", g), n({ type: "resize", cols: g.cols, rows: g.rows }), D(), v.current = g));
+  }, [g, n, t, D, c]), cA(e, () => ({
     write: AA,
     writeMany: eA,
-    flush: d,
+    flush: F,
     clear: () => n({ type: "clear" }),
     focus: () => {
       var A;
@@ -268,7 +271,7 @@ function pA({
     setSelectionModeEnabled: sA,
     getSelection: iA,
     resize: (A) => {
-      n({ type: "resize", cols: A.cols, rows: A.rows }), F(), v.current = A;
+      n({ type: "resize", cols: A.cols, rows: A.rows }), D(), v.current = A;
     },
     fit: k,
     exitScrollback: (A) => {
@@ -293,8 +296,8 @@ function pA({
     var i;
     if (!c) return;
     const A = W.current;
-    uA(A, h) || ((i = t == null ? void 0 : t.log) == null || i.call(t, "setting options: ", h), n({ type: "setOptions", opts: h }), F(), W.current = h);
-  }, [h, n, t, c, F]), T(() => {
+    uA(A, h) || ((i = t == null ? void 0 : t.log) == null || i.call(t, "setting options: ", h), n({ type: "setOptions", opts: h }), D(), W.current = h);
+  }, [h, n, t, c, D]), T(() => {
     if (!c) return;
     const A = p ?? { enabled: !1 }, i = j.current;
     UA(i, A) || (n({ type: "setTouchScrollConfig", config: A }), j.current = A);
@@ -303,21 +306,21 @@ function pA({
     (A) => {
       var i, E, M;
       try {
-        const D = JSON.parse(A.nativeEvent.data);
-        if ((i = t == null ? void 0 : t.log) == null || i.call(t, "received msg from webview: ", D), MA(D, {
+        const Y = JSON.parse(A.nativeEvent.data);
+        if ((i = t == null ? void 0 : t.log) == null || i.call(t, "received msg from webview: ", Y), MA(Y, {
           currentInstanceIdRef: $,
           pendingSelectionRef: J,
           logger: t,
           onInitialized: C,
-          autoFitFn: F,
+          autoFitFn: D,
           setInitialized: q,
           onInput: _,
           onData: y,
-          onResize: U,
-          onSelection: Y,
-          onSelectionModeChange: u,
-          onScrollbackModeChange: R,
-          onScrollbackEnterRequested: f,
+          onResize: R,
+          onSelection: u,
+          onSelectionModeChange: U,
+          onScrollbackModeChange: f,
+          onScrollbackEnterRequested: S,
           onScrollbackEnterRequestFailure: (x, oA) => {
             var V;
             (V = t == null ? void 0 : t.warn) == null || V.call(
@@ -330,16 +333,16 @@ function pA({
               ...dA(x)
             });
           },
-          onScrollbackBatch: S
+          onScrollbackBatch: m
         }))
           return;
         (E = s == null ? void 0 : s.onMessage) == null || E.call(s, A);
-      } catch (D) {
+      } catch (Y) {
         (M = t == null ? void 0 : t.warn) == null || M.call(
           t,
           "received unknown msg from webview: ",
           A.nativeEvent.data,
-          D
+          Y
         );
       }
     },
@@ -347,15 +350,15 @@ function pA({
       t,
       s,
       C,
-      F,
+      D,
       y,
       _,
-      U,
-      Y,
-      u,
       R,
+      u,
+      U,
       f,
       S,
+      m,
       n
     ]
   ), z = o(

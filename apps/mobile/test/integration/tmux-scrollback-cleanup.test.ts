@@ -644,7 +644,7 @@ void test('workmux scrollback failure actions clear even when notification throw
 			}),
 		/warn failed/,
 	);
-	assert.deepEqual(warnEvents, ['warn', 'clear']);
+	assert.deepEqual(warnEvents, ['warn', 'alert', 'clear']);
 });
 
 void test('workmux scrollback failure actions use supplied app-exit cleanup after remote copy mode is acknowledged', () => {

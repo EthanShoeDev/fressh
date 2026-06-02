@@ -269,6 +269,46 @@ void test('XtermJsWebView message handler reports rejected scrollback enter call
 	]);
 });
 
+void test('XtermJsWebView message handler reports missing scrollback enter callbacks', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: 'instance-1' };
+	const pendingSelectionRef = { current: new Map() };
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'scrollbackEnterRequested',
+				instanceId: 'instance-1',
+				requestId: 7,
+			},
+			{
+				currentInstanceIdRef,
+				pendingSelectionRef,
+				autoFitFn: () => {},
+				setInitialized: () => {},
+				onScrollbackEnterRequestFailure: (event, error) =>
+					events.push([
+						'failure',
+						event,
+						error instanceof Error ? error.message : String(error),
+					]),
+			},
+		),
+		true,
+	);
+
+	assert.deepEqual(events, [
+		[
+			'failure',
+			{
+				instanceId: 'instance-1',
+				requestId: 7,
+			},
+			'Missing scrollback enter handler.',
+		],
+	]);
+});
+
 void test('XtermJsWebView scrollback enter failure fallback exits pending request', () => {
 	assert.deepEqual(
 		buildScrollbackEnterRequestFailureMessage({

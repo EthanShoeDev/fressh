@@ -130,6 +130,13 @@ export function handleXtermBridgeInboundMessage(
 			instanceId: msg.instanceId,
 			requestId: msg.requestId,
 		};
+		if (!onScrollbackEnterRequested) {
+			onScrollbackEnterRequestFailure?.(
+				event,
+				new Error('Missing scrollback enter handler.'),
+			);
+			return true;
+		}
 		void Promise.resolve(onScrollbackEnterRequested?.(event)).catch((error) => {
 			onScrollbackEnterRequestFailure?.(event, error);
 		});
