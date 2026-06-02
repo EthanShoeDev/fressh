@@ -2463,7 +2463,7 @@ function ShellDetail() {
 		[resetTmuxScrollbackForUiReset],
 	);
 
-	const handleTmuxEnterCopyMode = useCallback(
+	const handleScrollbackEnterRequested = useCallback(
 		async (event: { instanceId: string; requestId: number }) => {
 			const requestResolution = resolveTmuxScrollbackEnterRequest({
 				isAppActive: isAppActiveRef.current,
@@ -2486,7 +2486,7 @@ function ShellDetail() {
 			if (!entered) return;
 			tmuxRemoteScrollbackCopyModeGenerationRef.current += 1;
 			tmuxRemoteScrollbackCopyModeActiveRef.current = true;
-			xtermRef.current?.sendTmuxEnterCopyModeAck(
+			xtermRef.current?.sendScrollbackEnterAck(
 				event.requestId,
 				event.instanceId,
 			);
@@ -2772,7 +2772,7 @@ function ShellDetail() {
 							onInitialized={handleTerminalInitialized}
 							onInput={handleWebViewInput}
 							onScrollbackModeChange={handleScrollbackModeChange}
-							onTmuxEnterCopyMode={handleTmuxEnterCopyMode}
+							onScrollbackEnterRequested={handleScrollbackEnterRequested}
 							onTmuxScrollBatch={handleTmuxScrollBatch}
 						/>
 						{scrollbackVisible && (

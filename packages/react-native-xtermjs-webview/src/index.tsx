@@ -66,7 +66,7 @@ export type XtermWebViewHandle = {
 	resize: (size: { cols: number; rows: number }) => void;
 	fit: () => void;
 	exitScrollback: (opts?: { requestId?: number }) => void;
-	sendTmuxEnterCopyModeAck: (requestId: number, instanceId: string) => void;
+	sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
 };
 
 const defaultWebViewProps: WebViewOptions = {
@@ -120,7 +120,7 @@ export type XtermJsWebViewProps = {
 		instanceId: string;
 		requestId?: number;
 	}) => void;
-	onTmuxEnterCopyMode?: (event: {
+	onScrollbackEnterRequested?: (event: {
 		instanceId: string;
 		requestId: number;
 	}) => void;
@@ -188,7 +188,7 @@ export function XtermJsWebView({
 	onSelectionModeChange,
 	onResize,
 	onScrollbackModeChange,
-	onTmuxEnterCopyMode,
+	onScrollbackEnterRequested,
 	onTmuxScrollBatch,
 	coalescingThreshold = defaultCoalescingThreshold,
 	logger,
@@ -374,9 +374,9 @@ export function XtermJsWebView({
 		exitScrollback: (opts) => {
 			sendToWebView({ type: 'exitScrollback', ...opts });
 		},
-		sendTmuxEnterCopyModeAck: (requestId, instanceId) => {
+		sendScrollbackEnterAck: (requestId, instanceId) => {
 			sendToWebView({
-				type: 'tmuxEnterCopyModeAck',
+				type: 'scrollbackEnterAck',
 				requestId,
 				instanceId,
 			});
@@ -480,8 +480,8 @@ export function XtermJsWebView({
 					});
 					return;
 				}
-				if (msg.type === 'tmuxEnterCopyMode') {
-					onTmuxEnterCopyMode?.({
+				if (msg.type === 'scrollbackEnterRequested') {
+					onScrollbackEnterRequested?.({
 						instanceId: msg.instanceId,
 						requestId: msg.requestId,
 					});
@@ -508,7 +508,7 @@ export function XtermJsWebView({
 			onSelection,
 			onSelectionModeChange,
 			onScrollbackModeChange,
-			onTmuxEnterCopyMode,
+			onScrollbackEnterRequested,
 			onTmuxScrollBatch,
 		],
 	);

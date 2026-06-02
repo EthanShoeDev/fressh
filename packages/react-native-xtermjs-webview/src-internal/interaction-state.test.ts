@@ -323,7 +323,7 @@ const createSelectionTerm = (
 		},
 	}) as const;
 
-void test('touch scroll cancels pending copy-mode entry when selection mode takes over', (t) => {
+void test('touch scroll cancels pending scrollback entry when selection mode takes over', (t) => {
 	installDomGlobals(t);
 
 	const root = new FakeElement('div');
@@ -527,7 +527,7 @@ void test('touch scroll exit does not emit primary-shell cancel input after ack'
 	assert.equal(exitTransition?.active, false);
 });
 
-void test('touch scroll clears pending copy-mode entry when scrollback is force-closed without ack', (t) => {
+void test('touch scroll clears pending scrollback entry when scrollback is force-closed without ack', (t) => {
 	installDomGlobals(t);
 
 	const root = new FakeElement('div');
@@ -586,8 +586,8 @@ void test('touch scroll clears pending copy-mode entry when scrollback is force-
 			message,
 		): message is Extract<
 			BridgeInboundMessage,
-			{ type: 'tmuxEnterCopyMode' }
-		> => message.type === 'tmuxEnterCopyMode',
+			{ type: 'scrollbackEnterRequested' }
+		> => message.type === 'scrollbackEnterRequested',
 	);
 
 	assert.equal(entryRequests.length, 2);

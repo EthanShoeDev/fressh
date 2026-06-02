@@ -266,7 +266,7 @@ window.onload = () => {
 						});
 						break;
 					}
-					case 'tmuxEnterCopyModeAck': {
+					case 'scrollbackEnterAck': {
 						if (msg.instanceId !== instanceId) return;
 						touchScrollController.handleEnterAck(msg.requestId);
 						break;

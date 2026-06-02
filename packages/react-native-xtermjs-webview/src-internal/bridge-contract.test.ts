@@ -83,6 +83,8 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 		/cancelKey/,
 		/exitKey/,
 		/['"]typing['"]\s*\|\s*['"]scroll['"]/,
+		/tmuxEnterCopyMode/,
+		/tmuxEnterCopyModeAck/,
 	];
 
 	for (const { path, content } of artifacts) {
@@ -90,10 +92,23 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 			assert.match(content, /onTmuxScrollBatch\?: \(event: TmuxScrollBatchEvent\)/);
 			assert.match(
 				content,
+				/onScrollbackEnterRequested\?: \(event: \{\s+instanceId: string;\s+requestId: number;\s+\}\) => void;/,
+			);
+			assert.match(
+				content,
+				/sendScrollbackEnterAck: \(requestId: number, instanceId: string\) => void;/,
+			);
+			assert.match(
+				content,
 				/export type \{ TmuxScrollBatchEvent, TouchScrollConfig \}/,
 			);
+		} else if (path === 'dist/bridge.d.ts') {
+			assert.match(content, /scrollbackEnterRequested/);
+			assert.match(content, /scrollbackEnterAck/);
 		} else {
 			assert.match(content, /pageStep/);
+			assert.match(content, /scrollbackEnterRequested/);
+			assert.match(content, /scrollbackEnterAck/);
 		}
 		for (const removedContract of removedContracts) {
 			assert.doesNotMatch(content, removedContract);

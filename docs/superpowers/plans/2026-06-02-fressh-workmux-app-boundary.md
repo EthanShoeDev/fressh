@@ -1176,7 +1176,7 @@ AppState inactive transitions, alert cleanup, and component disposal. Register
 each remote copy-mode exit promise on the cleanup barrier so live input waits for
 the same pending Workmux app exit instead of racing it.
 
-In `handleTmuxEnterCopyMode`, replace command construction with:
+In `handleScrollbackEnterRequested`, replace command construction with:
 
 ```ts
 const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';

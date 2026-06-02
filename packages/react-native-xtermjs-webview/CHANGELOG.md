@@ -9,6 +9,9 @@
 - Breaking: remove `input.kind='scroll'`.
 - Breaking: require `tmuxScrollBatch.pageStep`.
 - Breaking: remove dead `enterDelayMs` config.
+- Breaking: rename the touch scrollback enter handshake from
+  `tmuxEnterCopyMode`/`tmuxEnterCopyModeAck` to
+  `scrollbackEnterRequested`/`scrollbackEnterAck`.
 
 ## [0.0.8](https://github.com/mulyoved/fressh/compare/@fressh/react-native-xtermjs-webview-v0.0.7...${npm.name}-v0.0.8) (2025-10-08)
 

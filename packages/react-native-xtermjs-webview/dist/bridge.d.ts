@@ -35,7 +35,7 @@ export type BridgeInboundMessage = {
     instanceId: string;
     requestId?: number;
 } | {
-    type: 'tmuxEnterCopyMode';
+    type: 'scrollbackEnterRequested';
     instanceId: string;
     requestId: number;
 } | {
@@ -108,7 +108,7 @@ export type BridgeOutboundMessage = {
     type: 'exitScrollback';
     requestId?: number;
 } | {
-    type: 'tmuxEnterCopyModeAck';
+    type: 'scrollbackEnterAck';
     requestId: number;
     instanceId: string;
 } | {

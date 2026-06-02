@@ -27,13 +27,13 @@ export const createTouchScrollController = ({
 	cancelLongPress: () => void;
 }): TouchScrollController => {
 	type ScrollState = 'Idle' | 'Tracking' | 'Scrolling' | 'ScrollbackActive';
-	type CopyModeState = 'off' | 'entering' | 'on';
+	type ScrollbackEnterState = 'off' | 'entering' | 'on';
 
 	let config: TouchScrollConfig = { enabled: false };
 	let enabled = false;
 
 	let state: ScrollState = 'Idle';
-	let copyModeState: CopyModeState = 'off';
+	let scrollbackEnterState: ScrollbackEnterState = 'off';
 
 	let scrollbackActive = false;
 	let scrollbackPhase: 'dragging' | 'active' = 'active';
@@ -176,7 +176,7 @@ export const createTouchScrollController = ({
 			? `${lastBatch.direction} p${lastBatch.pages} l${lastBatch.lines}`
 			: '—';
 		const lines = [
-			`state=${state} copy=${copyModeState} sb=${scrollbackActive ? '1' : '0'}`,
+			`state=${state} enter=${scrollbackEnterState} sb=${scrollbackActive ? '1' : '0'}`,
 			`pending=${pending} desired=${desiredLines.toFixed(1)} sent=${sentLines.toFixed(1)}`,
 			`vel=${velocityEwma.toFixed(2)} rtt=${Math.round(rttEstimateMs)}ms inflight=${inFlightFlushes.length}`,
 			`batch=${batch}`,
@@ -242,7 +242,7 @@ export const createTouchScrollController = ({
 		releasePointerCapture();
 		resetPointerTracking();
 		state = 'Idle';
-		copyModeState = 'off';
+		scrollbackEnterState = 'off';
 		scrollbackActive = false;
 		scrollbackPhase = 'active';
 	};
@@ -295,7 +295,7 @@ export const createTouchScrollController = ({
 	const flushPendingLines = (opts?: { force?: boolean }) => {
 		const cfg = getActiveConfig();
 		if (!cfg) return;
-		if (copyModeState !== 'on') return;
+		if (scrollbackEnterState !== 'on') return;
 
 		const pending = Math.trunc(desiredLines - sentLines);
 		if (!pending) return;
@@ -371,19 +371,20 @@ export const createTouchScrollController = ({
 		if (Math.trunc(desiredLines - sentLines) !== 0) scheduleFlush();
 	};
 
-	const beginCopyModeEntry = () => {
-		if (copyModeState !== 'off' || pendingEnterRequestId != null) return;
-		copyModeState = 'entering';
+	const requestScrollbackEnter = () => {
+		if (scrollbackEnterState !== 'off' || pendingEnterRequestId != null)
+			return;
+		scrollbackEnterState = 'entering';
 		const requestId = ++enterRequestCounter;
 		pendingEnterRequestId = requestId;
-		sendToRn({ type: 'tmuxEnterCopyMode', instanceId, requestId });
+		sendToRn({ type: 'scrollbackEnterRequested', instanceId, requestId });
 		return true;
 	};
 
 	const handleEnterAck = (requestId: number) => {
 		if (pendingEnterRequestId !== requestId) return;
 		pendingEnterRequestId = null;
-		copyModeState = 'on';
+		scrollbackEnterState = 'on';
 
 		const pointerDownNow = pointerIsDown;
 		const phase = pointerDownNow ? 'dragging' : 'active';
@@ -420,7 +421,7 @@ export const createTouchScrollController = ({
 	const cancelTrackingForSelectionMode = () => {
 		const previousPhase = scrollbackPhase;
 		pendingEnterRequestId = null;
-		copyModeState = 'off';
+		scrollbackEnterState = 'off';
 		resetPendingScroll();
 		releasePointerCapture();
 		resetPointerTracking();
@@ -481,7 +482,7 @@ export const createTouchScrollController = ({
 
 				cancelLongPress();
 				state = 'Scrolling';
-				beginCopyModeEntry();
+				requestScrollbackEnter();
 				emitScrollbackMode(true, 'dragging');
 				try {
 					target?.setPointerCapture(event.pointerId);
@@ -557,7 +558,7 @@ export const createTouchScrollController = ({
 			releasePointerCapture();
 
 			if (state === 'Scrolling') {
-				if (copyModeState === 'on') {
+				if (scrollbackEnterState === 'on') {
 					state = 'ScrollbackActive';
 					emitScrollbackMode(true, 'active');
 					flushPendingLines({ force: true });
@@ -629,7 +630,7 @@ export const createTouchScrollController = ({
 		state = 'Idle';
 		pendingPointerUp = false;
 		pointerIsDown = false;
-		copyModeState = 'off';
+		scrollbackEnterState = 'off';
 		emitScrollbackMode(false, scrollbackPhase, requestId);
 	};
 

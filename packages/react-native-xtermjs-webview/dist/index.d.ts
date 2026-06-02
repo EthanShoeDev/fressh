@@ -41,7 +41,7 @@ export type XtermWebViewHandle = {
     exitScrollback: (opts?: {
         requestId?: number;
     }) => void;
-    sendTmuxEnterCopyModeAck: (requestId: number, instanceId: string) => void;
+    sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
 };
 type UserControllableWebViewProps = StrictOmit<WebViewOptions, 'source' | 'style' | 'injectedJavaScriptBeforeContentLoaded'>;
 export type XtermJsWebViewProps = {
@@ -68,7 +68,7 @@ export type XtermJsWebViewProps = {
         instanceId: string;
         requestId?: number;
     }) => void;
-    onTmuxEnterCopyMode?: (event: {
+    onScrollbackEnterRequested?: (event: {
         instanceId: string;
         requestId: number;
     }) => void;
@@ -87,5 +87,5 @@ export type XtermJsWebViewProps = {
     autoFit?: boolean;
     touchScrollConfig?: TouchScrollConfig;
 };
-export declare function XtermJsWebView({ ref, style, webViewOptions, xtermOptions, onInitialized, onData, onInput, onSelection, onSelectionModeChange, onResize, onScrollbackModeChange, onTmuxEnterCopyMode, onTmuxScrollBatch, coalescingThreshold, logger, size, autoFit, devServerUrl, touchScrollConfig, }: XtermJsWebViewProps): import("react/jsx-runtime").JSX.Element;
+export declare function XtermJsWebView({ ref, style, webViewOptions, xtermOptions, onInitialized, onData, onInput, onSelection, onSelectionModeChange, onResize, onScrollbackModeChange, onScrollbackEnterRequested, onTmuxScrollBatch, coalescingThreshold, logger, size, autoFit, devServerUrl, touchScrollConfig, }: XtermJsWebViewProps): import("react/jsx-runtime").JSX.Element;
 //# sourceMappingURL=index.d.ts.map

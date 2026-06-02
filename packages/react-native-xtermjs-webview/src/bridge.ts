@@ -22,7 +22,7 @@ export type BridgeInboundMessage =
 			instanceId: string;
 			requestId?: number;
 	  }
-	| { type: 'tmuxEnterCopyMode'; instanceId: string; requestId: number }
+	| { type: 'scrollbackEnterRequested'; instanceId: string; requestId: number }
 	| {
 			type: 'tmuxScrollBatch';
 			direction: 'up' | 'down';
@@ -101,7 +101,7 @@ export type BridgeOutboundMessage =
 	| { type: 'setTouchScrollConfig'; config: TouchScrollConfig }
 	| { type: 'exitScrollback'; requestId?: number }
 	| {
-			type: 'tmuxEnterCopyModeAck';
+			type: 'scrollbackEnterAck';
 			requestId: number;
 			instanceId: string;
 	  }
