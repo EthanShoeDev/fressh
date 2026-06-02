@@ -65,11 +65,11 @@ export function createWorkmuxScrollbackCommandExecutor({
 	let pendingScrollBatch: {
 		commands: string[];
 		generation: number;
-		resolve: (value: boolean) => void;
+		resolveAll: (value: boolean) => void;
 	} | null = null;
 
 	const clearPendingScrollBatches = () => {
-		pendingScrollBatch?.resolve(false);
+		pendingScrollBatch?.resolveAll(false);
 		pendingScrollBatch = null;
 	};
 
@@ -200,8 +200,21 @@ export function createWorkmuxScrollbackCommandExecutor({
 			if (closed || disposed) return Promise.resolve(false);
 			if (commands.length === 0) return Promise.resolve(true);
 			const promise = new Promise<boolean>((resolve) => {
-				pendingScrollBatch?.resolve(false);
-				pendingScrollBatch = { commands, generation: workGeneration, resolve };
+				if (pendingScrollBatch && pendingScrollBatch.generation === workGeneration) {
+					const previousResolve = pendingScrollBatch.resolveAll;
+					pendingScrollBatch.commands.push(...commands);
+					pendingScrollBatch.resolveAll = (value) => {
+						previousResolve(value);
+						resolve(value);
+					};
+					return;
+				}
+				pendingScrollBatch?.resolveAll(false);
+				pendingScrollBatch = {
+					commands: [...commands],
+					generation: workGeneration,
+					resolveAll: resolve,
+				};
 			});
 
 			if (!scrollDrainQueued) {
@@ -220,7 +233,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 						commandKind: 'scroll',
 						operationGeneration: batch.generation,
 					});
-					batch.resolve(success);
+					batch.resolveAll(success);
 					return success;
 				});
 			}
@@ -400,7 +413,6 @@ function truncateNonNegativeInteger(value: number): number {
 }
 
 export type TmuxScrollbackLiveInputSendPlan = {
-	type: 'send';
 	segments: Uint8Array<ArrayBuffer>[];
 	interSegmentDelayMs?: number;
 	clearScrollback: boolean;
@@ -442,19 +454,28 @@ export function registerTmuxScrollbackRemoteCopyModeExitCleanup({
 	remoteCopyModeActiveRef,
 	remoteCopyModeWasActive = remoteCopyModeActiveRef.current,
 	markRemoteCopyModeActiveOnFailedCleanup = false,
+	cleanupGeneration,
 }: {
 	barrier: TmuxScrollbackLiveInputCleanupBarrier;
 	cleanup?: Promise<boolean> | null;
 	remoteCopyModeActiveRef: { current: boolean };
 	remoteCopyModeWasActive?: boolean;
 	markRemoteCopyModeActiveOnFailedCleanup?: boolean;
+	cleanupGeneration?: { current: number };
 }): Promise<boolean> | null {
+	const generation = cleanupGeneration?.current;
 	const trackedCleanup = registerTmuxScrollbackLiveInputCleanup(
 		barrier,
 		cleanup,
 	);
 	void trackedCleanup
 		?.then((exited) => {
+			if (
+				generation !== undefined &&
+				cleanupGeneration?.current !== generation
+			) {
+				return;
+			}
 			if (exited) {
 				remoteCopyModeActiveRef.current = false;
 				return;
@@ -472,12 +493,14 @@ export function resetTmuxScrollbackRuntimeStateForUiReset({
 	commandExecutor,
 	cleanupBarrier,
 	remoteCopyModeActiveRef,
+	cleanupGeneration,
 	remoteCopyModeExitCommand,
 }: {
 	lineAccumulator: TmuxScrollbackLineAccumulator;
 	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
 	cleanupBarrier: TmuxScrollbackLiveInputCleanupBarrier;
 	remoteCopyModeActiveRef: { current: boolean };
+	cleanupGeneration?: { current: number };
 	remoteCopyModeExitCommand: string;
 }): Promise<boolean> | null {
 	const remoteCopyModeWasActive = remoteCopyModeActiveRef.current;
@@ -494,6 +517,7 @@ export function resetTmuxScrollbackRuntimeStateForUiReset({
 		remoteCopyModeActiveRef,
 		remoteCopyModeWasActive,
 		markRemoteCopyModeActiveOnFailedCleanup: true,
+		cleanupGeneration,
 	});
 }
 
@@ -543,7 +567,6 @@ export function buildTmuxScrollbackLiveInputSendPlan({
 
 	if (!scrollbackActive) {
 		return {
-			type: 'send',
 			segments: nonEmptyPayloadSegments,
 			interSegmentDelayMs,
 			clearScrollback: false,
@@ -551,7 +574,6 @@ export function buildTmuxScrollbackLiveInputSendPlan({
 	}
 
 	return {
-		type: 'send',
 		segments: nonEmptyPayloadSegments,
 		interSegmentDelayMs: scrollbackExitDelayMs,
 		clearScrollback: true,

@@ -339,7 +339,7 @@ void test('workmux scrollback executor invokes failure cleanup hooks', async () 
 	assert.deepEqual(events, ['failure:permission denied', 'cancel', 'clear']);
 });
 
-void test('workmux scrollback executor coalesces pending scroll batches while slow command runs', async () => {
+void test('workmux scrollback executor preserves pending scroll batches while slow command runs', async () => {
 	const firstBlock = deferred<void>();
 	const commands: string[] = [];
 	const executor = createWorkmuxScrollbackCommandExecutor({
@@ -355,14 +355,14 @@ void test('workmux scrollback executor coalesces pending scroll batches while sl
 	await Promise.resolve();
 	assert.deepEqual(commands, ['first']);
 
-	const stale = executor.enqueueScrollBatch(['stale']);
+	const queued = executor.enqueueScrollBatch(['queued']);
 	const latest = executor.enqueueScrollBatch(['latest']);
 	firstBlock.resolve(undefined);
 
 	assert.equal(await first, true);
-	assert.equal(await stale, false);
+	assert.equal(await queued, true);
 	assert.equal(await latest, true);
-	assert.deepEqual(commands, ['first', 'latest']);
+	assert.deepEqual(commands, ['first', 'queued', 'latest']);
 });
 
 void test('workmux scrollback executor dispose clears pending scroll and blocks queued execution', async () => {
@@ -919,6 +919,27 @@ void test('dispose rollback exit failure can mark remote copy mode active for ca
 	assert.equal(remoteCopyModeActiveRef.current, true);
 });
 
+void test('stale remote copy mode cleanup cannot clear a newer scrollback generation', async () => {
+	const cleanupBlock = deferred<boolean>();
+	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const remoteCopyModeActiveRef = { current: true };
+	const cleanupGeneration = { current: 1 };
+	const cleanup = registerTmuxScrollbackRemoteCopyModeExitCleanup({
+		barrier: cleanupBarrier,
+		cleanup: cleanupBlock.promise,
+		remoteCopyModeActiveRef,
+		remoteCopyModeWasActive: remoteCopyModeActiveRef.current,
+		cleanupGeneration,
+	});
+
+	assert.notEqual(cleanup, null);
+	cleanupGeneration.current += 1;
+	remoteCopyModeActiveRef.current = true;
+	cleanupBlock.resolve(true);
+	assert.equal(await cleanup, true);
+	assert.equal(remoteCopyModeActiveRef.current, true);
+});
+
 void test('resetTmuxScrollbackRuntimeState returns a cleanup barrier for inactive in-flight app scroll enter before remote copy mode ack', async () => {
 	const commandBlock = deferred<void>();
 	const commands: string[] = [];
@@ -1304,7 +1325,6 @@ void test('live input plan passes payload through when scrollback is inactive', 
 	});
 
 	assert.deepEqual(plan, {
-		type: 'send',
 		segments: [bytes([0x61, 0x62])],
 		interSegmentDelayMs: 7,
 		clearScrollback: false,
@@ -1320,7 +1340,6 @@ void test('live input plan drops empty payload segments while inactive', () => {
 	});
 
 	assert.deepEqual(plan, {
-		type: 'send',
 		segments: [bytes([0x68]), bytes([0x69, 0x21])],
 		interSegmentDelayMs: 3,
 		clearScrollback: false,
@@ -1335,8 +1354,6 @@ void test('live input plan exits active scrollback without primary-shell cancel 
 		scrollbackExitDelayMs: 10,
 	});
 
-	assert.equal(plan.type, 'send');
-	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.equal(plan.interSegmentDelayMs, 10);
 	assert.equal(plan.clearScrollback, true);
 	assert.deepEqual(segmentValues(plan.segments), [[0x61, 0x62]]);
@@ -1350,8 +1367,6 @@ void test('live input plan preserves multi-segment payload order after app-owned
 		scrollbackExitDelayMs: 10,
 	});
 
-	assert.equal(plan.type, 'send');
-	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.equal(plan.interSegmentDelayMs, 10);
 	assert.equal(plan.clearScrollback, true);
 	assert.deepEqual(segmentValues(plan.segments), [[0x68, 0x69], [0x0d]]);
@@ -1365,7 +1380,5 @@ void test('live input plan drops empty payload segments while preserving order',
 		scrollbackExitDelayMs: 10,
 	});
 
-	assert.equal(plan.type, 'send');
-	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.deepEqual(segmentValues(plan.segments), [[0x68], [0x69, 0x21]]);
 });

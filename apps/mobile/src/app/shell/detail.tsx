@@ -658,6 +658,7 @@ function ShellDetail() {
 		createTmuxScrollbackLiveInputCleanupBarrier(),
 	);
 	const tmuxRemoteScrollbackCopyModeActiveRef = useRef(false);
+	const tmuxRemoteScrollbackCopyModeGenerationRef = useRef(0);
 	const tmuxScrollbackLineAccumulatorRef = useRef(
 		createTmuxScrollbackLineAccumulator(),
 	);
@@ -789,6 +790,7 @@ function ShellDetail() {
 			commandExecutor: workmuxScrollbackCommandExecutorRef.current,
 			cleanupBarrier: scrollbackCleanupBarrierRef.current,
 			remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
+			cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
 			remoteCopyModeExitCommand: buildWorkmuxAppScrollExitCommand(targetName),
 		});
 		void cleanup?.catch((error: unknown) => {
@@ -879,6 +881,7 @@ function ShellDetail() {
 				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
 				remoteCopyModeWasActive,
 				markRemoteCopyModeActiveOnFailedCleanup: true,
+				cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
 			});
 			void cleanup?.catch((error: unknown) => {
 				logger.warn('Workmux scrollback dispose exit failed', error);
@@ -2480,6 +2483,7 @@ function ShellDetail() {
 				},
 			);
 			if (!entered) return;
+			tmuxRemoteScrollbackCopyModeGenerationRef.current += 1;
 			tmuxRemoteScrollbackCopyModeActiveRef.current = true;
 			xtermRef.current?.sendTmuxEnterCopyModeAck(
 				event.requestId,
