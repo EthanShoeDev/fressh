@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -493,4 +494,26 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 			assert.doesNotMatch(content, removedContract);
 		}
 	}
+});
+
+void test('generated WebView artifacts are in sync with source', () => {
+	const packageRoot = process.cwd();
+
+	execFileSync('pnpm', ['run', 'build'], {
+		cwd: packageRoot,
+		stdio: 'pipe',
+	});
+
+	const changedArtifacts = execFileSync(
+		'git',
+		['diff', '--name-only', '--', 'dist', 'dist-internal'],
+		{
+			cwd: packageRoot,
+			encoding: 'utf8',
+		},
+	)
+		.split(/\r?\n/)
+		.filter(Boolean);
+
+	assert.deepEqual(changedArtifacts, []);
 });

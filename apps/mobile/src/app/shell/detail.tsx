@@ -101,9 +101,9 @@ import {
 	createTmuxScrollbackLineAccumulator,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
 	buildTmuxScrollbackLiveInputSendPlan,
-	handleTmuxScrollbackAppStateChange,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
+	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleWorkmuxScrollbackDisposeExitFailureActions,
 	registerTmuxScrollbackLocalExitRequest,
@@ -2370,27 +2370,36 @@ function ShellDetail() {
 			const previousState = appStateRef.current;
 			appStateRef.current = nextState;
 			isAppActiveRef.current = nextState === 'active';
-			void handleTmuxScrollbackAppStateChange({
+			if (nextState === 'active') {
+				if (isAndroid) {
+					xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
+				}
+				acknowledgeVisibleAgentNotificationRef.current();
+				if (
+					isAndroid &&
+					(!systemKeyboardEnabled || !lastKeyboardVisibleRef.current)
+				) {
+					dismissKeyboard();
+					scheduleKeyboardDismiss();
+					systemKeyboardVisibleRef.current = false;
+				}
+				return;
+			}
+
+			void handleTmuxScrollbackInactiveAppStateTransition({
 				previousState,
 				nextState,
-				isAndroid,
-				systemKeyboardEnabled,
-				lastKeyboardVisibleRef,
-				systemKeyboardVisibleRef,
-				setSystemKeyboardEnabled: (enabled) =>
-					xtermRef.current?.setSystemKeyboardEnabled(enabled),
-				acknowledgeVisibleAgentNotification: () =>
-					acknowledgeVisibleAgentNotificationRef.current(),
-				dismissKeyboard,
-				scheduleKeyboardDismiss,
 				clearScrollbackState,
 				onCleanupError: (error) => {
 					logger.warn('Workmux inactive scrollback cleanup failed', error);
 				},
-				onLeftActive: () => {
-					agentNotificationAckRequestIdRef.current += 1;
-				},
 			});
+			if (previousState === 'active') {
+				agentNotificationAckRequestIdRef.current += 1;
+				if (isAndroid) {
+					lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
+				}
+			}
 		});
 		return () => {
 			subscription.remove();

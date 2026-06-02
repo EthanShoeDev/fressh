@@ -7,7 +7,6 @@ import {
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
-	handleTmuxScrollbackAppStateChange,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
 	handleTmuxScrollbackInactiveAppStateTransition,
@@ -43,61 +42,19 @@ const deferred = <T>() => {
 
 void test('AppState scrollback cleanup runs on inactive non-Android transitions', async () => {
 	const events: string[] = [];
-	const cleanup = handleTmuxScrollbackAppStateChange({
+	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
 		previousState: 'active',
 		nextState: 'background',
-		isAndroid: false,
-		systemKeyboardEnabled: false,
-		lastKeyboardVisibleRef: { current: true },
-		systemKeyboardVisibleRef: { current: true },
-		setSystemKeyboardEnabled: () => events.push('keyboard'),
-		acknowledgeVisibleAgentNotification: () => events.push('ack'),
-		dismissKeyboard: () => events.push('dismiss'),
-		scheduleKeyboardDismiss: () => events.push('schedule-dismiss'),
 		clearScrollbackState: () => {
 			events.push('cleanup');
 			return Promise.resolve(true);
 		},
 		onCleanupError: (error) => events.push(`error:${String(error)}`),
-		onLeftActive: () => events.push('left-active'),
 	});
 
 	assert.notEqual(cleanup, null);
 	assert.equal(await cleanup, true);
-	assert.deepEqual(events, ['cleanup', 'left-active']);
-});
-
-void test('AppState active transition keeps keyboard handling Android-only', () => {
-	const events: string[] = [];
-	const lastKeyboardVisibleRef = { current: false };
-	const systemKeyboardVisibleRef = { current: true };
-
-	void handleTmuxScrollbackAppStateChange({
-		previousState: 'background',
-		nextState: 'active',
-		isAndroid: true,
-		systemKeyboardEnabled: true,
-		lastKeyboardVisibleRef,
-		systemKeyboardVisibleRef,
-		setSystemKeyboardEnabled: (enabled) => events.push(`keyboard:${enabled}`),
-		acknowledgeVisibleAgentNotification: () => events.push('ack'),
-		dismissKeyboard: () => events.push('dismiss'),
-		scheduleKeyboardDismiss: () => events.push('schedule-dismiss'),
-		clearScrollbackState: () => {
-			events.push('cleanup');
-			return null;
-		},
-		onCleanupError: (error) => events.push(`error:${String(error)}`),
-		onLeftActive: () => events.push('left-active'),
-	});
-
-	assert.deepEqual(events, [
-		'keyboard:true',
-		'ack',
-		'dismiss',
-		'schedule-dismiss',
-	]);
-	assert.equal(systemKeyboardVisibleRef.current, false);
+	assert.deepEqual(events, ['cleanup']);
 });
 
 void test('failed active Workmux scroll exit clears local UI without recursive exit retry', async () => {

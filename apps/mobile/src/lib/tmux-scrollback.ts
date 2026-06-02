@@ -435,63 +435,6 @@ export function handleTmuxScrollbackInactiveAppStateTransition({
 	return cleanup;
 }
 
-export function handleTmuxScrollbackAppStateChange({
-	previousState,
-	nextState,
-	isAndroid,
-	systemKeyboardEnabled,
-	lastKeyboardVisibleRef,
-	systemKeyboardVisibleRef,
-	setSystemKeyboardEnabled,
-	acknowledgeVisibleAgentNotification,
-	dismissKeyboard,
-	scheduleKeyboardDismiss,
-	clearScrollbackState,
-	onCleanupError,
-	onLeftActive,
-}: {
-	previousState: string;
-	nextState: string;
-	isAndroid: boolean;
-	systemKeyboardEnabled: boolean;
-	lastKeyboardVisibleRef: { current: boolean };
-	systemKeyboardVisibleRef: { current: boolean };
-	setSystemKeyboardEnabled: (enabled: boolean) => void;
-	acknowledgeVisibleAgentNotification: () => void;
-	dismissKeyboard: () => void;
-	scheduleKeyboardDismiss: () => void;
-	clearScrollbackState: () => Promise<boolean> | null;
-	onCleanupError: (error: unknown) => void;
-	onLeftActive: () => void;
-}): Promise<boolean> | null {
-	if (nextState === 'active') {
-		if (isAndroid) {
-			setSystemKeyboardEnabled(systemKeyboardEnabled);
-		}
-		acknowledgeVisibleAgentNotification();
-		if (isAndroid && (!systemKeyboardEnabled || !lastKeyboardVisibleRef.current)) {
-			dismissKeyboard();
-			scheduleKeyboardDismiss();
-			systemKeyboardVisibleRef.current = false;
-		}
-		return null;
-	}
-
-	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
-		previousState,
-		nextState,
-		clearScrollbackState,
-		onCleanupError,
-	});
-	if (previousState === 'active') {
-		onLeftActive();
-		if (isAndroid) {
-			lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
-		}
-	}
-	return cleanup;
-}
-
 export function accumulateWorkmuxScrollbackBatchCommands({
 	sessionName,
 	direction,
