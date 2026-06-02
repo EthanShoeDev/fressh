@@ -1,7 +1,7 @@
 import { createAgentNotificationRouteIdentityKey } from './agent-notification-route';
 import { rootLogger } from './logger';
-import { buildTmuxSelectWindowCommand } from './tmux-scrollback';
 import {
+	buildWorkmuxAppNotificationOpenCommand,
 	buildWorkmuxAppWindowCommand,
 	parseWorkmuxAppWindowOutput,
 } from './workmux-app-commands';
@@ -151,7 +151,7 @@ export async function handleAgentNotificationRoute({
 
 	try {
 		await runCommand(
-			buildTmuxSelectWindowCommand(session, agentWindowId),
+			buildWorkmuxAppNotificationOpenCommand(session, agentWindowId),
 			10_000,
 		);
 		markRouteHandled(routeKey);
