@@ -15,11 +15,11 @@ declare const __DEV__: boolean | undefined;
 import {
 	binaryToBStr,
 	bStrToBinary,
+	type BridgeInboundMessage,
 	type BridgeOutboundMessage,
 	type TouchScrollConfig,
 } from './bridge';
 import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
-import { parseXtermJsWebViewMessage } from './message-handler';
 import { createDefaultXtermOptions } from './terminal-options';
 
 export { bStrToBinary, binaryToBStr };
@@ -424,7 +424,7 @@ export function XtermJsWebView({
 	const onMessage = useCallback(
 		(e: WebViewMessageEvent) => {
 			try {
-				const msg = parseXtermJsWebViewMessage(e.nativeEvent.data);
+				const msg = JSON.parse(e.nativeEvent.data) as BridgeInboundMessage;
 				logger?.log?.(`received msg from webview: `, msg);
 				if (msg.type === 'initialized') {
 					currentInstanceIdRef.current = msg.instanceId;
