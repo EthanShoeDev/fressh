@@ -4,6 +4,7 @@ export const HOST_BROWSER_URL_SLOTS = [
 	'storybook-url',
 	'app-url',
 ] as const;
+export const HOST_BROWSER_NO_CONNECTION_MESSAGE = 'No SSH connection available.';
 
 export type HostBrowserUrlSlot = (typeof HOST_BROWSER_URL_SLOTS)[number];
 

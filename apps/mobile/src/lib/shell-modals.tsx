@@ -22,6 +22,7 @@ import {
 	buildTmuxWindowConfigSetCommand,
 	extractLastHttpsUrl,
 	getHostBrowserUrlSlotLabel,
+	HOST_BROWSER_NO_CONNECTION_MESSAGE,
 	parseHostBrowserUrlInput,
 	type HostBrowserOpenMode,
 	type HostBrowserUrlSlot,
@@ -211,7 +212,7 @@ export function useSkillSelectorController<TConnection>(deps: {
 
 		try {
 			if (!connection) {
-				throw new Error('No SSH connection available.');
+				throw new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
 			}
 			if (!tmuxEnabled) {
 				throw new Error('Skill selector requires a tmux-enabled connection.');
@@ -659,7 +660,7 @@ export function useBrowserActionsController<TConnection>(
 	const runHostBrowserCommand = useCallback(
 		async (command: string, timeoutMs = 30_000) => {
 			if (!connection) {
-				throw new Error('No SSH connection available.');
+				throw new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
 			}
 			const result = await executeSideChannelCommand(
 				connection,

@@ -1,7 +1,14 @@
 import { DETECTED_OPEN_ACTION_IDS } from '@/lib/detected-open-actions';
-import { type HostBrowserUrlSlot } from '@/lib/host-browser-actions';
+import {
+	HOST_BROWSER_NO_CONNECTION_MESSAGE,
+	type HostBrowserUrlSlot,
+} from '@/lib/host-browser-actions';
 import { rootLogger } from '@/lib/logger';
 import {
+	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	buildWorkmuxAppFocusCommand,
+	buildWorkmuxAppNavCommand,
+	formatWorkmuxAppCommandFailureMessage,
 	type WorkmuxFocusTarget,
 	type WorkmuxNavAction,
 } from '@/lib/workmux-app-commands';
@@ -71,29 +78,79 @@ export type WorkmuxKeyboardCommand =
 	| { type: 'nav'; action: WorkmuxNavAction; index?: number };
 export const WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE =
 	'Workmux actions require a Workmux-enabled connection.';
-export const WORKMUX_KEYBOARD_NO_CONNECTION_MESSAGE =
-	'No SSH connection available.';
 
 export function formatWorkmuxKeyboardCommandFailureMessage({
 	errorMessage,
 	localPreconditionFailure = isWorkmuxKeyboardLocalPreconditionFailure(
 		errorMessage,
 	),
-	formatRemoteFailureMessage,
+	formatRemoteFailureMessage = formatWorkmuxAppCommandFailureMessage,
 }: {
 	errorMessage: string;
 	localPreconditionFailure?: boolean;
-	formatRemoteFailureMessage: (message: string) => string;
+	formatRemoteFailureMessage?: (message: string) => string;
 }): string {
 	return localPreconditionFailure
 		? errorMessage
 		: formatRemoteFailureMessage(errorMessage);
 }
 
+export type WorkmuxKeyboardCommandRunner = {
+	run: (command: WorkmuxKeyboardCommand) => Promise<void>;
+};
+
+export function createWorkmuxKeyboardCommandRunner({
+	isTmuxEnabled,
+	getSessionName,
+	runHostCommand,
+	showFailure,
+	getErrorMessage,
+}: {
+	isTmuxEnabled: () => boolean;
+	getSessionName: () => string;
+	runHostCommand: (command: string, timeoutMs: number) => Promise<unknown>;
+	showFailure: (message: string) => void;
+	getErrorMessage: (error: unknown) => string;
+}): WorkmuxKeyboardCommandRunner {
+	let tail: Promise<unknown> = Promise.resolve();
+
+	const execute = async (command: WorkmuxKeyboardCommand): Promise<void> => {
+		try {
+			if (!isTmuxEnabled()) {
+				throw new Error(WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE);
+			}
+			const sessionName = getSessionName().trim() || 'main';
+			const remoteCommand =
+				command.type === 'focus'
+					? buildWorkmuxAppFocusCommand(sessionName, command.target)
+					: buildWorkmuxAppNavCommand(
+							sessionName,
+							command.action,
+							command.index,
+						);
+			await runHostCommand(remoteCommand, 10_000);
+		} catch (error) {
+			showFailure(
+				formatWorkmuxKeyboardCommandFailureMessage({
+					errorMessage: getErrorMessage(error),
+				}) || WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+			);
+		}
+	};
+
+	return {
+		run: (command) => {
+			const next = tail.then(() => execute(command), () => execute(command));
+			tail = next.catch(() => {});
+			return next;
+		},
+	};
+}
+
 function isWorkmuxKeyboardLocalPreconditionFailure(message: string): boolean {
 	return (
 		message === WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE ||
-		message === WORKMUX_KEYBOARD_NO_CONNECTION_MESSAGE
+		message === HOST_BROWSER_NO_CONNECTION_MESSAGE
 	);
 }
 

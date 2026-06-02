@@ -56,8 +56,7 @@ import {
 } from '@/lib/detected-open-actions';
 import {
 	HANDLE_DEV_SERVER_URL,
-	WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
-	formatWorkmuxKeyboardCommandFailureMessage,
+	createWorkmuxKeyboardCommandRunner,
 	runAction,
 	type ActionContext,
 	type ActionId,
@@ -133,11 +132,6 @@ import {
 	type WisprTextEditorAvailability,
 } from '@/lib/wispr-automation';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
-import {
-	buildWorkmuxAppFocusCommand,
-	buildWorkmuxAppNavCommand,
-	formatWorkmuxAppCommandFailureMessage,
-} from '@/lib/workmux-app-commands';
 import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
@@ -2166,33 +2160,24 @@ function ShellDetail() {
 		});
 	}, []);
 
+	const workmuxKeyboardCommandRunner = useMemo(
+		() =>
+			createWorkmuxKeyboardCommandRunner({
+				isTmuxEnabled: () => tmuxEnabled,
+				getSessionName: () => tmuxTarget,
+				runHostCommand: browserActions.runHostBrowserCommand,
+				showFailure: (message) =>
+					Alert.alert('Workmux action failed', message),
+				getErrorMessage,
+			}),
+		[browserActions.runHostBrowserCommand, tmuxEnabled, tmuxTarget],
+	);
+
 	const runWorkmuxKeyboardCommand = useCallback(
 		(command: WorkmuxKeyboardCommand) => {
-			void (async () => {
-				try {
-					if (!tmuxEnabled) {
-						throw new Error(WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE);
-					}
-					const sessionName = tmuxTarget.trim() || 'main';
-					const remoteCommand =
-						command.type === 'focus'
-							? buildWorkmuxAppFocusCommand(sessionName, command.target)
-							: buildWorkmuxAppNavCommand(
-									sessionName,
-									command.action,
-									command.index,
-								);
-					await browserActions.runHostBrowserCommand(remoteCommand, 10_000);
-				} catch (error) {
-					const message = formatWorkmuxKeyboardCommandFailureMessage({
-						errorMessage: getErrorMessage(error),
-						formatRemoteFailureMessage: formatWorkmuxAppCommandFailureMessage,
-					});
-					Alert.alert('Workmux action failed', message);
-				}
-			})();
+			void workmuxKeyboardCommandRunner.run(command);
 		},
-		[browserActions, tmuxEnabled, tmuxTarget],
+		[workmuxKeyboardCommandRunner],
 	);
 
 	const actionContext = useMemo<ActionContext>(

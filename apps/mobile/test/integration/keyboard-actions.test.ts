@@ -1,14 +1,26 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { HOST_BROWSER_NO_CONNECTION_MESSAGE } from '../../src/lib/host-browser-actions';
 import {
 	CONFIG_SUPPORTED_ACTION_IDS,
 	KNOWN_ACTION_IDS,
 	WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
-	WORKMUX_KEYBOARD_NO_CONNECTION_MESSAGE,
+	createWorkmuxKeyboardCommandRunner,
 	formatWorkmuxKeyboardCommandFailureMessage,
 	runAction,
+	type WorkmuxKeyboardCommand,
 } from '../../src/lib/keyboard-actions';
 import { WORKMUX_APP_COMMAND_UPDATE_MESSAGE } from '../../src/lib/workmux-app-commands';
+
+const deferred = <T>() => {
+	let resolve: (value: T) => void = () => {};
+	let reject: (reason?: unknown) => void = () => {};
+	const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+		resolve = resolvePromise;
+		reject = rejectPromise;
+	});
+	return { promise, resolve, reject };
+};
 
 void test('keyboard navigation actions use runtime-configured targets instead of hardcoded ids', async () => {
 	const selectedKeyboardIds: string[] = [];
@@ -193,7 +205,23 @@ void test('browser actions menu action delegates to the action context', async (
 });
 
 void test('Workmux keyboard actions delegate semantic commands without sending bytes', async () => {
-	const commands: unknown[] = [];
+	const cases: [string, WorkmuxKeyboardCommand][] = [
+		['WORKMUX_FOCUS_CLAUDE', { type: 'focus', target: 'claude' }],
+		['WORKMUX_FOCUS_GIT', { type: 'focus', target: 'git' }],
+		['WORKMUX_FOCUS_CODEX', { type: 'focus', target: 'codex' }],
+		['WORKMUX_FOCUS_BASH', { type: 'focus', target: 'bash' }],
+		['WORKMUX_FOCUS_PREV', { type: 'focus', target: 'prev' }],
+		['WORKMUX_FOCUS_NEXT', { type: 'focus', target: 'next' }],
+		[
+			'WORKMUX_FOCUS_TOGGLE_GIT_BASH',
+			{ type: 'focus', target: 'toggle-git-bash' },
+		],
+		['WORKMUX_NAV_PREV', { type: 'nav', action: 'prev' }],
+		['WORKMUX_NAV_NEXT', { type: 'nav', action: 'next' }],
+		['WORKMUX_NAV_PREV_ALL', { type: 'nav', action: 'prev-all' }],
+		['WORKMUX_NAV_NEXT_ALL', { type: 'nav', action: 'next-all' }],
+	];
+	const commands: WorkmuxKeyboardCommand[] = [];
 	let sentBytes = 0;
 
 	const context = {
@@ -206,25 +234,26 @@ void test('Workmux keyboard actions delegate semantic commands without sending b
 		},
 		pasteClipboard: async () => {},
 		copySelection: () => {},
-		runWorkmuxKeyboardCommand: (command: unknown) => {
+		runWorkmuxKeyboardCommand: (command: WorkmuxKeyboardCommand) => {
 			commands.push(command);
 		},
 	} as Parameters<typeof runAction>[1];
 
-	await runAction('WORKMUX_FOCUS_CLAUDE', context);
-	await runAction('WORKMUX_FOCUS_PREV', context);
-	await runAction('WORKMUX_NAV_NEXT', context);
-	await runAction('WORKMUX_NAV_PREV_ALL', context);
+	for (const [actionId] of cases) {
+		await runAction(actionId, context);
+	}
 
-	assert.deepEqual(commands, [
-		{ type: 'focus', target: 'claude' },
-		{ type: 'focus', target: 'prev' },
-		{ type: 'nav', action: 'next' },
-		{ type: 'nav', action: 'prev-all' },
-	]);
+	assert.deepEqual(
+		commands,
+		cases.map(([, command]) => command),
+	);
 	assert.equal(sentBytes, 0);
-	assert.equal(KNOWN_ACTION_IDS.includes('WORKMUX_FOCUS_CLAUDE'), true);
-	assert.equal(KNOWN_ACTION_IDS.includes('WORKMUX_NAV_NEXT'), true);
+	for (const [actionId] of cases) {
+		assert.equal(
+			KNOWN_ACTION_IDS.includes(actionId as (typeof KNOWN_ACTION_IDS)[number]),
+			true,
+		);
+	}
 });
 
 void test('Workmux keyboard failure copy preserves local precondition failures', () => {
@@ -237,10 +266,10 @@ void test('Workmux keyboard failure copy preserves local precondition failures',
 	);
 	assert.equal(
 		formatWorkmuxKeyboardCommandFailureMessage({
-			errorMessage: WORKMUX_KEYBOARD_NO_CONNECTION_MESSAGE,
+			errorMessage: HOST_BROWSER_NO_CONNECTION_MESSAGE,
 			formatRemoteFailureMessage: () => WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 		}),
-		WORKMUX_KEYBOARD_NO_CONNECTION_MESSAGE,
+		HOST_BROWSER_NO_CONNECTION_MESSAGE,
 	);
 	assert.equal(
 		formatWorkmuxKeyboardCommandFailureMessage({
@@ -249,4 +278,73 @@ void test('Workmux keyboard failure copy preserves local precondition failures',
 		}),
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
+});
+
+void test('Workmux keyboard command runner builds app commands and serializes execution', async () => {
+	const firstBlock = deferred<void>();
+	const calls: { command: string; timeoutMs: number }[] = [];
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => true,
+		getSessionName: () => ' work ',
+		runHostCommand: async (command, timeoutMs) => {
+			calls.push({ command, timeoutMs });
+			if (calls.length === 1) await firstBlock.promise;
+		},
+		showFailure: () => {},
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	const first = runner.run({ type: 'focus', target: 'claude' });
+	const second = runner.run({ type: 'nav', action: 'next' });
+	await Promise.resolve();
+	assert.deepEqual(calls, [
+		{
+			command: "mdev tmux app focus 'claude' --session 'work'",
+			timeoutMs: 10_000,
+		},
+	]);
+
+	firstBlock.resolve(undefined);
+	await Promise.all([first, second]);
+
+	assert.deepEqual(calls, [
+		{
+			command: "mdev tmux app focus 'claude' --session 'work'",
+			timeoutMs: 10_000,
+		},
+		{
+			command: "mdev tmux app nav 'next' --session 'work'",
+			timeoutMs: 10_000,
+		},
+	]);
+});
+
+void test('Workmux keyboard command runner preserves local failures and maps remote failures', async () => {
+	const failures: string[] = [];
+	let tmuxEnabled = false;
+	let error: Error | null = null;
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => tmuxEnabled,
+		getSessionName: () => '',
+		runHostCommand: async () => {
+			if (error) throw error;
+		},
+		showFailure: (message) => failures.push(message),
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	await runner.run({ type: 'focus', target: 'git' });
+	tmuxEnabled = true;
+	error = new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
+	await runner.run({ type: 'nav', action: 'prev-all' });
+	error = new Error('mdev: command not found');
+	await runner.run({ type: 'nav', action: 'next-all' });
+
+	assert.deepEqual(failures, [
+		WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
+		HOST_BROWSER_NO_CONNECTION_MESSAGE,
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	]);
 });
