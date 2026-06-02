@@ -53,6 +53,7 @@ export type TmuxScrollBatchBridgeMessage = Extract<BridgeInboundMessage, {
 }>;
 export type TmuxScrollBatchEvent = Omit<TmuxScrollBatchBridgeMessage, 'type'>;
 export declare function mapTmuxScrollBatchMessage(msg: TmuxScrollBatchBridgeMessage): TmuxScrollBatchEvent;
+export declare function handleTmuxScrollBatchBridgeMessage(msg: BridgeInboundMessage, onTmuxScrollBatch?: (event: TmuxScrollBatchEvent) => void): msg is TmuxScrollBatchBridgeMessage;
 export type TouchScrollConfig = {
     enabled: false;
 } | {

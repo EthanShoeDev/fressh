@@ -15,10 +15,11 @@ declare const __DEV__: boolean | undefined;
 import {
 	binaryToBStr,
 	bStrToBinary,
+	handleTmuxScrollBatchBridgeMessage,
 	type BridgeInboundMessage,
 	type BridgeOutboundMessage,
+	type TmuxScrollBatchEvent,
 	type TouchScrollConfig,
-	mapTmuxScrollBatchMessage,
 } from './bridge';
 import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
 import { createDefaultXtermOptions } from './terminal-options';
@@ -123,15 +124,7 @@ export type XtermJsWebViewProps = {
 		instanceId: string;
 		requestId: number;
 	}) => void;
-	onTmuxScrollBatch?: (event: {
-		direction: 'up' | 'down';
-		pages: number;
-		lines: number;
-		pageStep: number;
-		instanceId: string;
-		seq?: number;
-		ts?: number;
-	}) => void;
+	onTmuxScrollBatch?: (event: TmuxScrollBatchEvent) => void;
 	logger?: {
 		debug?: (...args: unknown[]) => void;
 		log?: (...args: unknown[]) => void;
@@ -494,10 +487,7 @@ export function XtermJsWebView({
 					});
 					return;
 				}
-				if (msg.type === 'tmuxScrollBatch') {
-					onTmuxScrollBatch?.(mapTmuxScrollBatchMessage(msg));
-					return;
-				}
+				if (handleTmuxScrollBatchBridgeMessage(msg, onTmuxScrollBatch)) return;
 				webViewOptions?.onMessage?.(e);
 			} catch (error) {
 				logger?.warn?.(

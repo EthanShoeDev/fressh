@@ -28,7 +28,10 @@ export type WorkmuxScrollbackCommandExecutor = {
 		options?: { rollbackExitCommand?: string },
 	) => Promise<boolean>;
 	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
-	reset: (options?: { exitCommand?: string }) => Promise<boolean> | null;
+	reset: (options?: {
+		exitCommand?: string;
+		failurePolicy?: WorkmuxScrollbackFailurePolicy;
+	}) => Promise<boolean> | null;
 	dispose: (options?: { exitCommand?: string }) => Promise<boolean> | null;
 };
 
@@ -49,6 +52,8 @@ export function createWorkmuxScrollbackCommandExecutor({
 	let pendingEnterOperations = 0;
 	let pendingSerializedOperations = 0;
 	let canceledEnterRollbackSucceeded = true;
+	let canceledEnterRollbackFailurePolicy: WorkmuxScrollbackFailurePolicy =
+		'notify';
 	let scrollDrainQueued = false;
 	let pendingScrollBatch: {
 		commands: string[];
@@ -101,9 +106,17 @@ export function createWorkmuxScrollbackCommandExecutor({
 						rollbackExitCommand,
 						executeCommand,
 					);
+					const rollbackFailureMessage =
+						formatWorkmuxScrollbackCommandFailureMessage(rollbackResult);
 					canceledEnterRollbackSucceeded =
-						canceledEnterRollbackSucceeded &&
-						!formatWorkmuxScrollbackCommandFailureMessage(rollbackResult);
+						canceledEnterRollbackSucceeded && !rollbackFailureMessage;
+					if (rollbackFailureMessage) {
+						if (canceledEnterRollbackFailurePolicy === 'notify') {
+							onFailure(rollbackFailureMessage);
+						} else {
+							onDisposeExitFailure?.(rollbackFailureMessage);
+						}
+					}
 				}
 				return false;
 			}
@@ -128,6 +141,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 		const hadPendingEnter = pendingEnterOperations > 0;
 		const hadSerializedWork = pendingSerializedOperations > 0;
 		canceledEnterRollbackSucceeded = true;
+		canceledEnterRollbackFailurePolicy = options?.failurePolicy ?? 'notify';
 		workGeneration += 1;
 		clearPendingScrollBatches();
 		const exitCommand = options?.exitCommand;
@@ -382,6 +396,29 @@ export type TmuxScrollbackLiveInputSendPlan = {
 	interSegmentDelayMs?: number;
 	clearScrollback: boolean;
 };
+
+export type TmuxScrollbackLiveInputCleanupBarrier = {
+	current: () => Promise<boolean> | null;
+	track: (cleanup?: Promise<boolean> | null) => Promise<boolean> | null;
+};
+
+export function createTmuxScrollbackLiveInputCleanupBarrier(): TmuxScrollbackLiveInputCleanupBarrier {
+	let pendingCleanup: Promise<boolean> | null = null;
+
+	return {
+		current: () => pendingCleanup,
+		track: (cleanup?: Promise<boolean> | null) => {
+			if (!cleanup) return pendingCleanup;
+			const barrier = cleanup.finally(() => {
+				if (pendingCleanup === barrier) {
+					pendingCleanup = null;
+				}
+			});
+			pendingCleanup = barrier;
+			return barrier;
+		},
+	};
+}
 
 export function buildTmuxScrollbackLiveInputSendPlan({
 	scrollbackActive,

@@ -4,6 +4,7 @@ import {
 	buildTmuxScrollbackLiveInputSendPlan,
 	buildWorkmuxScrollbackBatchCommands,
 	clearTmuxScrollbackLineAccumulator,
+	createTmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
@@ -733,6 +734,83 @@ void test('live input waits for pending app scroll enter rollback before sending
 	await sendAfterCleanup;
 	assert.deepEqual(sentPayloads, ['payload']);
 	assert.deepEqual(commands, ['enter', 'exit']);
+});
+
+void test('pending enter rollback exit failure notifies active reset policy and blocks live input continuation', async () => {
+	const enterBlock = deferred<void>();
+	const commands: string[] = [];
+	const failures: string[] = [];
+	const sentPayloads: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'enter') await enterBlock.promise;
+			if (command === 'exit') {
+				return { success: false, output: '', error: 'exit failed' };
+			}
+			return { success: true, output: '' };
+		},
+		onFailure: (message) => failures.push(message),
+	});
+
+	const enter = executor.runEnterCommand('enter', {
+		rollbackExitCommand: 'exit',
+	});
+	await Promise.resolve();
+	const cleanup = resetTmuxScrollbackRuntimeState({
+		lineAccumulator,
+		commandExecutor: executor,
+	});
+	assert.notEqual(cleanup, null);
+	const sendAfterCleanup = cleanup?.then((exited) => {
+		if (exited) sentPayloads.push('payload');
+	});
+
+	enterBlock.resolve(undefined);
+
+	assert.equal(await enter, false);
+	assert.equal(await cleanup, false);
+	await sendAfterCleanup;
+	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.deepEqual(failures, ['exit failed']);
+	assert.deepEqual(sentPayloads, []);
+});
+
+void test('multiple live input events wait behind the same pending scrollback cleanup barrier', async () => {
+	const cleanupBlock = deferred<void>();
+	const barrierRef = createTmuxScrollbackLiveInputCleanupBarrier();
+	const sentPayloads: string[] = [];
+	let scrollbackActive = true;
+
+	const queueLiveInput = (
+		payload: string,
+		cleanup: Promise<boolean> | null = null,
+	) => {
+		const plan = buildTmuxScrollbackLiveInputSendPlan({
+			scrollbackActive,
+			payloadSegments: [bytes([payload.charCodeAt(0)])],
+			scrollbackExitDelayMs: 10,
+		});
+		if (plan.clearScrollback) scrollbackActive = false;
+		const barrier = barrierRef.track(cleanup);
+		void (barrier ?? Promise.resolve(true)).then((exited) => {
+			if (exited) sentPayloads.push(payload);
+		});
+	};
+
+	const cleanup = cleanupBlock.promise.then(() => true);
+	queueLiveInput('a', cleanup);
+	queueLiveInput('b');
+
+	await Promise.resolve();
+	assert.deepEqual(sentPayloads, []);
+	cleanupBlock.resolve(undefined);
+	await cleanup;
+	await new Promise((resolve) => setImmediate(resolve));
+
+	assert.equal(sentPayloads.join(''), 'ab');
+	assert.equal(barrierRef.current(), null);
 });
 
 void test('inactive AppState transition clears scrollback and waits for pending enter rollback', async () => {

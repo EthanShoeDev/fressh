@@ -44,15 +44,20 @@ export type TmuxScrollBatchEvent = Omit<TmuxScrollBatchBridgeMessage, 'type'>;
 export function mapTmuxScrollBatchMessage(
 	msg: TmuxScrollBatchBridgeMessage,
 ): TmuxScrollBatchEvent {
-	return {
-		direction: msg.direction,
-		pages: msg.pages,
-		lines: msg.lines,
-		pageStep: msg.pageStep,
-		instanceId: msg.instanceId,
-		seq: msg.seq,
-		ts: msg.ts,
+	const event = { ...msg } as TmuxScrollBatchEvent & {
+		type?: TmuxScrollBatchBridgeMessage['type'];
 	};
+	delete event.type;
+	return event;
+}
+
+export function handleTmuxScrollBatchBridgeMessage(
+	msg: BridgeInboundMessage,
+	onTmuxScrollBatch?: (event: TmuxScrollBatchEvent) => void,
+): msg is TmuxScrollBatchBridgeMessage {
+	if (msg.type !== 'tmuxScrollBatch') return false;
+	onTmuxScrollBatch?.(mapTmuxScrollBatchMessage(msg));
+	return true;
 }
 
 export type TouchScrollConfig =

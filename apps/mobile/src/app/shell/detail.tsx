@@ -98,6 +98,7 @@ import {
 import { useTheme } from '@/lib/theme';
 import {
 	buildWorkmuxScrollbackBatchCommands,
+	createTmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	handleTmuxScrollbackInactiveAppStateTransition,
@@ -648,6 +649,9 @@ function ShellDetail() {
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
+	const scrollbackCleanupBarrierRef = useRef(
+		createTmuxScrollbackLiveInputCleanupBarrier(),
+	);
 	const tmuxRemoteScrollbackCopyModeActiveRef = useRef(false);
 	const tmuxScrollbackLineAccumulatorRef = useRef(
 		createTmuxScrollbackLineAccumulator(),
@@ -887,14 +891,15 @@ function ShellDetail() {
 			});
 
 			const reset = plan.clearScrollback ? clearScrollbackState() : null;
+			const cleanupBarrier = scrollbackCleanupBarrierRef.current.track(reset);
 			if (!plan.segments.length) return;
 
 			const send = () =>
 				sendBytesQueued(plan.segments, {
 					interSegmentDelayMs: plan.interSegmentDelayMs,
 				});
-			if (reset) {
-				void reset
+			if (cleanupBarrier) {
+				void cleanupBarrier
 					.then((exited) => {
 						if (exited) {
 							void send()?.catch(() => {});

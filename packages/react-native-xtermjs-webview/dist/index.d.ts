@@ -1,6 +1,6 @@
 import { default as React, RefObject } from 'react';
 import { WebView } from 'react-native-webview';
-import { binaryToBStr, bStrToBinary, TouchScrollConfig } from './bridge';
+import { binaryToBStr, bStrToBinary, TmuxScrollBatchEvent, TouchScrollConfig } from './bridge';
 export { bStrToBinary, binaryToBStr };
 export type { TouchScrollConfig };
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
@@ -72,15 +72,7 @@ export type XtermJsWebViewProps = {
         instanceId: string;
         requestId: number;
     }) => void;
-    onTmuxScrollBatch?: (event: {
-        direction: 'up' | 'down';
-        pages: number;
-        lines: number;
-        pageStep: number;
-        instanceId: string;
-        seq?: number;
-        ts?: number;
-    }) => void;
+    onTmuxScrollBatch?: (event: TmuxScrollBatchEvent) => void;
     logger?: {
         debug?: (...args: unknown[]) => void;
         log?: (...args: unknown[]) => void;
