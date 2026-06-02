@@ -21,7 +21,6 @@ const config: ExpoConfig = {
 	icon: '../../packages/assets/mobile-app-icon-dark.png',
 	scheme: 'fressh',
 	userInterfaceStyle: 'automatic',
-	newArchEnabled: true,
 	ios: {
 		supportsTablet: true,
 		config: { usesNonExemptEncryption: false },
@@ -41,7 +40,6 @@ const config: ExpoConfig = {
 			foregroundImage: '../../packages/assets/android-adaptive-icon.png',
 			backgroundColor: '#151718',
 		},
-		edgeToEdgeEnabled: true,
 		predictiveBackGestureEnabled: false,
 		softwareKeyboardLayoutMode: 'pan',
 	},
@@ -62,6 +60,7 @@ const config: ExpoConfig = {
 		'expo-secure-store',
 		'expo-font',
 		'expo-dev-client',
+		'expo-image',
 	],
 	experiments: { typedRoutes: true, reactCompiler: true },
 };

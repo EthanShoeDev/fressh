@@ -143,6 +143,11 @@ export default defineConfig({
 		'react/jsx-props-no-spreading': 'off',
 		'react/jsx-max-depth': 'off',
 		'react/no-multi-comp': 'off',
+		// Forbids style/className on custom components; `style` is universal in RN.
+		'react/forbid-component-props': 'off',
+		// Allow render-callback props (e.g. Stack.Screen options.headerRight);
+		// still flags genuinely unstable components defined in render.
+		'react/no-unstable-nested-components': ['error', { allowAsProps: true }],
 		'react-perf/jsx-no-jsx-as-prop': 'off',
 		'react-perf/jsx-no-new-object-as-prop': 'off',
 		'react-perf/jsx-no-new-array-as-prop': 'off',
@@ -177,6 +182,12 @@ export default defineConfig({
 		'typescript/promise-function-async': 'off',
 		// Disallows narrowing type assertions; sometimes necessary with external libs.
 		'typescript/no-unsafe-type-assertion': 'off',
+		// Extremely strict: flags every non-readonly object/array param (incl. the
+		// oxlint plugin RuleContext and React props). Newly enforced by tsgolint 0.23.
+		'typescript/prefer-readonly-parameter-types': 'off',
+		// Flags async/value-returning fns in void contexts (e.g. RN onPress={async}).
+		// Idiomatic here; newly enforced by tsgolint 0.23.
+		'typescript/strict-void-return': 'off',
 		// Requires require() at top-level conflicts with jest.mock patterns.
 		'node/global-require': 'off',
 		// Prevents inline functions in JSX props; too strict.
@@ -208,6 +219,22 @@ export default defineConfig({
 		curly: 'off',
 		// Allow void as statement expression to explicitly discard promises.
 		'no-void': ['error', { allowAsStatement: true }],
+		// --- Newly implemented in oxlint 1.68 / tsgolint 0.23; disabled to preserve
+		// the prior effective lint baseline (these are stylistic, not correctness). ---
+		// Requires the /u flag on every regex literal; our patterns are intentional.
+		'require-unicode-regexp': 'off',
+		// Requires named capture groups; positional groups are fine here.
+		'prefer-named-capture-group': 'off',
+		// Forbids leading/trailing underscores (e.g. _unused, __DEV__).
+		'no-underscore-dangle': 'off',
+		// Opinionated namespace-vs-named import enforcement.
+		'unicorn/import-style': 'off',
+		// Negated conditions are sometimes the clearer ordering.
+		'unicorn/no-negated-condition': 'off',
+		// Pedantic for non-Node-callback code.
+		'node/callback-return': 'off',
+		// Misfires on module-level code in non-test files (layouts, scripts).
+		'vitest/require-hook': 'off',
 		// TanStack Router uses throw redirect() as control flow.
 		'only-throw-error': 'off',
 		// Label wrapper components can false-positive this rule.

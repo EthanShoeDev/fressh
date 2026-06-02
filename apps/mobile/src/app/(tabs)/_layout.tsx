@@ -1,11 +1,5 @@
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
-import {
-	Icon,
-	Label,
-	NativeTabs,
-	VectorIcon,
-} from 'expo-router/unstable-native-tabs';
-import React from 'react';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useTheme } from '@/lib/theme';
 
 export default function TabsLayout() {
@@ -28,29 +22,52 @@ export default function TabsLayout() {
 			// disableTransparentOnScrollEdge={true}
 		>
 			<NativeTabs.Trigger name='index'>
-				<Label selectedStyle={{ color: theme.colors.textPrimary }}>Hosts</Label>
-				<Icon
-					src={<VectorIcon family={FontAwesome6} name='server' />}
+				<NativeTabs.Trigger.Label
+					selectedStyle={{ color: theme.colors.textPrimary }}
+				>
+					Hosts
+				</NativeTabs.Trigger.Label>
+				<NativeTabs.Trigger.Icon
+					src={
+						<NativeTabs.Trigger.VectorIcon
+							family={FontAwesome6}
+							name='server'
+						/>
+					}
 					selectedColor={theme.colors.textPrimary}
 				/>
 			</NativeTabs.Trigger>
 			<NativeTabs.Trigger name='shell'>
-				<Icon
-					src={<VectorIcon family={MaterialCommunityIcons} name='console' />}
+				<NativeTabs.Trigger.Icon
+					src={
+						<NativeTabs.Trigger.VectorIcon
+							family={MaterialCommunityIcons}
+							name='console'
+						/>
+					}
 					selectedColor={theme.colors.textPrimary}
 				/>
-				<Label selectedStyle={{ color: theme.colors.textPrimary }}>
+				<NativeTabs.Trigger.Label
+					selectedStyle={{ color: theme.colors.textPrimary }}
+				>
 					Shells
-				</Label>
+				</NativeTabs.Trigger.Label>
 			</NativeTabs.Trigger>
 			<NativeTabs.Trigger name='settings'>
-				<Icon
-					src={<VectorIcon family={MaterialCommunityIcons} name='cog' />}
+				<NativeTabs.Trigger.Icon
+					src={
+						<NativeTabs.Trigger.VectorIcon
+							family={MaterialCommunityIcons}
+							name='cog'
+						/>
+					}
 					selectedColor={theme.colors.textPrimary}
 				/>
-				<Label selectedStyle={{ color: theme.colors.textPrimary }}>
+				<NativeTabs.Trigger.Label
+					selectedStyle={{ color: theme.colors.textPrimary }}
+				>
 					Settings
-				</Label>
+				</NativeTabs.Trigger.Label>
 			</NativeTabs.Trigger>
 		</NativeTabs>
 	);

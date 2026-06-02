@@ -1,5 +1,4 @@
 import { Link } from 'expo-router';
-import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useTheme, useThemeControls } from '@/lib/theme';
 

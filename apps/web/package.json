@@ -12,17 +12,17 @@
 		"astro:preview": "astro preview"
 	},
 	"dependencies": {
-		"@astrojs/vercel": "^9.0.3",
+		"@astrojs/vercel": "^10.0.8",
 		"@fressh/assets": "workspace:*",
-		"@tailwindcss/vite": "4.1.18",
-		"@vercel/analytics": "^1.6.1",
-		"astro": "^5.16.9",
+		"@tailwindcss/vite": "4.3.0",
+		"@vercel/analytics": "^2.0.1",
+		"astro": "^6.4.2",
 		"sharp": "^0.34.5",
-		"tailwindcss": "4.1.18"
+		"tailwindcss": "4.3.0"
 	},
 	"devDependencies": {
 		"cross-env": "catalog:",
 		"typescript": "catalog:",
-		"vite": "8.0.0-beta.7"
+		"vite": "^7.3.2"
 	}
 }

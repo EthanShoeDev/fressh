@@ -2,7 +2,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import * as DevClient from 'expo-dev-client';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Stack } from 'expo-router';
-import React from 'react';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { rootLogger } from '@/lib/logger';
 import { ThemeProvider } from '../lib/theme';

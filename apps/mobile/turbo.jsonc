@@ -1,19 +1,16 @@
 {
 	"extends": ["//"],
 	"tasks": {
-		// Override default tasks for mobile
-		// oxlint runs once at the root; we only add the mobile-specific
-		// expo:doctor check alongside the per-package tsgo typecheck.
+		// Override default tasks for mobile.
+		// oxlint runs once at the root; we only add the per-package tsgo typecheck.
+		// expo:doctor is intentionally NOT part of lint — it's a network-bound,
+		// non-blocking (`|| true`) upgrade-time check, run on demand via
+		// `bun run expo:doctor` (mirrors listening-astro).
 		"lint": {
-			"with": ["tsgo:check", "//#oxfmt:fix", "//#oxlint:fix", "expo:doctor"],
+			"with": ["tsgo:check", "//#oxfmt:fix", "//#oxlint:fix"],
 		},
 		"lint:check": {
-			"with": [
-				"tsgo:check",
-				"//#oxfmt:check",
-				"//#oxlint:check",
-				"expo:doctor",
-			],
+			"with": ["tsgo:check", "//#oxfmt:check", "//#oxlint:check"],
 		},
 		"test": {
 			"dependsOn": ["^build"],
@@ -30,7 +27,7 @@
 			"persistent": true,
 		},
 		// Mobile-specific tasks
-		"expo:doctor": {},
+		"expo:doctor": { "cache": false },
 		"maestro:test": {},
 		"gradle:build:signed:apk": {
 			"dependsOn": ["^build", "^ubrn:build:android"],

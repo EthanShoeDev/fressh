@@ -1,5 +1,4 @@
 import { Stack } from 'expo-router';
-import React from 'react';
 import { useTheme } from '@/lib/theme';
 
 export default function TabsShellStack() {

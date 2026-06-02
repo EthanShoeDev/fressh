@@ -1,5 +1,4 @@
 import { Stack } from 'expo-router';
-import React from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyList } from '@/components/key-manager/KeyList';
 import { useTheme } from '@/lib/theme';
