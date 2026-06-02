@@ -29,7 +29,7 @@ export type WorkmuxScrollbackCommandExecutor = {
 	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
 	clearPendingScrollBatches: () => void;
 	reset: (options?: { exitCommand?: string }) => Promise<boolean> | null;
-	dispose: () => void;
+	dispose: (options?: { exitCommand?: string }) => Promise<boolean> | null;
 	getPendingScrollBatchCount: () => number;
 };
 
@@ -44,6 +44,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 	) => void;
 }): WorkmuxScrollbackCommandExecutor {
 	let tail: Promise<unknown> = Promise.resolve();
+	let closed = false;
 	let disposed = false;
 	let generation = 0;
 	let scrollDrainQueued = false;
@@ -116,7 +117,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 
 	return {
 		runEnterCommand: (command: string, options?: { cancelCommand?: string }) =>
-			disposed
+			closed || disposed
 				? Promise.resolve(false)
 				: (() => {
 						const operationGeneration = generation;
@@ -130,7 +131,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 						);
 					})(),
 		enqueueScrollBatch: (commands: string[]) => {
-			if (disposed) return Promise.resolve(false);
+			if (closed || disposed) return Promise.resolve(false);
 			if (commands.length === 0) return Promise.resolve(true);
 			const promise = new Promise<boolean>((resolve) => {
 				pendingScrollBatch?.resolve(false);
@@ -162,9 +163,17 @@ export function createWorkmuxScrollbackCommandExecutor({
 		},
 		clearPendingScrollBatches,
 		reset,
-		dispose: () => {
-			disposed = true;
-			void reset();
+		dispose: (options?: { exitCommand?: string }) => {
+			closed = true;
+			const exit = reset(options);
+			if (exit) {
+				void exit.finally(() => {
+					disposed = true;
+				});
+			} else {
+				disposed = true;
+			}
+			return exit;
 		},
 		getPendingScrollBatchCount: () => (pendingScrollBatch ? 1 : 0),
 	};
@@ -262,13 +271,8 @@ export function formatWorkmuxScrollbackCommandFailureMessage(result: {
 
 export function handleWorkmuxScrollbackCommandFailureActions({
 	message,
-	commandKind,
-	scrollbackActive,
-	remoteCopyModeActive,
-	cancelKeyBytes,
 	alert,
 	copyMessage,
-	sendCancelKey,
 	clearScrollbackState,
 	warn,
 }: {
@@ -283,7 +287,6 @@ export function handleWorkmuxScrollbackCommandFailureActions({
 		buttons?: { text: string; onPress?: () => void }[],
 	) => void;
 	copyMessage: (message: string) => void;
-	sendCancelKey: (cancelKey: Uint8Array<ArrayBuffer>) => void;
 	clearScrollbackState: () => void;
 	warn: (message: string) => void;
 }): void {
@@ -292,16 +295,6 @@ export function handleWorkmuxScrollbackCommandFailureActions({
 		{ text: 'Copy Message', onPress: () => copyMessage(message) },
 		{ text: 'OK' },
 	]);
-
-	if (commandKind !== 'enter' && scrollbackActive && remoteCopyModeActive) {
-		if (isValidTmuxCancelKey(cancelKeyBytes)) {
-			sendCancelKey(cancelKeyBytes);
-		} else {
-			warn(
-				'cancelKey invalid; cannot exit scrollback after Workmux scroll failure',
-			);
-		}
-	}
 
 	clearScrollbackState();
 }
@@ -346,7 +339,6 @@ export function isValidTmuxCancelKey(
 
 export function buildTmuxScrollbackLiveInputSendPlan({
 	scrollbackActive,
-	cancelKey,
 	payloadSegments,
 	interSegmentDelayMs,
 	scrollbackExitDelayMs,
@@ -372,18 +364,9 @@ export function buildTmuxScrollbackLiveInputSendPlan({
 		};
 	}
 
-	if (!isValidTmuxCancelKey(cancelKey)) {
-		return {
-			type: 'block',
-			reason: 'invalid-cancel-key',
-		};
-	}
-
 	return {
 		type: 'send',
-		segments: dropPayloadAfterExit
-			? [cancelKey]
-			: [cancelKey, ...nonEmptyPayloadSegments],
+		segments: dropPayloadAfterExit ? [] : nonEmptyPayloadSegments,
 		interSegmentDelayMs: scrollbackExitDelayMs,
 		clearScrollback: true,
 	};

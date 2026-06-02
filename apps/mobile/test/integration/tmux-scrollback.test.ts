@@ -375,7 +375,7 @@ void test('workmux scrollback executor dispose clears pending scroll and blocks 
 	const enter = executor.runEnterCommand('enter');
 	await Promise.resolve();
 	const batch = executor.enqueueScrollBatch(['page']);
-	executor.dispose();
+	void executor.dispose();
 
 	assert.equal(await batch, false);
 	firstBlock.resolve(undefined);
@@ -398,7 +398,7 @@ void test('workmux scrollback executor dispose suppresses late failure callbacks
 
 	const enter = executor.runEnterCommand('enter');
 	await Promise.resolve();
-	executor.dispose();
+	void executor.dispose();
 	commandBlock.resolve(undefined);
 
 	assert.equal(await enter, false);
@@ -540,6 +540,31 @@ void test('resetTmuxScrollbackRuntimeState skips Workmux scroll exit before remo
 	assert.deepEqual(commands, []);
 });
 
+void test('workmux scrollback executor dispose requests Workmux scroll exit for acknowledged remote copy mode', async () => {
+	const commandBlock = deferred<void>();
+	const commands: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'slow-page') await commandBlock.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const page = executor.enqueueScrollBatch(['slow-page']);
+	await Promise.resolve();
+	const exit = executor.dispose({ exitCommand: 'exit' });
+
+	commandBlock.resolve(undefined);
+	assert.equal(await page, false);
+	assert.notEqual(exit, null);
+	assert.equal(await exit, true);
+	assert.deepEqual(commands, ['slow-page', 'exit']);
+	assert.equal(await executor.runEnterCommand('after-dispose'), false);
+	assert.deepEqual(commands, ['slow-page', 'exit']);
+});
+
 void test('workmux scrollback failure actions alert and clear without cancel before remote ack', () => {
 	const events: string[] = [];
 
@@ -554,7 +579,6 @@ void test('workmux scrollback failure actions alert and clear without cancel bef
 			buttons?.[0]?.onPress?.();
 		},
 		copyMessage: (message) => events.push(`copy:${message}`),
-		sendCancelKey: () => events.push('cancel'),
 		clearScrollbackState: () => events.push('clear'),
 		warn: (message) => events.push(`warn:${message}`),
 	});
@@ -567,7 +591,7 @@ void test('workmux scrollback failure actions alert and clear without cancel bef
 	]);
 });
 
-void test('workmux scrollback failure actions cancel only after remote copy mode is acknowledged', () => {
+void test('workmux scrollback failure actions use supplied app-exit cleanup after remote copy mode is acknowledged', () => {
 	const events: string[] = [];
 
 	handleWorkmuxScrollbackCommandFailureActions({
@@ -578,21 +602,19 @@ void test('workmux scrollback failure actions cancel only after remote copy mode
 		cancelKeyBytes: bytes([0x71]),
 		alert: (title, message) => events.push(`alert:${title}:${message}`),
 		copyMessage: (message) => events.push(`copy:${message}`),
-		sendCancelKey: (cancelKey) =>
-			events.push(`cancel:${Array.from(cancelKey).join(',')}`),
-		clearScrollbackState: () => events.push('clear'),
+		clearScrollbackState: () => events.push('exit', 'clear'),
 		warn: (message) => events.push(`warn:${message}`),
 	});
 
 	assert.deepEqual(events, [
 		'warn:page failed',
 		'alert:Workmux scroll unavailable:page failed',
-		'cancel:113',
+		'exit',
 		'clear',
 	]);
 });
 
-void test('workmux scrollback failure actions warn instead of sending invalid cancel key', () => {
+void test('workmux scrollback failure actions do not require a valid cancel key for app-exit cleanup', () => {
 	const events: string[] = [];
 
 	handleWorkmuxScrollbackCommandFailureActions({
@@ -603,15 +625,14 @@ void test('workmux scrollback failure actions warn instead of sending invalid ca
 		cancelKeyBytes: bytes([0x1b]),
 		alert: (title, message) => events.push(`alert:${title}:${message}`),
 		copyMessage: (message) => events.push(`copy:${message}`),
-		sendCancelKey: () => events.push('cancel'),
-		clearScrollbackState: () => events.push('clear'),
+		clearScrollbackState: () => events.push('exit', 'clear'),
 		warn: (message) => events.push(`warn:${message}`),
 	});
 
 	assert.deepEqual(events, [
 		'warn:page failed',
 		'alert:Workmux scroll unavailable:page failed',
-		'warn:cancelKey invalid; cannot exit scrollback after Workmux scroll failure',
+		'exit',
 		'clear',
 	]);
 });
@@ -674,7 +695,7 @@ void test('live input plan drops empty payload segments while inactive', () => {
 	});
 });
 
-void test('live input plan exits active scrollback before payload', () => {
+void test('live input plan exits active scrollback without primary-shell cancel before payload', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		cancelKey: bytes([0x71]),
@@ -687,10 +708,10 @@ void test('live input plan exits active scrollback before payload', () => {
 	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.equal(plan.interSegmentDelayMs, 10);
 	assert.equal(plan.clearScrollback, true);
-	assert.deepEqual(segmentValues(plan.segments), [[0x71], [0x61, 0x62]]);
+	assert.deepEqual(segmentValues(plan.segments), [[0x61, 0x62]]);
 });
 
-void test('live input plan preserves multi-segment payload order after scrollback exit', () => {
+void test('live input plan preserves multi-segment payload order after app-owned scrollback exit', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		cancelKey: bytes([0x71]),
@@ -703,11 +724,7 @@ void test('live input plan preserves multi-segment payload order after scrollbac
 	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.equal(plan.interSegmentDelayMs, 10);
 	assert.equal(plan.clearScrollback, true);
-	assert.deepEqual(segmentValues(plan.segments), [
-		[0x71],
-		[0x68, 0x69],
-		[0x0d],
-	]);
+	assert.deepEqual(segmentValues(plan.segments), [[0x68, 0x69], [0x0d]]);
 });
 
 void test('live input plan drops empty payload segments while preserving order', () => {
@@ -721,14 +738,10 @@ void test('live input plan drops empty payload segments while preserving order',
 
 	assert.equal(plan.type, 'send');
 	if (plan.type !== 'send') throw new Error('expected send plan');
-	assert.deepEqual(segmentValues(plan.segments), [
-		[0x71],
-		[0x68],
-		[0x69, 0x21],
-	]);
+	assert.deepEqual(segmentValues(plan.segments), [[0x68], [0x69, 0x21]]);
 });
 
-void test('live input plan blocks active scrollback when cancel key is invalid', () => {
+void test('live input plan ignores invalid cancel key because app owns active scrollback exit', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		cancelKey: bytes([0x1b]),
@@ -736,10 +749,10 @@ void test('live input plan blocks active scrollback when cancel key is invalid',
 		scrollbackExitDelayMs: 10,
 	});
 
-	assert.deepEqual(plan, {
-		type: 'block',
-		reason: 'invalid-cancel-key',
-	});
+	assert.equal(plan.type, 'send');
+	if (plan.type !== 'send') throw new Error('expected send plan');
+	assert.equal(plan.clearScrollback, true);
+	assert.deepEqual(segmentValues(plan.segments), [[0x61]]);
 });
 
 void test('live input plan can treat the payload as only a scrollback exit key', () => {
@@ -754,5 +767,5 @@ void test('live input plan can treat the payload as only a scrollback exit key',
 	assert.equal(plan.type, 'send');
 	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.equal(plan.clearScrollback, true);
-	assert.deepEqual(segmentValues(plan.segments), [[0x71]]);
+	assert.deepEqual(segmentValues(plan.segments), []);
 });

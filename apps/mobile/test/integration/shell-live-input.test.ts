@@ -6,7 +6,7 @@ const bytes = (values: number[]) => new Uint8Array(values);
 const segmentValues = (segments: readonly Uint8Array<ArrayBuffer>[]) =>
 	segments.map((segment) => Array.from(segment));
 
-void test('maps active multi-segment input to cancel key, payload, and exit delay', () => {
+void test('maps active multi-segment input to payload after app-owned scrollback exit', () => {
 	const plan = buildShellLiveInputSendPlan({
 		scrollbackActive: true,
 		cancelKeyBytes: bytes([0x71]),
@@ -20,11 +20,7 @@ void test('maps active multi-segment input to cancel key, payload, and exit dela
 	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.equal(plan.clearScrollback, true);
 	assert.equal(plan.interSegmentDelayMs, 10);
-	assert.deepEqual(segmentValues(plan.segments), [
-		[0x71],
-		[0x70, 0x77, 0x64],
-		[0x0d],
-	]);
+	assert.deepEqual(segmentValues(plan.segments), [[0x70, 0x77, 0x64], [0x0d]]);
 });
 
 void test('implicitly detects exit-key payload when override is omitted', () => {
@@ -40,7 +36,7 @@ void test('implicitly detects exit-key payload when override is omitted', () => 
 	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.equal(plan.clearScrollback, true);
 	assert.equal(plan.interSegmentDelayMs, 10);
-	assert.deepEqual(segmentValues(plan.segments), [[0x71]]);
+	assert.deepEqual(segmentValues(plan.segments), []);
 });
 
 void test('omitted override keeps a single non-exit payload', () => {
@@ -56,7 +52,7 @@ void test('omitted override keeps a single non-exit payload', () => {
 	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.equal(plan.clearScrollback, true);
 	assert.equal(plan.interSegmentDelayMs, 10);
-	assert.deepEqual(segmentValues(plan.segments), [[0x71], [0x70]]);
+	assert.deepEqual(segmentValues(plan.segments), [[0x70]]);
 });
 
 void test('explicit false override preserves literal text equal to the exit key', () => {
@@ -73,10 +69,10 @@ void test('explicit false override preserves literal text equal to the exit key'
 	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.equal(plan.clearScrollback, true);
 	assert.equal(plan.interSegmentDelayMs, 10);
-	assert.deepEqual(segmentValues(plan.segments), [[0x71], [0x71]]);
+	assert.deepEqual(segmentValues(plan.segments), [[0x71]]);
 });
 
-void test('passes invalid active cancel key through as a blocked plan', () => {
+void test('ignores invalid active cancel key because app owns scrollback exit', () => {
 	const plan = buildShellLiveInputSendPlan({
 		scrollbackActive: true,
 		cancelKeyBytes: bytes([0x1b]),
@@ -85,8 +81,8 @@ void test('passes invalid active cancel key through as a blocked plan', () => {
 		scrollbackExitDelayMs: 10,
 	});
 
-	assert.deepEqual(plan, {
-		type: 'block',
-		reason: 'invalid-cancel-key',
-	});
+	assert.equal(plan.type, 'send');
+	if (plan.type !== 'send') throw new Error('expected send plan');
+	assert.equal(plan.clearScrollback, true);
+	assert.deepEqual(segmentValues(plan.segments), [[0x70, 0x77, 0x64]]);
 });

@@ -28,15 +28,13 @@ export const createTouchScrollController = ({
 }): TouchScrollController => {
 	type ScrollState = 'Idle' | 'Tracking' | 'Scrolling' | 'ScrollbackActive';
 	type CopyModeState = 'off' | 'entering' | 'on';
-	type CopyModeConfidence = 'uncertain' | 'confident';
-	type EntryIntent = 'scroll' | 'recovery';
+	type EntryIntent = 'scroll';
 
 	let config: TouchScrollConfig = { enabled: false };
 	let enabled = false;
 
 	let state: ScrollState = 'Idle';
 	let copyModeState: CopyModeState = 'off';
-	let copyModeConfidence: CopyModeConfidence = 'uncertain';
 	let entryIntent: EntryIntent | null = null;
 
 	let scrollbackActive = false;
@@ -252,19 +250,9 @@ export const createTouchScrollController = ({
 		resetPointerTracking();
 		state = 'Idle';
 		copyModeState = 'off';
-		copyModeConfidence = 'uncertain';
 		entryIntent = null;
 		scrollbackActive = false;
 		scrollbackPhase = 'active';
-	};
-
-	const sendScrollInput = (payload: string) => {
-		sendToRn({
-			type: 'input',
-			str: payload,
-			instanceId,
-			kind: 'scroll',
-		});
 	};
 
 	const sendScrollBatch = (payload: {
@@ -285,9 +273,6 @@ export const createTouchScrollController = ({
 			ts: Date.now(),
 		});
 	};
-
-	const isValidCancelKey = (key: string) =>
-		key.length === 1 && key.charCodeAt(0) !== 0x1b;
 
 	const clamp = (value: number, min: number, max: number) =>
 		Math.max(min, Math.min(max, value));
@@ -384,7 +369,6 @@ export const createTouchScrollController = ({
 		sentLines += (pending > 0 ? 1 : -1) * totalLines;
 		lastFlushTs = now;
 		inFlightFlushes.push(now);
-		copyModeConfidence = 'confident';
 		emitTelemetry(
 			`[touch-scroll] batch dir=${pending > 0 ? 'up' : 'down'} pages=${pages} lines=${lines} pending=${pending} rtt=${Math.round(
 				rttEstimateMs,
@@ -427,16 +411,6 @@ export const createTouchScrollController = ({
 
 		pendingPointerUp = false;
 
-		if (entryIntent === 'recovery') {
-			const cfg = getActiveConfig();
-			if (cfg && isValidCancelKey(cfg.cancelKey)) {
-				sendScrollInput(cfg.cancelKey);
-			}
-			emitScrollbackMode(false, scrollbackPhase);
-			resetState();
-			return;
-		}
-
 		scheduleFlush();
 	};
 
@@ -455,11 +429,9 @@ export const createTouchScrollController = ({
 	};
 
 	const cancelTrackingForSelectionMode = () => {
-		const wasCopyModeOn = copyModeState === 'on';
 		const previousPhase = scrollbackPhase;
 		pendingEnterRequestId = null;
 		copyModeState = 'off';
-		copyModeConfidence = 'uncertain';
 		entryIntent = null;
 		resetPendingScroll();
 		releasePointerCapture();
@@ -467,12 +439,6 @@ export const createTouchScrollController = ({
 		state = 'Idle';
 		if (scrollbackActive) {
 			emitScrollbackMode(false, previousPhase);
-		}
-		if (wasCopyModeOn) {
-			const cfg = getActiveConfig();
-			if (cfg && isValidCancelKey(cfg.cancelKey)) {
-				sendScrollInput(cfg.cancelKey);
-			}
 		}
 		updateDebugOverlay({ force: true });
 	};
@@ -527,7 +493,6 @@ export const createTouchScrollController = ({
 
 				cancelLongPress();
 				state = 'Scrolling';
-				copyModeConfidence = 'uncertain';
 				beginCopyModeEntry('scroll');
 				emitScrollbackMode(true, 'dragging');
 				try {
@@ -648,7 +613,6 @@ export const createTouchScrollController = ({
 	let removeListeners: (() => void) | undefined;
 
 	const setConfig = (next: TouchScrollConfig) => {
-		const prev = config;
 		const shouldEnable = Boolean(next?.enabled);
 		if (enabled && !shouldEnable) {
 			exitScrollback({ emitExit: true });
@@ -667,24 +631,12 @@ export const createTouchScrollController = ({
 			}
 		}
 		updateDebugOverlay({ force: true });
-
-		if (
-			prev?.enabled &&
-			'prefixKey' in prev &&
-			'prefixKey' in next &&
-			(prev.prefixKey !== next.prefixKey ||
-				prev.copyModeKey !== next.copyModeKey ||
-				prev.cancelKey !== next.cancelKey)
-		) {
-			copyModeConfidence = 'uncertain';
-		}
 	};
 
 	const exitScrollback = (opts?: {
 		emitExit?: boolean;
 		requestId?: number;
 	}) => {
-		const emitExit = opts?.emitExit ?? true;
 		const requestId = opts?.requestId;
 		resetPendingScroll();
 		pendingEnterRequestId = null;
@@ -692,29 +644,8 @@ export const createTouchScrollController = ({
 		state = 'Idle';
 		pendingPointerUp = false;
 		pointerIsDown = false;
-		let recoveryRequested = false;
-
-		if (emitExit) {
-			const cfg = getActiveConfig();
-			if (cfg) {
-				const canSendCancel = isValidCancelKey(cfg.cancelKey);
-				if (!canSendCancel) {
-					emitDebug('cancelKey invalid; auto-exit disabled');
-				} else if (copyModeConfidence === 'confident') {
-					sendScrollInput(cfg.cancelKey);
-				} else {
-					entryIntent = 'recovery';
-					recoveryRequested = Boolean(beginCopyModeEntry('recovery'));
-					if (!recoveryRequested) entryIntent = null;
-				}
-			}
-		}
-
-		if (!recoveryRequested) {
-			copyModeState = 'off';
-			entryIntent = null;
-		}
-		copyModeConfidence = 'uncertain';
+		copyModeState = 'off';
+		entryIntent = null;
 		emitScrollbackMode(false, scrollbackPhase, requestId);
 	};
 

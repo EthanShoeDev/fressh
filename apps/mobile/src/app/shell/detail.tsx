@@ -101,7 +101,6 @@ import {
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	handleWorkmuxScrollbackCommandFailureActions,
-	isValidTmuxCancelKey,
 	resetTmuxScrollbackRuntimeState,
 	type WorkmuxScrollbackCommandExecutor,
 } from '@/lib/tmux-scrollback';
@@ -772,12 +771,6 @@ function ShellDetail() {
 		writerRef.current = new OrderedWriter(writeToShell);
 	}, [shell, writeToShell]);
 
-	const sendBytesOrdered = useCallback((bytes: Uint8Array<ArrayBuffer>) => {
-		const send = writerRef.current?.send(bytes);
-		void send?.catch(() => {});
-		return send;
-	}, []);
-
 	const sendBytesQueued = useCallback(
 		(
 			segments: Uint8Array<ArrayBuffer>[],
@@ -805,14 +798,16 @@ function ShellDetail() {
 		void reset?.catch((error: unknown) => {
 			logger.warn('Workmux scrollback reset exit failed', error);
 		});
+		return reset;
 	}, [tmuxTarget]);
 
 	const clearScrollbackState = useCallback(() => {
 		scrollbackActiveRef.current = false;
 		scrollbackPhaseRef.current = 'active';
-		resetTmuxScrollbackForUiReset();
+		const reset = resetTmuxScrollbackForUiReset();
 		setScrollbackActive(false);
 		xtermRef.current?.exitScrollback({ emitExit: false });
+		return reset;
 	}, [resetTmuxScrollbackForUiReset]);
 
 	const handleWorkmuxScrollbackCommandFailure = useCallback(
@@ -830,15 +825,11 @@ function ShellDetail() {
 						logger.warn('copy Workmux scroll failure message failed', error);
 					});
 				},
-				sendCancelKey: (cancelKey) => {
-					tmuxRemoteScrollbackCopyModeActiveRef.current = false;
-					void sendBytesOrdered(cancelKey);
-				},
 				clearScrollbackState,
 				warn: (warning) => logger.warn(warning),
 			});
 		},
-		[cancelKeyBytes, clearScrollbackState, sendBytesOrdered],
+		[cancelKeyBytes, clearScrollbackState],
 	);
 
 	const workmuxScrollbackCommandExecutor = useMemo(
@@ -867,7 +858,18 @@ function ShellDetail() {
 		workmuxScrollbackCommandExecutorRef.current =
 			workmuxScrollbackCommandExecutor;
 		return () => {
-			workmuxScrollbackCommandExecutor.dispose();
+			const remoteCopyModeWasActive =
+				tmuxRemoteScrollbackCopyModeActiveRef.current;
+			tmuxRemoteScrollbackCopyModeActiveRef.current = false;
+			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+			const exit = workmuxScrollbackCommandExecutor.dispose({
+				exitCommand: remoteCopyModeWasActive
+					? buildWorkmuxAppScrollExitCommand(targetName)
+					: undefined,
+			});
+			void exit?.catch((error: unknown) => {
+				logger.warn('Workmux scrollback dispose exit failed', error);
+			});
 			if (
 				workmuxScrollbackCommandExecutorRef.current ===
 				workmuxScrollbackCommandExecutor
@@ -875,7 +877,7 @@ function ShellDetail() {
 				workmuxScrollbackCommandExecutorRef.current = null;
 			}
 		};
-	}, [workmuxScrollbackCommandExecutor]);
+	}, [tmuxTarget, workmuxScrollbackCommandExecutor]);
 
 	const sendLiveInputSegments = useCallback(
 		(
@@ -902,14 +904,24 @@ function ShellDetail() {
 				return;
 			}
 
-			if (plan.clearScrollback) {
-				clearScrollbackState();
-			}
+			const reset = plan.clearScrollback ? clearScrollbackState() : null;
 			if (!plan.segments.length) return;
 
-			void sendBytesQueued(plan.segments, {
-				interSegmentDelayMs: plan.interSegmentDelayMs,
-			});
+			const send = () =>
+				sendBytesQueued(plan.segments, {
+					interSegmentDelayMs: plan.interSegmentDelayMs,
+				});
+			if (reset) {
+				void reset
+					.then((exited) => {
+						if (exited) {
+							void send()?.catch(() => {});
+						}
+					})
+					.catch(() => {});
+				return;
+			}
+			void send()?.catch(() => {});
 		},
 		[cancelKeyBytes, clearScrollbackState, exitKeyBytes, sendBytesQueued],
 	);
@@ -2416,7 +2428,7 @@ function ShellDetail() {
 			scrollbackPhaseRef.current = event.phase;
 			setScrollbackActive(event.active);
 			if (!event.active) {
-				resetTmuxScrollbackForUiReset();
+				void resetTmuxScrollbackForUiReset();
 			}
 		},
 		[resetTmuxScrollbackForUiReset],
@@ -2500,20 +2512,12 @@ function ShellDetail() {
 			}
 			const bytes = encoder.encode(input.str);
 			if (input.kind === 'scroll') {
-				if (selectionModeEnabled) return;
-				void sendBytesOrdered(bytes);
 				return;
 			}
 			if (selectionModeEnabled) exitSelectionMode();
 			sendBytesRaw(bytes);
 		},
-		[
-			shell,
-			sendBytesOrdered,
-			sendBytesRaw,
-			selectionModeEnabled,
-			exitSelectionMode,
-		],
+		[shell, sendBytesRaw, selectionModeEnabled, exitSelectionMode],
 	);
 
 	const handleTerminalCrashRetry = useCallback(() => {
@@ -2522,19 +2526,8 @@ function ShellDetail() {
 	}, [router]);
 
 	const handleJumpToLive = useCallback(() => {
-		if (!tmuxRemoteScrollbackCopyModeActiveRef.current) {
-			clearScrollbackState();
-			return;
-		}
-		if (!isValidTmuxCancelKey(cancelKeyBytes)) {
-			logger.warn('cancelKey invalid; cannot auto-exit scrollback');
-			clearScrollbackState();
-			return;
-		}
-		tmuxRemoteScrollbackCopyModeActiveRef.current = false;
-		void sendBytesOrdered(cancelKeyBytes);
-		clearScrollbackState();
-	}, [cancelKeyBytes, sendBytesOrdered, clearScrollbackState]);
+		void clearScrollbackState();
+	}, [clearScrollbackState]);
 
 	const writeShellChunkToTerminal = useCallback((bytesBuffer: ArrayBuffer) => {
 		const bytes = new Uint8Array(bytesBuffer);
@@ -2629,7 +2622,7 @@ function ShellDetail() {
 			currentInstanceIdRef.current = instanceId;
 			scrollbackActiveRef.current = false;
 			scrollbackPhaseRef.current = 'active';
-			resetTmuxScrollbackForUiReset();
+			void resetTmuxScrollbackForUiReset();
 			setScrollbackActive(false);
 			hasAttachedOnceRef.current = false;
 
