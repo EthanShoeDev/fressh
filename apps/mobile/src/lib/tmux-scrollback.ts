@@ -10,6 +10,7 @@ import {
 // Bounds malformed bridge batches before splitting into remote commands.
 export const TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH = 100;
 export const TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT = 100;
+export const TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES = 100;
 
 export type TmuxScrollbackLineAccumulator = {
 	direction: WorkmuxScrollDirection | null;
@@ -52,6 +53,29 @@ export function mergeWorkmuxScrollbackPageCommands(
 		}
 	}
 	return merged;
+}
+
+function coalesceWorkmuxScrollbackPendingPageCommands(
+	commands: WorkmuxScrollbackPageCommand[],
+): WorkmuxScrollbackPageCommand[] {
+	let sessionName: string | null = null;
+	let netPages = 0;
+	for (const command of commands) {
+		sessionName = command.sessionName;
+		netPages += command.direction === 'up' ? command.count : -command.count;
+		if (Math.abs(netPages) > TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES) {
+			netPages =
+				Math.sign(netPages) * TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES;
+		}
+	}
+	if (!sessionName || netPages === 0) return [];
+	return [
+		{
+			sessionName,
+			direction: netPages > 0 ? 'up' : 'down',
+			count: Math.abs(netPages),
+		},
+	];
 }
 
 export function registerTmuxScrollbackLocalExitRequest({
@@ -125,7 +149,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 	let pendingScrollBatch: {
 		commands: WorkmuxScrollbackPageCommand[];
 		generation: number;
-		resolveAll: (value: boolean) => void;
+		resolvers: ((value: boolean) => void)[];
 	} | null = null;
 
 	const notifyFailure = (
@@ -148,7 +172,9 @@ export function createWorkmuxScrollbackCommandExecutor({
 	};
 
 	const clearPendingScrollBatches = () => {
-		pendingScrollBatch?.resolveAll(false);
+		for (const resolve of pendingScrollBatch?.resolvers ?? []) {
+			resolve(false);
+		}
 		pendingScrollBatch = null;
 	};
 
@@ -308,19 +334,19 @@ export function createWorkmuxScrollbackCommandExecutor({
 			if (commands.length === 0) return Promise.resolve(true);
 			const promise = new Promise<boolean>((resolve) => {
 				if (pendingScrollBatch && pendingScrollBatch.generation === workGeneration) {
-					const previousResolve = pendingScrollBatch.resolveAll;
-					pendingScrollBatch.commands.push(...commands);
-					pendingScrollBatch.resolveAll = (value) => {
-						previousResolve(value);
-						resolve(value);
-					};
+					pendingScrollBatch.commands =
+						coalesceWorkmuxScrollbackPendingPageCommands([
+							...pendingScrollBatch.commands,
+							...commands,
+						]);
+					pendingScrollBatch.resolvers.push(resolve);
 					return;
 				}
-				pendingScrollBatch?.resolveAll(false);
+				clearPendingScrollBatches();
 				pendingScrollBatch = {
-					commands: [...commands],
+					commands: mergeWorkmuxScrollbackPageCommands(commands),
 					generation: workGeneration,
-					resolveAll: resolve,
+					resolvers: [resolve],
 				};
 			});
 
@@ -342,7 +368,9 @@ export function createWorkmuxScrollbackCommandExecutor({
 							operationGeneration: batch.generation,
 						});
 					} finally {
-						batch.resolveAll(success);
+						for (const resolve of batch.resolvers) {
+							resolve(success);
+						}
 					}
 					return success;
 				});

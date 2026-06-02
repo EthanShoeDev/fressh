@@ -196,6 +196,41 @@ void test('workmux scrollback executor preserves pending scroll batches while sl
 	assert.deepEqual(commands, [pageText(), pageText(5)]);
 });
 
+void test('workmux scrollback executor bounds pending scroll fanout while slow command runs', async () => {
+	const firstBlock = deferred<void>();
+	const commands: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (commands.length === 1) await firstBlock.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const first = executor.enqueueScrollBatch([page()]);
+	await Promise.resolve();
+	assert.deepEqual(commands, [pageText()]);
+
+	const queued: Promise<boolean>[] = [];
+	for (let index = 0; index < 1_000; index += 1) {
+		queued.push(executor.enqueueScrollBatch([page(10)]));
+	}
+
+	firstBlock.resolve(undefined);
+	assert.equal(await first, true);
+	assert.deepEqual(await Promise.all(queued), queued.map(() => true));
+
+	assert.deepEqual(commands, [
+		pageText(),
+		pageText(20),
+		pageText(20),
+		pageText(20),
+		pageText(20),
+		pageText(20),
+	]);
+});
+
 void test('workmux scrollback executor dispose clears pending scroll and blocks queued execution', async () => {
 	const firstBlock = deferred<void>();
 	const commands: string[] = [];
