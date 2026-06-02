@@ -99,6 +99,12 @@ export function buildWorkmuxAppScrollEnterCommand(sessionName: string): string {
 	)}`;
 }
 
+export function buildWorkmuxAppScrollExitCommand(sessionName: string): string {
+	return `mdev tmux app scroll exit --session ${quoteShellValue(
+		normalizeSessionName(sessionName),
+	)}`;
+}
+
 export function buildWorkmuxAppScrollPageCommand(
 	sessionName: string,
 	direction: WorkmuxScrollDirection,

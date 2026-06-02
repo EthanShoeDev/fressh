@@ -19,10 +19,16 @@ export type WorkmuxScrollbackCommandResult = {
 	error?: string;
 };
 
+export type WorkmuxScrollbackCommandKind = 'enter' | 'scroll';
+
 export type WorkmuxScrollbackCommandExecutor = {
-	runEnterCommand: (command: string) => Promise<boolean>;
+	runEnterCommand: (
+		command: string,
+		options?: { cancelCommand?: string },
+	) => Promise<boolean>;
 	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
 	clearPendingScrollBatches: () => void;
+	reset: () => void;
 	dispose: () => void;
 	getPendingScrollBatchCount: () => number;
 };
@@ -32,13 +38,18 @@ export function createWorkmuxScrollbackCommandExecutor({
 	onFailure,
 }: {
 	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>;
-	onFailure: (message: string) => void;
+	onFailure: (
+		message: string,
+		context: { commandKind: WorkmuxScrollbackCommandKind },
+	) => void;
 }): WorkmuxScrollbackCommandExecutor {
 	let tail: Promise<unknown> = Promise.resolve();
 	let disposed = false;
+	let generation = 0;
 	let scrollDrainQueued = false;
 	let pendingScrollBatch: {
 		commands: string[];
+		generation: number;
 		resolve: (value: boolean) => void;
 	} | null = null;
 
@@ -47,39 +58,72 @@ export function createWorkmuxScrollbackCommandExecutor({
 		pendingScrollBatch = null;
 	};
 
+	const reset = () => {
+		generation += 1;
+		clearPendingScrollBatches();
+	};
+
 	const enqueueSerialized = <T>(operation: () => Promise<T>) => {
 		const next = tail.then(operation, operation);
 		tail = next.catch(() => {});
 		return next;
 	};
 
-	const runCommands = async (commands: string[]) => {
+	const isActive = (operationGeneration: number) =>
+		!disposed && operationGeneration === generation;
+
+	const runCommands = async ({
+		commands,
+		commandKind,
+		operationGeneration,
+		cancelCommand,
+	}: {
+		commands: string[];
+		commandKind: WorkmuxScrollbackCommandKind;
+		operationGeneration: number;
+		cancelCommand?: string;
+	}) => {
 		if (disposed) return false;
 		for (const command of commands) {
-			if (disposed) return false;
+			if (!isActive(operationGeneration)) return false;
 			const result = await runSingleCommand(command, executeCommand);
-			if (disposed) return false;
+			if (!isActive(operationGeneration)) {
+				if (commandKind === 'enter' && result.success && cancelCommand) {
+					await runSingleCommand(cancelCommand, executeCommand);
+				}
+				return false;
+			}
 			const failureMessage =
 				formatWorkmuxScrollbackCommandFailureMessage(result);
 			if (!failureMessage) continue;
 			clearPendingScrollBatches();
-			onFailure(failureMessage);
+			onFailure(failureMessage, { commandKind });
 			return false;
 		}
 		return true;
 	};
 
 	return {
-		runEnterCommand: (command: string) =>
+		runEnterCommand: (command: string, options?: { cancelCommand?: string }) =>
 			disposed
 				? Promise.resolve(false)
-				: enqueueSerialized(() => runCommands([command])),
+				: (() => {
+						const operationGeneration = generation;
+						return enqueueSerialized(() =>
+							runCommands({
+								commands: [command],
+								commandKind: 'enter',
+								operationGeneration,
+								cancelCommand: options?.cancelCommand,
+							}),
+						);
+					})(),
 		enqueueScrollBatch: (commands: string[]) => {
 			if (disposed) return Promise.resolve(false);
 			if (commands.length === 0) return Promise.resolve(true);
 			const promise = new Promise<boolean>((resolve) => {
 				pendingScrollBatch?.resolve(false);
-				pendingScrollBatch = { commands, resolve };
+				pendingScrollBatch = { commands, generation, resolve };
 			});
 
 			if (!scrollDrainQueued) {
@@ -93,7 +137,11 @@ export function createWorkmuxScrollbackCommandExecutor({
 					const batch = pendingScrollBatch;
 					pendingScrollBatch = null;
 					if (!batch) return true;
-					const success = await runCommands(batch.commands);
+					const success = await runCommands({
+						commands: batch.commands,
+						commandKind: 'scroll',
+						operationGeneration: batch.generation,
+					});
 					batch.resolve(success);
 					return success;
 				});
@@ -102,9 +150,10 @@ export function createWorkmuxScrollbackCommandExecutor({
 			return promise;
 		},
 		clearPendingScrollBatches,
+		reset,
 		dispose: () => {
 			disposed = true;
-			clearPendingScrollBatches();
+			reset();
 		},
 		getPendingScrollBatchCount: () => (pendingScrollBatch ? 1 : 0),
 	};
@@ -132,7 +181,7 @@ export function resetTmuxScrollbackRuntimeState({
 	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
 }): void {
 	clearTmuxScrollbackLineAccumulator(lineAccumulator);
-	commandExecutor?.clearPendingScrollBatches();
+	commandExecutor?.reset();
 }
 
 export function buildWorkmuxScrollbackBatchCommands({
@@ -194,6 +243,52 @@ export function formatWorkmuxScrollbackCommandFailureMessage(result: {
 	return formatWorkmuxAppCommandFailureMessage(
 		result.error || result.output || '',
 	);
+}
+
+export function handleWorkmuxScrollbackCommandFailureActions({
+	message,
+	commandKind,
+	scrollbackActive,
+	remoteCopyModeActive,
+	cancelKeyBytes,
+	alert,
+	copyMessage,
+	sendCancelKey,
+	clearScrollbackState,
+	warn,
+}: {
+	message: string;
+	commandKind: WorkmuxScrollbackCommandKind;
+	scrollbackActive: boolean;
+	remoteCopyModeActive: boolean;
+	cancelKeyBytes: Uint8Array<ArrayBuffer>;
+	alert: (
+		title: string,
+		message: string,
+		buttons?: { text: string; onPress?: () => void }[],
+	) => void;
+	copyMessage: (message: string) => void;
+	sendCancelKey: (cancelKey: Uint8Array<ArrayBuffer>) => void;
+	clearScrollbackState: () => void;
+	warn: (message: string) => void;
+}): void {
+	warn(message);
+	alert('Workmux scroll unavailable', message, [
+		{ text: 'Copy Message', onPress: () => copyMessage(message) },
+		{ text: 'OK' },
+	]);
+
+	if (commandKind !== 'enter' && scrollbackActive && remoteCopyModeActive) {
+		if (isValidTmuxCancelKey(cancelKeyBytes)) {
+			sendCancelKey(cancelKeyBytes);
+		} else {
+			warn(
+				'cancelKey invalid; cannot exit scrollback after Workmux scroll failure',
+			);
+		}
+	}
+
+	clearScrollbackState();
 }
 
 async function runSingleCommand(

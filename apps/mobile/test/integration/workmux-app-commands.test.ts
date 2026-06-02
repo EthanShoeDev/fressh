@@ -8,6 +8,7 @@ import {
 	buildWorkmuxAppNavCommand,
 	buildWorkmuxAppNotificationOpenCommand,
 	buildWorkmuxAppScrollEnterCommand,
+	buildWorkmuxAppScrollExitCommand,
 	buildWorkmuxAppScrollPageCommand,
 	buildWorkmuxAppWindowCommand,
 	formatWorkmuxAppCommandFailureMessage,
@@ -62,6 +63,10 @@ void test('workmux app command builders shell-quote app arguments', () => {
 	assert.equal(
 		buildWorkmuxAppScrollEnterCommand("main'quoted"),
 		"mdev tmux app scroll enter --session 'main'\\''quoted'",
+	);
+	assert.equal(
+		buildWorkmuxAppScrollExitCommand("main'quoted"),
+		"mdev tmux app scroll exit --session 'main'\\''quoted'",
 	);
 	assert.equal(
 		buildWorkmuxAppScrollPageCommand("main'quoted", 'up', 3),

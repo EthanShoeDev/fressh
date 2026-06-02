@@ -7,6 +7,7 @@ import {
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
+	handleWorkmuxScrollbackCommandFailureActions,
 	isValidTmuxCancelKey,
 	resetTmuxScrollbackRuntimeState,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
@@ -402,6 +403,169 @@ void test('workmux scrollback executor dispose suppresses late failure callbacks
 
 	assert.equal(await enter, false);
 	assert.deepEqual(failures, []);
+});
+
+void test('resetTmuxScrollbackRuntimeState cancels in-flight enter and unwinds remote copy mode', async () => {
+	const commandBlock = deferred<void>();
+	const commands: string[] = [];
+	const failures: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'enter') await commandBlock.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: (message) => failures.push(message),
+	});
+
+	const enter = executor.runEnterCommand('enter', {
+		cancelCommand: 'exit',
+	});
+	await Promise.resolve();
+	resetTmuxScrollbackRuntimeState({
+		lineAccumulator,
+		commandExecutor: executor,
+	});
+	commandBlock.resolve(undefined);
+
+	assert.equal(await enter, false);
+	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.deepEqual(failures, []);
+});
+
+void test('resetTmuxScrollbackRuntimeState cancels queued enter before it starts', async () => {
+	const commandBlock = deferred<void>();
+	const commands: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'blocking-scroll') await commandBlock.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const blocking = executor.enqueueScrollBatch(['blocking-scroll']);
+	await Promise.resolve();
+	const enter = executor.runEnterCommand('enter', {
+		cancelCommand: 'exit',
+	});
+	resetTmuxScrollbackRuntimeState({
+		lineAccumulator,
+		commandExecutor: executor,
+	});
+	commandBlock.resolve(undefined);
+
+	assert.equal(await blocking, false);
+	assert.equal(await enter, false);
+	assert.deepEqual(commands, ['blocking-scroll']);
+});
+
+void test('resetTmuxScrollbackRuntimeState cancels pending Workmux scroll batches', async () => {
+	const commandBlock = deferred<void>();
+	const commands: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'enter') await commandBlock.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const enter = executor.runEnterCommand('enter');
+	await Promise.resolve();
+	const batch = executor.enqueueScrollBatch(['page']);
+
+	assert.equal(executor.getPendingScrollBatchCount(), 1);
+	resetTmuxScrollbackRuntimeState({
+		lineAccumulator,
+		commandExecutor: executor,
+	});
+	assert.equal(executor.getPendingScrollBatchCount(), 0);
+	assert.equal(await batch, false);
+	commandBlock.resolve(undefined);
+	assert.equal(await enter, false);
+	assert.deepEqual(commands, ['enter']);
+});
+
+void test('workmux scrollback failure actions alert and clear without cancel before remote ack', () => {
+	const events: string[] = [];
+
+	handleWorkmuxScrollbackCommandFailureActions({
+		message: 'Update mdev',
+		commandKind: 'enter',
+		scrollbackActive: true,
+		remoteCopyModeActive: false,
+		cancelKeyBytes: bytes([0x71]),
+		alert: (title, message, buttons) => {
+			events.push(`alert:${title}:${message}:${buttons?.length ?? 0}`);
+			buttons?.[0]?.onPress?.();
+		},
+		copyMessage: (message) => events.push(`copy:${message}`),
+		sendCancelKey: () => events.push('cancel'),
+		clearScrollbackState: () => events.push('clear'),
+		warn: (message) => events.push(`warn:${message}`),
+	});
+
+	assert.deepEqual(events, [
+		'warn:Update mdev',
+		'alert:Workmux scroll unavailable:Update mdev:2',
+		'copy:Update mdev',
+		'clear',
+	]);
+});
+
+void test('workmux scrollback failure actions cancel only after remote copy mode is acknowledged', () => {
+	const events: string[] = [];
+
+	handleWorkmuxScrollbackCommandFailureActions({
+		message: 'page failed',
+		commandKind: 'scroll',
+		scrollbackActive: true,
+		remoteCopyModeActive: true,
+		cancelKeyBytes: bytes([0x71]),
+		alert: (title, message) => events.push(`alert:${title}:${message}`),
+		copyMessage: (message) => events.push(`copy:${message}`),
+		sendCancelKey: (cancelKey) =>
+			events.push(`cancel:${Array.from(cancelKey).join(',')}`),
+		clearScrollbackState: () => events.push('clear'),
+		warn: (message) => events.push(`warn:${message}`),
+	});
+
+	assert.deepEqual(events, [
+		'warn:page failed',
+		'alert:Workmux scroll unavailable:page failed',
+		'cancel:113',
+		'clear',
+	]);
+});
+
+void test('workmux scrollback failure actions warn instead of sending invalid cancel key', () => {
+	const events: string[] = [];
+
+	handleWorkmuxScrollbackCommandFailureActions({
+		message: 'page failed',
+		commandKind: 'scroll',
+		scrollbackActive: true,
+		remoteCopyModeActive: true,
+		cancelKeyBytes: bytes([0x1b]),
+		alert: (title, message) => events.push(`alert:${title}:${message}`),
+		copyMessage: (message) => events.push(`copy:${message}`),
+		sendCancelKey: () => events.push('cancel'),
+		clearScrollbackState: () => events.push('clear'),
+		warn: (message) => events.push(`warn:${message}`),
+	});
+
+	assert.deepEqual(events, [
+		'warn:page failed',
+		'alert:Workmux scroll unavailable:page failed',
+		'warn:cancelKey invalid; cannot exit scrollback after Workmux scroll failure',
+		'clear',
+	]);
 });
 
 void test('tmux cancel key validation accepts single non-escape keys only', () => {

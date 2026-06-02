@@ -100,6 +100,7 @@ import {
 	buildWorkmuxScrollbackBatchCommands,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
+	handleWorkmuxScrollbackCommandFailureActions,
 	isValidTmuxCancelKey,
 	resetTmuxScrollbackRuntimeState,
 	type WorkmuxScrollbackCommandExecutor,
@@ -123,7 +124,10 @@ import {
 	type WisprTextEditorAvailability,
 } from '@/lib/wispr-automation';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
-import { buildWorkmuxAppScrollEnterCommand } from '@/lib/workmux-app-commands';
+import {
+	buildWorkmuxAppScrollEnterCommand,
+	buildWorkmuxAppScrollExitCommand,
+} from '@/lib/workmux-app-commands';
 import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
@@ -647,6 +651,7 @@ function ShellDetail() {
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
+	const tmuxRemoteScrollbackCopyModeActiveRef = useRef(false);
 	const tmuxScrollbackLineAccumulatorRef = useRef(
 		createTmuxScrollbackLineAccumulator(),
 	);
@@ -788,6 +793,7 @@ function ShellDetail() {
 	const clearScrollbackState = useCallback(() => {
 		scrollbackActiveRef.current = false;
 		scrollbackPhaseRef.current = 'active';
+		tmuxRemoteScrollbackCopyModeActiveRef.current = false;
 		resetTmuxScrollbackRuntimeState({
 			lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
 			commandExecutor: workmuxScrollbackCommandExecutorRef.current,
@@ -797,19 +803,26 @@ function ShellDetail() {
 	}, []);
 
 	const handleWorkmuxScrollbackCommandFailure = useCallback(
-		(message: string) => {
-			logger.warn(message);
-			Alert.alert('Workmux scroll unavailable', message);
-			if (scrollbackActiveRef.current) {
-				if (isValidTmuxCancelKey(cancelKeyBytes)) {
-					void sendBytesOrdered(cancelKeyBytes);
-				} else {
-					logger.warn(
-						'cancelKey invalid; cannot exit scrollback after Workmux scroll failure',
-					);
-				}
-			}
-			clearScrollbackState();
+		(message: string, context: { commandKind: 'enter' | 'scroll' }) => {
+			handleWorkmuxScrollbackCommandFailureActions({
+				message,
+				commandKind: context.commandKind,
+				scrollbackActive: scrollbackActiveRef.current,
+				remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
+				cancelKeyBytes,
+				alert: (title, alertMessage, buttons) =>
+					Alert.alert(title, alertMessage, buttons),
+				copyMessage: (copyMessage) => {
+					void Clipboard.setStringAsync(copyMessage).catch((error: unknown) => {
+						logger.warn('copy Workmux scroll failure message failed', error);
+					});
+				},
+				sendCancelKey: (cancelKey) => {
+					void sendBytesOrdered(cancelKey);
+				},
+				clearScrollbackState,
+				warn: (warning) => logger.warn(warning),
+			});
 		},
 		[cancelKeyBytes, clearScrollbackState, sendBytesOrdered],
 	);
@@ -2389,6 +2402,7 @@ function ShellDetail() {
 			scrollbackPhaseRef.current = event.phase;
 			setScrollbackActive(event.active);
 			if (!event.active) {
+				tmuxRemoteScrollbackCopyModeActiveRef.current = false;
 				resetTmuxScrollbackRuntimeState({
 					lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
 					commandExecutor: workmuxScrollbackCommandExecutorRef.current,
@@ -2408,9 +2422,14 @@ function ShellDetail() {
 			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 			const command = buildWorkmuxAppScrollEnterCommand(targetName);
-			const entered =
-				await workmuxScrollbackCommandExecutor.runEnterCommand(command);
+			const entered = await workmuxScrollbackCommandExecutor.runEnterCommand(
+				command,
+				{
+					cancelCommand: buildWorkmuxAppScrollExitCommand(targetName),
+				},
+			);
 			if (!entered) return;
+			tmuxRemoteScrollbackCopyModeActiveRef.current = true;
 			xtermRef.current?.sendTmuxEnterCopyModeAck(
 				event.requestId,
 				event.instanceId,
@@ -2493,10 +2512,16 @@ function ShellDetail() {
 	}, [router]);
 
 	const handleJumpToLive = useCallback(() => {
-		if (!isValidTmuxCancelKey(cancelKeyBytes)) {
-			logger.warn('cancelKey invalid; cannot auto-exit scrollback');
+		if (!tmuxRemoteScrollbackCopyModeActiveRef.current) {
+			clearScrollbackState();
 			return;
 		}
+		if (!isValidTmuxCancelKey(cancelKeyBytes)) {
+			logger.warn('cancelKey invalid; cannot auto-exit scrollback');
+			clearScrollbackState();
+			return;
+		}
+		tmuxRemoteScrollbackCopyModeActiveRef.current = false;
 		void sendBytesOrdered(cancelKeyBytes);
 		clearScrollbackState();
 	}, [cancelKeyBytes, sendBytesOrdered, clearScrollbackState]);
@@ -2594,6 +2619,7 @@ function ShellDetail() {
 			currentInstanceIdRef.current = instanceId;
 			scrollbackActiveRef.current = false;
 			scrollbackPhaseRef.current = 'active';
+			tmuxRemoteScrollbackCopyModeActiveRef.current = false;
 			resetTmuxScrollbackRuntimeState({
 				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
 				commandExecutor: workmuxScrollbackCommandExecutorRef.current,
