@@ -23,8 +23,6 @@ export interface TerminalProps extends HybridViewProps {
 	 * a cleared (background-only) frame; set it once the shell id is known.
 	 */
 	shellId?: string;
-	/** Font size in points (default 14). Applied at attach / config change. */
-	fontSize?: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- input goes via the control plane (sendData) for v1

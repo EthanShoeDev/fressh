@@ -10,10 +10,11 @@ import com.facebook.proguard.annotations.DoNotStrip
 import com.facebook.react.uimanager.ThemedReactContext
 
 /**
- * Native terminal view (Nitro HybridView). Owns a [SurfaceView]; on surface
- * creation it hands the `ANativeWindow` to the Rust render core (via JNI) and
- * drives a Choreographer (vsync) render loop. Renders a hardcoded demo Term for
- * now — SSH/session attach come later. See docs §5/§10.
+ * Native terminal view (Nitro HybridView, the render plane §10). Owns a
+ * [SurfaceView]; on surface creation it hands the `ANativeWindow` + the bound
+ * `shellId` to the Rust render C-ABI (via JNI) and drives a Choreographer (vsync)
+ * loop that draws the shell's durable `Term` from fressh-core's registry. The
+ * byte stream never reaches JS. See docs §5/§10.
  */
 @Keep
 @DoNotStrip
@@ -31,16 +32,26 @@ class HybridTerminal(
   // Prop: bundled monospace font file path (no fontconfig on mobile, §6).
   override var fontPath: String = ""
 
+  // Prop: the durable shell to render. Rebinds the native view on change so the
+  // same surface can follow a (re)started shell without a remount.
+  override var shellId: String? = null
+    set(value) {
+      field = value
+      if (nativeHandle != 0L) {
+        nativeSetShell(nativeHandle, value)
+      }
+    }
+
   init {
     surfaceView.holder.addCallback(
       object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {
-          nativeHandle = nativeCreate(holder.surface, resolveFontPath())
+          nativeHandle = nativeAttach(holder.surface, resolveFontPath(), shellId)
           if (nativeHandle != 0L) startRenderLoop()
         }
 
         override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-          // TODO: forward resize to native once the C-ABI grows a resize entry.
+          if (nativeHandle != 0L) nativeResize(nativeHandle)
         }
 
         override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -87,10 +98,16 @@ class HybridTerminal(
     frameCallback = null
   }
 
-  // JNI bridge -> Rust C-ABI (see android/src/main/cpp/cpp-adapter.cpp).
-  private external fun nativeCreate(surface: Surface, fontPath: String): Long
+  // JNI bridge -> Rust render C-ABI (see android/src/main/cpp/cpp-adapter.cpp).
+  private external fun nativeAttach(surface: Surface, fontPath: String, shellId: String?): Long
+
+  private external fun nativeSetShell(handle: Long, shellId: String?)
 
   private external fun nativeDraw(handle: Long)
+
+  private external fun nativeResize(handle: Long)
+
+  private external fun nativeSendInput(handle: Long, data: ByteArray)
 
   private external fun nativeDestroy(handle: Long)
 

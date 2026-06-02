@@ -98,8 +98,14 @@ function ShellDetail() {
 	const router = useRouter();
 	const theme = useTheme();
 
-	const shell = useSshStore(
-		(s) => s.shells[`${connectionId}-${channelId}` as const],
+	// Shells are keyed in the store by their native `shellId` (opaque), but the
+	// route only carries connectionId + channelId — so resolve by those fields.
+	const shell = useSshStore((s) =>
+		Object.values(s.shells).find(
+			(candidate) =>
+				candidate.connectionId === connectionId &&
+				candidate.channelId === channelId,
+		),
 	);
 	const connection = useSshStore((s) => s.connections[connectionId]);
 
@@ -107,7 +113,7 @@ function ShellDetail() {
 		if (shell && connection) {
 			return;
 		}
-		logger.info('shell or connection not found, replacing route with /shell');
+		logger.info('shell or connection not found, navigating back');
 		router.back();
 	}, [connection, router, shell]);
 

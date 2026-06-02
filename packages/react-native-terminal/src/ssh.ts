@@ -9,6 +9,8 @@
  * `disconnect`/`closeShell`.
  */
 
+import { NativeModules } from 'react-native';
+import generatedModule from './generated/shim_uniffi';
 import {
 	closeShell as _closeShell,
 	connect as _connect,
@@ -40,6 +42,36 @@ export type { ConnectionDetails, FresshEvent, FresshEventListener, ServerPublicK
 
 export type ConnectionId = string;
 export type ShellId = string;
+
+// ─────────────────────────── native install ───────────────────────────
+
+// The ubrn-generated bindings call `globalThis.NativeShimUniffi`, which only
+// exists after the native installer runs. We trigger it once (idempotent) on
+// first import — before any binding call — via the legacy module registered by
+// ReactNativeTerminalPackage. Without this, the first uniffi call throws
+// "Cannot read property 'ubrn_uniffi_shim_uniffi_fn_func_*' of undefined".
+let nativeInstalled = false;
+function ensureNativeInstalled() {
+	if (nativeInstalled) return;
+	const mod = (
+		NativeModules as {
+			ReactNativeTerminalUniffi?: { installRustCrate?: () => boolean };
+		}
+	).ReactNativeTerminalUniffi;
+	if (mod?.installRustCrate) {
+		mod.installRustCrate();
+		// installRustCrate sets up `globalThis.NativeShimUniffi`; only now can the
+		// generated binding talk to the dylib. `initialize()` validates the
+		// scaffolding contract/checksums AND registers the callback-interface
+		// vtable (`ubrn_..._init_callback_vtable_fressheventlistener`). Skipping it
+		// leaves the vtable cell null, so the first time Rust invokes
+		// `FresshEventListener.on_event` it panics with "Foreign pointer not set."
+		generatedModule.initialize();
+		nativeInstalled = true;
+	}
+}
+
+ensureNativeInstalled();
 
 // ─────────────────────────── control plane ───────────────────────────
 
@@ -87,6 +119,7 @@ let installed = false;
 
 function ensureInstalled() {
 	if (installed) return;
+	ensureNativeInstalled();
 	installed = true;
 	const listener: FresshEventListener = {
 		onEvent(event) {
