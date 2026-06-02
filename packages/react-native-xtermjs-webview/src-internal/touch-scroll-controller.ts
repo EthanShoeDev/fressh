@@ -84,7 +84,6 @@ export const createTouchScrollController = ({
 			pxPerLine: config.pxPerLine ?? Math.max(12, lineHeightPx),
 			slopPx: config.slopPx ?? 8,
 			invertScroll: config.invertScroll ?? false,
-			enterDelayMs: config.enterDelayMs ?? 10,
 			coalesceMs: config.coalesceMs ?? 24,
 			minFlushMs: config.minFlushMs ?? 16,
 			maxFlushMs: config.maxFlushMs ?? 80,

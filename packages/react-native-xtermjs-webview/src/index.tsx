@@ -18,6 +18,7 @@ import {
 	type BridgeInboundMessage,
 	type BridgeOutboundMessage,
 	type TouchScrollConfig,
+	mapTmuxScrollBatchMessage,
 } from './bridge';
 import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
 import { createDefaultXtermOptions } from './terminal-options';
@@ -494,15 +495,7 @@ export function XtermJsWebView({
 					return;
 				}
 				if (msg.type === 'tmuxScrollBatch') {
-					onTmuxScrollBatch?.({
-						direction: msg.direction,
-						pages: msg.pages,
-						lines: msg.lines,
-						pageStep: msg.pageStep,
-						instanceId: msg.instanceId,
-						seq: msg.seq,
-						ts: msg.ts,
-					});
+					onTmuxScrollBatch?.(mapTmuxScrollBatchMessage(msg));
 					return;
 				}
 				webViewOptions?.onMessage?.(e);

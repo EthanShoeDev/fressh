@@ -48,6 +48,11 @@ export type BridgeInboundMessage = {
     seq?: number;
     ts?: number;
 };
+export type TmuxScrollBatchBridgeMessage = Extract<BridgeInboundMessage, {
+    type: 'tmuxScrollBatch';
+}>;
+export type TmuxScrollBatchEvent = Omit<TmuxScrollBatchBridgeMessage, 'type'>;
+export declare function mapTmuxScrollBatchMessage(msg: TmuxScrollBatchBridgeMessage): TmuxScrollBatchEvent;
 export type TouchScrollConfig = {
     enabled: false;
 } | {
@@ -57,7 +62,6 @@ export type TouchScrollConfig = {
     maxLinesPerFrame?: number;
     flickVelocity?: number;
     invertScroll?: boolean;
-    enterDelayMs?: number;
     coalesceMs?: number;
     minFlushMs?: number;
     maxFlushMs?: number;

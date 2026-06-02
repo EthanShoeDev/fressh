@@ -100,6 +100,7 @@ import {
 	buildWorkmuxScrollbackBatchCommands,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
+	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
 	resetTmuxScrollbackRuntimeState,
 	type WorkmuxScrollbackCommandExecutor,
@@ -403,7 +404,7 @@ function TerminalErrorFallback({ onRetry }: { onRetry: () => void }) {
 
 const encoder = new TextEncoder();
 const tmuxExitKey = 'q';
-const touchEnterDelayMs = 10;
+const scrollbackExitDelayMs = 10;
 
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
@@ -729,7 +730,6 @@ function ShellDetail() {
 						debugOverlay: false,
 						debugTelemetry: __DEV__,
 						debugTelemetryIntervalMs: 120,
-						enterDelayMs: touchEnterDelayMs,
 					}
 				: { enabled: false },
 		[touchScrollEnabled],
@@ -882,7 +882,7 @@ function ShellDetail() {
 				exitKeyBytes,
 				payloadSegments,
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
-				scrollbackExitDelayMs: touchEnterDelayMs,
+				scrollbackExitDelayMs,
 				isCurrentPayloadExitKey: opts?.dropPayloadAfterExit,
 			});
 
@@ -1085,7 +1085,7 @@ function ShellDetail() {
 				exitSelectionMode();
 			}
 			sendLiteralInputSegments(segments, {
-				interSegmentDelayMs: touchEnterDelayMs,
+				interSegmentDelayMs: scrollbackExitDelayMs,
 			});
 		},
 		[exitSelectionMode, selectionModeEnabled, sendLiteralInputSegments],
@@ -2357,12 +2357,16 @@ function ShellDetail() {
 				}
 				return;
 			}
+			void handleTmuxScrollbackInactiveAppStateTransition({
+				previousState,
+				nextState,
+				clearScrollbackState,
+				onCleanupError: (error) => {
+					logger.warn('Workmux inactive scrollback cleanup failed', error);
+				},
+			});
 			// Capture once when transitioning away from active.
 			if (previousState === 'active') {
-				const scrollbackCleanup = clearScrollbackState();
-				void scrollbackCleanup?.catch((error: unknown) => {
-					logger.warn('Workmux inactive scrollback cleanup failed', error);
-				});
 				agentNotificationAckRequestIdRef.current += 1;
 				lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
 			}
@@ -2777,7 +2781,7 @@ function ShellDetail() {
 						const segments = buildCommanderExecuteSegments(value);
 						if (!segments.length) return;
 						sendLiteralInputSegments(segments, {
-							interSegmentDelayMs: touchEnterDelayMs,
+							interSegmentDelayMs: scrollbackExitDelayMs,
 						});
 					}}
 					onPasteText={(value) => {

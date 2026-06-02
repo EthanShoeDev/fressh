@@ -8,6 +8,7 @@ import {
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
 	handleWorkmuxScrollbackCommandFailureActions,
+	handleTmuxScrollbackInactiveAppStateTransition,
 	resetTmuxScrollbackRuntimeState,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 } from '../../src/lib/tmux-scrollback';
@@ -488,6 +489,45 @@ void test('resetTmuxScrollbackRuntimeState cancels pending Workmux scroll batche
 	assert.deepEqual(commands, ['enter']);
 });
 
+void test('workmux scrollback executor allows failure cleanup to re-enter with an exit command', async () => {
+	const commands: string[] = [];
+	const failures: string[] = [];
+	const resetPromises: (Promise<boolean> | null)[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'page') {
+				return {
+					success: false,
+					output: '',
+					error: 'copyable page failure',
+				};
+			}
+			return { success: true, output: '' };
+		},
+		onFailure: (message) => {
+			failures.push(message);
+			resetPromises.push(
+				resetTmuxScrollbackRuntimeState({
+					lineAccumulator,
+					commandExecutor: executor,
+					remoteCopyModeExitCommand: 'exit',
+				}),
+			);
+		},
+	});
+
+	const batch = executor.enqueueScrollBatch(['page']);
+
+	assert.equal(await batch, false);
+	assert.equal(resetPromises.length, 1);
+	assert.notEqual(resetPromises[0], null);
+	assert.equal(await resetPromises[0], true);
+	assert.deepEqual(commands, ['page', 'exit']);
+	assert.deepEqual(failures, ['copyable page failure']);
+});
+
 void test('resetTmuxScrollbackRuntimeState requests Workmux scroll exit for acknowledged remote copy mode', async () => {
 	const commandBlock = deferred<void>();
 	const commands: string[] = [];
@@ -616,7 +656,7 @@ void test('workmux scrollback executor dispose exit failures do not invoke activ
 	assert.deepEqual(disposeFailures, ['dispose exit failed']);
 });
 
-void test('resetTmuxScrollbackRuntimeState cancels inactive in-flight app scroll enter before remote copy mode ack', async () => {
+void test('resetTmuxScrollbackRuntimeState returns a cleanup barrier for inactive in-flight app scroll enter before remote copy mode ack', async () => {
 	const commandBlock = deferred<void>();
 	const commands: string[] = [];
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
@@ -640,10 +680,111 @@ void test('resetTmuxScrollbackRuntimeState cancels inactive in-flight app scroll
 		});
 	const cleanup = clearScrollbackState();
 
-	assert.equal(cleanup, null);
+	assert.notEqual(cleanup, null);
+	let cleanupResolved = false;
+	const cleanupSettled = cleanup?.then((value) => {
+		cleanupResolved = true;
+		return value;
+	});
+	await Promise.resolve();
+	assert.equal(cleanupResolved, false);
 	commandBlock.resolve(undefined);
 	assert.equal(await enter, false);
+	assert.equal(await cleanupSettled, true);
 	assert.deepEqual(commands, ['enter', 'exit']);
+});
+
+void test('live input waits for pending app scroll enter rollback before sending primary payload', async () => {
+	const enterBlock = deferred<void>();
+	const exitBlock = deferred<void>();
+	const commands: string[] = [];
+	const sentPayloads: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'enter') await enterBlock.promise;
+			if (command === 'exit') await exitBlock.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const enter = executor.runEnterCommand('enter', {
+		rollbackExitCommand: 'exit',
+	});
+	await Promise.resolve();
+	const cleanup = resetTmuxScrollbackRuntimeState({
+		lineAccumulator,
+		commandExecutor: executor,
+	});
+	assert.notEqual(cleanup, null);
+	const sendAfterCleanup = cleanup?.then((exited) => {
+		if (exited) sentPayloads.push('payload');
+	});
+
+	enterBlock.resolve(undefined);
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.deepEqual(sentPayloads, []);
+	exitBlock.resolve(undefined);
+
+	assert.equal(await enter, false);
+	await sendAfterCleanup;
+	assert.deepEqual(sentPayloads, ['payload']);
+	assert.deepEqual(commands, ['enter', 'exit']);
+});
+
+void test('inactive AppState transition clears scrollback and waits for pending enter rollback', async () => {
+	const enterBlock = deferred<void>();
+	const commands: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'enter') await enterBlock.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const enter = executor.runEnterCommand('enter', {
+		rollbackExitCommand: 'exit',
+	});
+	await Promise.resolve();
+	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
+		previousState: 'active',
+		nextState: 'inactive',
+		clearScrollbackState: () =>
+			resetTmuxScrollbackRuntimeState({
+				lineAccumulator,
+				commandExecutor: executor,
+			}),
+		onCleanupError: () => {},
+	});
+
+	assert.notEqual(cleanup, null);
+	enterBlock.resolve(undefined);
+	assert.equal(await enter, false);
+	assert.equal(await cleanup, true);
+	assert.deepEqual(commands, ['enter', 'exit']);
+});
+
+void test('inactive AppState transition ignores non-active previous states', () => {
+	let cleanupCount = 0;
+
+	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
+		previousState: 'background',
+		nextState: 'inactive',
+		clearScrollbackState: () => {
+			cleanupCount += 1;
+			return null;
+		},
+		onCleanupError: () => {},
+	});
+
+	assert.equal(cleanup, null);
+	assert.equal(cleanupCount, 0);
 });
 
 void test('workmux scrollback failure actions alert and clear without cancel before remote ack', () => {
