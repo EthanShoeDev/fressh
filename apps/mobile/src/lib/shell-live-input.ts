@@ -8,19 +8,16 @@ export function buildShellLiveInputSendPlan({
 	payloadSegments,
 	interSegmentDelayMs,
 	scrollbackExitDelayMs,
-	isCurrentPayloadExitKey,
 }: {
 	scrollbackActive: boolean;
 	payloadSegments: Uint8Array<ArrayBuffer>[];
 	interSegmentDelayMs?: number;
 	scrollbackExitDelayMs: number;
-	isCurrentPayloadExitKey?: boolean;
 }): TmuxScrollbackLiveInputSendPlan {
 	return buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive,
 		payloadSegments,
 		interSegmentDelayMs,
 		scrollbackExitDelayMs,
-		dropPayloadAfterExit: isCurrentPayloadExitKey ?? false,
 	});
 }

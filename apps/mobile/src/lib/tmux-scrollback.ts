@@ -518,13 +518,11 @@ export function buildTmuxScrollbackLiveInputSendPlan({
 	payloadSegments,
 	interSegmentDelayMs,
 	scrollbackExitDelayMs,
-	dropPayloadAfterExit = false,
 }: {
 	scrollbackActive: boolean;
 	payloadSegments: Uint8Array<ArrayBuffer>[];
 	interSegmentDelayMs?: number;
 	scrollbackExitDelayMs: number;
-	dropPayloadAfterExit?: boolean;
 }): TmuxScrollbackLiveInputSendPlan {
 	const nonEmptyPayloadSegments = payloadSegments.filter(
 		(segment) => segment.length > 0,
@@ -541,7 +539,7 @@ export function buildTmuxScrollbackLiveInputSendPlan({
 
 	return {
 		type: 'send',
-		segments: dropPayloadAfterExit ? [] : nonEmptyPayloadSegments,
+		segments: nonEmptyPayloadSegments,
 		interSegmentDelayMs: scrollbackExitDelayMs,
 		clearScrollback: true,
 	};

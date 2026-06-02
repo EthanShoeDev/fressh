@@ -895,7 +895,6 @@ function ShellDetail() {
 			payloadSegments: Uint8Array<ArrayBuffer>[],
 			opts?: {
 				interSegmentDelayMs?: number;
-				dropPayloadAfterExit?: boolean;
 			},
 		) => {
 			const plan = buildShellLiveInputSendPlan({
@@ -905,7 +904,6 @@ function ShellDetail() {
 				payloadSegments,
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
 				scrollbackExitDelayMs,
-				isCurrentPayloadExitKey: opts?.dropPayloadAfterExit,
 			});
 
 			const cleanupBarrier = plan.clearScrollback
@@ -951,7 +949,6 @@ function ShellDetail() {
 		) => {
 			sendLiveInputSegments(payloadSegments, {
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
-				dropPayloadAfterExit: false,
 			});
 		},
 		[sendLiveInputSegments],

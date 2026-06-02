@@ -1302,17 +1302,3 @@ void test('live input plan drops empty payload segments while preserving order',
 	if (plan.type !== 'send') throw new Error('expected send plan');
 	assert.deepEqual(segmentValues(plan.segments), [[0x68], [0x69, 0x21]]);
 });
-
-void test('live input plan can treat the payload as only a scrollback exit key', () => {
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([0x71])],
-		dropPayloadAfterExit: true,
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.equal(plan.type, 'send');
-	if (plan.type !== 'send') throw new Error('expected send plan');
-	assert.equal(plan.clearScrollback, true);
-	assert.deepEqual(segmentValues(plan.segments), []);
-});

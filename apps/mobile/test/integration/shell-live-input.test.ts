@@ -34,33 +34,3 @@ void test('keeps single q payload when explicit exit-only override is omitted', 
 	assert.equal(plan.interSegmentDelayMs, 10);
 	assert.deepEqual(segmentValues(plan.segments), [[0x71]]);
 });
-
-void test('explicit true override drops payload after app-owned scrollback exit', () => {
-	const plan = buildShellLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([0x71])],
-		isCurrentPayloadExitKey: true,
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.equal(plan.type, 'send');
-	if (plan.type !== 'send') throw new Error('expected send plan');
-	assert.equal(plan.clearScrollback, true);
-	assert.equal(plan.interSegmentDelayMs, 10);
-	assert.deepEqual(segmentValues(plan.segments), []);
-});
-
-void test('explicit false override preserves literal text equal to the exit key', () => {
-	const plan = buildShellLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([0x71])],
-		isCurrentPayloadExitKey: false,
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.equal(plan.type, 'send');
-	if (plan.type !== 'send') throw new Error('expected send plan');
-	assert.equal(plan.clearScrollback, true);
-	assert.equal(plan.interSegmentDelayMs, 10);
-	assert.deepEqual(segmentValues(plan.segments), [[0x71]]);
-});
