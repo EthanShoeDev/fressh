@@ -27,11 +27,17 @@
 //!   the "configure alacritty from the app" story; alacritty's own TOML/serde/
 //!   winit-keybinding config is intentionally NOT vendored.
 
+pub mod config;
+pub mod content;
+
+pub use config::{ColorScheme, Palette, TerminalConfig};
+pub use content::renderable_cells;
+
 // Re-export the vendored renderer surface. Presence of these in our dependency
 // graph alongside `alacritty_terminal` proves the cross-workspace path-dep and
 // the single-engine unification compile. (§6)
-pub use alacritty_renderer::display::SizeInfo;
 pub use alacritty_renderer::display::content::{RenderableCell, RenderableCellExtra};
+pub use alacritty_renderer::display::SizeInfo;
 pub use alacritty_renderer::renderer::{GlyphCache, Renderer};
 
 /// Compile-time proof that our `alacritty_terminal` and the renderer's are the
