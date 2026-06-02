@@ -722,7 +722,7 @@ void test('scrollback enter request adapter clears inactive current instance and
 	assert.deepEqual(events, ['clear']);
 });
 
-void test('scrollback enter request adapter gates events before Workmux command', async () => {
+void test('scrollback enter request adapter clears current guarded events before Workmux command', async () => {
 	const commands: string[] = [];
 	const acks: string[] = [];
 	const executor = createWorkmuxScrollbackCommandExecutor({
@@ -763,7 +763,38 @@ void test('scrollback enter request adapter gates events before Workmux command'
 	}
 
 	assert.deepEqual(commands, []);
-	assert.deepEqual(acks, []);
+	assert.deepEqual(acks, ['clear', 'clear', 'clear', 'clear']);
+});
+
+void test('scrollback enter request adapter ignores stale guarded events', async () => {
+	const commands: string[] = [];
+	const events: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	await handleTmuxScrollbackEnterRequested({
+		event: { instanceId: 'stale', requestId: 42 },
+		isAppActive: true,
+		currentInstanceId: 'current',
+		shellAvailable: false,
+		selectionModeEnabled: false,
+		tmuxEnabled: true,
+		connectionAvailable: true,
+		targetName: 'main',
+		commandExecutor: executor,
+		remoteCopyModeActiveRef: { current: false },
+		remoteCopyModeGenerationRef: { current: 0 },
+		clearLocalScrollbackUiState: () => events.push('clear'),
+		sendScrollbackEnterAck: () => events.push('ack'),
+	});
+
+	assert.deepEqual(commands, []);
+	assert.deepEqual(events, []);
 });
 
 void test('scrollback batch adapter gates events and passes pageStep into command building', async () => {

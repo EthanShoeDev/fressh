@@ -642,10 +642,6 @@ export async function handleTmuxScrollbackEnterRequested({
 	clearLocalScrollbackUiState: () => void;
 	sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
 }): Promise<void> {
-	if (!shellAvailable) return;
-	if (selectionModeEnabled) return;
-	if (!tmuxEnabled || !connectionAvailable) return;
-
 	const requestResolution = resolveTmuxScrollbackEnterRequest({
 		isAppActive,
 		instanceId: event.instanceId,
@@ -653,6 +649,16 @@ export async function handleTmuxScrollbackEnterRequested({
 	});
 	if (requestResolution.action === 'ignore') return;
 	if (requestResolution.action === 'clear-local-ui') {
+		clearLocalScrollbackUiState();
+		return;
+	}
+
+	if (
+		!shellAvailable ||
+		selectionModeEnabled ||
+		!tmuxEnabled ||
+		!connectionAvailable
+	) {
 		clearLocalScrollbackUiState();
 		return;
 	}
