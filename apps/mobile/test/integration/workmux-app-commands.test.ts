@@ -82,6 +82,14 @@ void test('workmux app command builders shell-quote app arguments', () => {
 		buildWorkmuxAppNavCommand('main', 'select', 0),
 		"mdev tmux app nav 'select' '0' --session 'main'",
 	);
+	assert.equal(
+		buildWorkmuxAppNavCommand('main', 'next'),
+		"mdev tmux app nav 'next' --session 'main'",
+	);
+	assert.equal(
+		buildWorkmuxAppNavCommand('main', 'prev-all'),
+		"mdev tmux app nav 'prev-all' --session 'main'",
+	);
 });
 
 void test('workmux app builders normalize blank sessions to main', () => {
@@ -92,7 +100,7 @@ void test('workmux app builders normalize blank sessions to main', () => {
 });
 
 void test('workmux scroll page builder rejects invalid counts', () => {
-	for (const count of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+	for (const count of [0, -1, 21, Number.NaN, Number.POSITIVE_INFINITY]) {
 		assert.throws(
 			() => buildWorkmuxAppScrollPageCommand('main', 'up', count),
 			/Invalid Workmux scroll count/,
@@ -168,6 +176,7 @@ void test('workmux app parsers reject bad or ambiguous output', () => {
 		JSON.stringify({ ...context, paneId: '' }),
 		JSON.stringify({ ...context, paneTty: undefined }),
 		JSON.stringify({ ...context, paneTty: 12 }),
+		JSON.stringify({ ...context, roleWindow: 'true' }),
 		JSON.stringify({ ...context, windowIndex: '12' }),
 	]) {
 		assert.throws(
@@ -188,6 +197,14 @@ void test('workmux app parsers reject bad or ambiguous output', () => {
 		() =>
 			parseWorkmuxAppWindowOutput(
 				JSON.stringify({ ...windowProjection, windowName: '   ' }),
+			),
+		/Invalid Workmux app window/,
+	);
+
+	assert.throws(
+		() =>
+			parseWorkmuxAppWindowOutput(
+				JSON.stringify({ ...windowProjection, homeWindow: 0 }),
 			),
 		/Invalid Workmux app window/,
 	);

@@ -1,6 +1,8 @@
 export const WORKMUX_APP_COMMAND_UPDATE_MESSAGE =
 	'Update mdev on the remote machine; this action requires mdev tmux app commands.';
 
+const WORKMUX_APP_SCROLL_MAX_COUNT = 20;
+
 export type WorkmuxAppContext = {
 	sessionName: string;
 	target: string;
@@ -105,7 +107,7 @@ export function buildWorkmuxAppScrollPageCommand(
 	if (direction !== 'up' && direction !== 'down') {
 		throw new Error(`Invalid Workmux scroll direction: ${direction}`);
 	}
-	if (!isSafePositiveInteger(count)) {
+	if (!isSafePositiveInteger(count) || count > WORKMUX_APP_SCROLL_MAX_COUNT) {
 		throw new Error(`Invalid Workmux scroll count: ${count}`);
 	}
 
@@ -161,37 +163,13 @@ export function parseWorkmuxAppContextOutput(
 	output: string,
 ): WorkmuxAppContext {
 	const value = parseSingleJsonObject(output, 'Invalid Workmux app context');
+	const windowProjection = parseWorkmuxAppWindowProjection(
+		value,
+		'Invalid Workmux app context',
+	);
 
 	const context: WorkmuxAppContext = {
-		sessionName: requireNonEmptyString(
-			value,
-			'sessionName',
-			'Invalid Workmux app context',
-		),
-		target: requireNonEmptyString(value, 'target', 'Invalid Workmux app context'),
-		windowId: requireNonEmptyString(
-			value,
-			'windowId',
-			'Invalid Workmux app context',
-		),
-		windowIndex: requireWindowIndex(value, 'Invalid Workmux app context'),
-		windowName: requireNonEmptyString(
-			value,
-			'windowName',
-			'Invalid Workmux app context',
-		),
-		workspaceId: optionalString(value, 'workspaceId', 'Invalid Workmux app context'),
-		role: optionalString(value, 'role', 'Invalid Workmux app context'),
-		roleWindow: requireBoolean(
-			value,
-			'roleWindow',
-			'Invalid Workmux app context',
-		),
-		homeWindow: requireBoolean(
-			value,
-			'homeWindow',
-			'Invalid Workmux app context',
-		),
+		...windowProjection,
 		paneId: requireNonEmptyString(value, 'paneId', 'Invalid Workmux app context'),
 		paneTty: requireString(value, 'paneTty', 'Invalid Workmux app context'),
 		panePath: requireNonEmptyString(
@@ -217,39 +195,28 @@ export function parseWorkmuxAppContextOutput(
 export function parseWorkmuxAppWindowOutput(output: string): WorkmuxAppWindow {
 	const value = parseSingleJsonObject(output, 'Invalid Workmux app window');
 
-	const windowProjection: WorkmuxAppWindow = {
+	return parseWorkmuxAppWindowProjection(value, 'Invalid Workmux app window');
+}
+
+function parseWorkmuxAppWindowProjection(
+	value: JsonRecord,
+	errorMessage: string,
+): WorkmuxAppWindow {
+	return {
 		sessionName: requireNonEmptyString(
 			value,
 			'sessionName',
-			'Invalid Workmux app window',
+			errorMessage,
 		),
-		target: requireNonEmptyString(value, 'target', 'Invalid Workmux app window'),
-		windowId: requireNonEmptyString(
-			value,
-			'windowId',
-			'Invalid Workmux app window',
-		),
-		windowIndex: requireWindowIndex(value, 'Invalid Workmux app window'),
-		windowName: requireNonEmptyString(
-			value,
-			'windowName',
-			'Invalid Workmux app window',
-		),
-		workspaceId: optionalString(value, 'workspaceId', 'Invalid Workmux app window'),
-		role: optionalString(value, 'role', 'Invalid Workmux app window'),
-		roleWindow: requireBoolean(
-			value,
-			'roleWindow',
-			'Invalid Workmux app window',
-		),
-		homeWindow: requireBoolean(
-			value,
-			'homeWindow',
-			'Invalid Workmux app window',
-		),
+		target: requireNonEmptyString(value, 'target', errorMessage),
+		windowId: requireNonEmptyString(value, 'windowId', errorMessage),
+		windowIndex: requireWindowIndex(value, errorMessage),
+		windowName: requireNonEmptyString(value, 'windowName', errorMessage),
+		workspaceId: optionalString(value, 'workspaceId', errorMessage),
+		role: optionalString(value, 'role', errorMessage),
+		roleWindow: requireBoolean(value, 'roleWindow', errorMessage),
+		homeWindow: requireBoolean(value, 'homeWindow', errorMessage),
 	};
-
-	return windowProjection;
 }
 
 function normalizeSessionName(sessionName: string): string {
