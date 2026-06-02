@@ -217,13 +217,11 @@ export function resetTmuxScrollbackRuntimeState({
 }
 
 export function handleTmuxScrollbackInactiveCleanup({
-	remoteCopyModeActive,
 	clearScrollbackState,
 }: {
 	remoteCopyModeActive: boolean;
 	clearScrollbackState: () => Promise<boolean> | null;
 }): Promise<boolean> | null {
-	if (!remoteCopyModeActive) return null;
 	return clearScrollbackState();
 }
 
