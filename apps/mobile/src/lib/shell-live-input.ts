@@ -21,7 +21,6 @@ const isSingleExitKeyPayload = (
 
 export function buildShellLiveInputSendPlan({
 	scrollbackActive,
-	cancelKeyBytes,
 	exitKeyBytes,
 	payloadSegments,
 	interSegmentDelayMs,
@@ -29,7 +28,6 @@ export function buildShellLiveInputSendPlan({
 	isCurrentPayloadExitKey,
 }: {
 	scrollbackActive: boolean;
-	cancelKeyBytes: Uint8Array<ArrayBuffer>;
 	exitKeyBytes: Uint8Array<ArrayBuffer>;
 	payloadSegments: Uint8Array<ArrayBuffer>[];
 	interSegmentDelayMs?: number;
@@ -38,7 +36,6 @@ export function buildShellLiveInputSendPlan({
 }): TmuxScrollbackLiveInputSendPlan {
 	return buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive,
-		cancelKey: cancelKeyBytes,
 		payloadSegments,
 		interSegmentDelayMs,
 		scrollbackExitDelayMs,

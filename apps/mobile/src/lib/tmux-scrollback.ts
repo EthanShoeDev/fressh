@@ -19,12 +19,12 @@ export type WorkmuxScrollbackCommandResult = {
 	error?: string;
 };
 
-export type WorkmuxScrollbackCommandKind = 'enter' | 'scroll';
+type WorkmuxScrollbackCommandKind = 'enter' | 'scroll';
 
 export type WorkmuxScrollbackCommandExecutor = {
 	runEnterCommand: (
 		command: string,
-		options?: { cancelCommand?: string },
+		options?: { rollbackExitCommand?: string },
 	) => Promise<boolean>;
 	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
 	clearPendingScrollBatches: () => void;
@@ -38,10 +38,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 	onFailure,
 }: {
 	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>;
-	onFailure: (
-		message: string,
-		context: { commandKind: WorkmuxScrollbackCommandKind },
-	) => void;
+	onFailure: (message: string) => void;
 }): WorkmuxScrollbackCommandExecutor {
 	let tail: Promise<unknown> = Promise.resolve();
 	let closed = false;
@@ -75,13 +72,13 @@ export function createWorkmuxScrollbackCommandExecutor({
 		commands,
 		commandKind,
 		operationGeneration,
-		cancelCommand,
+		rollbackExitCommand,
 		durableExit = false,
 	}: {
 		commands: string[];
 		commandKind: WorkmuxScrollbackCommandKind;
 		operationGeneration: number;
-		cancelCommand?: string;
+		rollbackExitCommand?: string;
 		durableExit?: boolean;
 	}) => {
 		const isActive = durableExit ? isExitActive : isWorkActive;
@@ -90,8 +87,12 @@ export function createWorkmuxScrollbackCommandExecutor({
 			if (!isActive(operationGeneration)) return false;
 			const result = await runSingleCommand(command, executeCommand);
 			if (!isActive(operationGeneration)) {
-				if (commandKind === 'enter' && result.success && cancelCommand) {
-					await runSingleCommand(cancelCommand, executeCommand);
+				if (
+					commandKind === 'enter' &&
+					result.success &&
+					rollbackExitCommand
+				) {
+					await runSingleCommand(rollbackExitCommand, executeCommand);
 				}
 				return false;
 			}
@@ -99,7 +100,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 				formatWorkmuxScrollbackCommandFailureMessage(result);
 			if (!failureMessage) continue;
 			clearPendingScrollBatches();
-			onFailure(failureMessage, { commandKind });
+			onFailure(failureMessage);
 			return false;
 		}
 		return true;
@@ -124,7 +125,10 @@ export function createWorkmuxScrollbackCommandExecutor({
 	};
 
 	return {
-		runEnterCommand: (command: string, options?: { cancelCommand?: string }) =>
+		runEnterCommand: (
+			command: string,
+			options?: { rollbackExitCommand?: string },
+		) =>
 			closed || disposed
 				? Promise.resolve(false)
 				: (() => {
@@ -134,7 +138,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 								commands: [command],
 								commandKind: 'enter',
 								operationGeneration,
-								cancelCommand: options?.cancelCommand,
+								rollbackExitCommand: options?.rollbackExitCommand,
 							}),
 						);
 					})(),
@@ -285,10 +289,6 @@ export function handleWorkmuxScrollbackCommandFailureActions({
 	warn,
 }: {
 	message: string;
-	commandKind: WorkmuxScrollbackCommandKind;
-	scrollbackActive: boolean;
-	remoteCopyModeActive: boolean;
-	cancelKeyBytes: Uint8Array<ArrayBuffer>;
 	alert: (
 		title: string,
 		message: string,
@@ -327,23 +327,12 @@ function truncateNonNegativeInteger(value: number): number {
 	return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.trunc(value)));
 }
 
-export type TmuxScrollbackLiveInputSendPlan =
-	| {
-			type: 'send';
-			segments: Uint8Array<ArrayBuffer>[];
-			interSegmentDelayMs?: number;
-			clearScrollback: boolean;
-	  }
-	| {
-			type: 'block';
-			reason: 'invalid-cancel-key';
-	  };
-
-export function isValidTmuxCancelKey(
-	cancelKey: Uint8Array<ArrayBuffer>,
-): boolean {
-	return cancelKey.length === 1 && cancelKey[0] !== 0x1b;
-}
+export type TmuxScrollbackLiveInputSendPlan = {
+	type: 'send';
+	segments: Uint8Array<ArrayBuffer>[];
+	interSegmentDelayMs?: number;
+	clearScrollback: boolean;
+};
 
 export function buildTmuxScrollbackLiveInputSendPlan({
 	scrollbackActive,
@@ -353,7 +342,6 @@ export function buildTmuxScrollbackLiveInputSendPlan({
 	dropPayloadAfterExit = false,
 }: {
 	scrollbackActive: boolean;
-	cancelKey: Uint8Array<ArrayBuffer>;
 	payloadSegments: Uint8Array<ArrayBuffer>[];
 	interSegmentDelayMs?: number;
 	scrollbackExitDelayMs: number;

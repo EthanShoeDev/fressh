@@ -402,9 +402,6 @@ function TerminalErrorFallback({ onRetry }: { onRetry: () => void }) {
 }
 
 const encoder = new TextEncoder();
-const tmuxPrefixKey = '\x02';
-const tmuxCopyModeKey = '[';
-const tmuxCancelKey = 'q';
 const tmuxExitKey = 'q';
 const touchEnterDelayMs = 10;
 
@@ -733,15 +730,10 @@ function ShellDetail() {
 						debugTelemetry: __DEV__,
 						debugTelemetryIntervalMs: 120,
 						enterDelayMs: touchEnterDelayMs,
-						prefixKey: tmuxPrefixKey,
-						copyModeKey: tmuxCopyModeKey,
-						exitKey: tmuxExitKey,
-						cancelKey: tmuxCancelKey,
 					}
 				: { enabled: false },
 		[touchScrollEnabled],
 	);
-	const cancelKeyBytes = useMemo(() => encoder.encode(tmuxCancelKey), []);
 	const exitKeyBytes = useMemo(() => encoder.encode(tmuxExitKey), []);
 
 	const exitSelectionMode = useCallback(() => {
@@ -811,13 +803,9 @@ function ShellDetail() {
 	}, [resetTmuxScrollbackForUiReset]);
 
 	const handleWorkmuxScrollbackCommandFailure = useCallback(
-		(message: string, context: { commandKind: 'enter' | 'scroll' }) => {
+		(message: string) => {
 			handleWorkmuxScrollbackCommandFailureActions({
 				message,
-				commandKind: context.commandKind,
-				scrollbackActive: scrollbackActiveRef.current,
-				remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
-				cancelKeyBytes,
 				alert: (title, alertMessage, buttons) =>
 					Alert.alert(title, alertMessage, buttons),
 				copyMessage: (copyMessage) => {
@@ -829,7 +817,7 @@ function ShellDetail() {
 				warn: (warning) => logger.warn(warning),
 			});
 		},
-		[cancelKeyBytes, clearScrollbackState],
+		[clearScrollbackState],
 	);
 
 	const workmuxScrollbackCommandExecutor = useMemo(
@@ -889,20 +877,12 @@ function ShellDetail() {
 		) => {
 			const plan = buildShellLiveInputSendPlan({
 				scrollbackActive: scrollbackActiveRef.current,
-				cancelKeyBytes,
 				exitKeyBytes,
 				payloadSegments,
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
 				scrollbackExitDelayMs: touchEnterDelayMs,
 				isCurrentPayloadExitKey: opts?.dropPayloadAfterExit,
 			});
-
-			if (plan.type === 'block') {
-				logger.warn(
-					'cancelKey invalid; blocking input until Jump to live is used',
-				);
-				return;
-			}
 
 			const reset = plan.clearScrollback ? clearScrollbackState() : null;
 			if (!plan.segments.length) return;
@@ -923,7 +903,7 @@ function ShellDetail() {
 			}
 			void send()?.catch(() => {});
 		},
-		[cancelKeyBytes, clearScrollbackState, exitKeyBytes, sendBytesQueued],
+		[clearScrollbackState, exitKeyBytes, sendBytesQueued],
 	);
 
 	const sendBytesRaw = useCallback(
@@ -2447,7 +2427,7 @@ function ShellDetail() {
 			const entered = await workmuxScrollbackCommandExecutor.runEnterCommand(
 				command,
 				{
-					cancelCommand: buildWorkmuxAppScrollExitCommand(targetName),
+					rollbackExitCommand: buildWorkmuxAppScrollExitCommand(targetName),
 				},
 			);
 			if (!entered) return;

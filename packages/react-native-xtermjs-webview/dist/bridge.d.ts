@@ -58,10 +58,6 @@ export type TouchScrollConfig = {
     flickVelocity?: number;
     invertScroll?: boolean;
     enterDelayMs?: number;
-    prefixKey?: string;
-    copyModeKey?: string;
-    exitKey?: string;
-    cancelKey?: string;
     coalesceMs?: number;
     minFlushMs?: number;
     maxFlushMs?: number;

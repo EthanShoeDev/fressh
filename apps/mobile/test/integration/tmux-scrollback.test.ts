@@ -8,7 +8,6 @@ import {
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
 	handleWorkmuxScrollbackCommandFailureActions,
-	isValidTmuxCancelKey,
 	resetTmuxScrollbackRuntimeState,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 } from '../../src/lib/tmux-scrollback';
@@ -420,7 +419,7 @@ void test('resetTmuxScrollbackRuntimeState cancels in-flight enter and unwinds r
 	});
 
 	const enter = executor.runEnterCommand('enter', {
-		cancelCommand: 'exit',
+		rollbackExitCommand: 'exit',
 	});
 	await Promise.resolve();
 	void resetTmuxScrollbackRuntimeState({
@@ -450,7 +449,7 @@ void test('resetTmuxScrollbackRuntimeState cancels queued enter before it starts
 	const blocking = executor.enqueueScrollBatch(['blocking-scroll']);
 	await Promise.resolve();
 	const enter = executor.runEnterCommand('enter', {
-		cancelCommand: 'exit',
+		rollbackExitCommand: 'exit',
 	});
 	void resetTmuxScrollbackRuntimeState({
 		lineAccumulator,
@@ -603,10 +602,6 @@ void test('workmux scrollback failure actions alert and clear without cancel bef
 
 	handleWorkmuxScrollbackCommandFailureActions({
 		message: 'Update mdev',
-		commandKind: 'enter',
-		scrollbackActive: true,
-		remoteCopyModeActive: false,
-		cancelKeyBytes: bytes([0x71]),
 		alert: (title, message, buttons) => {
 			events.push(`alert:${title}:${message}:${buttons?.length ?? 0}`);
 			buttons?.[0]?.onPress?.();
@@ -629,10 +624,6 @@ void test('workmux scrollback failure actions use supplied app-exit cleanup afte
 
 	handleWorkmuxScrollbackCommandFailureActions({
 		message: 'page failed',
-		commandKind: 'scroll',
-		scrollbackActive: true,
-		remoteCopyModeActive: true,
-		cancelKeyBytes: bytes([0x71]),
 		alert: (title, message) => events.push(`alert:${title}:${message}`),
 		copyMessage: (message) => events.push(`copy:${message}`),
 		clearScrollbackState: () => events.push('exit', 'clear'),
@@ -652,10 +643,6 @@ void test('workmux scrollback failure actions do not require a valid cancel key 
 
 	handleWorkmuxScrollbackCommandFailureActions({
 		message: 'page failed',
-		commandKind: 'scroll',
-		scrollbackActive: true,
-		remoteCopyModeActive: true,
-		cancelKeyBytes: bytes([0x1b]),
 		alert: (title, message) => events.push(`alert:${title}:${message}`),
 		copyMessage: (message) => events.push(`copy:${message}`),
 		clearScrollbackState: () => events.push('exit', 'clear'),
@@ -670,34 +657,9 @@ void test('workmux scrollback failure actions do not require a valid cancel key 
 	]);
 });
 
-void test('tmux cancel key validation accepts single non-escape keys only', () => {
-	assert.equal(isValidTmuxCancelKey(bytes([0x71])), true);
-	assert.equal(isValidTmuxCancelKey(bytes([0x1b])), false);
-	assert.equal(isValidTmuxCancelKey(bytes([])), false);
-	assert.equal(isValidTmuxCancelKey(bytes([0x71, 0x0d])), false);
-});
-
 void test('live input plan passes payload through when scrollback is inactive', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: false,
-		cancelKey: bytes([0x71]),
-		payloadSegments: [bytes([0x61, 0x62])],
-		interSegmentDelayMs: 7,
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.deepEqual(plan, {
-		type: 'send',
-		segments: [bytes([0x61, 0x62])],
-		interSegmentDelayMs: 7,
-		clearScrollback: false,
-	});
-});
-
-void test('live input plan ignores invalid cancel key when scrollback is inactive', () => {
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: false,
-		cancelKey: bytes([0x1b]),
 		payloadSegments: [bytes([0x61, 0x62])],
 		interSegmentDelayMs: 7,
 		scrollbackExitDelayMs: 10,
@@ -714,7 +676,6 @@ void test('live input plan ignores invalid cancel key when scrollback is inactiv
 void test('live input plan drops empty payload segments while inactive', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: false,
-		cancelKey: bytes([0x71]),
 		payloadSegments: [bytes([]), bytes([0x68]), bytes([]), bytes([0x69, 0x21])],
 		interSegmentDelayMs: 3,
 		scrollbackExitDelayMs: 10,
@@ -731,7 +692,6 @@ void test('live input plan drops empty payload segments while inactive', () => {
 void test('live input plan exits active scrollback without primary-shell cancel before payload', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
-		cancelKey: bytes([0x71]),
 		payloadSegments: [bytes([0x61, 0x62])],
 		interSegmentDelayMs: 0,
 		scrollbackExitDelayMs: 10,
@@ -747,7 +707,6 @@ void test('live input plan exits active scrollback without primary-shell cancel 
 void test('live input plan preserves multi-segment payload order after app-owned scrollback exit', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
-		cancelKey: bytes([0x71]),
 		payloadSegments: [bytes([0x68, 0x69]), bytes([0x0d])],
 		interSegmentDelayMs: 3,
 		scrollbackExitDelayMs: 10,
@@ -763,7 +722,6 @@ void test('live input plan preserves multi-segment payload order after app-owned
 void test('live input plan drops empty payload segments while preserving order', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
-		cancelKey: bytes([0x71]),
 		payloadSegments: [bytes([]), bytes([0x68]), bytes([]), bytes([0x69, 0x21])],
 		interSegmentDelayMs: 3,
 		scrollbackExitDelayMs: 10,
@@ -774,24 +732,9 @@ void test('live input plan drops empty payload segments while preserving order',
 	assert.deepEqual(segmentValues(plan.segments), [[0x68], [0x69, 0x21]]);
 });
 
-void test('live input plan ignores invalid cancel key because app owns active scrollback exit', () => {
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: true,
-		cancelKey: bytes([0x1b]),
-		payloadSegments: [bytes([0x61])],
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.equal(plan.type, 'send');
-	if (plan.type !== 'send') throw new Error('expected send plan');
-	assert.equal(plan.clearScrollback, true);
-	assert.deepEqual(segmentValues(plan.segments), [[0x61]]);
-});
-
 void test('live input plan can treat the payload as only a scrollback exit key', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
-		cancelKey: bytes([0x71]),
 		payloadSegments: [bytes([0x71])],
 		dropPayloadAfterExit: true,
 		scrollbackExitDelayMs: 10,

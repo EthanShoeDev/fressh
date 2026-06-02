@@ -483,7 +483,6 @@ void test('touch scroll exit does not emit primary-shell cancel input after ack'
 		maxExtraLines: 999,
 		velocityMultiplierEnabled: false,
 		backlogMultiplierEnabled: false,
-		cancelKey: 'q',
 	});
 
 	dispatchPointerEvent(root, 'pointerdown', {
