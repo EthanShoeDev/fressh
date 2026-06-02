@@ -1,7 +1,4 @@
-import {
-	type ListenerEvent,
-	type SshShell,
-} from '@fressh/react-native-uniffi-russh';
+import { type ListenerEvent } from '@fressh/react-native-uniffi-russh';
 import {
 	XtermJsWebView,
 	type XtermWebViewHandle,
@@ -102,6 +99,7 @@ import { useTheme } from '@/lib/theme';
 import {
 	buildWorkmuxScrollbackBatchCommands,
 	clearTmuxScrollbackLineAccumulator,
+	createWorkmuxScrollbackCommandQueue,
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
 	isValidTmuxCancelKey,
@@ -413,9 +411,6 @@ function ShellDetail() {
 	const listenerIdRef = useRef<bigint | null>(null);
 	const attachedShellKeyRef = useRef<string | null>(null);
 	const hasAttachedOnceRef = useRef(false);
-	const tmuxControlShellRef = useRef<SshShell | null>(null);
-	const tmuxControlListenerRef = useRef<bigint | null>(null);
-	const tmuxControlWriterRef = useRef<OrderedWriter | null>(null);
 	const [terminalReady, setTerminalReady] = useState(false);
 	const [hasRenderedTerminal, setHasRenderedTerminal] = useState(false);
 	const [shellConfigState, setShellConfigState] = useState(() =>
@@ -468,7 +463,6 @@ function ShellDetail() {
 		tmuxSessionName?.trim().length ? tmuxSessionName.trim() : 'main',
 	);
 	const [tmuxEnabled, setTmuxEnabled] = useState(false);
-	const [tmuxControlReady, setTmuxControlReady] = useState(false);
 
 	useEffect(() => {
 		if (hasTmuxAttachError) return;
@@ -533,58 +527,6 @@ function ShellDetail() {
 			if (xterm) xterm.flush();
 		};
 	}, [shell]);
-
-	useEffect(() => {
-		if (!connection || !tmuxEnabled) {
-			// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Reset readiness when tmux support is unavailable
-			setTmuxControlReady(false);
-			return;
-		}
-		let cancelled = false;
-		const startTmuxControlShell = async () => {
-			try {
-				const controlShell = await connection.startShell({
-					term: 'Xterm',
-					useTmux: false,
-					tmuxSessionName: '',
-					registerInStore: false,
-				});
-				if (cancelled) {
-					await controlShell.close();
-					return;
-				}
-				const listenerId = controlShell.addListener(() => {}, {
-					cursor: { mode: 'live' },
-				});
-				tmuxControlShellRef.current = controlShell;
-				tmuxControlListenerRef.current = listenerId;
-				tmuxControlWriterRef.current = new OrderedWriter(async (bytes) => {
-					await controlShell.sendData(bytes.buffer as ArrayBuffer);
-				});
-				setTmuxControlReady(true);
-			} catch (error) {
-				setTmuxControlReady(false);
-				logger.warn('Failed to start tmux control shell', error);
-			}
-		};
-		void startTmuxControlShell();
-		return () => {
-			cancelled = true;
-			const controlShell = tmuxControlShellRef.current;
-			const listenerId = tmuxControlListenerRef.current;
-			tmuxControlShellRef.current = null;
-			tmuxControlListenerRef.current = null;
-			tmuxControlWriterRef.current = null;
-			setTmuxControlReady(false);
-			if (!controlShell) return;
-			if (listenerId != null) {
-				controlShell.removeListener(listenerId);
-			}
-			controlShell.close().catch((error) => {
-				logger.warn('Failed to close tmux control shell', error);
-			});
-		};
-	}, [connection, tmuxEnabled]);
 
 	useEffect(() => {
 		return () => {
@@ -704,6 +646,9 @@ function ShellDetail() {
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
+	const workmuxScrollbackCommandQueueRef = useRef(
+		createWorkmuxScrollbackCommandQueue(),
+	);
 	const tmuxScrollbackLineAccumulatorRef = useRef(
 		createTmuxScrollbackLineAccumulator(),
 	);
@@ -756,7 +701,7 @@ function ShellDetail() {
 		Platform.OS === 'android' &&
 		Math.min(width, height) >= 600 &&
 		tmuxEnabled &&
-		tmuxControlReady;
+		Boolean(connection);
 	const touchScrollConfig = useMemo<TouchScrollConfig>(
 		() =>
 			touchScrollEnabled
@@ -2459,7 +2404,10 @@ function ShellDetail() {
 			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 			const command = buildWorkmuxAppScrollEnterCommand(targetName);
-			if (!(await runWorkmuxScrollbackCommand(command))) return;
+			const entered = await workmuxScrollbackCommandQueueRef.current.enqueue(
+				() => runWorkmuxScrollbackCommand(command),
+			);
+			if (!entered) return;
 			xtermRef.current?.sendTmuxEnterCopyModeAck(
 				event.requestId,
 				event.instanceId,
@@ -2483,7 +2431,7 @@ function ShellDetail() {
 				return;
 			}
 			if (selectionModeEnabled) return;
-			if (!tmuxEnabled || !tmuxControlReady) return;
+			if (!tmuxEnabled || !connection) return;
 
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 			const commands = buildWorkmuxScrollbackBatchCommands({
@@ -2497,17 +2445,18 @@ function ShellDetail() {
 				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
 			});
 			if (commands.length === 0) return;
-			void (async () => {
+			void workmuxScrollbackCommandQueueRef.current.enqueue(async () => {
+				if (!scrollbackActiveRef.current) return;
 				for (const command of commands) {
 					if (!(await runWorkmuxScrollbackCommand(command))) return;
 				}
-			})();
+			});
 		},
 		[
+			connection,
 			shell,
 			selectionModeEnabled,
 			runWorkmuxScrollbackCommand,
-			tmuxControlReady,
 			tmuxTarget,
 			tmuxEnabled,
 		],

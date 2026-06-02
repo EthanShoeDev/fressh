@@ -5,19 +5,28 @@ import {
 	type WorkmuxScrollDirection,
 } from './workmux-app-commands';
 
-const encoder = new TextEncoder();
-
 // Bounds malformed bridge batches before splitting into remote commands.
 export const TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH = 100;
-
-export type TmuxControlWriter = {
-	send: (bytes: Uint8Array<ArrayBufferLike>) => Promise<void>;
-};
 
 export type TmuxScrollbackLineAccumulator = {
 	direction: WorkmuxScrollDirection | null;
 	lines: number;
 };
+
+export type WorkmuxScrollbackCommandQueue = {
+	enqueue: <T>(operation: () => Promise<T>) => Promise<T>;
+};
+
+export function createWorkmuxScrollbackCommandQueue(): WorkmuxScrollbackCommandQueue {
+	let tail: Promise<unknown> = Promise.resolve();
+	return {
+		enqueue: <T>(operation: () => Promise<T>) => {
+			const next = tail.then(operation, operation);
+			tail = next.catch(() => {});
+			return next;
+		},
+	};
+}
 
 export function createTmuxScrollbackLineAccumulator(): TmuxScrollbackLineAccumulator {
 	return {
@@ -99,28 +108,6 @@ export function formatWorkmuxScrollbackCommandFailureMessage(result: {
 	return formatWorkmuxAppCommandFailureMessage(
 		result.error || result.output || '',
 	);
-}
-
-export async function runTmuxControlCommand(
-	writer: null | TmuxControlWriter,
-	command: string,
-): Promise<boolean> {
-	if (!writer) return false;
-	try {
-		await writer.send(encoder.encode(`${command}\n`));
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-export function getTmuxScrollbackControlFailurePolicy({
-	scrollbackActive,
-}: {
-	scrollbackActive: boolean;
-}): 'exit-scrollback-and-restart-control' | 'restart-control-only' {
-	if (scrollbackActive) return 'exit-scrollback-and-restart-control';
-	return 'restart-control-only';
 }
 
 function truncateNonNegativeInteger(value: number): number {

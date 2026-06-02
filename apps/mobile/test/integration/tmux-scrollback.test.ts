@@ -4,9 +4,9 @@ import {
 	buildTmuxScrollbackLiveInputSendPlan,
 	buildWorkmuxScrollbackBatchCommands,
 	clearTmuxScrollbackLineAccumulator,
+	createWorkmuxScrollbackCommandQueue,
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
-	getTmuxScrollbackControlFailurePolicy,
 	isValidTmuxCancelKey,
 	resolveTmuxScrollbackReceiverLinesPerPage,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
@@ -219,15 +219,54 @@ void test('formatWorkmuxScrollbackCommandFailureMessage formats missing mdev fai
 	);
 });
 
-void test('tmux scrollback control failure policy only exits active scrollback', () => {
-	assert.equal(
-		getTmuxScrollbackControlFailurePolicy({ scrollbackActive: false }),
-		'restart-control-only',
+void test('workmux scrollback command queue serializes concurrent operations', async () => {
+	const queue = createWorkmuxScrollbackCommandQueue();
+	const events: string[] = [];
+	let releaseFirst: () => void = () => {};
+	const firstBlock = new Promise<void>((resolve) => {
+		releaseFirst = resolve;
+	});
+
+	const first = queue.enqueue(async () => {
+		events.push('first-start');
+		await firstBlock;
+		events.push('first-end');
+		return 'first';
+	});
+	const second = queue.enqueue(async () => {
+		events.push('second-start');
+		return 'second';
+	});
+
+	await Promise.resolve();
+	await Promise.resolve();
+	assert.deepEqual(events, ['first-start']);
+
+	releaseFirst();
+	assert.equal(await first, 'first');
+	assert.equal(await second, 'second');
+	assert.deepEqual(events, ['first-start', 'first-end', 'second-start']);
+});
+
+void test('workmux scrollback command queue continues after failed operation', async () => {
+	const queue = createWorkmuxScrollbackCommandQueue();
+	const events: string[] = [];
+
+	await assert.rejects(
+		queue.enqueue(async () => {
+			events.push('first');
+			throw new Error('failed');
+		}),
+		/failed/,
 	);
 	assert.equal(
-		getTmuxScrollbackControlFailurePolicy({ scrollbackActive: true }),
-		'exit-scrollback-and-restart-control',
+		await queue.enqueue(async () => {
+			events.push('second');
+			return 'ok';
+		}),
+		'ok',
 	);
+	assert.deepEqual(events, ['first', 'second']);
 });
 
 void test('tmux cancel key validation accepts single non-escape keys only', () => {
