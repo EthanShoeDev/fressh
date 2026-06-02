@@ -25,7 +25,7 @@ import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
 import { createDefaultXtermOptions } from './terminal-options';
 
 export { bStrToBinary, binaryToBStr };
-export type { TouchScrollConfig };
+export type { TmuxScrollBatchEvent, TouchScrollConfig };
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;

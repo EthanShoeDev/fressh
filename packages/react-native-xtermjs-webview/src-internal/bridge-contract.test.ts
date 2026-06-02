@@ -85,6 +85,10 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 	for (const { path, content } of artifacts) {
 		if (path === 'dist/index.d.ts') {
 			assert.match(content, /onTmuxScrollBatch\?: \(event: TmuxScrollBatchEvent\)/);
+			assert.match(
+				content,
+				/export type \{ TmuxScrollBatchEvent, TouchScrollConfig \}/,
+			);
 		} else {
 			assert.match(content, /pageStep/);
 		}

@@ -11,11 +11,6 @@ type DirectTmuxOccurrence = {
 	kind: 'rust-process' | 'shell';
 };
 
-const expectedTemporaryViolationOccurrences = new Map<
-	string,
-	DirectTmuxOccurrence[]
->([]);
-
 const scannedRoots = [
 	path.join(repoRoot, 'apps/mobile/src'),
 	path.join(
@@ -238,14 +233,6 @@ function containsDirectTmuxCommand(text: string): boolean {
 	return findDirectTmuxOccurrences(text).length > 0;
 }
 
-function occurrenceKey(occurrence: DirectTmuxOccurrence): string {
-	return [
-		occurrence.kind,
-		occurrence.functionName,
-		occurrence.commandPrefix,
-	].join(':');
-}
-
 void test('direct tmux command detector matches shell command strings', () => {
 	const directShellCommands = [
 		'`cd /tmp && tmux attach -t main`',
@@ -327,7 +314,7 @@ void test('direct tmux command detector ignores mdev and prose', () => {
 	}
 });
 
-void test('direct tmux command strings match exact temporary violation occurrences', () => {
+void test('direct tmux command strings are absent outside the app boundary', () => {
 	const actualOccurrencesByFile = new Map<string, DirectTmuxOccurrence[]>();
 
 	for (const root of scannedRoots) {
@@ -340,25 +327,9 @@ void test('direct tmux command strings match exact temporary violation occurrenc
 		}
 	}
 
-	const actualFiles = [...actualOccurrencesByFile.keys()].sort();
-	const expectedFiles = [
-		...expectedTemporaryViolationOccurrences.keys(),
-	].sort();
 	assert.deepEqual(
-		actualFiles,
-		expectedFiles,
+		[...actualOccurrencesByFile.entries()].sort(),
+		[],
 		JSON.stringify([...actualOccurrencesByFile.entries()]),
 	);
-
-	for (const [
-		file,
-		expectedOccurrences,
-	] of expectedTemporaryViolationOccurrences) {
-		const actualOccurrences = actualOccurrencesByFile.get(file) ?? [];
-		assert.deepEqual(
-			actualOccurrences.map(occurrenceKey).sort(),
-			expectedOccurrences.map(occurrenceKey).sort(),
-			file,
-		);
-	}
 });

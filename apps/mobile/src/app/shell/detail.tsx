@@ -103,8 +103,8 @@ import {
 	createTmuxScrollbackLineAccumulator,
 	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
-	registerTmuxScrollbackLiveInputCleanup,
-	resetTmuxScrollbackRuntimeState,
+	registerTmuxScrollbackRemoteCopyModeExitCleanup,
+	resetTmuxScrollbackRuntimeStateForUiReset,
 	type WorkmuxScrollbackCommandExecutor,
 } from '@/lib/tmux-scrollback';
 import { queryClient } from '@/lib/utils';
@@ -781,21 +781,14 @@ function ShellDetail() {
 	);
 
 	const resetTmuxScrollbackForUiReset = useCallback(() => {
-		const remoteCopyModeWasActive =
-			tmuxRemoteScrollbackCopyModeActiveRef.current;
-		tmuxRemoteScrollbackCopyModeActiveRef.current = false;
 		const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-		const reset = resetTmuxScrollbackRuntimeState({
+		const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
 			lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
 			commandExecutor: workmuxScrollbackCommandExecutorRef.current,
-			remoteCopyModeExitCommand: remoteCopyModeWasActive
-				? buildWorkmuxAppScrollExitCommand(targetName)
-				: undefined,
+			cleanupBarrier: scrollbackCleanupBarrierRef.current,
+			remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
+			remoteCopyModeExitCommand: buildWorkmuxAppScrollExitCommand(targetName),
 		});
-		const cleanup = registerTmuxScrollbackLiveInputCleanup(
-			scrollbackCleanupBarrierRef.current,
-			reset,
-		);
 		void cleanup?.catch((error: unknown) => {
 			logger.warn('Workmux scrollback reset exit failed', error);
 		});
@@ -860,19 +853,18 @@ function ShellDetail() {
 		return () => {
 			const remoteCopyModeWasActive =
 				tmuxRemoteScrollbackCopyModeActiveRef.current;
-			tmuxRemoteScrollbackCopyModeActiveRef.current = false;
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 			const exit = workmuxScrollbackCommandExecutor.dispose({
 				exitCommand: remoteCopyModeWasActive
 					? buildWorkmuxAppScrollExitCommand(targetName)
 					: undefined,
 			});
-			const cleanup = exit
-				? registerTmuxScrollbackLiveInputCleanup(
-						scrollbackCleanupBarrier,
-						exit,
-					)
-				: null;
+			const cleanup = registerTmuxScrollbackRemoteCopyModeExitCleanup({
+				barrier: scrollbackCleanupBarrier,
+				cleanup: exit,
+				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
+				remoteCopyModeWasActive,
+			});
 			void cleanup?.catch((error: unknown) => {
 				logger.warn('Workmux scrollback dispose exit failed', error);
 			});
@@ -894,7 +886,9 @@ function ShellDetail() {
 			},
 		) => {
 			const plan = buildShellLiveInputSendPlan({
-				scrollbackActive: scrollbackActiveRef.current,
+				scrollbackActive:
+					scrollbackActiveRef.current ||
+					tmuxRemoteScrollbackCopyModeActiveRef.current,
 				exitKeyBytes,
 				payloadSegments,
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
@@ -911,6 +905,12 @@ function ShellDetail() {
 				sendBytesQueued(plan.segments, {
 					interSegmentDelayMs: plan.interSegmentDelayMs,
 				});
+			if (
+				!cleanupBarrier &&
+				tmuxRemoteScrollbackCopyModeActiveRef.current
+			) {
+				return;
+			}
 			if (cleanupBarrier) {
 				void cleanupBarrier
 					.then((exited) => {

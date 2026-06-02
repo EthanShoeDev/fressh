@@ -11,6 +11,7 @@ import {
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleTmuxScrollbackInactiveAppStateTransition,
 	registerTmuxScrollbackLiveInputCleanup,
+	resetTmuxScrollbackRuntimeStateForUiReset,
 	resetTmuxScrollbackRuntimeState,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 } from '../../src/lib/tmux-scrollback';
@@ -592,6 +593,72 @@ void test('resetTmuxScrollbackRuntimeState reports active Workmux scroll exit fa
 	assert.deepEqual(commands, ['slow-page', 'exit']);
 	assert.deepEqual(failures, ['exit failed']);
 	assert.deepEqual(disposeFailures, []);
+});
+
+void test('failed UI reset exit keeps remote copy mode active and blocks later live input', async () => {
+	const commands: string[] = [];
+	const sentPayloads: number[][] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const remoteCopyModeActiveRef = { current: false };
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'exit') {
+				return { success: false, output: '', error: 'exit failed' };
+			}
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	assert.equal(
+		await executor.runEnterCommand('enter', {
+			rollbackExitCommand: 'exit',
+		}),
+		true,
+	);
+	remoteCopyModeActiveRef.current = true;
+
+	const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
+		lineAccumulator,
+		commandExecutor: executor,
+		cleanupBarrier,
+		remoteCopyModeActiveRef,
+		remoteCopyModeExitCommand: 'exit',
+	});
+
+	assert.notEqual(cleanup, null);
+	assert.equal(await cleanup, false);
+	assert.equal(cleanupBarrier.current(), null);
+	assert.equal(remoteCopyModeActiveRef.current, true);
+
+	const plan = buildTmuxScrollbackLiveInputSendPlan({
+		scrollbackActive: remoteCopyModeActiveRef.current,
+		payloadSegments: [bytes([0x70])],
+		scrollbackExitDelayMs: 10,
+	});
+	const retryCleanup = plan.clearScrollback
+		? resetTmuxScrollbackRuntimeStateForUiReset({
+				lineAccumulator,
+				commandExecutor: executor,
+				cleanupBarrier,
+				remoteCopyModeActiveRef,
+				remoteCopyModeExitCommand: 'exit',
+			})
+		: cleanupBarrier.current();
+
+	if (retryCleanup) {
+		await retryCleanup.then((exited) => {
+			if (exited) sentPayloads.push(...segmentValues(plan.segments));
+		});
+	} else if (!remoteCopyModeActiveRef.current) {
+		sentPayloads.push(...segmentValues(plan.segments));
+	}
+
+	assert.deepEqual(sentPayloads, []);
+	assert.equal(remoteCopyModeActiveRef.current, true);
+	assert.deepEqual(commands, ['enter', 'exit', 'exit']);
 });
 
 void test('resetTmuxScrollbackRuntimeState keeps queued Workmux scroll exit after repeated inactive reset', async () => {

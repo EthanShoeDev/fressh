@@ -2,7 +2,7 @@ import { default as React, RefObject } from 'react';
 import { WebView } from 'react-native-webview';
 import { binaryToBStr, bStrToBinary, TmuxScrollBatchEvent, TouchScrollConfig } from './bridge';
 export { bStrToBinary, binaryToBStr };
-export type { TouchScrollConfig };
+export type { TmuxScrollBatchEvent, TouchScrollConfig };
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type WebViewOptions = React.ComponentProps<typeof WebView>;

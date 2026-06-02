@@ -1224,23 +1224,18 @@ const commands = buildWorkmuxScrollbackBatchCommands({
 	direction: event.direction,
 	pages: event.pages,
 	lines: event.lines,
+	linesPerPage: event.pageStep,
 	lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
-	linesPerPage: 24,
 });
 if (commands.length === 0) return;
-void (async () => {
-	for (const command of commands) {
-		if (await sendTmuxControlCommand(command)) continue;
-		logger.warn(
-			'tmux touch-scroll batch unavailable without tmux control shell',
-		);
-		return;
-	}
-})();
+void workmuxScrollbackCommandExecutor.enqueueScrollBatch(commands);
 ```
 
 Keep the existing guards for shell presence, instance id, selection mode,
-`tmuxEnabled`, and `tmuxControlReady`.
+`tmuxEnabled`, connection presence, active scrollback state, and current
+instance id. Do not send these touch-scroll commands through a tmux control
+shell; enqueue the Workmux app scroll commands so failures and cleanup use the
+shared Workmux scrollback executor.
 
 - [ ] **Step 5: Run scrollback tests to verify they pass**
 
@@ -1780,14 +1775,15 @@ git commit -m "chore(mobile): use Workmux app keyboard actions"
 
 - [ ] **Step 1: Update the guard expectation**
 
-In `apps/mobile/test/integration/direct-tmux-boundary.test.ts`, replace the
-`expectedTemporaryViolationOccurrences` initialization with:
+In `apps/mobile/test/integration/direct-tmux-boundary.test.ts`, remove the
+temporary allowlist and compare the scanner output directly to an empty list:
 
 ```ts
-const expectedTemporaryViolationOccurrences = new Map<
-	string,
-	DirectTmuxOccurrence[]
->();
+assert.deepEqual(
+	[...actualOccurrencesByFile.entries()].sort(),
+	[],
+	JSON.stringify([...actualOccurrencesByFile.entries()]),
+);
 ```
 
 Do not change the scanner. The test should still scan:
