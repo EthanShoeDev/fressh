@@ -3,8 +3,11 @@ import test from 'node:test';
 import {
 	CONFIG_SUPPORTED_ACTION_IDS,
 	KNOWN_ACTION_IDS,
+	WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
+	formatWorkmuxKeyboardCommandFailureMessage,
 	runAction,
 } from '../../src/lib/keyboard-actions';
+import { WORKMUX_APP_COMMAND_UPDATE_MESSAGE } from '../../src/lib/workmux-app-commands';
 
 void test('keyboard navigation actions use runtime-configured targets instead of hardcoded ids', async () => {
 	const selectedKeyboardIds: string[] = [];
@@ -221,4 +224,23 @@ void test('Workmux keyboard actions delegate semantic commands without sending b
 	assert.equal(sentBytes, 0);
 	assert.equal(KNOWN_ACTION_IDS.includes('WORKMUX_FOCUS_CLAUDE'), true);
 	assert.equal(KNOWN_ACTION_IDS.includes('WORKMUX_NAV_NEXT'), true);
+});
+
+void test('Workmux keyboard failure copy preserves local precondition failures', () => {
+	assert.equal(
+		formatWorkmuxKeyboardCommandFailureMessage({
+			errorMessage: WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
+			localPreconditionFailure: true,
+			formatRemoteFailureMessage: () => WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+		}),
+		WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
+	);
+	assert.equal(
+		formatWorkmuxKeyboardCommandFailureMessage({
+			errorMessage: 'mdev: command not found',
+			localPreconditionFailure: false,
+			formatRemoteFailureMessage: () => WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+		}),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
 });

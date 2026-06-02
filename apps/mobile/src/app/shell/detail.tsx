@@ -56,6 +56,8 @@ import {
 } from '@/lib/detected-open-actions';
 import {
 	HANDLE_DEV_SERVER_URL,
+	WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
+	formatWorkmuxKeyboardCommandFailureMessage,
 	runAction,
 	type ActionContext,
 	type ActionId,
@@ -132,7 +134,6 @@ import {
 } from '@/lib/wispr-automation';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
 import {
-	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	buildWorkmuxAppFocusCommand,
 	buildWorkmuxAppNavCommand,
 	formatWorkmuxAppCommandFailureMessage,
@@ -2168,11 +2169,11 @@ function ShellDetail() {
 	const runWorkmuxKeyboardCommand = useCallback(
 		(command: WorkmuxKeyboardCommand) => {
 			void (async () => {
+				let localPreconditionFailure = false;
 				try {
 					if (!tmuxEnabled) {
-						throw new Error(
-							'Workmux actions require a Workmux-enabled connection.',
-						);
+						localPreconditionFailure = true;
+						throw new Error(WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE);
 					}
 					const sessionName = tmuxTarget.trim() || 'main';
 					const remoteCommand =
@@ -2185,9 +2186,11 @@ function ShellDetail() {
 								);
 					await browserActions.runHostBrowserCommand(remoteCommand, 10_000);
 				} catch (error) {
-					const message =
-						formatWorkmuxAppCommandFailureMessage(getErrorMessage(error)) ||
-						WORKMUX_APP_COMMAND_UPDATE_MESSAGE;
+					const message = formatWorkmuxKeyboardCommandFailureMessage({
+						errorMessage: getErrorMessage(error),
+						localPreconditionFailure,
+						formatRemoteFailureMessage: formatWorkmuxAppCommandFailureMessage,
+					});
 					Alert.alert('Workmux action failed', message);
 				}
 			})();

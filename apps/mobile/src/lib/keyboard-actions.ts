@@ -69,6 +69,22 @@ export type ActionId = KnownActionId | (string & {});
 export type WorkmuxKeyboardCommand =
 	| { type: 'focus'; target: WorkmuxFocusTarget }
 	| { type: 'nav'; action: WorkmuxNavAction; index?: number };
+export const WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE =
+	'Workmux actions require a Workmux-enabled connection.';
+
+export function formatWorkmuxKeyboardCommandFailureMessage({
+	errorMessage,
+	localPreconditionFailure,
+	formatRemoteFailureMessage,
+}: {
+	errorMessage: string;
+	localPreconditionFailure: boolean;
+	formatRemoteFailureMessage: (message: string) => string;
+}): string {
+	return localPreconditionFailure
+		? errorMessage
+		: formatRemoteFailureMessage(errorMessage);
+}
 
 export type ActionContext = {
 	availableKeyboardIds: Set<string>;
