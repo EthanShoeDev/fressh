@@ -852,9 +852,14 @@ function ShellDetail() {
 		[clearLocalScrollbackUiState, clearScrollbackState],
 	);
 
+	const normalizedTmuxTarget = tmuxTarget.trim().length
+		? tmuxTarget.trim()
+		: 'main';
+
 	const workmuxScrollbackCommandExecutor = useMemo(
 		() =>
 			createWorkmuxScrollbackCommandExecutor({
+				lifecycleKey: normalizedTmuxTarget,
 				executeCommand: async (command) => {
 					if (!connection) {
 						return {
@@ -876,7 +881,7 @@ function ShellDetail() {
 					warn: (warning) => logger.warn(warning),
 				}),
 		}),
-		[connection, handleWorkmuxScrollbackCommandFailure],
+		[connection, handleWorkmuxScrollbackCommandFailure, normalizedTmuxTarget],
 	);
 
 	useEffect(() => {
@@ -886,14 +891,13 @@ function ShellDetail() {
 			workmuxScrollbackCommandExecutor;
 		return () => {
 			scrollbackEnterRequestGenerationRef.current += 1;
-			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 			const cleanup = disposeTmuxScrollbackRuntimeStateForUiReset({
 				lineAccumulator,
 				commandExecutor: workmuxScrollbackCommandExecutor,
 				cleanupBarrier: scrollbackCleanupBarrier,
 				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
 				cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
-				targetName,
+				targetName: normalizedTmuxTarget,
 			});
 			void cleanup?.catch((error: unknown) => {
 				logger.warn('Workmux scrollback dispose exit failed', error);
@@ -905,7 +909,7 @@ function ShellDetail() {
 				workmuxScrollbackCommandExecutorRef.current = null;
 			}
 		};
-	}, [tmuxTarget, workmuxScrollbackCommandExecutor]);
+	}, [normalizedTmuxTarget, workmuxScrollbackCommandExecutor]);
 
 	const sendLiveInputSegments = useCallback(
 		(

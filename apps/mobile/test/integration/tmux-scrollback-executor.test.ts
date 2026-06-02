@@ -273,6 +273,27 @@ void test('workmux scrollback executor dispose clears pending scroll and blocks 
 	assert.deepEqual(commands, ['enter']);
 });
 
+void test('workmux scrollback executor replacement after target change is usable after disposing old executor', async () => {
+	const commands: string[] = [];
+	const createExecutor = () =>
+		createWorkmuxScrollbackCommandExecutor({
+			executeCommand: async (command) => {
+				commands.push(command);
+				return { success: true, output: '' };
+			},
+			onFailure: () => {},
+		});
+
+	const oldExecutor = createExecutor();
+	const nextExecutor = createExecutor();
+
+	assert.equal(await oldExecutor.dispose({ exitCommand: 'exit-main' }), true);
+	assert.equal(await oldExecutor.runEnterCommand('enter-main'), false);
+	assert.equal(await nextExecutor.runEnterCommand('enter-work'), true);
+
+	assert.deepEqual(commands, ['exit-main', 'enter-work']);
+});
+
 void test('workmux scrollback executor dispose suppresses late failure callbacks', async () => {
 	const commandBlock = deferred<void>();
 	const failures: string[] = [];
