@@ -103,6 +103,13 @@ void test('workmux nav select builder requires an index', () => {
 	);
 });
 
+void test('workmux nav builder rejects indexes for non-select actions', () => {
+	assert.throws(
+		() => buildWorkmuxAppNavCommand('main', 'next', 3),
+		/Unexpected Workmux nav index/,
+	);
+});
+
 void test('workmux app context parser accepts one complete JSON object', () => {
 	assert.deepEqual(
 		parseWorkmuxAppContextOutput(`${JSON.stringify(context)}\n`),
@@ -123,6 +130,7 @@ void test('workmux app parsers reject bad or ambiguous output', () => {
 		'not json',
 		`${JSON.stringify(context)}\n${JSON.stringify(context)}`,
 		JSON.stringify({ ...context, paneId: '' }),
+		JSON.stringify({ ...context, paneTty: '   ' }),
 		JSON.stringify({ ...context, windowIndex: '12' }),
 	]) {
 		assert.throws(
@@ -135,6 +143,14 @@ void test('workmux app parsers reject bad or ambiguous output', () => {
 		() =>
 			parseWorkmuxAppWindowOutput(
 				JSON.stringify({ ...windowProjection, windowId: '' }),
+			),
+		/Invalid Workmux app window/,
+	);
+
+	assert.throws(
+		() =>
+			parseWorkmuxAppWindowOutput(
+				JSON.stringify({ ...windowProjection, windowName: '   ' }),
 			),
 		/Invalid Workmux app window/,
 	);

@@ -18,29 +18,34 @@ export type WorkmuxAppContext = {
 	projectName: string;
 };
 
-export type WorkmuxAppWindow = {
-	sessionName: string;
-	target: string;
-	windowId: string;
-	windowIndex: number;
-	windowName: string;
-	workspaceId: string;
-	role: string;
-	roleWindow: boolean;
-	homeWindow: boolean;
-};
+export type WorkmuxAppWindow = Pick<
+	WorkmuxAppContext,
+	| 'homeWindow'
+	| 'role'
+	| 'roleWindow'
+	| 'sessionName'
+	| 'target'
+	| 'windowId'
+	| 'windowIndex'
+	| 'windowName'
+	| 'workspaceId'
+>;
 
-type WorkmuxScrollDirection = 'down' | 'up';
-type WorkmuxFocusAction =
+export type WorkmuxScrollDirection = 'down' | 'up';
+export type WorkmuxFocusTarget =
 	| 'bash'
 	| 'claude'
 	| 'codex'
 	| 'git'
 	| 'next'
 	| 'prev'
-	| 'toggle-git-bash'
-	| (string & {});
-type WorkmuxNavAction = 'next' | 'next-all' | 'prev' | 'prev-all' | 'select';
+	| 'toggle-git-bash';
+export type WorkmuxNavAction =
+	| 'next'
+	| 'next-all'
+	| 'prev'
+	| 'prev-all'
+	| 'select';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -111,7 +116,7 @@ export function buildWorkmuxAppScrollPageCommand(
 
 export function buildWorkmuxAppFocusCommand(
 	sessionName: string,
-	roleOrDirection: WorkmuxFocusAction,
+	roleOrDirection: WorkmuxFocusTarget,
 ): string {
 	return [
 		'mdev tmux app focus',
@@ -125,17 +130,26 @@ export function buildWorkmuxAppNavCommand(
 	action: WorkmuxNavAction,
 	index?: number,
 ): string {
-	if (action === 'select' && index === undefined) {
-		throw new Error('Missing Workmux nav select index');
-	}
-
-	const command = ['mdev tmux app nav', quoteShellValue(action)];
-	if (index !== undefined) {
+	if (action === 'select') {
+		if (index === undefined) {
+			throw new Error('Missing Workmux nav select index');
+		}
 		if (!isSafePositiveInteger(index)) {
 			throw new Error(`Invalid Workmux nav select index: ${index}`);
 		}
-		command.push(quoteShellValue(String(index)));
+		return [
+			'mdev tmux app nav',
+			quoteShellValue(action),
+			quoteShellValue(String(index)),
+			`--session ${quoteShellValue(normalizeSessionName(sessionName))}`,
+		].join(' ');
 	}
+
+	if (index !== undefined) {
+		throw new Error(`Unexpected Workmux nav index for action: ${action}`);
+	}
+
+	const command = ['mdev tmux app nav', quoteShellValue(action)];
 	command.push(`--session ${quoteShellValue(normalizeSessionName(sessionName))}`);
 
 	return command.join(' ');
@@ -280,7 +294,7 @@ function requireNonEmptyString(
 	errorMessage: string,
 ): string {
 	const field = value[fieldName];
-	if (typeof field !== 'string' || field.length === 0) {
+	if (typeof field !== 'string' || field.trim().length === 0) {
 		throw new Error(errorMessage);
 	}
 	return field;
