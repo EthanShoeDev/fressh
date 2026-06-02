@@ -70,6 +70,8 @@ Expected builders:
   - `mdev tmux app notification open --session <session> --window-id <@id>`
 - `buildWorkmuxAppScrollEnterCommand(sessionName)`
   - `mdev tmux app scroll enter --session <session>`
+- `buildWorkmuxAppScrollExitCommand(sessionName)`
+  - `mdev tmux app scroll exit --session <session>`
 - `buildWorkmuxAppScrollPageCommand(sessionName, direction, count)`
   - `mdev tmux app scroll page-up|page-down --count <count> --session <session>`
 - `buildWorkmuxAppFocusCommand(sessionName, roleOrDirection)`
@@ -131,6 +133,12 @@ Touch scrollback entry should run:
 mdev tmux app scroll enter --session <session>
 ```
 
+Touch scrollback cleanup and rollback should run:
+
+```text
+mdev tmux app scroll exit --session <session>
+```
+
 Touch scroll batches should run:
 
 ```text
@@ -189,6 +197,11 @@ nonzero exits should be reported as Workmux-level failures:
 Update mdev on the remote machine; this action requires mdev tmux app commands.
 ```
 
+The required command surface includes `mdev tmux app scroll exit --session
+<session>` for touch scrollback cleanup and enter rollback. That command was
+added to the local `mdev` checkout in commit `39b6b1d`; older remote `mdev`
+installs must still be updated before this Fressh boundary can work.
+
 Use alerts only for user-initiated actions such as browser actions and keyboard
 actions. Background acknowledgement remains best-effort and should warn without
 showing an alert. Notification tap routing also remains log-only on failure to
@@ -202,7 +215,9 @@ Update focused tests around the new boundary:
   `tmux display-message`.
 - Parser tests validate Workmux app context/window JSON, required fields, bad
   JSON, and extra output.
-- Scrollback command tests expect `mdev tmux app scroll enter/page-up/page-down`.
+- Scrollback command tests expect `mdev tmux app scroll enter`, `mdev tmux app
+  scroll exit`, `mdev tmux app scroll page-up`, and `mdev tmux app scroll
+  page-down`.
 - Notification visibility tests expect `mdev tmux app notification open` and
   `mdev tmux app window`.
 - Keyboard action tests prove Workmux role/workspace actions call side-channel

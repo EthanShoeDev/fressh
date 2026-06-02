@@ -42,6 +42,8 @@ and the final guard proves the boundary is complete.
 - Modify: `apps/mobile/src/lib/tmux-scrollback.ts`
   - Remove direct tmux scrollback and select-window builders.
   - Add page command planning with line accumulation.
+  - Require `mdev tmux app scroll exit --session <session>` for cleanup and
+    rollback after scrollback entry.
 - Modify: `apps/mobile/src/app/shell/detail.tsx`
   - Send Workmux app scroll commands on touch-scroll entry and batches.
   - Add side-channel runner for keyboard Workmux app actions.
@@ -81,6 +83,7 @@ import {
 	buildWorkmuxAppNavCommand,
 	buildWorkmuxAppNotificationOpenCommand,
 	buildWorkmuxAppScrollEnterCommand,
+	buildWorkmuxAppScrollExitCommand,
 	buildWorkmuxAppScrollPageCommand,
 	buildWorkmuxAppWindowCommand,
 	formatWorkmuxAppCommandFailureMessage,
@@ -135,6 +138,10 @@ void test('workmux app command builders shell-quote app arguments', () => {
 	assert.equal(
 		buildWorkmuxAppScrollEnterCommand("main'quoted"),
 		"mdev tmux app scroll enter --session 'main'\\''quoted'",
+	);
+	assert.equal(
+		buildWorkmuxAppScrollExitCommand("main'quoted"),
+		"mdev tmux app scroll exit --session 'main'\\''quoted'",
 	);
 	assert.equal(
 		buildWorkmuxAppScrollPageCommand("main'quoted", 'up', 3),
@@ -357,6 +364,14 @@ export function buildWorkmuxAppScrollEnterCommand(
 	sessionName: string,
 ): string {
 	return `mdev tmux app scroll enter --session ${quoteShell(
+		normalizedSessionName(sessionName),
+	)}`;
+}
+
+export function buildWorkmuxAppScrollExitCommand(
+	sessionName: string,
+): string {
+	return `mdev tmux app scroll exit --session ${quoteShell(
 		normalizedSessionName(sessionName),
 	)}`;
 }
@@ -1160,7 +1175,10 @@ In `apps/mobile/src/app/shell/detail.tsx`, replace imports of
 from `@/lib/tmux-scrollback`, and import:
 
 ```ts
-import { buildWorkmuxAppScrollEnterCommand } from '@/lib/workmux-app-commands';
+import {
+	buildWorkmuxAppScrollEnterCommand,
+	buildWorkmuxAppScrollExitCommand,
+} from '@/lib/workmux-app-commands';
 ```
 
 Add a ref near the other scrollback refs:
@@ -1187,6 +1205,14 @@ In `handleTmuxEnterCopyMode`, replace command construction with:
 ```ts
 const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 const command = buildWorkmuxAppScrollEnterCommand(targetName);
+```
+
+Use `buildWorkmuxAppScrollExitCommand(targetName)` for touch scrollback cleanup
+and rollback after a successful `scroll enter`; this maps to the required
+remote command:
+
+```text
+mdev tmux app scroll exit --session <session>
 ```
 
 In `handleTmuxScrollBatch`, replace the current single command construction with:
@@ -1889,6 +1915,8 @@ If no fixes were needed, do not create an empty commit.
 ## Rollout Note
 
 Before testing this in the Android app against a real Workmux session, update
-the remote `mdev` installation so it includes merged PR 93. Older remotes are
-intentionally unsupported for the migrated Workmux actions and should fail with
-the update message instead of falling back to direct tmux.
+the remote `mdev` installation so it includes merged PR 93 and the later
+`mdev tmux app scroll exit --session <session>` command added in local `mdev`
+commit `39b6b1d`. Older remotes are intentionally unsupported for the migrated
+Workmux actions and should fail with the update message instead of falling back
+to direct tmux.
