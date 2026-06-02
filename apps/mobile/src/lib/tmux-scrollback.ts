@@ -23,6 +23,7 @@ export type WorkmuxScrollbackCommandExecutor = {
 	runEnterCommand: (command: string) => Promise<boolean>;
 	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
 	clearPendingScrollBatches: () => void;
+	dispose: () => void;
 	getPendingScrollBatchCount: () => number;
 };
 
@@ -34,6 +35,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 	onFailure: (message: string) => void;
 }): WorkmuxScrollbackCommandExecutor {
 	let tail: Promise<unknown> = Promise.resolve();
+	let disposed = false;
 	let scrollDrainQueued = false;
 	let pendingScrollBatch: {
 		commands: string[];
@@ -52,8 +54,11 @@ export function createWorkmuxScrollbackCommandExecutor({
 	};
 
 	const runCommands = async (commands: string[]) => {
+		if (disposed) return false;
 		for (const command of commands) {
+			if (disposed) return false;
 			const result = await runSingleCommand(command, executeCommand);
+			if (disposed) return false;
 			const failureMessage =
 				formatWorkmuxScrollbackCommandFailureMessage(result);
 			if (!failureMessage) continue;
@@ -66,8 +71,11 @@ export function createWorkmuxScrollbackCommandExecutor({
 
 	return {
 		runEnterCommand: (command: string) =>
-			enqueueSerialized(() => runCommands([command])),
+			disposed
+				? Promise.resolve(false)
+				: enqueueSerialized(() => runCommands([command])),
 		enqueueScrollBatch: (commands: string[]) => {
+			if (disposed) return Promise.resolve(false);
 			if (commands.length === 0) return Promise.resolve(true);
 			const promise = new Promise<boolean>((resolve) => {
 				pendingScrollBatch?.resolve(false);
@@ -78,6 +86,10 @@ export function createWorkmuxScrollbackCommandExecutor({
 				scrollDrainQueued = true;
 				void enqueueSerialized(async () => {
 					scrollDrainQueued = false;
+					if (disposed) {
+						clearPendingScrollBatches();
+						return false;
+					}
 					const batch = pendingScrollBatch;
 					pendingScrollBatch = null;
 					if (!batch) return true;
@@ -90,6 +102,10 @@ export function createWorkmuxScrollbackCommandExecutor({
 			return promise;
 		},
 		clearPendingScrollBatches,
+		dispose: () => {
+			disposed = true;
+			clearPendingScrollBatches();
+		},
 		getPendingScrollBatchCount: () => (pendingScrollBatch ? 1 : 0),
 	};
 }

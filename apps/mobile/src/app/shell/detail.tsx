@@ -835,8 +835,20 @@ function ShellDetail() {
 			}),
 		[connection, handleWorkmuxScrollbackCommandFailure],
 	);
-	workmuxScrollbackCommandExecutorRef.current =
-		workmuxScrollbackCommandExecutor;
+
+	useEffect(() => {
+		workmuxScrollbackCommandExecutorRef.current =
+			workmuxScrollbackCommandExecutor;
+		return () => {
+			workmuxScrollbackCommandExecutor.dispose();
+			if (
+				workmuxScrollbackCommandExecutorRef.current ===
+				workmuxScrollbackCommandExecutor
+			) {
+				workmuxScrollbackCommandExecutorRef.current = null;
+			}
+		};
+	}, [workmuxScrollbackCommandExecutor]);
 
 	const sendLiveInputSegments = useCallback(
 		(
@@ -2424,6 +2436,7 @@ function ShellDetail() {
 			}
 			if (selectionModeEnabled) return;
 			if (!tmuxEnabled || !connection) return;
+			if (!scrollbackActiveRef.current) return;
 
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 			const commands = buildWorkmuxScrollbackBatchCommands({
@@ -2435,7 +2448,6 @@ function ShellDetail() {
 				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
 			});
 			if (commands.length === 0) return;
-			if (!scrollbackActiveRef.current) return;
 			void workmuxScrollbackCommandExecutor.enqueueScrollBatch(commands);
 		},
 		[

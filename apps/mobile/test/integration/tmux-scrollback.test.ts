@@ -359,6 +359,51 @@ void test('workmux scrollback executor coalesces pending scroll batches while sl
 	assert.deepEqual(commands, ['first', 'latest']);
 });
 
+void test('workmux scrollback executor dispose clears pending scroll and blocks queued execution', async () => {
+	const firstBlock = deferred<void>();
+	const commands: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'enter') await firstBlock.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const enter = executor.runEnterCommand('enter');
+	await Promise.resolve();
+	const batch = executor.enqueueScrollBatch(['page']);
+	executor.dispose();
+
+	assert.equal(await batch, false);
+	firstBlock.resolve(undefined);
+	assert.equal(await enter, false);
+	assert.deepEqual(commands, ['enter']);
+	assert.equal(await executor.runEnterCommand('after-dispose'), false);
+	assert.deepEqual(commands, ['enter']);
+});
+
+void test('workmux scrollback executor dispose suppresses late failure callbacks', async () => {
+	const commandBlock = deferred<void>();
+	const failures: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async () => {
+			await commandBlock.promise;
+			return { success: false, output: '', error: 'mdev: command not found' };
+		},
+		onFailure: (message) => failures.push(message),
+	});
+
+	const enter = executor.runEnterCommand('enter');
+	await Promise.resolve();
+	executor.dispose();
+	commandBlock.resolve(undefined);
+
+	assert.equal(await enter, false);
+	assert.deepEqual(failures, []);
+});
+
 void test('tmux cancel key validation accepts single non-escape keys only', () => {
 	assert.equal(isValidTmuxCancelKey(bytes([0x71])), true);
 	assert.equal(isValidTmuxCancelKey(bytes([0x1b])), false);
