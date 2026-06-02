@@ -614,11 +614,16 @@ export const createTouchScrollController = ({
 				return;
 			}
 			if (activePointerId !== event.pointerId) return;
+			const requestId = pendingEnterRequestId ?? undefined;
 			pointerIsDown = false;
 			releasePointerCapture();
 			activePointerId = null;
-			state = scrollbackActive ? 'ScrollbackActive' : 'Idle';
-			resetPendingScroll();
+			if (scrollbackActive || pendingEnterRequestId != null) {
+				exitScrollback({ requestId });
+			} else {
+				state = 'Idle';
+				resetPendingScroll();
+			}
 		};
 
 		target.addEventListener('pointerdown', onPointerDown);

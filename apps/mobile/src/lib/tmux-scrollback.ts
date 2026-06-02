@@ -104,7 +104,7 @@ export type WorkmuxScrollbackCommandResult = {
 };
 
 type WorkmuxScrollbackCommandKind = 'enter' | 'scroll';
-type WorkmuxScrollbackFailurePolicy = 'notify' | 'suppress';
+export type WorkmuxScrollbackFailurePolicy = 'notify' | 'suppress';
 
 export type WorkmuxScrollbackFailureContext = {
 	commandKind: 'enter' | 'scroll' | 'exit';
@@ -216,6 +216,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 				const failureMessage =
 					formatWorkmuxScrollbackCommandFailureMessage(result);
 				if (failureMessage && commandKind === 'enter' && !disposed) {
+					canceledEnterRollbackSucceeded = false;
 					if (canceledEnterRollbackFailurePolicy === 'notify') {
 						notifyFailure(failureMessage, { commandKind: 'enter' });
 					} else {
@@ -263,18 +264,21 @@ export function createWorkmuxScrollbackCommandExecutor({
 	}: {
 		commands: WorkmuxScrollbackPageCommand[];
 		operationGeneration: number;
-	}) =>
-		runCommands({
-			commands: mergeWorkmuxScrollbackPageCommands(commands).map((command) =>
+	}) => {
+		const shellCommands = mergeWorkmuxScrollbackPageCommands(commands).map(
+			(command) =>
 				buildWorkmuxAppScrollPageCommand(
 					command.sessionName,
 					command.direction,
 					command.count,
 				),
-			),
+		);
+		return runCommands({
+			commands: shellCommands.length ? [shellCommands.join(' && ')] : [],
 			commandKind: 'scroll',
 			operationGeneration,
 		});
+	};
 
 	const reset = (options?: {
 		exitCommand?: string;
@@ -415,14 +419,19 @@ export function resetTmuxScrollbackRuntimeState({
 	lineAccumulator,
 	commandExecutor,
 	remoteCopyModeExitCommand,
+	failurePolicy,
 }: {
 	lineAccumulator: TmuxScrollbackLineAccumulator;
 	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
 	remoteCopyModeExitCommand?: string;
+	failurePolicy?: WorkmuxScrollbackFailurePolicy;
 }): Promise<boolean> | null {
 	clearTmuxScrollbackLineAccumulator(lineAccumulator);
 	return (
-		commandExecutor?.reset({ exitCommand: remoteCopyModeExitCommand }) ?? null
+		commandExecutor?.reset({
+			exitCommand: remoteCopyModeExitCommand,
+			failurePolicy,
+		}) ?? null
 	);
 }
 
@@ -676,6 +685,7 @@ function runTmuxScrollbackRemoteCopyModeCleanupForUiReset({
 	cleanupGeneration,
 	targetName,
 	cleanupOperation,
+	failurePolicy,
 }: {
 	lineAccumulator: TmuxScrollbackLineAccumulator;
 	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
@@ -683,9 +693,11 @@ function runTmuxScrollbackRemoteCopyModeCleanupForUiReset({
 	remoteCopyModeActiveRef: { current: boolean };
 	cleanupGeneration?: { current: number };
 	targetName: string;
+	failurePolicy?: WorkmuxScrollbackFailurePolicy;
 	cleanupOperation: (options: {
 		remoteCopyModeWasActive: boolean;
 		remoteCopyModeExitCommand?: string;
+		failurePolicy?: WorkmuxScrollbackFailurePolicy;
 	}) => Promise<boolean> | null;
 }): Promise<boolean> | null {
 	const remoteCopyModeWasActive = remoteCopyModeActiveRef.current;
@@ -694,7 +706,11 @@ function runTmuxScrollbackRemoteCopyModeCleanupForUiReset({
 		: undefined;
 	clearTmuxScrollbackLineAccumulator(lineAccumulator);
 	const cleanup = commandExecutor
-		? cleanupOperation({ remoteCopyModeWasActive, remoteCopyModeExitCommand })
+		? cleanupOperation({
+				remoteCopyModeWasActive,
+				remoteCopyModeExitCommand,
+				failurePolicy,
+			})
 		: null;
 	return registerTmuxScrollbackRemoteCopyModeExitCleanup({
 		barrier: cleanupBarrier,
@@ -713,6 +729,7 @@ export function resetTmuxScrollbackRuntimeStateForUiReset({
 	remoteCopyModeActiveRef,
 	cleanupGeneration,
 	targetName,
+	failurePolicy,
 }: {
 	lineAccumulator: TmuxScrollbackLineAccumulator;
 	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
@@ -720,6 +737,7 @@ export function resetTmuxScrollbackRuntimeStateForUiReset({
 	remoteCopyModeActiveRef: { current: boolean };
 	cleanupGeneration?: { current: number };
 	targetName: string;
+	failurePolicy?: WorkmuxScrollbackFailurePolicy;
 }): Promise<boolean> | null {
 	return runTmuxScrollbackRemoteCopyModeCleanupForUiReset({
 		lineAccumulator,
@@ -728,11 +746,13 @@ export function resetTmuxScrollbackRuntimeStateForUiReset({
 		remoteCopyModeActiveRef,
 		cleanupGeneration,
 		targetName,
-		cleanupOperation: ({ remoteCopyModeExitCommand }) =>
+		failurePolicy,
+		cleanupOperation: ({ remoteCopyModeExitCommand, failurePolicy }) =>
 			resetTmuxScrollbackRuntimeState({
 				lineAccumulator,
 				commandExecutor,
 				remoteCopyModeExitCommand,
+				failurePolicy,
 			}),
 	});
 }

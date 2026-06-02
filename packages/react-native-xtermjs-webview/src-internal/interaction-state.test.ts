@@ -538,6 +538,82 @@ void test('touch scroll quick release flushes after delayed enter ack', async (t
 	assert.equal(scrollBatch?.direction, 'up');
 });
 
+void test('touch scroll pointer cancel before enter ack ignores the late ack', async (t) => {
+	installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	const messages: BridgeInboundMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root, 25) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
+
+	controller.setConfig({
+		enabled: true,
+		slopPx: 0,
+		pxPerLine: 1,
+		maxPagesPerFlush: 2,
+		maxExtraLines: 999,
+		coalesceMs: 0,
+		velocityMultiplierEnabled: false,
+		backlogMultiplierEnabled: false,
+	});
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 100,
+	});
+	dispatchPointerEvent(root, 'pointercancel', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 120,
+	});
+	controller.handleEnterAck(1);
+	await new Promise((resolve) => setTimeout(resolve, 0));
+
+	const scrollbackTransitions = messages
+		.filter(
+			(
+				message,
+			): message is Extract<
+				BridgeInboundMessage,
+				{ type: 'scrollbackModeChanged' }
+			> => message.type === 'scrollbackModeChanged',
+		)
+		.map(({ active, phase, requestId }) => ({ active, phase, requestId }));
+
+	assert.deepEqual(scrollbackTransitions, [
+		{ active: true, phase: 'dragging', requestId: undefined },
+		{ active: false, phase: 'dragging', requestId: 1 },
+	]);
+	assert.equal(
+		messages.some((message) => message.type === 'scrollbackBatch'),
+		false,
+	);
+});
+
 void test('touch scroll exit does not emit primary-shell cancel input after ack', (t) => {
 	installDomGlobals(t);
 

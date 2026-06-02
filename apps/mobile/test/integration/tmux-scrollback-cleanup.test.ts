@@ -126,6 +126,49 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 	assert.equal(remoteCopyModeActiveRef.current, true);
 });
 
+void test('inactive Workmux scroll enter cleanup suppresses canceled enter alert', async () => {
+	const commandBlock = deferred<void>();
+	const failures: string[] = [];
+	const disposeFailures: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const remoteCopyModeActiveRef = { current: false };
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			if (command === 'enter') {
+				await commandBlock.promise;
+				return { success: false, output: '', error: 'enter failed' };
+			}
+			return { success: true, output: '' };
+		},
+		onFailure: (message) => failures.push(message),
+		onDisposeExitFailure: (message) => disposeFailures.push(message),
+	});
+
+	const enter = executor.runEnterCommand('enter', {
+		rollbackExitCommand: workmuxScrollExitCommand,
+	});
+	await Promise.resolve();
+
+	const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
+		lineAccumulator,
+		commandExecutor: executor,
+		cleanupBarrier,
+		remoteCopyModeActiveRef,
+		targetName: 'main',
+		failurePolicy: 'suppress',
+	});
+
+	commandBlock.resolve(undefined);
+
+	assert.equal(await enter, false);
+	assert.equal(await cleanup, false);
+	assert.deepEqual(failures, []);
+	assert.deepEqual(disposeFailures, [
+		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
+	]);
+});
+
 void test('component disposal UI reset clears line accumulator and disposes executor', async () => {
 	const commands: string[] = [];
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();

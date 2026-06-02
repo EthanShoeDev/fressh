@@ -787,21 +787,25 @@ function ShellDetail() {
 		[],
 	);
 
-	const resetTmuxScrollbackForUiReset = useCallback(() => {
-		const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-		const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
-			lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
-			commandExecutor: workmuxScrollbackCommandExecutorRef.current,
-			cleanupBarrier: scrollbackCleanupBarrierRef.current,
-			remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
-			cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
-			targetName,
-		});
-		void cleanup?.catch((error: unknown) => {
-			logger.warn('Workmux scrollback reset exit failed', error);
-		});
-		return cleanup;
-	}, [tmuxTarget]);
+	const resetTmuxScrollbackForUiReset = useCallback(
+		(options?: { failurePolicy?: 'notify' | 'suppress' }) => {
+			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+			const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
+				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
+				commandExecutor: workmuxScrollbackCommandExecutorRef.current,
+				cleanupBarrier: scrollbackCleanupBarrierRef.current,
+				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
+				cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
+				targetName,
+				failurePolicy: options?.failurePolicy,
+			});
+			void cleanup?.catch((error: unknown) => {
+				logger.warn('Workmux scrollback reset exit failed', error);
+			});
+			return cleanup;
+		},
+		[tmuxTarget],
+	);
 
 	const clearLocalScrollbackUiState = useCallback(() => {
 		scrollbackActiveRef.current = false;
@@ -818,11 +822,14 @@ function ShellDetail() {
 		xterm.exitScrollback({ requestId });
 	}, []);
 
-	const clearScrollbackState = useCallback(() => {
-		clearLocalScrollbackUiState();
-		const reset = resetTmuxScrollbackForUiReset();
-		return reset;
-	}, [clearLocalScrollbackUiState, resetTmuxScrollbackForUiReset]);
+	const clearScrollbackState = useCallback(
+		(options?: { failurePolicy?: 'notify' | 'suppress' }) => {
+			clearLocalScrollbackUiState();
+			const reset = resetTmuxScrollbackForUiReset(options);
+			return reset;
+		},
+		[clearLocalScrollbackUiState, resetTmuxScrollbackForUiReset],
+	);
 
 	const handleWorkmuxScrollbackCommandFailure = useCallback(
 		(message: string, context: WorkmuxScrollbackFailureContext) => {
@@ -2393,7 +2400,8 @@ function ShellDetail() {
 			void runShellScrollbackInactiveCleanup({
 				previousState,
 				nextState,
-				clearScrollbackState,
+				clearScrollbackState: () =>
+					clearScrollbackState({ failurePolicy: 'suppress' }),
 				warn: (message, error) => logger.warn(message, error),
 			});
 			if (previousState === 'active') {

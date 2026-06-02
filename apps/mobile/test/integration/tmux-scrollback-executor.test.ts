@@ -85,7 +85,7 @@ void test('workmux scrollback executor formats thrown failures and stops a batch
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
 			commands.push(command);
-			if (command === pageText(1)) throw new Error('Command timed out');
+			if (command.includes(pageText(1))) throw new Error('Command timed out');
 			return { success: true, output: '' };
 		},
 		onFailure: (message) => failures.push(message),
@@ -95,7 +95,7 @@ void test('workmux scrollback executor formats thrown failures and stops a batch
 		await executor.enqueueScrollBatch([page(1), page(1, 'down')]),
 		false,
 	);
-	assert.deepEqual(commands, [pageText(1)]);
+	assert.deepEqual(commands, [[pageText(1), pageText(1, 'down')].join(' && ')]);
 	assert.deepEqual(failures, [
 		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
 	]);
@@ -223,12 +223,29 @@ void test('workmux scrollback executor bounds pending scroll fanout while slow c
 
 	assert.deepEqual(commands, [
 		pageText(),
-		pageText(20),
-		pageText(20),
-		pageText(20),
-		pageText(20),
-		pageText(20),
+		[
+			pageText(20),
+			pageText(20),
+			pageText(20),
+			pageText(20),
+			pageText(20),
+		].join(' && '),
 	]);
+});
+
+void test('workmux scrollback executor runs a drained page batch in one shell command', async () => {
+	const commands: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	assert.equal(await executor.enqueueScrollBatch([page(40), page(10)]), true);
+
+	assert.deepEqual(commands, [[pageText(20), pageText(20), pageText(10)].join(' && ')]);
 });
 
 void test('workmux scrollback executor dispose clears pending scroll and blocks queued execution', async () => {
