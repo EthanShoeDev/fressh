@@ -15,7 +15,6 @@ declare const __DEV__: boolean | undefined;
 import {
 	binaryToBStr,
 	bStrToBinary,
-	handleTmuxScrollBatchBridgeMessage,
 	type BridgeInboundMessage,
 	type BridgeOutboundMessage,
 	type TmuxScrollBatchEvent,
@@ -23,6 +22,7 @@ import {
 } from './bridge';
 import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
 import { createDefaultXtermOptions } from './terminal-options';
+import { handleXtermBridgeInboundMessage } from './xterm-message-handler';
 
 export { bStrToBinary, binaryToBStr };
 export type { TmuxScrollBatchEvent, TouchScrollConfig };
@@ -420,74 +420,26 @@ export function XtermJsWebView({
 			try {
 				const msg = JSON.parse(e.nativeEvent.data) as BridgeInboundMessage;
 				logger?.log?.(`received msg from webview: `, msg);
-				if (msg.type === 'initialized') {
-					currentInstanceIdRef.current = msg.instanceId;
-					pendingSelectionRef.current.clear();
-					onInitialized?.(msg.instanceId);
-					autoFitFn();
-					setInitialized(true);
-					return;
-				}
 				if (
-					'instanceId' in msg &&
-					currentInstanceIdRef.current &&
-					msg.instanceId !== currentInstanceIdRef.current
+					handleXtermBridgeInboundMessage(msg, {
+						currentInstanceIdRef,
+						pendingSelectionRef,
+						logger,
+						onInitialized,
+						autoFitFn,
+						setInitialized,
+						onInput,
+						onData,
+						onResize,
+						onSelection,
+						onSelectionModeChange,
+						onScrollbackModeChange,
+						onScrollbackEnterRequested,
+						onTmuxScrollBatch,
+					})
 				) {
-					logger?.warn?.(
-						`dropping stale webview message`,
-						msg.type,
-						msg.instanceId,
-					);
 					return;
 				}
-				if (msg.type === 'input') {
-					const kind = msg.kind ?? 'typing';
-					onInput?.({ str: msg.str, kind, instanceId: msg.instanceId });
-					onData?.(msg.str);
-					return;
-				}
-				if (msg.type === 'debug') {
-					logger?.log?.(`received debug msg from webview: `, msg.message);
-					return;
-				}
-				if (msg.type === 'sizeChanged') {
-					logger?.log?.(`terminal size changed: ${msg.cols}x${msg.rows}`);
-					onResize?.(msg.cols, msg.rows);
-					return;
-				}
-				if (msg.type === 'selection') {
-					const pending = pendingSelectionRef.current.get(msg.requestId);
-					if (pending) {
-						pendingSelectionRef.current.delete(msg.requestId);
-						pending.resolve(msg.text);
-					}
-					return;
-				}
-				if (msg.type === 'selectionChanged') {
-					onSelection?.(msg.text);
-					return;
-				}
-				if (msg.type === 'selectionModeChanged') {
-					onSelectionModeChange?.(msg.enabled);
-					return;
-				}
-				if (msg.type === 'scrollbackModeChanged') {
-					onScrollbackModeChange?.({
-						active: msg.active,
-						phase: msg.phase,
-						instanceId: msg.instanceId,
-						requestId: msg.requestId,
-					});
-					return;
-				}
-				if (msg.type === 'scrollbackEnterRequested') {
-					onScrollbackEnterRequested?.({
-						instanceId: msg.instanceId,
-						requestId: msg.requestId,
-					});
-					return;
-				}
-				if (handleTmuxScrollBatchBridgeMessage(msg, onTmuxScrollBatch)) return;
 				webViewOptions?.onMessage?.(e);
 			} catch (error) {
 				logger?.warn?.(

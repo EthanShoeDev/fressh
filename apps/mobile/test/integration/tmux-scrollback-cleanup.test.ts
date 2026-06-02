@@ -6,8 +6,11 @@ import {
 	createTmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
+	handleTmuxScrollbackBatchEvent,
+	handleTmuxScrollbackEnterRequested,
 	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
+	handleWorkmuxScrollbackDisposeExitFailureActions,
 	registerTmuxScrollbackLiveInputCleanup,
 	resetTmuxScrollbackRuntimeState,
 	resetTmuxScrollbackRuntimeStateForUiReset,
@@ -552,6 +555,204 @@ void test('workmux scrollback failure actions use supplied app-exit cleanup afte
 		'alert:Workmux scroll unavailable:page failed',
 		'exit',
 		'clear',
+	]);
+});
+
+void test('dispose Workmux scroll exit failure is user visible without local UI cleanup', () => {
+	const events: string[] = [];
+
+	handleWorkmuxScrollbackDisposeExitFailureActions({
+		message: 'Update mdev',
+		alert: (title, message, buttons) => {
+			events.push(`alert:${title}:${message}:${buttons?.length ?? 0}`);
+			buttons?.[0]?.onPress?.();
+		},
+		copyMessage: (message) => events.push(`copy:${message}`),
+		warn: (message) => events.push(`warn:${message}`),
+	});
+
+	assert.deepEqual(events, [
+		'warn:Update mdev',
+		'alert:Workmux scroll cleanup failed:Update mdev:2',
+		'copy:Update mdev',
+	]);
+});
+
+void test('scrollback enter request adapter acks only after Workmux enter succeeds', async () => {
+	const commands: string[] = [];
+	const acks: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+	const remoteCopyModeActiveRef = { current: false };
+	const remoteCopyModeGenerationRef = { current: 0 };
+
+	await handleTmuxScrollbackEnterRequested({
+		event: { instanceId: 'current', requestId: 42 },
+		isAppActive: true,
+		currentInstanceId: 'current',
+		targetName: 'main',
+		commandExecutor: executor,
+		remoteCopyModeActiveRef,
+		remoteCopyModeGenerationRef,
+		clearLocalScrollbackUiState: () => acks.push('clear'),
+		sendScrollbackEnterAck: (requestId, instanceId) =>
+			acks.push(`${requestId}:${instanceId}`),
+	});
+
+	assert.deepEqual(commands, [
+		"mdev tmux app scroll enter --session 'main'",
+	]);
+	assert.deepEqual(acks, ['42:current']);
+	assert.equal(remoteCopyModeActiveRef.current, true);
+	assert.equal(remoteCopyModeGenerationRef.current, 1);
+});
+
+void test('scrollback enter request adapter skips ack on failed Workmux enter', async () => {
+	const commands: string[] = [];
+	const acks: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			return { success: false, output: '', error: 'mdev: command not found' };
+		},
+		onFailure: () => {},
+	});
+
+	await handleTmuxScrollbackEnterRequested({
+		event: { instanceId: 'current', requestId: 42 },
+		isAppActive: true,
+		currentInstanceId: 'current',
+		targetName: 'main',
+		commandExecutor: executor,
+		remoteCopyModeActiveRef: { current: false },
+		remoteCopyModeGenerationRef: { current: 0 },
+		clearLocalScrollbackUiState: () => acks.push('clear'),
+		sendScrollbackEnterAck: (requestId, instanceId) =>
+			acks.push(`${requestId}:${instanceId}`),
+	});
+
+	assert.deepEqual(commands, [
+		"mdev tmux app scroll enter --session 'main'",
+	]);
+	assert.deepEqual(acks, []);
+});
+
+void test('scrollback enter request adapter clears inactive current instance and ignores stale instance', async () => {
+	const events: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			events.push(`command:${command}`);
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	await handleTmuxScrollbackEnterRequested({
+		event: { instanceId: 'current', requestId: 1 },
+		isAppActive: false,
+		currentInstanceId: 'current',
+		targetName: 'main',
+		commandExecutor: executor,
+		remoteCopyModeActiveRef: { current: false },
+		remoteCopyModeGenerationRef: { current: 0 },
+		clearLocalScrollbackUiState: () => events.push('clear'),
+		sendScrollbackEnterAck: () => events.push('ack'),
+	});
+	await handleTmuxScrollbackEnterRequested({
+		event: { instanceId: 'stale', requestId: 2 },
+		isAppActive: false,
+		currentInstanceId: 'current',
+		targetName: 'main',
+		commandExecutor: executor,
+		remoteCopyModeActiveRef: { current: false },
+		remoteCopyModeGenerationRef: { current: 0 },
+		clearLocalScrollbackUiState: () => events.push('stale-clear'),
+		sendScrollbackEnterAck: () => events.push('stale-ack'),
+	});
+
+	assert.deepEqual(events, ['clear']);
+});
+
+void test('scrollback batch adapter gates events and passes pageStep into command building', async () => {
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const commands: string[][] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async () => ({ success: true, output: '' }),
+		onFailure: () => {},
+	});
+	const enqueueScrollBatch = executor.enqueueScrollBatch.bind(executor);
+
+	handleTmuxScrollbackBatchEvent({
+		event: {
+			direction: 'up',
+			pages: 0,
+			lines: 23,
+			pageStep: 24,
+			instanceId: 'current',
+		},
+		shellAvailable: true,
+		currentInstanceId: 'current',
+		selectionModeEnabled: false,
+		tmuxEnabled: true,
+		connectionAvailable: true,
+		scrollbackActive: true,
+		targetName: 'main',
+		lineAccumulator,
+		enqueueScrollBatch: (batch) => {
+			commands.push(batch);
+			return enqueueScrollBatch(batch);
+		},
+	});
+	handleTmuxScrollbackBatchEvent({
+		event: {
+			direction: 'up',
+			pages: 0,
+			lines: 1,
+			pageStep: 24,
+			instanceId: 'current',
+		},
+		shellAvailable: true,
+		currentInstanceId: 'current',
+		selectionModeEnabled: false,
+		tmuxEnabled: true,
+		connectionAvailable: true,
+		scrollbackActive: true,
+		targetName: 'main',
+		lineAccumulator,
+		enqueueScrollBatch: (batch) => {
+			commands.push(batch);
+			return enqueueScrollBatch(batch);
+		},
+	});
+	handleTmuxScrollbackBatchEvent({
+		event: {
+			direction: 'up',
+			pages: 1,
+			lines: 0,
+			pageStep: 24,
+			instanceId: 'stale',
+		},
+		shellAvailable: true,
+		currentInstanceId: 'current',
+		selectionModeEnabled: false,
+		tmuxEnabled: true,
+		connectionAvailable: true,
+		scrollbackActive: true,
+		targetName: 'main',
+		lineAccumulator,
+		enqueueScrollBatch: (batch) => {
+			commands.push(batch);
+			return enqueueScrollBatch(batch);
+		},
+	});
+
+	assert.deepEqual(commands, [
+		["mdev tmux app scroll page-up --count '1' --session 'main'"],
 	]);
 });
 

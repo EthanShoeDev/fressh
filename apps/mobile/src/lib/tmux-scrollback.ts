@@ -1,5 +1,7 @@
 import {
 	WORKMUX_APP_SCROLL_MAX_COUNT,
+	buildWorkmuxAppScrollEnterCommand,
+	buildWorkmuxAppScrollExitCommand,
 	buildWorkmuxAppScrollPageCommand,
 	formatWorkmuxAppCommandFailureMessage,
 	type WorkmuxScrollDirection,
@@ -399,6 +401,28 @@ export function handleWorkmuxScrollbackCommandFailureActions({
 	clearScrollbackState();
 }
 
+export function handleWorkmuxScrollbackDisposeExitFailureActions({
+	message,
+	alert,
+	copyMessage,
+	warn,
+}: {
+	message: string;
+	alert: (
+		title: string,
+		message: string,
+		buttons?: { text: string; onPress?: () => void }[],
+	) => void;
+	copyMessage: (message: string) => void;
+	warn: (message: string) => void;
+}): void {
+	warn(message);
+	alert('Workmux scroll cleanup failed', message, [
+		{ text: 'Copy Message', onPress: () => copyMessage(message) },
+		{ text: 'OK' },
+	]);
+}
+
 async function runSingleCommand(
 	command: string,
 	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>,
@@ -576,6 +600,96 @@ export function resolveTmuxScrollbackEnterRequest({
 	}
 	if (!isAppActive) return { action: 'clear-local-ui' };
 	return { action: 'enter' };
+}
+
+export async function handleTmuxScrollbackEnterRequested({
+	event,
+	isAppActive,
+	currentInstanceId,
+	targetName,
+	commandExecutor,
+	remoteCopyModeActiveRef,
+	remoteCopyModeGenerationRef,
+	clearLocalScrollbackUiState,
+	sendScrollbackEnterAck,
+}: {
+	event: { instanceId: string; requestId: number };
+	isAppActive: boolean;
+	currentInstanceId?: string | null;
+	targetName: string;
+	commandExecutor: WorkmuxScrollbackCommandExecutor;
+	remoteCopyModeActiveRef: { current: boolean };
+	remoteCopyModeGenerationRef: { current: number };
+	clearLocalScrollbackUiState: () => void;
+	sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
+}): Promise<void> {
+	const requestResolution = resolveTmuxScrollbackEnterRequest({
+		isAppActive,
+		instanceId: event.instanceId,
+		currentInstanceId,
+	});
+	if (requestResolution.action === 'ignore') return;
+	if (requestResolution.action === 'clear-local-ui') {
+		clearLocalScrollbackUiState();
+		return;
+	}
+
+	const command = buildWorkmuxAppScrollEnterCommand(targetName);
+	const entered = await commandExecutor.runEnterCommand(command, {
+		rollbackExitCommand: buildWorkmuxAppScrollExitCommand(targetName),
+	});
+	if (!entered) return;
+	remoteCopyModeGenerationRef.current += 1;
+	remoteCopyModeActiveRef.current = true;
+	sendScrollbackEnterAck(event.requestId, event.instanceId);
+}
+
+export function handleTmuxScrollbackBatchEvent({
+	event,
+	shellAvailable,
+	currentInstanceId,
+	selectionModeEnabled,
+	tmuxEnabled,
+	connectionAvailable,
+	scrollbackActive,
+	targetName,
+	lineAccumulator,
+	enqueueScrollBatch,
+}: {
+	event: {
+		direction: WorkmuxScrollDirection;
+		pages: number;
+		lines: number;
+		pageStep: number;
+		instanceId: string;
+	};
+	shellAvailable: boolean;
+	currentInstanceId?: string | null;
+	selectionModeEnabled: boolean;
+	tmuxEnabled: boolean;
+	connectionAvailable: boolean;
+	scrollbackActive: boolean;
+	targetName: string;
+	lineAccumulator: TmuxScrollbackLineAccumulator;
+	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
+}): boolean {
+	if (!shellAvailable) return false;
+	if (currentInstanceId && event.instanceId !== currentInstanceId) return false;
+	if (selectionModeEnabled) return false;
+	if (!tmuxEnabled || !connectionAvailable) return false;
+	if (!scrollbackActive) return false;
+
+	const commands = buildWorkmuxScrollbackBatchCommands({
+		sessionName: targetName,
+		direction: event.direction,
+		pages: event.pages,
+		lines: event.lines,
+		linesPerPage: event.pageStep,
+		lineAccumulator,
+	});
+	if (commands.length === 0) return false;
+	void enqueueScrollBatch(commands);
+	return true;
 }
 
 export function buildTmuxScrollbackLiveInputSendPlan({

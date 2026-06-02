@@ -6,6 +6,7 @@ import {
 	handleTmuxScrollBatchBridgeMessage,
 	mapTmuxScrollBatchMessage,
 } from '../src/bridge';
+import { handleXtermBridgeInboundMessage } from '../src/xterm-message-handler';
 
 void test('tmux scroll batch mapper strips only bridge message type', () => {
 	assert.deepEqual(
@@ -31,7 +32,7 @@ void test('tmux scroll batch mapper strips only bridge message type', () => {
 	);
 });
 
-void test('XtermJsWebView onMessage tmuxScrollBatch branch forwards pageStep', () => {
+void test('tmuxScrollBatch bridge helper forwards pageStep', () => {
 	const events: unknown[] = [];
 
 	assert.equal(
@@ -62,6 +63,86 @@ void test('XtermJsWebView onMessage tmuxScrollBatch branch forwards pageStep', (
 			ts: 456,
 		},
 	]);
+});
+
+void test('XtermJsWebView message handler routes current instance events and drops stale ones', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: null as string | null };
+	const pendingSelectionRef = { current: new Map() };
+	const handle = (msg: Parameters<typeof handleXtermBridgeInboundMessage>[0]) =>
+		handleXtermBridgeInboundMessage(msg, {
+			currentInstanceIdRef,
+			pendingSelectionRef,
+			onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
+			autoFitFn: () => events.push('fit'),
+			setInitialized: (initialized) => events.push(`state:${initialized}`),
+			onInput: (input) => events.push(['input', input]),
+			onData: (data) => events.push(`data:${data}`),
+			onResize: (cols, rows) => events.push(`resize:${cols}x${rows}`),
+			onSelection: (text) => events.push(`selection:${text}`),
+			onSelectionModeChange: (enabled) =>
+				events.push(`selection-mode:${enabled}`),
+			onScrollbackModeChange: (event) => events.push(['scrollback-mode', event]),
+			onScrollbackEnterRequested: (event) =>
+				events.push(['scrollback-enter', event]),
+			onTmuxScrollBatch: (event) => events.push(['scroll-batch', event]),
+		});
+
+	assert.equal(handle({ type: 'initialized', instanceId: 'instance-1' }), true);
+	assert.equal(
+		handle({
+			type: 'scrollbackEnterRequested',
+			instanceId: 'instance-1',
+			requestId: 7,
+		}),
+		true,
+	);
+	assert.equal(
+		handle({
+			type: 'tmuxScrollBatch',
+			direction: 'down',
+			pages: 1,
+			lines: 5,
+			pageStep: 32,
+			instanceId: 'instance-1',
+		}),
+		true,
+	);
+	assert.equal(
+		handle({
+			type: 'scrollbackEnterRequested',
+			instanceId: 'stale-instance',
+			requestId: 8,
+		}),
+		true,
+	);
+	assert.equal(handle({ type: 'debug', message: 'hello' }), true);
+
+	assert.deepEqual(events, [
+		'initialized:instance-1',
+		'fit',
+		'state:true',
+		[
+			'scrollback-enter',
+			{
+				instanceId: 'instance-1',
+				requestId: 7,
+			},
+		],
+		[
+			'scroll-batch',
+			{
+				direction: 'down',
+				pages: 1,
+				lines: 5,
+				pageStep: 32,
+				instanceId: 'instance-1',
+			},
+		],
+	]);
+
+	const source = readFileSync(join(process.cwd(), 'src/index.tsx'), 'utf8');
+	assert.match(source, /handleXtermBridgeInboundMessage\(msg, \{/);
 });
 
 void test('public dist artifacts keep the published touch scroll bridge contract', () => {
