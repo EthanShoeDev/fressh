@@ -72,6 +72,8 @@ export const createTouchScrollController = ({
 	let pendingEnterRequestId: number | null = null;
 	let enterRequestCounter = 0;
 	let pendingEnterTimeoutId: ReturnType<typeof setTimeout> | null = null;
+	let pointerGeneration = 0;
+	let pendingEnterPointerGeneration: number | null = null;
 
 	let lineHeightPx = 16;
 	let target: HTMLElement | null = null;
@@ -231,6 +233,7 @@ export const createTouchScrollController = ({
 	const clearPendingEnterRequest = () => {
 		clearPendingEnterTimeout();
 		pendingEnterRequestId = null;
+		pendingEnterPointerGeneration = null;
 	};
 
 	const resetPointerTracking = () => {
@@ -392,9 +395,21 @@ export const createTouchScrollController = ({
 		scrollbackEnterState = 'entering';
 		const requestId = ++enterRequestCounter;
 		pendingEnterRequestId = requestId;
+		pendingEnterPointerGeneration = pointerGeneration;
 		clearPendingEnterTimeout();
 		pendingEnterTimeoutId = setTimeout(() => {
 			if (pendingEnterRequestId !== requestId) return;
+			if (
+				pointerIsDown &&
+				activePointerId != null &&
+				pendingEnterPointerGeneration !== pointerGeneration
+			) {
+				clearPendingEnterRequest();
+				scrollbackEnterState = 'off';
+				emitScrollbackMode(false, scrollbackPhase, requestId);
+				requestScrollbackEnter();
+				return;
+			}
 			exitScrollback({ requestId });
 		}, scrollbackEnterTimeoutMs);
 		sendToRn({ type: 'scrollbackEnterRequested', instanceId, requestId });
@@ -471,6 +486,7 @@ export const createTouchScrollController = ({
 			}
 			if (event.pointerType && event.pointerType !== 'touch') return;
 			if (!event.isPrimary) return;
+			pointerGeneration += 1;
 			pointerIsDown = true;
 			pendingPointerUp = false;
 			activePointerId = event.pointerId;

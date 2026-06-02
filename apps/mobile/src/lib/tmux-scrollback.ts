@@ -789,6 +789,7 @@ export async function handleTmuxScrollbackEnterRequested({
 	remoteCopyModeGenerationRef,
 	clearLocalScrollbackUiState,
 	sendScrollbackEnterAck,
+	isRequestCurrent = () => true,
 }: {
 	event: { instanceId: string; requestId: number };
 	isAppActive: boolean;
@@ -803,6 +804,7 @@ export async function handleTmuxScrollbackEnterRequested({
 	remoteCopyModeGenerationRef: { current: number };
 	clearLocalScrollbackUiState: () => void;
 	sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
+	isRequestCurrent?: () => boolean;
 }): Promise<void> {
 	const requestResolution = resolveTmuxScrollbackEnterRequest({
 		isAppActive,
@@ -829,6 +831,7 @@ export async function handleTmuxScrollbackEnterRequested({
 	const entered = await commandExecutor.runEnterCommand(command, {
 		rollbackExitCommand: buildWorkmuxAppScrollExitCommand(targetName),
 	});
+	if (!isRequestCurrent()) return;
 	if (!entered) {
 		clearLocalScrollbackUiState();
 		return;

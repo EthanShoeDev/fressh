@@ -223,6 +223,43 @@ void test('XtermJsWebView message handler routes current instance events and dro
 	]);
 });
 
+void test('XtermJsWebView message handler does not forward stale scroll input to terminal data', () => {
+	const events: unknown[] = [];
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'input',
+				str: '\u001b[A',
+				kind: 'scroll',
+				instanceId: 'instance-1',
+			} as never,
+			{
+				currentInstanceIdRef: { current: 'instance-1' },
+				pendingSelectionRef: { current: new Map() },
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				autoFitFn: () => {},
+				setInitialized: () => {},
+				onInput: (input) => events.push(['input', input]),
+				onData: (data) => events.push(['data', data]),
+			},
+		),
+		true,
+	);
+
+	assert.deepEqual(events, [
+		[
+			'input',
+			{
+				str: '\u001b[A',
+				kind: 'scroll',
+				instanceId: 'instance-1',
+			},
+		],
+		['warn', ['dropping non-typing webview input', 'scroll']],
+	]);
+});
+
 void test('XtermJsWebView message handler reports rejected scrollback enter callbacks', async () => {
 	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: 'instance-1' };

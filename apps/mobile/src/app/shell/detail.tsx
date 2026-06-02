@@ -656,6 +656,7 @@ function ShellDetail() {
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
 	const nextLocalScrollbackExitRequestIdRef = useRef(0);
+	const scrollbackEnterRequestGenerationRef = useRef(0);
 	const localScrollbackExitRequestIdsRef = useRef(new Set<number>());
 	const scrollbackCleanupBarrierRef = useRef(
 		createTmuxScrollbackLiveInputCleanupBarrier(),
@@ -877,6 +878,7 @@ function ShellDetail() {
 		workmuxScrollbackCommandExecutorRef.current =
 			workmuxScrollbackCommandExecutor;
 		return () => {
+			scrollbackEnterRequestGenerationRef.current += 1;
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 			const cleanup = disposeTmuxScrollbackRuntimeStateForUiReset({
 				lineAccumulator,
@@ -2464,6 +2466,11 @@ function ShellDetail() {
 	const handleScrollbackEnterRequested = useCallback(
 		async (event: { instanceId: string; requestId: number }) => {
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+			scrollbackEnterRequestGenerationRef.current += 1;
+			const requestGeneration = scrollbackEnterRequestGenerationRef.current;
+			const isRequestCurrent = () =>
+				scrollbackEnterRequestGenerationRef.current === requestGeneration &&
+				currentInstanceIdRef.current === event.instanceId;
 			await handleTmuxScrollbackEnterRequested({
 				event,
 				isAppActive: isAppActiveRef.current,
@@ -2479,6 +2486,7 @@ function ShellDetail() {
 				clearLocalScrollbackUiState,
 				sendScrollbackEnterAck: (requestId, instanceId) =>
 					xtermRef.current?.sendScrollbackEnterAck(requestId, instanceId),
+				isRequestCurrent,
 			});
 		},
 		[
@@ -2641,6 +2649,7 @@ function ShellDetail() {
 	const handleTerminalInitialized = useCallback(
 		(instanceId: string) => {
 			currentInstanceIdRef.current = instanceId;
+			scrollbackEnterRequestGenerationRef.current += 1;
 			resetTmuxScrollbackLocalExitRequests(
 				localScrollbackExitRequestIdsRef.current,
 			);

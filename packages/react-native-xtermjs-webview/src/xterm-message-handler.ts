@@ -131,7 +131,11 @@ export function handleXtermBridgeInboundMessage(
 	if (msg.type === 'input') {
 		const kind = msg.kind ?? 'typing';
 		onInput?.({ str: msg.str, kind, instanceId: msg.instanceId });
-		onData?.(msg.str);
+		if (kind === 'typing') {
+			onData?.(msg.str);
+		} else {
+			logger?.warn?.(`dropping non-typing webview input`, kind);
+		}
 		return true;
 	}
 	if (msg.type === 'debug') {
