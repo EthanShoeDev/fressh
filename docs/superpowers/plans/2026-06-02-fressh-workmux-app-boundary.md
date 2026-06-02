@@ -960,15 +960,21 @@ Add imports for:
 
 ```ts
 	buildWorkmuxScrollbackBatchCommands,
-	createTmuxScrollbackLineAccumulator,
 	clearTmuxScrollbackLineAccumulator,
+	createWorkmuxScrollbackCommandExecutor,
+	createTmuxScrollbackLiveInputCleanupBarrier,
+	createTmuxScrollbackLineAccumulator,
+	registerTmuxScrollbackLiveInputCleanup,
+	resetTmuxScrollbackRuntimeStateForUiReset,
+	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 ```
 
-Replace the direct tmux command-builder tests at the top of the file with:
+Replace the direct tmux command-builder tests at the top of the file with tests
+for the final Workmux scrollback surface:
 
 ```ts
-void test('buildWorkmuxScrollbackBatchCommands builds page scroll command', () => {
-	const accumulator = createTmuxScrollbackLineAccumulator();
+void test('buildWorkmuxScrollbackBatchCommands builds page scroll commands', () => {
+	const pageStep = 24;
 
 	assert.deepEqual(
 		buildWorkmuxScrollbackBatchCommands({
@@ -976,15 +982,16 @@ void test('buildWorkmuxScrollbackBatchCommands builds page scroll command', () =
 			direction: 'up',
 			pages: 2,
 			lines: 0,
-			lineAccumulator: accumulator,
-			linesPerPage: 24,
+			linesPerPage: pageStep,
+			lineAccumulator: createTmuxScrollbackLineAccumulator(),
 		}),
 		["mdev tmux app scroll page-up --count '2' --session 'main'"],
 	);
 });
 
-void test('buildWorkmuxScrollbackBatchCommands accumulates lines into pages', () => {
-	const accumulator = createTmuxScrollbackLineAccumulator();
+void test('buildWorkmuxScrollbackBatchCommands accumulates rows into receiver pages', () => {
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const pageStep = 24;
 
 	assert.deepEqual(
 		buildWorkmuxScrollbackBatchCommands({
@@ -992,8 +999,8 @@ void test('buildWorkmuxScrollbackBatchCommands accumulates lines into pages', ()
 			direction: 'down',
 			pages: 0,
 			lines: 12,
-			lineAccumulator: accumulator,
-			linesPerPage: 24,
+			linesPerPage: pageStep,
+			lineAccumulator,
 		}),
 		[],
 	);
@@ -1003,79 +1010,19 @@ void test('buildWorkmuxScrollbackBatchCommands accumulates lines into pages', ()
 			direction: 'down',
 			pages: 0,
 			lines: 12,
-			lineAccumulator: accumulator,
-			linesPerPage: 24,
+			linesPerPage: pageStep,
+			lineAccumulator,
 		}),
 		["mdev tmux app scroll page-down --count '1' --session 'main'"],
-	);
-});
-
-void test('buildWorkmuxScrollbackBatchCommands resets line leftovers on direction change', () => {
-	const accumulator = createTmuxScrollbackLineAccumulator();
-
-	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
-			sessionName: 'main',
-			direction: 'up',
-			pages: 0,
-			lines: 12,
-			lineAccumulator: accumulator,
-			linesPerPage: 24,
-		}),
-		[],
-	);
-	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
-			sessionName: 'main',
-			direction: 'down',
-			pages: 0,
-			lines: 12,
-			lineAccumulator: accumulator,
-			linesPerPage: 24,
-		}),
-		[],
-	);
-	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
-			sessionName: 'main',
-			direction: 'down',
-			pages: 0,
-			lines: 12,
-			lineAccumulator: accumulator,
-			linesPerPage: 24,
-		}),
-		["mdev tmux app scroll page-down --count '1' --session 'main'"],
-	);
-});
-
-void test('clearTmuxScrollbackLineAccumulator drops sub-page leftovers', () => {
-	const accumulator = createTmuxScrollbackLineAccumulator();
-
-	buildWorkmuxScrollbackBatchCommands({
-		sessionName: 'main',
-		direction: 'up',
-		pages: 0,
-		lines: 12,
-		lineAccumulator: accumulator,
-		linesPerPage: 24,
-	});
-	clearTmuxScrollbackLineAccumulator(accumulator);
-
-	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
-			sessionName: 'main',
-			direction: 'up',
-			pages: 0,
-			lines: 12,
-			lineAccumulator: accumulator,
-			linesPerPage: 24,
-		}),
-		[],
 	);
 });
 ```
 
-Keep the existing live-input and cancel-key tests below these new tests.
+Also cover direction resets, explicit accumulator clearing, page-command
+splitting above `WORKMUX_APP_SCROLL_MAX_COUNT`, clamping at
+`TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH`, executor serialization and
+coalescing, failure cleanup, dispose cleanup, and shared cleanup-barrier waits
+for live input, AppState transitions, and UI reset.
 
 - [ ] **Step 2: Run scrollback tests to verify they fail**
 
@@ -1093,30 +1040,45 @@ In `apps/mobile/src/lib/tmux-scrollback.ts`, delete `escapeTmuxTarget`,
 `buildTmuxScrollbackCopyModeCommand`, `buildTmuxScrollbackBatchCommand`, and
 `buildTmuxSelectWindowCommand`.
 
-Add this import:
+Add Workmux app scroll imports:
 
 ```ts
-import { buildWorkmuxAppScrollPageCommand } from './workmux-app-commands';
+import {
+	WORKMUX_APP_SCROLL_MAX_COUNT,
+	buildWorkmuxAppScrollPageCommand,
+	formatWorkmuxAppCommandFailureMessage,
+	type WorkmuxScrollDirection,
+} from './workmux-app-commands';
 ```
 
-Add these exports above `runTmuxControlCommand`:
+Add the final scrollback planning and execution helpers in
+`apps/mobile/src/lib/tmux-scrollback.ts`:
 
 ```ts
 export type TmuxScrollbackLineAccumulator = {
-	direction: 'up' | 'down' | null;
+	direction: WorkmuxScrollDirection | null;
 	lines: number;
 };
 
-export function createTmuxScrollbackLineAccumulator(): TmuxScrollbackLineAccumulator {
-	return { direction: null, lines: 0 };
-}
+export type WorkmuxScrollbackCommandExecutor = {
+	runEnterCommand: (
+		command: string,
+		options?: { rollbackExitCommand?: string },
+	) => Promise<boolean>;
+	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
+	reset: (options?: { exitCommand?: string; failurePolicy?: 'notify' | 'suppress' }) =>
+		Promise<boolean> | null;
+	dispose: (options?: { exitCommand?: string }) => Promise<boolean> | null;
+};
 
-export function clearTmuxScrollbackLineAccumulator(
-	accumulator: TmuxScrollbackLineAccumulator,
-) {
-	accumulator.direction = null;
-	accumulator.lines = 0;
-}
+export function createWorkmuxScrollbackCommandExecutor(...): WorkmuxScrollbackCommandExecutor;
+export function createTmuxScrollbackLineAccumulator(): TmuxScrollbackLineAccumulator;
+export function clearTmuxScrollbackLineAccumulator(...): void;
+export function resetTmuxScrollbackRuntimeState(...): Promise<boolean> | null;
+export function resetTmuxScrollbackRuntimeStateForUiReset(...): Promise<boolean> | null;
+export function createTmuxScrollbackLiveInputCleanupBarrier(...);
+export function registerTmuxScrollbackLiveInputCleanup(...): Promise<boolean> | null;
+export function registerTmuxScrollbackRemoteCopyModeExitCleanup(...): Promise<boolean> | null;
 
 export function buildWorkmuxScrollbackBatchCommands({
 	sessionName,
@@ -1133,33 +1095,18 @@ export function buildWorkmuxScrollbackBatchCommands({
 	lineAccumulator: TmuxScrollbackLineAccumulator;
 	linesPerPage: number;
 }): string[] {
-	const clampedPages = Math.max(0, Math.trunc(pages));
-	const clampedLines = Math.max(0, Math.trunc(lines));
-	const safeLinesPerPage = Math.max(1, Math.trunc(linesPerPage));
-
-	if (lineAccumulator.direction !== direction) {
-		lineAccumulator.direction = direction;
-		lineAccumulator.lines = 0;
-	}
-
-	lineAccumulator.lines += clampedLines;
-	const pagesFromLines = Math.trunc(
-		lineAccumulator.lines / safeLinesPerPage,
-	);
-	lineAccumulator.lines %= safeLinesPerPage;
-
-	const totalPages = clampedPages + pagesFromLines;
-	if (totalPages < 1) return [];
-
-	return [
-		buildWorkmuxAppScrollPageCommand(
-			sessionName,
-			direction,
-			totalPages,
-		),
-	];
+	// Accumulate sub-page receiver line batches using the bridge-supplied
+	// `pageStep`, clamp malformed batches, and split large requests into
+	// Workmux app page commands bounded by `WORKMUX_APP_SCROLL_MAX_COUNT`.
 }
 ```
+
+The executor must run all `mdev tmux app scroll ...` commands through the SSH
+side-channel command function supplied by the shell detail screen. It should
+serialize `scroll enter`, scroll pages, reset exits, and dispose exits; coalesce
+pending scroll batches while a slow command is in flight; and route active
+failures to the Workmux scrollback failure alert while suppressing dispose-only
+failure alerts.
 
 - [ ] **Step 4: Update shell detail scrollback handlers**
 
@@ -1168,8 +1115,13 @@ In `apps/mobile/src/app/shell/detail.tsx`, replace imports of
 
 ```ts
 	buildWorkmuxScrollbackBatchCommands,
-	clearTmuxScrollbackLineAccumulator,
+	createTmuxScrollbackLiveInputCleanupBarrier,
+	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
+	handleTmuxScrollbackInactiveAppStateTransition,
+	handleWorkmuxScrollbackCommandFailureActions,
+	registerTmuxScrollbackRemoteCopyModeExitCleanup,
+	resetTmuxScrollbackRuntimeStateForUiReset,
 ```
 
 from `@/lib/tmux-scrollback`, and import:
@@ -1187,18 +1139,35 @@ Add a ref near the other scrollback refs:
 const tmuxScrollbackLineAccumulatorRef = useRef(
 	createTmuxScrollbackLineAccumulator(),
 );
+const scrollbackCleanupBarrierRef = useRef(
+	createTmuxScrollbackLiveInputCleanupBarrier(),
+);
 ```
 
-In `handleScrollbackModeChange`, after `setScrollbackActive(event.active);`,
-add:
+Create `workmuxScrollbackCommandExecutor` with `executeSideChannelCommand`:
 
 ```ts
-if (!event.active) {
-	clearTmuxScrollbackLineAccumulator(
-		tmuxScrollbackLineAccumulatorRef.current,
-	);
-}
+const workmuxScrollbackCommandExecutor = useMemo(
+	() =>
+		createWorkmuxScrollbackCommandExecutor({
+			executeCommand: (command) =>
+				executeSideChannelCommand(
+					connection,
+					command,
+					WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS,
+				),
+			onFailure: handleWorkmuxScrollbackCommandFailure,
+			onDisposeExitFailure: (message) =>
+				logger.warn(`Workmux scrollback dispose exit failed: ${message}`),
+		}),
+	[connection, handleWorkmuxScrollbackCommandFailure],
+);
 ```
+
+Use `resetTmuxScrollbackRuntimeStateForUiReset` for scrollback mode exits,
+AppState inactive transitions, alert cleanup, and component disposal. Register
+each remote copy-mode exit promise on the cleanup barrier so live input waits for
+the same pending Workmux app exit instead of racing it.
 
 In `handleTmuxEnterCopyMode`, replace command construction with:
 
@@ -1208,8 +1177,7 @@ const command = buildWorkmuxAppScrollEnterCommand(targetName);
 ```
 
 Use `buildWorkmuxAppScrollExitCommand(targetName)` for touch scrollback cleanup
-and rollback after a successful `scroll enter`; this maps to the required
-remote command:
+and rollback after a successful `scroll enter`.
 
 ```text
 mdev tmux app scroll exit --session <session>
@@ -1233,9 +1201,9 @@ void workmuxScrollbackCommandExecutor.enqueueScrollBatch(commands);
 
 Keep the existing guards for shell presence, instance id, selection mode,
 `tmuxEnabled`, connection presence, active scrollback state, and current
-instance id. Do not send these touch-scroll commands through a tmux control
-shell; enqueue the Workmux app scroll commands so failures and cleanup use the
-shared Workmux scrollback executor.
+instance id. Enqueue touch-scroll commands through the shared Workmux scrollback
+executor so page batches, cleanup exits, live-input waits, and failure handling
+share one side-channel path.
 
 - [ ] **Step 5: Run scrollback tests to verify they pass**
 
