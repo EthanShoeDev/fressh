@@ -16,26 +16,6 @@ const expectedTemporaryViolationOccurrences = new Map<
 	DirectTmuxOccurrence[]
 >([
 	[
-		'apps/mobile/src/lib/host-browser-actions.ts',
-		[
-			{
-				kind: 'shell',
-				functionName: 'buildHostBrowserPanePathCommand',
-				commandPrefix: 'tmux display-message',
-			},
-			{
-				kind: 'shell',
-				functionName: 'buildHostBrowserPaneContextCommand',
-				commandPrefix: 'tmux display-message',
-			},
-			{
-				kind: 'shell',
-				functionName: 'buildTmuxCurrentWindowIdCommand',
-				commandPrefix: 'tmux display-message',
-			},
-		],
-	],
-	[
 		'apps/mobile/src/lib/tmux-scrollback.ts',
 		[
 			{

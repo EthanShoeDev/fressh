@@ -25,6 +25,20 @@ function waitForMicrotask() {
 	return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+function buildWorkmuxWindowOutput(windowId = '@12'): string {
+	return JSON.stringify({
+		sessionName: 'main',
+		target: `main:${windowId}`,
+		windowId,
+		windowIndex: 12,
+		windowName: 'mobile',
+		workspaceId: 'workspace-1',
+		role: 'codex',
+		roleWindow: true,
+		homeWindow: false,
+	});
+}
+
 function createHarness() {
 	let requestId = 0;
 	let visibility: VisibleAgentNotificationSnapshot = {
@@ -91,12 +105,12 @@ void test('acknowledgeVisibleAgentNotification acknowledges current visible wind
 	const harness = createHarness();
 
 	await acknowledgeVisibleAgentNotification(
-		harness.options(async () => 'ignored\n@12\n'),
+		harness.options(async () => buildWorkmuxWindowOutput()),
 	);
 
 	assert.deepEqual(harness.commands, [
 		{
-			command: "tmux display-message -p -t 'main:' '#{window_id}'",
+			command: "mdev tmux app window --session 'main'",
 			timeoutMs: 10_000,
 		},
 	]);
@@ -145,7 +159,7 @@ void test('acknowledgeVisibleAgentNotification ignores stale async results', asy
 		);
 
 		harness.setVisibility(staleVisibility);
-		deferred.resolve('@12');
+		deferred.resolve(buildWorkmuxWindowOutput());
 		await pending;
 
 		assert.deepEqual(harness.acknowledgements, []);
@@ -160,7 +174,7 @@ void test('acknowledgeVisibleAgentNotification ignores superseded requests witho
 	);
 
 	harness.invalidateRequest();
-	deferred.resolve('@12');
+	deferred.resolve(buildWorkmuxWindowOutput());
 	await pending;
 
 	assert.deepEqual(harness.acknowledgements, []);
@@ -188,10 +202,10 @@ void test('acknowledgeVisibleAgentNotification coalesces concurrent requests int
 	await waitForMicrotask();
 
 	assert.equal(commandCount, 1);
-	first.resolve('@12');
+	first.resolve(buildWorkmuxWindowOutput());
 	await waitForMicrotask();
 	assert.equal(commandCount, 2);
-	second.resolve('@12');
+	second.resolve(buildWorkmuxWindowOutput());
 	await Promise.all([firstPending, queuedA, queuedB]);
 
 	assert.equal(commandCount, 2);
