@@ -9,13 +9,11 @@ import {
 	disposeTmuxScrollbackRuntimeStateForUiReset,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
-	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleWorkmuxScrollbackDisposeExitFailureActions,
 	registerTmuxScrollbackLocalExitRequest,
 	registerTmuxScrollbackLiveInputCleanup,
 	resetTmuxScrollbackLocalExitRequests,
-	resetTmuxScrollbackLocalStateForTerminalInitialization,
 	runTmuxScrollbackLiveInputSendPlan,
 	resetTmuxScrollbackRuntimeState,
 	resetTmuxScrollbackRuntimeStateForUiReset,
@@ -39,23 +37,6 @@ const deferred = <T>() => {
 	});
 	return { promise, resolve, reject };
 };
-
-void test('AppState scrollback cleanup runs on inactive non-Android transitions', async () => {
-	const events: string[] = [];
-	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
-		previousState: 'active',
-		nextState: 'background',
-		clearScrollbackState: () => {
-			events.push('cleanup');
-			return Promise.resolve(true);
-		},
-		onCleanupError: (error) => events.push(`error:${String(error)}`),
-	});
-
-	assert.notEqual(cleanup, null);
-	assert.equal(await cleanup, true);
-	assert.deepEqual(events, ['cleanup']);
-});
 
 void test('failed active Workmux scroll exit clears local UI without recursive exit retry', async () => {
 	const commands: string[] = [];
@@ -479,7 +460,7 @@ void test('live input waits for externally initiated inactive cleanup barrier be
 	assert.equal(barrierRef.current(), null);
 });
 
-void test('inactive AppState transition clears scrollback and waits for pending enter rollback', async () => {
+void test('runtime reset clears scrollback and waits for pending enter rollback', async () => {
 	const enterBlock = deferred<void>();
 	const commands: string[] = [];
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
@@ -496,15 +477,9 @@ void test('inactive AppState transition clears scrollback and waits for pending 
 		rollbackExitCommand: 'exit',
 	});
 	await Promise.resolve();
-	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
-		previousState: 'active',
-		nextState: 'inactive',
-		clearScrollbackState: () =>
-			resetTmuxScrollbackRuntimeState({
-				lineAccumulator,
-				commandExecutor: executor,
-			}),
-		onCleanupError: () => {},
+	const cleanup = resetTmuxScrollbackRuntimeState({
+		lineAccumulator,
+		commandExecutor: executor,
 	});
 
 	assert.notEqual(cleanup, null);
@@ -512,77 +487,6 @@ void test('inactive AppState transition clears scrollback and waits for pending 
 	assert.equal(await enter, false);
 	assert.equal(await cleanup, true);
 	assert.deepEqual(commands, ['enter', 'exit']);
-});
-
-void test('inactive AppState transition ignores non-active previous states', () => {
-	let cleanupCount = 0;
-
-	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
-		previousState: 'background',
-		nextState: 'inactive',
-		clearScrollbackState: () => {
-			cleanupCount += 1;
-			return null;
-		},
-		onCleanupError: () => {},
-	});
-
-	assert.equal(cleanup, null);
-	assert.equal(cleanupCount, 0);
-});
-
-void test('inactive AppState transition ignores active next state', () => {
-	let cleanupCount = 0;
-
-	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
-		previousState: 'active',
-		nextState: 'active',
-		clearScrollbackState: () => {
-			cleanupCount += 1;
-			return null;
-		},
-		onCleanupError: () => {},
-	});
-
-	assert.equal(cleanup, null);
-	assert.equal(cleanupCount, 0);
-});
-
-void test('inactive AppState transition reports rejected cleanup', async () => {
-	const cleanupError = new Error('cleanup failed');
-	const reportedErrors: unknown[] = [];
-
-	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
-		previousState: 'active',
-		nextState: 'inactive',
-		clearScrollbackState: () => Promise.reject(cleanupError),
-		onCleanupError: (error) => reportedErrors.push(error),
-	});
-
-	assert.notEqual(cleanup, null);
-	if (!cleanup) {
-		throw new Error('expected cleanup promise');
-	}
-	await assert.rejects(cleanup, cleanupError);
-	await Promise.resolve();
-	assert.deepEqual(reportedErrors, [cleanupError]);
-});
-
-void test('inactive AppState transition reports synchronous cleanup failures', () => {
-	const cleanupError = new Error('cleanup failed');
-	const reportedErrors: unknown[] = [];
-
-	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
-		previousState: 'active',
-		nextState: 'background',
-		clearScrollbackState: () => {
-			throw cleanupError;
-		},
-		onCleanupError: (error) => reportedErrors.push(error),
-	});
-
-	assert.equal(cleanup, null);
-	assert.deepEqual(reportedErrors, [cleanupError]);
 });
 
 void test('Workmux scrollback enter request resolution clears inactive current instance only', () => {
@@ -669,24 +573,16 @@ void test('local scrollback exit request tracking is bounded and resettable', ()
 	assert.deepEqual(Array.from(localExitRequestIds), []);
 });
 
-void test('terminal initialization clears local scrollback state and stale exit requests', () => {
+void test('local scrollback exit request reset makes stale exits remote-owned again', () => {
 	const localExitRequestIds = new Set<number>();
-	const scrollbackActiveRef = { current: true };
-	const scrollbackPhaseRef = { current: 'dragging' as 'dragging' | 'active' };
 
 	registerTmuxScrollbackLocalExitRequest({
 		requestIds: localExitRequestIds,
 		requestId: 7,
 	});
 
-	resetTmuxScrollbackLocalStateForTerminalInitialization({
-		localExitRequestIds,
-		scrollbackActiveRef,
-		scrollbackPhaseRef,
-	});
+	resetTmuxScrollbackLocalExitRequests(localExitRequestIds);
 
-	assert.equal(scrollbackActiveRef.current, false);
-	assert.equal(scrollbackPhaseRef.current, 'active');
 	assert.equal(
 		shouldRunTmuxScrollbackRemoteResetForModeChange({
 			active: false,

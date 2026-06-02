@@ -103,12 +103,11 @@ import {
 	buildTmuxScrollbackLiveInputSendPlan,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
-	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleWorkmuxScrollbackDisposeExitFailureActions,
 	registerTmuxScrollbackLocalExitRequest,
+	resetTmuxScrollbackLocalExitRequests,
 	runTmuxScrollbackLiveInputSendPlan,
-	resetTmuxScrollbackLocalStateForTerminalInitialization,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	type WorkmuxScrollbackCommandExecutor,
@@ -2386,14 +2385,18 @@ function ShellDetail() {
 				return;
 			}
 
-			void handleTmuxScrollbackInactiveAppStateTransition({
-				previousState,
-				nextState,
-				clearScrollbackState,
-				onCleanupError: (error) => {
+			if (previousState === 'active') {
+				let cleanup: Promise<boolean> | null;
+				try {
+					cleanup = clearScrollbackState();
+				} catch (error) {
 					logger.warn('Workmux inactive scrollback cleanup failed', error);
-				},
-			});
+					cleanup = null;
+				}
+				void cleanup?.catch((error) => {
+					logger.warn('Workmux inactive scrollback cleanup failed', error);
+				});
+			}
 			if (previousState === 'active') {
 				agentNotificationAckRequestIdRef.current += 1;
 				if (isAndroid) {
@@ -2641,11 +2644,11 @@ function ShellDetail() {
 	const handleTerminalInitialized = useCallback(
 		(instanceId: string) => {
 			currentInstanceIdRef.current = instanceId;
-			resetTmuxScrollbackLocalStateForTerminalInitialization({
-				localExitRequestIds: localScrollbackExitRequestIdsRef.current,
-				scrollbackActiveRef,
-				scrollbackPhaseRef,
-			});
+			resetTmuxScrollbackLocalExitRequests(
+				localScrollbackExitRequestIdsRef.current,
+			);
+			scrollbackActiveRef.current = false;
+			scrollbackPhaseRef.current = 'active';
 			void resetTmuxScrollbackForUiReset();
 			setScrollbackActive(false);
 			hasAttachedOnceRef.current = false;

@@ -73,20 +73,6 @@ export function resetTmuxScrollbackLocalExitRequests(requestIds: Set<number>) {
 	requestIds.clear();
 }
 
-export function resetTmuxScrollbackLocalStateForTerminalInitialization({
-	localExitRequestIds,
-	scrollbackActiveRef,
-	scrollbackPhaseRef,
-}: {
-	localExitRequestIds: Set<number>;
-	scrollbackActiveRef: { current: boolean };
-	scrollbackPhaseRef: { current: 'dragging' | 'active' };
-}) {
-	resetTmuxScrollbackLocalExitRequests(localExitRequestIds);
-	scrollbackActiveRef.current = false;
-	scrollbackPhaseRef.current = 'active';
-}
-
 export type WorkmuxScrollbackCommandResult = {
 	success: boolean;
 	output: string;
@@ -410,29 +396,6 @@ export function resetTmuxScrollbackRuntimeState({
 	return (
 		commandExecutor?.reset({ exitCommand: remoteCopyModeExitCommand }) ?? null
 	);
-}
-
-export function handleTmuxScrollbackInactiveAppStateTransition({
-	previousState,
-	nextState,
-	clearScrollbackState,
-	onCleanupError,
-}: {
-	previousState: string;
-	nextState: string;
-	clearScrollbackState: () => Promise<boolean> | null;
-	onCleanupError: (error: unknown) => void;
-}): Promise<boolean> | null {
-	if (previousState !== 'active' || nextState === 'active') return null;
-	let cleanup: Promise<boolean> | null;
-	try {
-		cleanup = clearScrollbackState();
-	} catch (error) {
-		onCleanupError(error);
-		return null;
-	}
-	void cleanup?.catch(onCleanupError);
-	return cleanup;
 }
 
 export function accumulateWorkmuxScrollbackBatchCommands({
