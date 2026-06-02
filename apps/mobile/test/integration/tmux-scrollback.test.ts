@@ -237,7 +237,7 @@ void test('resetTmuxScrollbackRuntimeState clears stale line leftovers', () => {
 		}),
 		[],
 	);
-	resetTmuxScrollbackRuntimeState({ lineAccumulator });
+	void resetTmuxScrollbackRuntimeState({ lineAccumulator });
 	assert.deepEqual(
 		buildWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
@@ -423,7 +423,7 @@ void test('resetTmuxScrollbackRuntimeState cancels in-flight enter and unwinds r
 		cancelCommand: 'exit',
 	});
 	await Promise.resolve();
-	resetTmuxScrollbackRuntimeState({
+	void resetTmuxScrollbackRuntimeState({
 		lineAccumulator,
 		commandExecutor: executor,
 	});
@@ -452,7 +452,7 @@ void test('resetTmuxScrollbackRuntimeState cancels queued enter before it starts
 	const enter = executor.runEnterCommand('enter', {
 		cancelCommand: 'exit',
 	});
-	resetTmuxScrollbackRuntimeState({
+	void resetTmuxScrollbackRuntimeState({
 		lineAccumulator,
 		commandExecutor: executor,
 	});
@@ -481,7 +481,7 @@ void test('resetTmuxScrollbackRuntimeState cancels pending Workmux scroll batche
 	const batch = executor.enqueueScrollBatch(['page']);
 
 	assert.equal(executor.getPendingScrollBatchCount(), 1);
-	resetTmuxScrollbackRuntimeState({
+	void resetTmuxScrollbackRuntimeState({
 		lineAccumulator,
 		commandExecutor: executor,
 	});
@@ -490,6 +490,54 @@ void test('resetTmuxScrollbackRuntimeState cancels pending Workmux scroll batche
 	commandBlock.resolve(undefined);
 	assert.equal(await enter, false);
 	assert.deepEqual(commands, ['enter']);
+});
+
+void test('resetTmuxScrollbackRuntimeState requests Workmux scroll exit for acknowledged remote copy mode', async () => {
+	const commandBlock = deferred<void>();
+	const commands: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'slow-page') await commandBlock.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const page = executor.enqueueScrollBatch(['slow-page']);
+	await Promise.resolve();
+	const exit = resetTmuxScrollbackRuntimeState({
+		lineAccumulator,
+		commandExecutor: executor,
+		remoteCopyModeExitCommand: 'exit',
+	});
+
+	assert.notEqual(exit, null);
+	commandBlock.resolve(undefined);
+	assert.equal(await page, false);
+	assert.equal(await exit, true);
+	assert.deepEqual(commands, ['slow-page', 'exit']);
+});
+
+void test('resetTmuxScrollbackRuntimeState skips Workmux scroll exit before remote copy mode ack', () => {
+	const commands: string[] = [];
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const exit = resetTmuxScrollbackRuntimeState({
+		lineAccumulator,
+		commandExecutor: executor,
+	});
+
+	assert.equal(exit, null);
+	assert.deepEqual(commands, []);
 });
 
 void test('workmux scrollback failure actions alert and clear without cancel before remote ack', () => {

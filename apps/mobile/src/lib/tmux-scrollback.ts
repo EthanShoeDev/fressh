@@ -28,7 +28,7 @@ export type WorkmuxScrollbackCommandExecutor = {
 	) => Promise<boolean>;
 	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
 	clearPendingScrollBatches: () => void;
-	reset: () => void;
+	reset: (options?: { exitCommand?: string }) => Promise<boolean> | null;
 	dispose: () => void;
 	getPendingScrollBatchCount: () => number;
 };
@@ -56,11 +56,6 @@ export function createWorkmuxScrollbackCommandExecutor({
 	const clearPendingScrollBatches = () => {
 		pendingScrollBatch?.resolve(false);
 		pendingScrollBatch = null;
-	};
-
-	const reset = () => {
-		generation += 1;
-		clearPendingScrollBatches();
 	};
 
 	const enqueueSerialized = <T>(operation: () => Promise<T>) => {
@@ -101,6 +96,22 @@ export function createWorkmuxScrollbackCommandExecutor({
 			return false;
 		}
 		return true;
+	};
+
+	const reset = (options?: { exitCommand?: string }) => {
+		generation += 1;
+		clearPendingScrollBatches();
+		const exitCommand = options?.exitCommand;
+		if (disposed || !exitCommand) return null;
+
+		const operationGeneration = generation;
+		return enqueueSerialized(() =>
+			runCommands({
+				commands: [exitCommand],
+				commandKind: 'scroll',
+				operationGeneration,
+			}),
+		);
 	};
 
 	return {
@@ -153,7 +164,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 		reset,
 		dispose: () => {
 			disposed = true;
-			reset();
+			void reset();
 		},
 		getPendingScrollBatchCount: () => (pendingScrollBatch ? 1 : 0),
 	};
@@ -176,12 +187,16 @@ export function clearTmuxScrollbackLineAccumulator(
 export function resetTmuxScrollbackRuntimeState({
 	lineAccumulator,
 	commandExecutor,
+	remoteCopyModeExitCommand,
 }: {
 	lineAccumulator: TmuxScrollbackLineAccumulator;
 	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
-}): void {
+	remoteCopyModeExitCommand?: string;
+}): Promise<boolean> | null {
 	clearTmuxScrollbackLineAccumulator(lineAccumulator);
-	commandExecutor?.reset();
+	return (
+		commandExecutor?.reset({ exitCommand: remoteCopyModeExitCommand }) ?? null
+	);
 }
 
 export function buildWorkmuxScrollbackBatchCommands({

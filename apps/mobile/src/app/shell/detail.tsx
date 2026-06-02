@@ -790,17 +790,30 @@ function ShellDetail() {
 		[],
 	);
 
+	const resetTmuxScrollbackForUiReset = useCallback(() => {
+		const remoteCopyModeWasActive =
+			tmuxRemoteScrollbackCopyModeActiveRef.current;
+		tmuxRemoteScrollbackCopyModeActiveRef.current = false;
+		const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+		const reset = resetTmuxScrollbackRuntimeState({
+			lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
+			commandExecutor: workmuxScrollbackCommandExecutorRef.current,
+			remoteCopyModeExitCommand: remoteCopyModeWasActive
+				? buildWorkmuxAppScrollExitCommand(targetName)
+				: undefined,
+		});
+		void reset?.catch((error: unknown) => {
+			logger.warn('Workmux scrollback reset exit failed', error);
+		});
+	}, [tmuxTarget]);
+
 	const clearScrollbackState = useCallback(() => {
 		scrollbackActiveRef.current = false;
 		scrollbackPhaseRef.current = 'active';
-		tmuxRemoteScrollbackCopyModeActiveRef.current = false;
-		resetTmuxScrollbackRuntimeState({
-			lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
-			commandExecutor: workmuxScrollbackCommandExecutorRef.current,
-		});
+		resetTmuxScrollbackForUiReset();
 		setScrollbackActive(false);
 		xtermRef.current?.exitScrollback({ emitExit: false });
-	}, []);
+	}, [resetTmuxScrollbackForUiReset]);
 
 	const handleWorkmuxScrollbackCommandFailure = useCallback(
 		(message: string, context: { commandKind: 'enter' | 'scroll' }) => {
@@ -818,6 +831,7 @@ function ShellDetail() {
 					});
 				},
 				sendCancelKey: (cancelKey) => {
+					tmuxRemoteScrollbackCopyModeActiveRef.current = false;
 					void sendBytesOrdered(cancelKey);
 				},
 				clearScrollbackState,
@@ -2402,14 +2416,10 @@ function ShellDetail() {
 			scrollbackPhaseRef.current = event.phase;
 			setScrollbackActive(event.active);
 			if (!event.active) {
-				tmuxRemoteScrollbackCopyModeActiveRef.current = false;
-				resetTmuxScrollbackRuntimeState({
-					lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
-					commandExecutor: workmuxScrollbackCommandExecutorRef.current,
-				});
+				resetTmuxScrollbackForUiReset();
 			}
 		},
-		[],
+		[resetTmuxScrollbackForUiReset],
 	);
 
 	const handleTmuxEnterCopyMode = useCallback(
@@ -2619,11 +2629,7 @@ function ShellDetail() {
 			currentInstanceIdRef.current = instanceId;
 			scrollbackActiveRef.current = false;
 			scrollbackPhaseRef.current = 'active';
-			tmuxRemoteScrollbackCopyModeActiveRef.current = false;
-			resetTmuxScrollbackRuntimeState({
-				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
-				commandExecutor: workmuxScrollbackCommandExecutorRef.current,
-			});
+			resetTmuxScrollbackForUiReset();
 			setScrollbackActive(false);
 			hasAttachedOnceRef.current = false;
 
@@ -2640,7 +2646,7 @@ function ShellDetail() {
 			setTerminalReady(true);
 			setHasRenderedTerminal(true);
 		},
-		[shell],
+		[resetTmuxScrollbackForUiReset, shell],
 	);
 
 	useEffect(() => {
