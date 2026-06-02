@@ -22,6 +22,10 @@ export type WorkmuxScrollbackCommandResult = {
 type WorkmuxScrollbackCommandKind = 'enter' | 'scroll';
 type WorkmuxScrollbackFailurePolicy = 'notify' | 'suppress';
 
+export type WorkmuxScrollbackFailureContext = {
+	commandKind: 'enter' | 'scroll' | 'exit';
+};
+
 export type WorkmuxScrollbackCommandExecutor = {
 	runEnterCommand: (
 		command: string,
@@ -41,7 +45,10 @@ export function createWorkmuxScrollbackCommandExecutor({
 	onDisposeExitFailure,
 }: {
 	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>;
-	onFailure: (message: string) => void;
+	onFailure: (
+		message: string,
+		context: WorkmuxScrollbackFailureContext,
+	) => void;
 	onDisposeExitFailure?: (message: string) => void;
 }): WorkmuxScrollbackCommandExecutor {
 	let tail: Promise<unknown> = Promise.resolve();
@@ -112,7 +119,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 						canceledEnterRollbackSucceeded && !rollbackFailureMessage;
 					if (rollbackFailureMessage) {
 						if (canceledEnterRollbackFailurePolicy === 'notify') {
-							onFailure(rollbackFailureMessage);
+							onFailure(rollbackFailureMessage, { commandKind: 'exit' });
 						} else {
 							onDisposeExitFailure?.(rollbackFailureMessage);
 						}
@@ -125,7 +132,9 @@ export function createWorkmuxScrollbackCommandExecutor({
 			if (!failureMessage) continue;
 			clearPendingScrollBatches();
 			if (failurePolicy === 'notify') {
-				onFailure(failureMessage);
+				onFailure(failureMessage, {
+					commandKind: durableExit ? 'exit' : commandKind,
+				});
 			} else {
 				onDisposeExitFailure?.(failureMessage);
 			}

@@ -106,6 +106,7 @@ import {
 	registerTmuxScrollbackRemoteCopyModeExitCleanup,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	type WorkmuxScrollbackCommandExecutor,
+	type WorkmuxScrollbackFailureContext,
 } from '@/lib/tmux-scrollback';
 import { queryClient } from '@/lib/utils';
 import {
@@ -795,17 +796,21 @@ function ShellDetail() {
 		return cleanup;
 	}, [tmuxTarget]);
 
-	const clearScrollbackState = useCallback(() => {
+	const clearLocalScrollbackUiState = useCallback(() => {
 		scrollbackActiveRef.current = false;
 		scrollbackPhaseRef.current = 'active';
-		const reset = resetTmuxScrollbackForUiReset();
 		setScrollbackActive(false);
 		xtermRef.current?.exitScrollback();
+	}, []);
+
+	const clearScrollbackState = useCallback(() => {
+		clearLocalScrollbackUiState();
+		const reset = resetTmuxScrollbackForUiReset();
 		return reset;
-	}, [resetTmuxScrollbackForUiReset]);
+	}, [clearLocalScrollbackUiState, resetTmuxScrollbackForUiReset]);
 
 	const handleWorkmuxScrollbackCommandFailure = useCallback(
-		(message: string) => {
+		(message: string, context: WorkmuxScrollbackFailureContext) => {
 			handleWorkmuxScrollbackCommandFailureActions({
 				message,
 				alert: (title, alertMessage, buttons) =>
@@ -815,11 +820,14 @@ function ShellDetail() {
 						logger.warn('copy Workmux scroll failure message failed', error);
 					});
 				},
-				clearScrollbackState,
+				clearScrollbackState:
+					context.commandKind === 'exit'
+						? clearLocalScrollbackUiState
+						: clearScrollbackState,
 				warn: (warning) => logger.warn(warning),
 			});
 		},
-		[clearScrollbackState],
+		[clearLocalScrollbackUiState, clearScrollbackState],
 	);
 
 	const workmuxScrollbackCommandExecutor = useMemo(
@@ -905,10 +913,7 @@ function ShellDetail() {
 				sendBytesQueued(plan.segments, {
 					interSegmentDelayMs: plan.interSegmentDelayMs,
 				});
-			if (
-				!cleanupBarrier &&
-				tmuxRemoteScrollbackCopyModeActiveRef.current
-			) {
+			if (!cleanupBarrier && tmuxRemoteScrollbackCopyModeActiveRef.current) {
 				return;
 			}
 			if (cleanupBarrier) {
