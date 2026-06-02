@@ -79,7 +79,7 @@ function MA(A, {
     ), !0;
   if (A.type === "input") {
     const o = A.kind ?? "typing";
-    return Y == null || Y({ str: A.str, kind: o, instanceId: A.instanceId }), o === "typing" ? u == null || u(A.str) : (C = B == null ? void 0 : B.warn) == null || C.call(B, "dropping non-typing webview input", o), !0;
+    return o === "typing" ? (Y == null || Y({ str: A.str, kind: o, instanceId: A.instanceId }), u == null || u(A.str)) : (C = B == null ? void 0 : B.warn) == null || C.call(B, "dropping non-typing webview input", o), !0;
   }
   if (A.type === "debug")
     return (p = B == null ? void 0 : B.log) == null || p.call(B, "received debug msg from webview: ", A.message), !0;

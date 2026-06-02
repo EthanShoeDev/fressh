@@ -248,14 +248,6 @@ void test('XtermJsWebView message handler does not forward stale scroll input to
 	);
 
 	assert.deepEqual(events, [
-		[
-			'input',
-			{
-				str: '\u001b[A',
-				kind: 'scroll',
-				instanceId: 'instance-1',
-			},
-		],
 		['warn', ['dropping non-typing webview input', 'scroll']],
 	]);
 });
