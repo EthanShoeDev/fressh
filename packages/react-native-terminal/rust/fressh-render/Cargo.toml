@@ -30,6 +30,10 @@ thiserror = { workspace = true }
 # to one instance (shared Term/grid types). (§6)
 alacritty_renderer = { path = "../vendor/alacritty/alacritty_renderer" }
 
+# Glyph rasterizer (our fork via [patch.crates-io] in the workspace) — needed to
+# construct the Rasterizer for GlyphCache. Same instance the renderer uses.
+crossfont = "0.8.1"
+
 # Transitive deps the renderer needs once wired (measured from src/renderer/):
 #   crossfont (glyph rasterization, FreeType/CoreText — the mobile rider, §5),
 #   gl/gl_generator (raw GL bindings via build.rs), log, ahash, bitflags,

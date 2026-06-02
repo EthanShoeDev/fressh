@@ -29,9 +29,11 @@
 
 pub mod config;
 pub mod content;
+pub mod driver;
 
 pub use config::{ColorScheme, Palette, TerminalConfig};
 pub use content::renderable_cells;
+pub use driver::{RenderError, TerminalRenderer};
 
 // Re-export the vendored renderer surface. Presence of these in our dependency
 // graph alongside `alacritty_terminal` proves the cross-workspace path-dep and

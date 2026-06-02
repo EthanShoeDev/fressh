@@ -891,6 +891,7 @@ version = "0.1.0"
 dependencies = [
  "alacritty_renderer",
  "alacritty_terminal",
+ "crossfont",
  "thiserror 1.0.69",
 ]
 

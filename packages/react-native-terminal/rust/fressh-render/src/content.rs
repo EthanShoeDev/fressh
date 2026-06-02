@@ -159,3 +159,58 @@ fn is_empty(cell: &RenderableCell) -> bool {
 			.flags
 			.intersects(Flags::ALL_UNDERLINES | Flags::STRIKEOUT)
 }
+
+#[cfg(test)]
+mod tests {
+	use alacritty_terminal::Term;
+	use alacritty_terminal::event::EventListener;
+	use alacritty_terminal::grid::Dimensions;
+	use alacritty_terminal::term::Config;
+	use alacritty_terminal::vte::ansi::Processor;
+
+	use super::renderable_cells;
+	use crate::config::{ColorScheme, Palette};
+
+	struct NoopListener;
+	impl EventListener for NoopListener {}
+
+	struct Dims {
+		columns: usize,
+		screen_lines: usize,
+	}
+	impl Dimensions for Dims {
+		fn total_lines(&self) -> usize {
+			self.screen_lines
+		}
+		fn screen_lines(&self) -> usize {
+			self.screen_lines
+		}
+		fn columns(&self) -> usize {
+			self.columns
+		}
+	}
+
+	/// End-to-end (GL-free) proof of the data path: bytes -> Term -> cells.
+	#[test]
+	fn bytes_to_cells() {
+		let dims = Dims { columns: 20, screen_lines: 5 };
+		let mut term = Term::new(Config::default(), &dims, NoopListener);
+
+		// "hi" in default fg, then SGR 31 (red) "X".
+		let mut parser: Processor = Processor::new();
+		parser.advance(&mut term, b"hi\x1b[31mX");
+
+		let palette = Palette::new(&ColorScheme::default());
+		let cells = renderable_cells(&term, &palette, true);
+
+		let row0: String =
+			cells.iter().filter(|c| c.point.line == 0).map(|c| c.character).collect();
+		assert!(row0.contains('h'), "expected 'h' in {row0:?}");
+		assert!(row0.contains('i'), "expected 'i' in {row0:?}");
+		assert!(row0.contains('X'), "expected 'X' in {row0:?}");
+
+		// 'X' printed after SGR 31 -> default-scheme normal red (170, 0, 0).
+		let x = cells.iter().find(|c| c.character == 'X').expect("X cell");
+		assert_eq!(x.fg.as_tuple(), (170, 0, 0));
+	}
+}
