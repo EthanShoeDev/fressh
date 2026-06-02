@@ -137,6 +137,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "nitrogen@0.35.9": "patches/nitrogen@0.35.9.patch",
+  },
   "overrides": {
     "@effect/cli": "https://pkg.pr.new/EthanShoeDev/effect/@effect/cli@c8b2ef4",
     "@effect/platform": "https://pkg.pr.new/EthanShoeDev/effect/@effect/platform@c8b2ef4",

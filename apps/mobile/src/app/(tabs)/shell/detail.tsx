@@ -130,8 +130,11 @@ function ShellDetail() {
 			}
 
 			let modifiedBytes = bytes;
-			modifierKeysActive
-				.toSorted((a, b) => a.orderPreference - b.orderPreference)
+			// NB: copy-then-sort ([...].sort), not Array.prototype.toSorted —
+			// toSorted is ES2023 and isn't reliably present in Hermes, so calling it
+			// throws "undefined is not a function" on the very first keystroke.
+			[...modifierKeysActive]
+				.sort((a, b) => a.orderPreference - b.orderPreference)
 				.forEach((m) => {
 					if (!m.canApplyModifierToBytes(modifiedBytes)) {
 						return;

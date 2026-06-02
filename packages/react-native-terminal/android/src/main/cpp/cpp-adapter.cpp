@@ -16,6 +16,7 @@
 #include <jsi/jsi.h>
 
 #include "shim_uniffi.hpp" // generated: NativeShimUniffi::registerModule
+#include "ReactNativeTerminalOnLoad.hpp" // generated: registerAllNatives()
 
 namespace jsi = facebook::jsi;
 namespace jni = facebook::jni;
@@ -147,4 +148,17 @@ Java_com_margelo_nitro_fressh_ReactNativeTerminalModule_nativeInstallRustCrate(
   auto *runtime = reinterpret_cast<jsi::Runtime *>(jsiRuntimePtr);
   NativeShimUniffi::registerModule(*runtime, jsCallInvoker);
   return JNI_TRUE;
+}
+
+// ─────────────────────────── Nitro view registration ───────────────────────────
+
+// Nitro registers the "Terminal" Fabric component descriptor (plus the HybridObject
+// constructor and the fbjni natives) in registerAllNatives(). It MUST run from this
+// library's JNI_OnLoad — without it, Fabric never learns about the "Terminal"
+// component and falls back to legacy ViewManager interop, which creates the view but
+// silently drops every prop (so `shellId` never reaches HybridTerminal and the
+// renderer draws an unbound/black frame). See ReactNativeTerminalOnLoad.hpp.
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void * /* reserved */) {
+  return facebook::jni::initialize(
+      vm, [] { margelo::nitro::fressh::registerAllNatives(); });
 }

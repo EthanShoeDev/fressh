@@ -17,10 +17,20 @@ use std::slice;
 use fressh_core::{runtime, send_data, shell_term};
 use fressh_render::{EglContext, TerminalConfig};
 
+/// Per-frame draw outcome, tracked so we can log on *transitions* only (the draw
+/// loop runs at vsync — logging every frame would flood logcat). Purely diagnostic.
+#[derive(Clone, Copy, PartialEq)]
+enum DrawState {
+	Unbound,
+	Missing,
+	Drawn,
+}
+
 /// Opaque handle returned to the native view. `shell_id == None` until bound.
 pub struct AttachedTerminal {
 	egl: EglContext,
 	shell_id: Option<String>,
+	last_state: Option<DrawState>,
 }
 
 /// Read a C string, treating null/empty as `None`.
@@ -57,8 +67,12 @@ pub unsafe extern "C" fn fressh_terminal_attach(
 	let shell_id = cstr_opt(shell_id);
 	let config = TerminalConfig { font_path, ..TerminalConfig::default() };
 
+	log::info!("fressh_terminal_attach: shell_id={shell_id:?}");
 	match EglContext::create(window, config) {
-		Ok(egl) => Box::into_raw(Box::new(AttachedTerminal { egl, shell_id })),
+		Ok(egl) => {
+			log::info!("fressh_terminal_attach: created, grid={:?}", egl.grid_size());
+			Box::into_raw(Box::new(AttachedTerminal { egl, shell_id, last_state: None }))
+		}
 		Err(err) => {
 			log::error!("fressh_terminal_attach failed: {err}");
 			std::ptr::null_mut()
@@ -79,6 +93,8 @@ pub unsafe extern "C" fn fressh_terminal_set_shell(
 	// SAFETY: caller guarantees `ptr` is a live handle from attach.
 	if let Some(attached) = unsafe { ptr.as_mut() } {
 		attached.shell_id = cstr_opt(shell_id);
+		attached.last_state = None; // force a fresh transition log
+		log::info!("fressh_terminal_set_shell: shell_id={:?}", attached.shell_id);
 	}
 }
 
@@ -92,14 +108,36 @@ pub unsafe extern "C" fn fressh_terminal_draw(ptr: *mut AttachedTerminal) {
 	let Some(attached) = (unsafe { ptr.as_mut() }) else {
 		return;
 	};
-	if let Some(id) = attached.shell_id.as_deref() {
-		if let Some(term) = shell_term(id) {
-			let term = term.lock().unwrap_or_else(|p| p.into_inner());
-			attached.egl.draw_term(&term);
-			return;
+	let state = match attached.shell_id.as_deref() {
+		Some(id) => match shell_term(id) {
+			Some(term) => {
+				let term = term.lock().unwrap_or_else(|p| p.into_inner());
+				attached.egl.draw_term(&term);
+				if attached.last_state != Some(DrawState::Drawn) {
+					log::info!(
+						"fressh_terminal_draw: DRAWN shell_id={id} grid={:?}",
+						attached.egl.grid_size()
+					);
+				}
+				DrawState::Drawn
+			}
+			None => {
+				if attached.last_state != Some(DrawState::Missing) {
+					log::warn!("fressh_terminal_draw: shell_term MISS for shell_id={id}");
+				}
+				attached.egl.clear();
+				DrawState::Missing
+			}
+		},
+		None => {
+			if attached.last_state != Some(DrawState::Unbound) {
+				log::info!("fressh_terminal_draw: UNBOUND (no shell_id)");
+			}
+			attached.egl.clear();
+			DrawState::Unbound
 		}
-	}
-	attached.egl.clear();
+	};
+	attached.last_state = Some(state);
 }
 
 /// Re-query the surface size, resize the renderer, and reflow the bound shell's
@@ -114,6 +152,7 @@ pub unsafe extern "C" fn fressh_terminal_resize(ptr: *mut AttachedTerminal) {
 		return;
 	};
 	let (cols, rows) = attached.egl.resize();
+	log::info!("fressh_terminal_resize: grid={cols}x{rows} shell_id={:?}", attached.shell_id);
 	if let Some(id) = attached.shell_id.clone() {
 		runtime::handle().spawn(async move {
 			let _ = fressh_core::resize(id, cols, rows).await;

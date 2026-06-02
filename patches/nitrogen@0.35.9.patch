@@ -1,0 +1,58 @@
+diff --git a/lib/views/CppHybridViewComponent.js b/lib/views/CppHybridViewComponent.js
+index 35ca8c4fbe108439bbf7fdbd26560c08c7f2bdcb..ee044022e61b00426599c06858a7f97cf1120035 100644
+--- a/lib/views/CppHybridViewComponent.js
++++ b/lib/views/CppHybridViewComponent.js
+@@ -210,7 +210,7 @@ namespace ${namespace} {
+ 
+   ${descriptorClassName}::${descriptorClassName}(const react::ComponentDescriptorParameters& parameters)
+     : ConcreteComponentDescriptor(parameters,
+-                                  react::RawPropsParser(/* enableJsiParser */ true)) {}
++                                  react::RawPropsParser()) {}
+ 
+   std::shared_ptr<const react::Props> ${descriptorClassName}::cloneProps(const react::PropsParserContext& context,
+                                       ${descriptorIndent}             const std::shared_ptr<const react::Props>& props,
+@@ -226,8 +226,13 @@ namespace ${namespace} {
+     // This is called immediately after \`ShadowNode\` is created, cloned or in progress.
+     // On Android, we need to wrap props in our state, which gets routed through Java and later unwrapped in JNI/C++.
+     auto& concreteShadowNode = static_cast<${shadowNodeClassName}&>(shadowNode);
+-    const std::shared_ptr<const ${propsClassName}>& constProps = concreteShadowNode.getConcreteSharedProps();
+-    const std::shared_ptr<${propsClassName}>& props = std::const_pointer_cast<${propsClassName}>(constProps);
++    // NOTE: \`getConcreteSharedProps()\` returns a DANGLING reference to a temporary
++    // shared_ptr (RN \`ConcreteShadowNode::getConcreteSharedProps\` returns
++    // \`std::static_pointer_cast<...>(props_)\` bound to a \`const&\` return type).
++    // Reading it is UB and yields freed/garbage props in some memory layouts. Cast
++    // the stable \`getProps()\` member into a local shared_ptr instead.
++    auto props = std::const_pointer_cast<${propsClassName}>(
++        std::static_pointer_cast<const ${propsClassName}>(shadowNode.getProps()));
+     ${stateClassName} state{props};
+     concreteShadowNode.setStateData(std::move(state));
+   }
+diff --git a/src/views/CppHybridViewComponent.ts b/src/views/CppHybridViewComponent.ts
+index 55ada8153dca1dd66d47c4e9aa7abbf193ddfae7..702bdb08a02e4ad3d9f76dceed78f05b97c4f882 100644
+--- a/src/views/CppHybridViewComponent.ts
++++ b/src/views/CppHybridViewComponent.ts
+@@ -257,7 +257,7 @@ namespace ${namespace} {
+ 
+   ${descriptorClassName}::${descriptorClassName}(const react::ComponentDescriptorParameters& parameters)
+     : ConcreteComponentDescriptor(parameters,
+-                                  react::RawPropsParser(/* enableJsiParser */ true)) {}
++                                  react::RawPropsParser()) {}
+ 
+   std::shared_ptr<const react::Props> ${descriptorClassName}::cloneProps(const react::PropsParserContext& context,
+                                       ${descriptorIndent}             const std::shared_ptr<const react::Props>& props,
+@@ -273,8 +273,13 @@ namespace ${namespace} {
+     // This is called immediately after \`ShadowNode\` is created, cloned or in progress.
+     // On Android, we need to wrap props in our state, which gets routed through Java and later unwrapped in JNI/C++.
+     auto& concreteShadowNode = static_cast<${shadowNodeClassName}&>(shadowNode);
+-    const std::shared_ptr<const ${propsClassName}>& constProps = concreteShadowNode.getConcreteSharedProps();
+-    const std::shared_ptr<${propsClassName}>& props = std::const_pointer_cast<${propsClassName}>(constProps);
++    // NOTE: \`getConcreteSharedProps()\` returns a DANGLING reference to a temporary
++    // shared_ptr (RN \`ConcreteShadowNode::getConcreteSharedProps\` returns
++    // \`std::static_pointer_cast<...>(props_)\` bound to a \`const&\` return type).
++    // Reading it is UB and yields freed/garbage props in some memory layouts. Cast
++    // the stable \`getProps()\` member into a local shared_ptr instead.
++    auto props = std::const_pointer_cast<${propsClassName}>(
++        std::static_pointer_cast<const ${propsClassName}>(shadowNode.getProps()));
+     ${stateClassName} state{props};
+     concreteShadowNode.setStateData(std::move(state));
+   }

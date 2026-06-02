@@ -17,6 +17,18 @@ add_library(${PACKAGE_NAME} SHARED
   ../cpp/generated/shim_uniffi.cpp
 )
 
+# CRITICAL: hide all symbols by default; only the JNIEXPORT entry points (which carry
+# explicit default visibility) stay exported. Without this, the React/Nitro template
+# instantiations we compile in (ShadowNode, State, ConcreteState, StateWrapperImpl,
+# RawPropsParser, …) are exported with default visibility and INTERPOSE over
+# libreactnative.so's copies at load time. RN core then manipulates Fabric State
+# objects through OUR differently-built copies, corrupting the view-state round-trip:
+# props parse correctly in cloneProps but come back freed/garbage in updateViewProps,
+# so NewStringUTF aborts (and ~HybridTerminalState segfaults). Other Nitro libs
+# (e.g. NitroMmkv) export 0 such symbols; this hand-written umbrella must match.
+target_compile_options(${PACKAGE_NAME} PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+target_link_options(${PACKAGE_NAME} PRIVATE -Wl,--exclude-libs,ALL)
+
 # Nitrogen-generated sources + nitro/fbjni/ReactAndroid (jsi, ReactCommon) linkage
 # + their include dirs (the generated uniffi cpp uses <jsi/jsi.h> and
 # <ReactCommon/CallInvoker.h>, both provided here).
