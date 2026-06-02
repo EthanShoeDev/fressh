@@ -320,29 +320,28 @@ export function buildWorkmuxScrollbackBatchCommands({
 	linesPerPage: number;
 	lineAccumulator: TmuxScrollbackLineAccumulator;
 }): string[] {
-	let pageCount = truncateNonNegativeInteger(pages);
+	const explicitPageCount = truncateNonNegativeInteger(pages);
 	const lineCount = truncateNonNegativeInteger(lines);
 	const pageSize = Math.max(1, truncateNonNegativeInteger(linesPerPage));
+	const signedPreviousLines =
+		lineAccumulator.direction === 'up'
+			? lineAccumulator.lines
+			: -lineAccumulator.lines;
+	const signedBatchDirection = direction === 'up' ? 1 : -1;
+	const signedBatchLines =
+		signedBatchDirection * (explicitPageCount * pageSize + lineCount);
+	const signedTotalLines = signedPreviousLines + signedBatchLines;
+	const totalDirection =
+		signedTotalLines >= 0 ? 'up' : ('down' as WorkmuxScrollDirection);
+	const totalLines = Math.abs(signedTotalLines);
+	const pageCount = Math.min(
+		Math.trunc(totalLines / pageSize),
+		TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
+	);
+	const leftoverLines = totalLines % pageSize;
 
-	if (lineCount > 0) {
-		const signedLineDelta = direction === 'up' ? lineCount : -lineCount;
-		const signedAccumulatedLines =
-			(lineAccumulator.direction === 'up'
-				? lineAccumulator.lines
-				: -lineAccumulator.lines) + signedLineDelta;
-		const accumulatedDirection =
-			signedAccumulatedLines >= 0 ? 'up' : ('down' as WorkmuxScrollDirection);
-		const accumulatedLines = Math.abs(signedAccumulatedLines);
-		const accumulatedPages = Math.trunc(accumulatedLines / pageSize);
-		lineAccumulator.direction = accumulatedLines === 0 ? null : accumulatedDirection;
-		lineAccumulator.lines = accumulatedLines % pageSize;
-
-		if (accumulatedPages > 0) {
-			pageCount += accumulatedPages;
-			direction = accumulatedDirection;
-		}
-	}
-	pageCount = Math.min(pageCount, TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH);
+	lineAccumulator.direction = leftoverLines === 0 ? null : totalDirection;
+	lineAccumulator.lines = leftoverLines;
 
 	if (pageCount === 0) return [];
 
@@ -355,7 +354,7 @@ export function buildWorkmuxScrollbackBatchCommands({
 		commands.push(
 			buildWorkmuxAppScrollPageCommand(
 				sessionName,
-				direction,
+				totalDirection,
 				Math.min(remainingPages, WORKMUX_APP_SCROLL_MAX_COUNT),
 			),
 		);

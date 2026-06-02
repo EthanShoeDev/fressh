@@ -151,6 +151,37 @@ void test('buildWorkmuxScrollbackBatchCommands nets line leftovers on direction 
 	);
 });
 
+void test('buildWorkmuxScrollbackBatchCommands nets explicit pages and lines on reversal', () => {
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'up',
+			pages: 0,
+			lines: 20,
+			linesPerPage: 24,
+			lineAccumulator,
+		}),
+		[],
+	);
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'down',
+			pages: 1,
+			lines: 6,
+			linesPerPage: 24,
+			lineAccumulator,
+		}),
+		[],
+	);
+	assert.deepEqual(lineAccumulator, {
+		direction: 'down',
+		lines: 10,
+	});
+});
+
 void test('clearTmuxScrollbackLineAccumulator drops line leftovers', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
