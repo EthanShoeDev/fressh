@@ -14,28 +14,7 @@ type DirectTmuxOccurrence = {
 const expectedTemporaryViolationOccurrences = new Map<
 	string,
 	DirectTmuxOccurrence[]
->([
-	[
-		'apps/mobile/src/lib/tmux-scrollback.ts',
-		[
-			{
-				kind: 'shell',
-				functionName: 'buildTmuxScrollbackCopyModeCommand',
-				commandPrefix: 'tmux copy-mode',
-			},
-			{
-				kind: 'shell',
-				functionName: 'buildTmuxScrollbackBatchCommand',
-				commandPrefix: 'tmux ${',
-			},
-			{
-				kind: 'shell',
-				functionName: 'buildTmuxSelectWindowCommand',
-				commandPrefix: 'tmux select-window',
-			},
-		],
-	],
-]);
+>([]);
 
 const scannedRoots = [
 	path.join(repoRoot, 'apps/mobile/src'),

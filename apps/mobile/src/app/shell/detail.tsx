@@ -100,13 +100,15 @@ import {
 } from '@/lib/terminal-input-payloads';
 import { useTheme } from '@/lib/theme';
 import {
-	buildTmuxScrollbackBatchCommand,
-	buildTmuxScrollbackCopyModeCommand,
+	buildWorkmuxScrollbackBatchCommands,
+	clearTmuxScrollbackLineAccumulator,
+	createTmuxScrollbackLineAccumulator,
 	getTmuxScrollbackControlFailurePolicy,
 	isValidTmuxCancelKey,
 	runTmuxControlCommand,
 } from '@/lib/tmux-scrollback';
 import { queryClient } from '@/lib/utils';
+import { buildWorkmuxAppScrollEnterCommand } from '@/lib/workmux-app-commands';
 import {
 	canStartWisprTextEntryAutomation,
 	isWisprAutomationBusy,
@@ -702,6 +704,9 @@ function ShellDetail() {
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
+	const tmuxScrollbackLineAccumulatorRef = useRef(
+		createTmuxScrollbackLineAccumulator(),
+	);
 	const shellConfigRef = useRef(shellConfig);
 	const availableKeyboardIdsRef = useRef(availableKeyboardIds);
 	const selectedKeyboardIdRef = useRef(selectedKeyboardId);
@@ -840,6 +845,9 @@ function ShellDetail() {
 	const clearScrollbackState = useCallback(() => {
 		scrollbackActiveRef.current = false;
 		scrollbackPhaseRef.current = 'active';
+		clearTmuxScrollbackLineAccumulator(
+			tmuxScrollbackLineAccumulatorRef.current,
+		);
 		setScrollbackActive(false);
 		xtermRef.current?.exitScrollback({ emitExit: false });
 	}, []);
@@ -2431,6 +2439,11 @@ function ShellDetail() {
 			scrollbackActiveRef.current = event.active;
 			scrollbackPhaseRef.current = event.phase;
 			setScrollbackActive(event.active);
+			if (!event.active) {
+				clearTmuxScrollbackLineAccumulator(
+					tmuxScrollbackLineAccumulatorRef.current,
+				);
+			}
 		},
 		[],
 	);
@@ -2444,7 +2457,7 @@ function ShellDetail() {
 				return;
 			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-			const command = buildTmuxScrollbackCopyModeCommand(targetName);
+			const command = buildWorkmuxAppScrollEnterCommand(targetName);
 			if (!(await sendTmuxControlCommand(command))) {
 				logger.warn(
 					'tmux touch-scroll entry unavailable without tmux control shell',
@@ -2477,18 +2490,23 @@ function ShellDetail() {
 			if (!tmuxEnabled || !tmuxControlReady) return;
 
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-			const command = buildTmuxScrollbackBatchCommand({
-				targetName,
+			const commands = buildWorkmuxScrollbackBatchCommands({
+				sessionName: targetName,
 				direction: event.direction,
 				pages: event.pages,
 				lines: event.lines,
+				linesPerPage: lastSizeRef.current?.rows ?? 24,
+				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
 			});
-			if (!command) return;
+			if (commands.length === 0) return;
 			void (async () => {
-				if (await sendTmuxControlCommand(command)) return;
-				logger.warn(
-					'tmux touch-scroll batch unavailable without tmux control shell',
-				);
+				for (const command of commands) {
+					if (await sendTmuxControlCommand(command)) continue;
+					logger.warn(
+						'tmux touch-scroll batch unavailable without tmux control shell',
+					);
+					return;
+				}
 			})();
 		},
 		[

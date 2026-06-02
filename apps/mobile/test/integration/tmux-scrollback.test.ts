@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-	buildTmuxScrollbackBatchCommand,
-	buildTmuxScrollbackCopyModeCommand,
 	buildTmuxScrollbackLiveInputSendPlan,
-	buildTmuxSelectWindowCommand,
+	buildWorkmuxScrollbackBatchCommands,
+	clearTmuxScrollbackLineAccumulator,
+	createTmuxScrollbackLineAccumulator,
 	getTmuxScrollbackControlFailurePolicy,
 	isValidTmuxCancelKey,
 } from '../../src/lib/tmux-scrollback';
@@ -13,98 +13,127 @@ const bytes = (values: number[]) => new Uint8Array(values);
 const segmentValues = (segments: readonly Uint8Array<ArrayBuffer>[]) =>
 	segments.map((segment) => Array.from(segment));
 
-void test('buildTmuxScrollbackCopyModeCommand enters copy mode through tmux control shell', () => {
-	assert.equal(
-		buildTmuxScrollbackCopyModeCommand("main's"),
-		"tmux copy-mode -t 'main'\\''s'",
-	);
-});
-
-void test('buildTmuxSelectWindowCommand targets an agent alert tmux window id', () => {
-	assert.equal(
-		buildTmuxSelectWindowCommand("main's", '@12'),
-		"tmux select-window -t 'main'\\''s:@12'",
-	);
-});
-
-void test('buildTmuxScrollbackBatchCommand builds page scroll batches', () => {
-	assert.equal(
-		buildTmuxScrollbackBatchCommand({
-			targetName: 'main',
+void test('buildWorkmuxScrollbackBatchCommands builds page scroll commands', () => {
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
 			direction: 'up',
 			pages: 2,
 			lines: 0,
+			linesPerPage: 24,
+			lineAccumulator: createTmuxScrollbackLineAccumulator(),
 		}),
-		"tmux send-keys -t 'main' -N 2 -X page-up",
+		["mdev tmux app scroll page-up --count '2' --session 'main'"],
 	);
 });
 
-void test('buildTmuxScrollbackBatchCommand builds line scroll batches', () => {
-	assert.equal(
-		buildTmuxScrollbackBatchCommand({
-			targetName: 'main',
+void test('buildWorkmuxScrollbackBatchCommands accumulates sub-page lines by direction', () => {
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
-			lines: 7,
+			lines: 12,
+			linesPerPage: 24,
+			lineAccumulator,
 		}),
-		"tmux send-keys -t 'main' -N 7 -X scroll-down",
+		[],
+	);
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'down',
+			pages: 0,
+			lines: 12,
+			linesPerPage: 24,
+			lineAccumulator,
+		}),
+		["mdev tmux app scroll page-down --count '1' --session 'main'"],
 	);
 });
 
-void test('buildTmuxScrollbackBatchCommand combines page and line scroll batches', () => {
-	assert.equal(
-		buildTmuxScrollbackBatchCommand({
-			targetName: 'main',
+void test('buildWorkmuxScrollbackBatchCommands resets line leftovers on direction change', () => {
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'down',
+			pages: 0,
+			lines: 12,
+			linesPerPage: 24,
+			lineAccumulator,
+		}),
+		[],
+	);
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
 			direction: 'up',
-			pages: 1,
-			lines: 3,
+			pages: 0,
+			lines: 12,
+			linesPerPage: 24,
+			lineAccumulator,
 		}),
-		"tmux send-keys -t 'main' -N 1 -X page-up \\; send-keys -t 'main' -N 3 -X scroll-up",
+		[],
+	);
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'up',
+			pages: 0,
+			lines: 12,
+			linesPerPage: 24,
+			lineAccumulator,
+		}),
+		["mdev tmux app scroll page-up --count '1' --session 'main'"],
 	);
 });
 
-void test('buildTmuxScrollbackBatchCommand returns null for empty scroll batches', () => {
-	assert.equal(
-		buildTmuxScrollbackBatchCommand({
-			targetName: 'main',
+void test('clearTmuxScrollbackLineAccumulator drops line leftovers', () => {
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
+
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
+			lines: 12,
+			linesPerPage: 24,
+			lineAccumulator,
+		}),
+		[],
+	);
+	clearTmuxScrollbackLineAccumulator(lineAccumulator);
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'down',
+			pages: 0,
+			lines: 12,
+			linesPerPage: 24,
+			lineAccumulator,
+		}),
+		[],
+	);
+});
+
+void test('buildWorkmuxScrollbackBatchCommands splits page commands above Workmux max count', () => {
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'up',
+			pages: 25,
 			lines: 0,
+			linesPerPage: 24,
+			lineAccumulator: createTmuxScrollbackLineAccumulator(),
 		}),
-		null,
-	);
-});
-
-void test('buildTmuxScrollbackBatchCommand clamps negative scroll counts', () => {
-	assert.equal(
-		buildTmuxScrollbackBatchCommand({
-			targetName: 'main',
-			direction: 'up',
-			pages: -1,
-			lines: 2,
-		}),
-		"tmux send-keys -t 'main' -N 2 -X scroll-up",
-	);
-	assert.equal(
-		buildTmuxScrollbackBatchCommand({
-			targetName: 'main',
-			direction: 'down',
-			pages: -1,
-			lines: -2,
-		}),
-		null,
-	);
-});
-
-void test('buildTmuxScrollbackBatchCommand escapes single quotes in target names', () => {
-	assert.equal(
-		buildTmuxScrollbackBatchCommand({
-			targetName: "main's",
-			direction: 'down',
-			pages: 1,
-			lines: 1,
-		}),
-		"tmux send-keys -t 'main'\\''s' -N 1 -X page-down \\; send-keys -t 'main'\\''s' -N 1 -X scroll-down",
+		[
+			"mdev tmux app scroll page-up --count '20' --session 'main'",
+			"mdev tmux app scroll page-up --count '5' --session 'main'",
+		],
 	);
 });
 

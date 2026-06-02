@@ -1,57 +1,81 @@
+import {
+	buildWorkmuxAppScrollPageCommand,
+	type WorkmuxScrollDirection,
+} from './workmux-app-commands';
+
 const encoder = new TextEncoder();
+const WORKMUX_APP_SCROLL_COMMAND_MAX_COUNT = 20;
 
 export type TmuxControlWriter = {
 	send: (bytes: Uint8Array<ArrayBufferLike>) => Promise<void>;
 };
 
-function escapeTmuxTarget(targetName: string): string {
-	return targetName.replace(/'/g, "'\\''");
+export type TmuxScrollbackLineAccumulator = {
+	direction: WorkmuxScrollDirection | null;
+	lines: number;
+};
+
+export function createTmuxScrollbackLineAccumulator(): TmuxScrollbackLineAccumulator {
+	return {
+		direction: null,
+		lines: 0,
+	};
 }
 
-// Temporary mdev-boundary violation: scrollback entry and notification window
-// selection still call tmux directly until mdev exposes app-callable wrappers.
-// Do not add new direct tmux helpers here; move them behind mdev first.
-export function buildTmuxScrollbackCopyModeCommand(targetName: string): string {
-	const safeTarget = escapeTmuxTarget(targetName);
-	return `tmux copy-mode -t '${safeTarget}'`;
+export function clearTmuxScrollbackLineAccumulator(
+	lineAccumulator: TmuxScrollbackLineAccumulator,
+): void {
+	lineAccumulator.direction = null;
+	lineAccumulator.lines = 0;
 }
 
-export function buildTmuxScrollbackBatchCommand({
-	targetName,
+export function buildWorkmuxScrollbackBatchCommands({
+	sessionName,
 	direction,
 	pages,
 	lines,
+	linesPerPage,
+	lineAccumulator,
 }: {
-	targetName: string;
-	direction: 'up' | 'down';
+	sessionName: string;
+	direction: WorkmuxScrollDirection;
 	pages: number;
 	lines: number;
-}): string | null {
-	const safeTarget = escapeTmuxTarget(targetName);
-	const targetArg = `'${safeTarget}'`;
-	const clampedPages = Math.max(0, pages);
-	const clampedLines = Math.max(0, lines);
-	const pageCmd = direction === 'up' ? 'page-up' : 'page-down';
-	const lineCmd = direction === 'up' ? 'scroll-up' : 'scroll-down';
-	const parts: string[] = [];
+	linesPerPage: number;
+	lineAccumulator: TmuxScrollbackLineAccumulator;
+}): string[] {
+	let pageCount = truncateNonNegativeInteger(pages);
+	const lineCount = truncateNonNegativeInteger(lines);
+	const pageSize = Math.max(1, truncateNonNegativeInteger(linesPerPage));
 
-	if (clampedPages > 0) {
-		parts.push(`send-keys -t ${targetArg} -N ${clampedPages} -X ${pageCmd}`);
+	if (lineAccumulator.direction !== direction) {
+		clearTmuxScrollbackLineAccumulator(lineAccumulator);
+		lineAccumulator.direction = direction;
 	}
-	if (clampedLines > 0) {
-		parts.push(`send-keys -t ${targetArg} -N ${clampedLines} -X ${lineCmd}`);
+
+	if (lineCount > 0) {
+		lineAccumulator.lines += lineCount;
+		pageCount += Math.trunc(lineAccumulator.lines / pageSize);
+		lineAccumulator.lines %= pageSize;
 	}
-	if (parts.length === 0) return null;
 
-	return `tmux ${parts.join(' \\; ')}`;
-}
+	if (pageCount === 0) return [];
 
-export function buildTmuxSelectWindowCommand(
-	sessionName: string,
-	windowId: string,
-): string {
-	const safeTarget = escapeTmuxTarget(`${sessionName}:${windowId}`);
-	return `tmux select-window -t '${safeTarget}'`;
+	const commands: string[] = [];
+	for (
+		let remainingPages = pageCount;
+		remainingPages > 0;
+		remainingPages -= WORKMUX_APP_SCROLL_COMMAND_MAX_COUNT
+	) {
+		commands.push(
+			buildWorkmuxAppScrollPageCommand(
+				sessionName,
+				direction,
+				Math.min(remainingPages, WORKMUX_APP_SCROLL_COMMAND_MAX_COUNT),
+			),
+		);
+	}
+	return commands;
 }
 
 export async function runTmuxControlCommand(
@@ -74,6 +98,11 @@ export function getTmuxScrollbackControlFailurePolicy({
 }): 'exit-scrollback-and-restart-control' | 'restart-control-only' {
 	if (scrollbackActive) return 'exit-scrollback-and-restart-control';
 	return 'restart-control-only';
+}
+
+function truncateNonNegativeInteger(value: number): number {
+	if (!Number.isFinite(value)) return 0;
+	return Math.max(0, Math.trunc(value));
 }
 
 export type TmuxScrollbackLiveInputSendPlan =
