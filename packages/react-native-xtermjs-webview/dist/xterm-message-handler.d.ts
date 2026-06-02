@@ -8,7 +8,7 @@ type XtermMessageLogger = {
     log?: (...args: unknown[]) => void;
     warn?: (...args: unknown[]) => void;
 };
-export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessage, { currentInstanceIdRef, pendingSelectionRef, logger, onInitialized, autoFitFn, setInitialized, onInput, onData, onResize, onSelection, onSelectionModeChange, onScrollbackModeChange, onScrollbackEnterRequested, onScrollbackBatch, }: {
+export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessage, { currentInstanceIdRef, pendingSelectionRef, logger, onInitialized, autoFitFn, setInitialized, onInput, onData, onResize, onSelection, onSelectionModeChange, onScrollbackModeChange, onScrollbackEnterRequested, onScrollbackEnterRequestFailure, onScrollbackBatch, }: {
     currentInstanceIdRef: {
         current: string | null;
     };
@@ -35,7 +35,11 @@ export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessag
     onScrollbackEnterRequested?: (event: {
         instanceId: string;
         requestId: number;
-    }) => void;
+    }) => void | Promise<void>;
+    onScrollbackEnterRequestFailure?: (event: {
+        instanceId: string;
+        requestId: number;
+    }, error: unknown) => void;
     onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 }): boolean;
 export {};

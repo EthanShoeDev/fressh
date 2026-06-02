@@ -68,7 +68,9 @@ void test('scrollbackBatch bridge helper forwards pageStep', () => {
 void test('XtermJsWebView message handler routes current instance events and drops stale ones', () => {
 	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: null as string | null };
-	const pendingSelectionRef = { current: new Map() };
+	const pendingSelectionRef = {
+		current: new Map<number, { resolve: (value: string) => void }>(),
+	};
 	const handle = (msg: Parameters<typeof handleXtermBridgeInboundMessage>[0]) =>
 		handleXtermBridgeInboundMessage(msg, {
 			currentInstanceIdRef,
@@ -83,12 +85,64 @@ void test('XtermJsWebView message handler routes current instance events and dro
 			onSelectionModeChange: (enabled) =>
 				events.push(`selection-mode:${enabled}`),
 			onScrollbackModeChange: (event) => events.push(['scrollback-mode', event]),
-			onScrollbackEnterRequested: (event) =>
-				events.push(['scrollback-enter', event]),
+			onScrollbackEnterRequested: (event) => {
+				events.push(['scrollback-enter', event]);
+			},
 			onScrollbackBatch: (event) => events.push(['scroll-batch', event]),
 		});
 
 	assert.equal(handle({ type: 'initialized', instanceId: 'instance-1' }), true);
+	pendingSelectionRef.current.set(9, {
+		resolve: (value) => events.push(`pending-selection:${value}`),
+	});
+	assert.equal(
+		handle({
+			type: 'input',
+			str: 'abc',
+			instanceId: 'instance-1',
+		}),
+		true,
+	);
+	assert.equal(
+		handle({ type: 'sizeChanged', cols: 80, rows: 24 }),
+		true,
+	);
+	assert.equal(
+		handle({
+			type: 'selection',
+			requestId: 9,
+			text: 'selected',
+			instanceId: 'instance-1',
+		}),
+		true,
+	);
+	assert.equal(pendingSelectionRef.current.has(9), false);
+	assert.equal(
+		handle({
+			type: 'selectionChanged',
+			text: 'visible selection',
+			instanceId: 'instance-1',
+		}),
+		true,
+	);
+	assert.equal(
+		handle({
+			type: 'selectionModeChanged',
+			enabled: true,
+			instanceId: 'instance-1',
+		}),
+		true,
+	);
+	assert.equal(
+		handle({
+			type: 'scrollbackModeChanged',
+			active: true,
+			phase: 'dragging',
+			instanceId: 'instance-1',
+			requestId: 6,
+		}),
+		true,
+	);
 	assert.equal(
 		handle({
 			type: 'scrollbackEnterRequested',
@@ -123,6 +177,28 @@ void test('XtermJsWebView message handler routes current instance events and dro
 		'fit',
 		'state:true',
 		[
+			'input',
+			{
+				str: 'abc',
+				kind: 'typing',
+				instanceId: 'instance-1',
+			},
+		],
+		'data:abc',
+		'resize:80x24',
+		'pending-selection:selected',
+		'selection:visible selection',
+		'selection-mode:true',
+		[
+			'scrollback-mode',
+			{
+				active: true,
+				phase: 'dragging',
+				instanceId: 'instance-1',
+				requestId: 6,
+			},
+		],
+		[
 			'scrollback-enter',
 			{
 				instanceId: 'instance-1',
@@ -143,6 +219,51 @@ void test('XtermJsWebView message handler routes current instance events and dro
 
 	const source = readFileSync(join(process.cwd(), 'src/index.tsx'), 'utf8');
 	assert.match(source, /handleXtermBridgeInboundMessage\(msg, \{/);
+});
+
+void test('XtermJsWebView message handler reports rejected scrollback enter callbacks', async () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: 'instance-1' };
+	const pendingSelectionRef = { current: new Map() };
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'scrollbackEnterRequested',
+				instanceId: 'instance-1',
+				requestId: 7,
+			},
+			{
+				currentInstanceIdRef,
+				pendingSelectionRef,
+				autoFitFn: () => {},
+				setInitialized: () => {},
+				onScrollbackEnterRequested: async () => {
+					throw new Error('enter failed');
+				},
+				onScrollbackEnterRequestFailure: (event, error) =>
+					events.push([
+						'failure',
+						event,
+						error instanceof Error ? error.message : String(error),
+					]),
+			},
+		),
+		true,
+	);
+
+	await Promise.resolve();
+
+	assert.deepEqual(events, [
+		[
+			'failure',
+			{
+				instanceId: 'instance-1',
+				requestId: 7,
+			},
+			'enter failed',
+		],
+	]);
 });
 
 void test('public dist artifacts keep the published touch scroll bridge contract', () => {

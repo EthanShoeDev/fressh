@@ -435,6 +435,18 @@ export function XtermJsWebView({
 						onSelectionModeChange,
 						onScrollbackModeChange,
 						onScrollbackEnterRequested,
+						onScrollbackEnterRequestFailure: (event, error) => {
+							logger?.warn?.(
+								`scrollback enter request failed`,
+								event.instanceId,
+								event.requestId,
+								error,
+							);
+							sendToWebView({
+								type: 'exitScrollback',
+								requestId: event.requestId,
+							});
+						},
 						onScrollbackBatch,
 					})
 				) {
@@ -462,6 +474,7 @@ export function XtermJsWebView({
 			onScrollbackModeChange,
 			onScrollbackEnterRequested,
 			onScrollbackBatch,
+			sendToWebView,
 		],
 	);
 

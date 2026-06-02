@@ -695,11 +695,13 @@ export function handleTmuxScrollbackBatchEvent({
 export function buildTmuxScrollbackLiveInputSendPlan({
 	scrollbackActive,
 	payloadSegments,
+	scrollbackExitKeyPayload,
 	interSegmentDelayMs,
 	scrollbackExitDelayMs,
 }: {
 	scrollbackActive: boolean;
 	payloadSegments: Uint8Array<ArrayBuffer>[];
+	scrollbackExitKeyPayload?: Uint8Array<ArrayBuffer>;
 	interSegmentDelayMs?: number;
 	scrollbackExitDelayMs: number;
 }): TmuxScrollbackLiveInputSendPlan {
@@ -715,9 +717,25 @@ export function buildTmuxScrollbackLiveInputSendPlan({
 		};
 	}
 
+	const isExitKeyOnlyPayload =
+		scrollbackExitKeyPayload != null &&
+		nonEmptyPayloadSegments.length === 1 &&
+		bytesEqual(nonEmptyPayloadSegments[0], scrollbackExitKeyPayload);
+
 	return {
-		segments: nonEmptyPayloadSegments,
+		segments: isExitKeyOnlyPayload ? [] : nonEmptyPayloadSegments,
 		interSegmentDelayMs: scrollbackExitDelayMs,
 		clearScrollback: true,
 	};
+}
+
+function bytesEqual(
+	a: Uint8Array<ArrayBuffer> | undefined,
+	b: Uint8Array<ArrayBuffer>,
+): boolean {
+	if (!a || a.length !== b.length) return false;
+	for (let index = 0; index < a.length; index += 1) {
+		if (a[index] !== b[index]) return false;
+	}
+	return true;
 }

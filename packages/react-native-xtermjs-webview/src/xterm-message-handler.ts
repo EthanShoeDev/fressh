@@ -29,6 +29,7 @@ export function handleXtermBridgeInboundMessage(
 		onSelectionModeChange,
 		onScrollbackModeChange,
 		onScrollbackEnterRequested,
+		onScrollbackEnterRequestFailure,
 		onScrollbackBatch,
 	}: {
 		currentInstanceIdRef: { current: string | null };
@@ -55,7 +56,11 @@ export function handleXtermBridgeInboundMessage(
 		onScrollbackEnterRequested?: (event: {
 			instanceId: string;
 			requestId: number;
-		}) => void;
+		}) => void | Promise<void>;
+		onScrollbackEnterRequestFailure?: (
+			event: { instanceId: string; requestId: number },
+			error: unknown,
+		) => void;
 		onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 	},
 ): boolean {
@@ -120,9 +125,12 @@ export function handleXtermBridgeInboundMessage(
 		return true;
 	}
 	if (msg.type === 'scrollbackEnterRequested') {
-		onScrollbackEnterRequested?.({
+		const event = {
 			instanceId: msg.instanceId,
 			requestId: msg.requestId,
+		};
+		void Promise.resolve(onScrollbackEnterRequested?.(event)).catch((error) => {
+			onScrollbackEnterRequestFailure?.(event, error);
 		});
 		return true;
 	}

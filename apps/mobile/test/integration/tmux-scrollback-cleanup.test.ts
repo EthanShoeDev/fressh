@@ -686,72 +686,76 @@ void test('scrollback batch adapter gates events and passes pageStep into comman
 		onFailure: () => {},
 	});
 	const enqueueScrollBatch = executor.enqueueScrollBatch.bind(executor);
+	const baseEvent = {
+		direction: 'up' as const,
+		pages: 1,
+		lines: 0,
+		pageStep: 24,
+		instanceId: 'current',
+	};
+	const runBatch = (
+		overrides: Partial<Parameters<typeof handleTmuxScrollbackBatchEvent>[0]>,
+	) =>
+		handleTmuxScrollbackBatchEvent({
+			event: baseEvent,
+			shellAvailable: true,
+			currentInstanceId: 'current',
+			selectionModeEnabled: false,
+			tmuxEnabled: true,
+			connectionAvailable: true,
+			scrollbackActive: true,
+			targetName: 'main',
+			lineAccumulator,
+			enqueueScrollBatch: (batch) => {
+				commands.push(batch);
+				return enqueueScrollBatch(batch);
+			},
+			...overrides,
+		});
 
-	handleTmuxScrollbackBatchEvent({
-		event: {
-			direction: 'up',
-			pages: 0,
-			lines: 23,
-			pageStep: 24,
-			instanceId: 'current',
-		},
-		shellAvailable: true,
-		currentInstanceId: 'current',
-		selectionModeEnabled: false,
-		tmuxEnabled: true,
-		connectionAvailable: true,
-		scrollbackActive: true,
-		targetName: 'main',
-		lineAccumulator,
-		enqueueScrollBatch: (batch) => {
-			commands.push(batch);
-			return enqueueScrollBatch(batch);
-		},
-	});
-	handleTmuxScrollbackBatchEvent({
-		event: {
-			direction: 'up',
-			pages: 0,
-			lines: 1,
-			pageStep: 24,
-			instanceId: 'current',
-		},
-		shellAvailable: true,
-		currentInstanceId: 'current',
-		selectionModeEnabled: false,
-		tmuxEnabled: true,
-		connectionAvailable: true,
-		scrollbackActive: true,
-		targetName: 'main',
-		lineAccumulator,
-		enqueueScrollBatch: (batch) => {
-			commands.push(batch);
-			return enqueueScrollBatch(batch);
-		},
-	});
-	handleTmuxScrollbackBatchEvent({
-		event: {
-			direction: 'up',
-			pages: 1,
-			lines: 0,
-			pageStep: 24,
-			instanceId: 'stale',
-		},
-		shellAvailable: true,
-		currentInstanceId: 'current',
-		selectionModeEnabled: false,
-		tmuxEnabled: true,
-		connectionAvailable: true,
-		scrollbackActive: true,
-		targetName: 'main',
-		lineAccumulator,
-		enqueueScrollBatch: (batch) => {
-			commands.push(batch);
-			return enqueueScrollBatch(batch);
-		},
-	});
+	const rejectedCases: Partial<
+		Parameters<typeof handleTmuxScrollbackBatchEvent>[0]
+	>[] = [
+		{ shellAvailable: false },
+		{ currentInstanceId: 'other' },
+		{ selectionModeEnabled: true },
+		{ tmuxEnabled: false },
+		{ connectionAvailable: false },
+		{ scrollbackActive: false },
+	];
+	for (const rejected of rejectedCases) {
+		assert.equal(runBatch(rejected), false);
+	}
+	assert.deepEqual(commands, []);
+
+	assert.equal(
+		runBatch({
+			event: {
+				direction: 'up',
+				pages: 0,
+				lines: 23,
+				pageStep: 24,
+				instanceId: 'current',
+			},
+		}),
+		false,
+	);
+	assert.equal(
+		runBatch({
+			event: {
+				direction: 'up',
+				pages: 0,
+				lines: 1,
+				pageStep: 24,
+				instanceId: 'current',
+			},
+		}),
+		true,
+	);
+	assert.equal(runBatch({}), true);
 
 	assert.deepEqual(commands, [
+		["mdev tmux app scroll page-up --count '1' --session 'main'"],
 		["mdev tmux app scroll page-up --count '1' --session 'main'"],
 	]);
 });
@@ -797,6 +801,19 @@ void test('live input plan exits active scrollback without primary-shell cancel 
 	assert.equal(plan.interSegmentDelayMs, 10);
 	assert.equal(plan.clearScrollback, true);
 	assert.deepEqual(segmentValues(plan.segments), [[0x61, 0x62]]);
+});
+
+void test('live input plan drops the scrollback exit-key payload after cleanup', () => {
+	const plan = buildTmuxScrollbackLiveInputSendPlan({
+		scrollbackActive: true,
+		payloadSegments: [bytes([0x71])],
+		scrollbackExitKeyPayload: bytes([0x71]),
+		scrollbackExitDelayMs: 10,
+	});
+
+	assert.deepEqual(segmentValues(plan.segments), []);
+	assert.equal(plan.interSegmentDelayMs, 10);
+	assert.equal(plan.clearScrollback, true);
 });
 
 void test('live input plan preserves multi-segment payload order after app-owned scrollback exit', () => {

@@ -408,6 +408,7 @@ function TerminalErrorFallback({ onRetry }: { onRetry: () => void }) {
 
 const encoder = new TextEncoder();
 const scrollbackExitDelayMs = 10;
+const scrollbackExitKeyPayload = encoder.encode('q');
 
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
@@ -923,6 +924,7 @@ function ShellDetail() {
 					scrollbackActiveRef.current ||
 					tmuxRemoteScrollbackCopyModeActiveRef.current,
 				payloadSegments,
+				scrollbackExitKeyPayload,
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
 				scrollbackExitDelayMs,
 			});
