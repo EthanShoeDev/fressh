@@ -857,15 +857,16 @@ function ShellDetail() {
 		: 'main';
 
 	const workmuxScrollbackCommandExecutor = useMemo(
-		() =>
-			createWorkmuxScrollbackCommandExecutor({
-				lifecycleKey: normalizedTmuxTarget,
+		() => {
+			// Target changes dispose the previous executor in the cleanup effect below.
+			const executorTargetName = normalizedTmuxTarget;
+			return createWorkmuxScrollbackCommandExecutor({
 				executeCommand: async (command) => {
 					if (!connection) {
 						return {
 							success: false,
 							output: '',
-							error: 'No SSH connection available.',
+							error: `No SSH connection available for ${executorTargetName}.`,
 						};
 					}
 					return executeSideChannelCommand(
@@ -880,7 +881,8 @@ function ShellDetail() {
 					message,
 					warn: (warning) => logger.warn(warning),
 				}),
-		}),
+			});
+		},
 		[connection, handleWorkmuxScrollbackCommandFailure, normalizedTmuxTarget],
 	);
 

@@ -127,7 +127,6 @@ export function createWorkmuxScrollbackCommandExecutor({
 	executeCommand,
 	onFailure,
 	onDisposeExitFailure,
-	lifecycleKey: _lifecycleKey,
 }: {
 	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>;
 	onFailure: (
@@ -135,7 +134,6 @@ export function createWorkmuxScrollbackCommandExecutor({
 		context: WorkmuxScrollbackFailureContext,
 	) => void;
 	onDisposeExitFailure?: (message: string) => void;
-	lifecycleKey?: string;
 }): WorkmuxScrollbackCommandExecutor {
 	let tail: Promise<unknown> = Promise.resolve();
 	let closed = false;
