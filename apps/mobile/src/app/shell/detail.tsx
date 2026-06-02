@@ -81,7 +81,6 @@ import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
-import { buildShellLiveInputSendPlan } from '@/lib/shell-live-input';
 import {
 	useBrowserActionsController,
 	useFeatureRequestController,
@@ -101,6 +100,7 @@ import {
 	createTmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
+	buildTmuxScrollbackLiveInputSendPlan,
 	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
 	registerTmuxScrollbackRemoteCopyModeExitCleanup,
@@ -897,7 +897,7 @@ function ShellDetail() {
 				interSegmentDelayMs?: number;
 			},
 		) => {
-			const plan = buildShellLiveInputSendPlan({
+			const plan = buildTmuxScrollbackLiveInputSendPlan({
 				scrollbackActive:
 					scrollbackActiveRef.current ||
 					tmuxRemoteScrollbackCopyModeActiveRef.current,
