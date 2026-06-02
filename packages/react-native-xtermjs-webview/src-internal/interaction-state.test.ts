@@ -504,6 +504,12 @@ void test('touch scroll quick release flushes after delayed enter ack', async (t
 		clientY: 140,
 		timeStamp: 120,
 	});
+
+	assert.equal(
+		messages.some((message) => message.type === 'scrollbackBatch'),
+		false,
+	);
+
 	controller.handleEnterAck(1);
 	await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -518,7 +524,7 @@ void test('touch scroll quick release flushes after delayed enter ack', async (t
 			message.active &&
 			message.phase === 'active',
 	);
-	const scrollBatch = messages.find(
+	const scrollBatches = messages.filter(
 		(
 			message,
 		): message is Extract<BridgeInboundMessage, { type: 'scrollbackBatch' }> =>
@@ -526,6 +532,8 @@ void test('touch scroll quick release flushes after delayed enter ack', async (t
 	);
 
 	assert.notEqual(activeTransition, undefined);
+	assert.equal(scrollBatches.length, 1);
+	const [scrollBatch] = scrollBatches;
 	assert.equal(scrollBatch?.pageStep, 24);
 	assert.equal(scrollBatch?.direction, 'up');
 });
