@@ -2344,21 +2344,30 @@ function ShellDetail() {
 	}, []);
 
 	useEffect(() => {
-		if (Platform.OS !== 'android') return;
-		const dismissKeyboard = () => Keyboard.dismiss();
+		const isAndroid = Platform.OS === 'android';
+		const dismissKeyboard = () => {
+			if (isAndroid) Keyboard.dismiss();
+		};
 		appStateRef.current = AppState.currentState;
-		dismissKeyboard();
-		xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
+		if (isAndroid) {
+			dismissKeyboard();
+			xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
+		}
 		// eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener -- React Native AppState cleans up via subscription.remove()
 		const subscription = AppState.addEventListener('change', (nextState) => {
 			const previousState = appStateRef.current;
 			appStateRef.current = nextState;
 			isAppActiveRef.current = nextState === 'active';
 			if (nextState === 'active') {
-				xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
+				if (isAndroid) {
+					xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
+				}
 				acknowledgeVisibleAgentNotificationRef.current();
 				// Preserve the previous OS keyboard visibility when returning to the app.
-				if (!systemKeyboardEnabled || !lastKeyboardVisibleRef.current) {
+				if (
+					isAndroid &&
+					(!systemKeyboardEnabled || !lastKeyboardVisibleRef.current)
+				) {
 					dismissKeyboard();
 					// Some devices show the keyboard after focus settles; dismiss again.
 					if (resumeDismissTimeoutRef.current) {
@@ -2382,7 +2391,9 @@ function ShellDetail() {
 			// Capture once when transitioning away from active.
 			if (previousState === 'active') {
 				agentNotificationAckRequestIdRef.current += 1;
-				lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
+				if (isAndroid) {
+					lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
+				}
 			}
 		});
 		return () => {

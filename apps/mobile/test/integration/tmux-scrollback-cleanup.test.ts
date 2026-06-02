@@ -1,5 +1,7 @@
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 import {
 	buildTmuxScrollbackLiveInputSendPlan,
@@ -33,6 +35,52 @@ const deferred = <T>() => {
 	});
 	return { promise, resolve, reject };
 };
+
+void test('shell AppState scrollback cleanup is not Android-only', () => {
+	const source = readFileSync(
+		join(process.cwd(), 'src/app/shell/detail.tsx'),
+		'utf8',
+	);
+	const effectIndex = source.indexOf(
+		'const dismissKeyboard = () => {\n\t\t\tif (isAndroid) Keyboard.dismiss();',
+	);
+	assert.notEqual(effectIndex, -1);
+	const cleanupIndex = source.indexOf(
+		'handleTmuxScrollbackInactiveAppStateTransition',
+		effectIndex,
+	);
+	assert.notEqual(cleanupIndex, -1);
+	const guardedEffectIndex = source.indexOf(
+		"if (Platform.OS !== 'android') return",
+		effectIndex,
+	);
+	const androidGuardInAppStateEffect =
+		guardedEffectIndex !== -1 && guardedEffectIndex < cleanupIndex;
+	const androidKeyboardGuardIndex = source.indexOf(
+		"if (isAndroid) {\n\t\t\tdismissKeyboard();",
+		effectIndex,
+	);
+	const activeBranchKeyboardGuardIndex = source.indexOf(
+		"if (isAndroid) {\n\t\t\t\t\txtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);",
+		effectIndex,
+	);
+
+	assert.equal(
+		androidGuardInAppStateEffect,
+		false,
+		'AppState scrollback cleanup must not be behind an Android-only effect guard',
+	);
+	assert.notEqual(
+		androidKeyboardGuardIndex,
+		-1,
+		'initial keyboard dismissal remains Android-only',
+	);
+	assert.notEqual(
+		activeBranchKeyboardGuardIndex,
+		-1,
+		'active-state keyboard restore remains Android-only',
+	);
+});
 
 void test('failed active Workmux scroll exit clears local UI without recursive exit retry', async () => {
 	const commands: string[] = [];
