@@ -462,6 +462,31 @@ function truncateNonNegativeInteger(value: number): number {
 	return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.trunc(value)));
 }
 
+function isValidScrollbackBatchEvent(event: {
+	direction: unknown;
+	pages: unknown;
+	lines: unknown;
+	pageStep: unknown;
+}): event is {
+	direction: WorkmuxScrollDirection;
+	pages: number;
+	lines: number;
+	pageStep: number;
+} {
+	return (
+		(event.direction === 'up' || event.direction === 'down') &&
+		typeof event.pages === 'number' &&
+		Number.isFinite(event.pages) &&
+		event.pages >= 0 &&
+		typeof event.lines === 'number' &&
+		Number.isFinite(event.lines) &&
+		event.lines >= 0 &&
+		typeof event.pageStep === 'number' &&
+		Number.isFinite(event.pageStep) &&
+		event.pageStep > 0
+	);
+}
+
 export type TmuxScrollbackLiveInputSendPlan = {
 	segments: Uint8Array<ArrayBuffer>[];
 	interSegmentDelayMs?: number;
@@ -793,6 +818,7 @@ export function handleTmuxScrollbackBatchEvent({
 	if (selectionModeEnabled) return false;
 	if (!tmuxEnabled || !connectionAvailable) return false;
 	if (!scrollbackActive) return false;
+	if (!isValidScrollbackBatchEvent(event)) return false;
 
 	const commands = buildWorkmuxScrollbackBatchCommands({
 		sessionName: targetName,
