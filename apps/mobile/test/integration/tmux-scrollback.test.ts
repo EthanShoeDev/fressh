@@ -7,6 +7,7 @@ import {
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
+	handleTmuxScrollbackInactiveCleanup,
 	handleWorkmuxScrollbackCommandFailureActions,
 	resetTmuxScrollbackRuntimeState,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
@@ -595,6 +596,37 @@ void test('workmux scrollback executor dispose requests Workmux scroll exit for 
 	assert.deepEqual(commands, ['slow-page', 'exit']);
 	assert.equal(await executor.runEnterCommand('after-dispose'), false);
 	assert.deepEqual(commands, ['slow-page', 'exit']);
+});
+
+void test('inactive cleanup requests app scroll exit after remote copy mode ack', async () => {
+	const events: string[] = [];
+
+	const cleanup = handleTmuxScrollbackInactiveCleanup({
+		remoteCopyModeActive: true,
+		clearScrollbackState: () => {
+			events.push('app-scroll-exit');
+			return Promise.resolve(true);
+		},
+	});
+
+	assert.notEqual(cleanup, null);
+	assert.equal(await cleanup, true);
+	assert.deepEqual(events, ['app-scroll-exit']);
+});
+
+void test('inactive cleanup skips app scroll exit before remote copy mode ack', () => {
+	const events: string[] = [];
+
+	const cleanup = handleTmuxScrollbackInactiveCleanup({
+		remoteCopyModeActive: false,
+		clearScrollbackState: () => {
+			events.push('app-scroll-exit');
+			return Promise.resolve(true);
+		},
+	});
+
+	assert.equal(cleanup, null);
+	assert.deepEqual(events, []);
 });
 
 void test('workmux scrollback failure actions alert and clear without cancel before remote ack', () => {

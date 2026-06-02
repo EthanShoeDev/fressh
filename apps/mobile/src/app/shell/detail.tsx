@@ -100,6 +100,7 @@ import {
 	buildWorkmuxScrollbackBatchCommands,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
+	handleTmuxScrollbackInactiveCleanup,
 	handleWorkmuxScrollbackCommandFailureActions,
 	resetTmuxScrollbackRuntimeState,
 	type WorkmuxScrollbackCommandExecutor,
@@ -2357,6 +2358,13 @@ function ShellDetail() {
 			}
 			// Capture once when transitioning away from active.
 			if (previousState === 'active') {
+				const scrollbackCleanup = handleTmuxScrollbackInactiveCleanup({
+					remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
+					clearScrollbackState,
+				});
+				void scrollbackCleanup?.catch((error: unknown) => {
+					logger.warn('Workmux inactive scrollback cleanup failed', error);
+				});
 				agentNotificationAckRequestIdRef.current += 1;
 				lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
 			}
@@ -2364,7 +2372,7 @@ function ShellDetail() {
 		return () => {
 			subscription.remove();
 		};
-	}, [systemKeyboardEnabled]);
+	}, [clearScrollbackState, systemKeyboardEnabled]);
 
 	const enableSystemKeyboard = useCallback(() => {
 		if (Platform.OS !== 'android') return;

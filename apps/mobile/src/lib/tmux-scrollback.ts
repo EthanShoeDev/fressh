@@ -87,11 +87,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 			if (!isActive(operationGeneration)) return false;
 			const result = await runSingleCommand(command, executeCommand);
 			if (!isActive(operationGeneration)) {
-				if (
-					commandKind === 'enter' &&
-					result.success &&
-					rollbackExitCommand
-				) {
+				if (commandKind === 'enter' && result.success && rollbackExitCommand) {
 					await runSingleCommand(rollbackExitCommand, executeCommand);
 				}
 				return false;
@@ -218,6 +214,17 @@ export function resetTmuxScrollbackRuntimeState({
 	return (
 		commandExecutor?.reset({ exitCommand: remoteCopyModeExitCommand }) ?? null
 	);
+}
+
+export function handleTmuxScrollbackInactiveCleanup({
+	remoteCopyModeActive,
+	clearScrollbackState,
+}: {
+	remoteCopyModeActive: boolean;
+	clearScrollbackState: () => Promise<boolean> | null;
+}): Promise<boolean> | null {
+	if (!remoteCopyModeActive) return null;
+	return clearScrollbackState();
 }
 
 export function buildWorkmuxScrollbackBatchCommands({
