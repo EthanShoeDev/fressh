@@ -9,11 +9,31 @@ import {
 
 // Bounds malformed bridge batches before splitting into remote commands.
 export const TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH = 100;
+export const TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT = 100;
 
 export type TmuxScrollbackLineAccumulator = {
 	direction: WorkmuxScrollDirection | null;
 	lines: number;
 };
+
+export function registerTmuxScrollbackLocalExitRequest({
+	requestIds,
+	requestId,
+}: {
+	requestIds: Set<number>;
+	requestId: number;
+}) {
+	while (requestIds.size >= TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT) {
+		const oldestRequestId = requestIds.values().next().value;
+		if (oldestRequestId === undefined) break;
+		requestIds.delete(oldestRequestId);
+	}
+	requestIds.add(requestId);
+}
+
+export function resetTmuxScrollbackLocalExitRequests(requestIds: Set<number>) {
+	requestIds.clear();
+}
 
 export type WorkmuxScrollbackCommandResult = {
 	success: boolean;

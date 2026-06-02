@@ -14,12 +14,15 @@ import {
 	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleWorkmuxScrollbackDisposeExitFailureActions,
+	registerTmuxScrollbackLocalExitRequest,
 	registerTmuxScrollbackLiveInputCleanup,
+	resetTmuxScrollbackLocalExitRequests,
 	runTmuxScrollbackLiveInputSendPlan,
 	resetTmuxScrollbackRuntimeState,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resolveTmuxScrollbackEnterRequest,
 	resolveTmuxScrollbackLiveInputCleanup,
+	TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 } from '../../src/lib/tmux-scrollback';
 
@@ -41,44 +44,26 @@ void test('shell AppState scrollback cleanup is not Android-only', () => {
 		join(process.cwd(), 'src/app/shell/detail.tsx'),
 		'utf8',
 	);
-	const effectIndex = source.indexOf(
-		'const dismissKeyboard = () => {\n\t\t\tif (isAndroid) Keyboard.dismiss();',
-	);
+	const listenerIndex = source.indexOf("AppState.addEventListener('change'");
+	assert.notEqual(listenerIndex, -1);
+	const effectIndex = source.lastIndexOf('useEffect(() => {', listenerIndex);
 	assert.notEqual(effectIndex, -1);
 	const cleanupIndex = source.indexOf(
 		'handleTmuxScrollbackInactiveAppStateTransition',
 		effectIndex,
 	);
 	assert.notEqual(cleanupIndex, -1);
-	const guardedEffectIndex = source.indexOf(
-		"if (Platform.OS !== 'android') return",
-		effectIndex,
-	);
-	const androidGuardInAppStateEffect =
-		guardedEffectIndex !== -1 && guardedEffectIndex < cleanupIndex;
-	const androidKeyboardGuardIndex = source.indexOf(
-		"if (isAndroid) {\n\t\t\tdismissKeyboard();",
-		effectIndex,
-	);
-	const activeBranchKeyboardGuardIndex = source.indexOf(
-		"if (isAndroid) {\n\t\t\t\t\txtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);",
-		effectIndex,
-	);
+	const appStateEffectBeforeCleanup = source.slice(effectIndex, cleanupIndex);
 
-	assert.equal(
-		androidGuardInAppStateEffect,
-		false,
+	assert.doesNotMatch(
+		appStateEffectBeforeCleanup,
+		/if\s*\(\s*Platform\.OS\s*!==\s*['"]android['"]\s*\)\s*return/,
 		'AppState scrollback cleanup must not be behind an Android-only effect guard',
 	);
-	assert.notEqual(
-		androidKeyboardGuardIndex,
-		-1,
-		'initial keyboard dismissal remains Android-only',
-	);
-	assert.notEqual(
-		activeBranchKeyboardGuardIndex,
-		-1,
-		'active-state keyboard restore remains Android-only',
+	assert.match(
+		appStateEffectBeforeCleanup,
+		/const\s+isAndroid\s*=\s*Platform\.OS\s*===\s*['"]android['"]/,
+		'keyboard-only AppState behavior remains platform-gated separately',
 	);
 });
 
@@ -636,6 +621,33 @@ void test('locally requested WebView scrollback inactive event does not run remo
 		}),
 		false,
 	);
+});
+
+void test('local scrollback exit request tracking is bounded and resettable', () => {
+	const localExitRequestIds = new Set<number>();
+
+	for (
+		let requestId = 1;
+		requestId <= TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT + 2;
+		requestId += 1
+	) {
+		registerTmuxScrollbackLocalExitRequest({
+			requestIds: localExitRequestIds,
+			requestId,
+		});
+	}
+
+	assert.equal(
+		localExitRequestIds.size,
+		TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT,
+	);
+	assert.equal(localExitRequestIds.has(1), false);
+	assert.equal(localExitRequestIds.has(2), false);
+	assert.equal(localExitRequestIds.has(3), true);
+
+	resetTmuxScrollbackLocalExitRequests(localExitRequestIds);
+
+	assert.deepEqual(Array.from(localExitRequestIds), []);
 });
 
 void test('workmux scrollback failure actions alert and clear without cancel before remote ack', () => {

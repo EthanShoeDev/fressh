@@ -106,7 +106,9 @@ import {
 	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleWorkmuxScrollbackDisposeExitFailureActions,
+	registerTmuxScrollbackLocalExitRequest,
 	runTmuxScrollbackLiveInputSendPlan,
+	resetTmuxScrollbackLocalExitRequests,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	type WorkmuxScrollbackCommandExecutor,
@@ -807,7 +809,10 @@ function ShellDetail() {
 		if (!xterm) return;
 		nextLocalScrollbackExitRequestIdRef.current += 1;
 		const requestId = nextLocalScrollbackExitRequestIdRef.current;
-		localScrollbackExitRequestIdsRef.current.add(requestId);
+		registerTmuxScrollbackLocalExitRequest({
+			requestIds: localScrollbackExitRequestIdsRef.current,
+			requestId,
+		});
 		xterm.exitScrollback({ requestId });
 	}, []);
 
@@ -2638,6 +2643,9 @@ function ShellDetail() {
 			currentInstanceIdRef.current = instanceId;
 			scrollbackActiveRef.current = false;
 			scrollbackPhaseRef.current = 'active';
+			resetTmuxScrollbackLocalExitRequests(
+				localScrollbackExitRequestIdsRef.current,
+			);
 			void resetTmuxScrollbackForUiReset();
 			setScrollbackActive(false);
 			hasAttachedOnceRef.current = false;
