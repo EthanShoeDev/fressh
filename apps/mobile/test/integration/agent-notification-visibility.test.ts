@@ -325,7 +325,11 @@ void test('handleAgentNotificationRoute consumes tap tokens before async routing
 				resolveCommand = () => resolve('');
 			});
 		},
-		acknowledge: (_connectionId: string, _session: string, windowId: string) => {
+		acknowledge: (
+			_connectionId: string,
+			_session: string,
+			windowId: string,
+		) => {
 			acknowledgements.push(windowId);
 		},
 		warn: () => {},
