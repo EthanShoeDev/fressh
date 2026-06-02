@@ -230,7 +230,7 @@ Update focused tests around the new boundary:
 Focused verification should include:
 
 - `pnpm --filter @fressh/mobile exec tsx --test test/integration/host-browser-actions.test.ts`
-- `pnpm --filter @fressh/mobile exec tsx --test test/integration/tmux-scrollback.test.ts`
+- `pnpm --filter @fressh/mobile exec tsx --test test/integration/tmux-scrollback-batch.test.ts test/integration/tmux-scrollback-cleanup.test.ts test/integration/tmux-scrollback-executor.test.ts`
 - `pnpm --filter @fressh/mobile exec tsx --test test/integration/agent-notification-visibility.test.ts`
 - `pnpm --filter @fressh/mobile exec tsx --test test/integration/keyboard-actions.test.ts`
 - `pnpm --filter @fressh/mobile exec tsx --test test/integration/keyboard-config.test.ts`

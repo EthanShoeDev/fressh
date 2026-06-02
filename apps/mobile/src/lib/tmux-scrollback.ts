@@ -455,6 +455,19 @@ export function registerTmuxScrollbackLiveInputCleanup(
 	return barrier.track(cleanup);
 }
 
+export function resolveTmuxScrollbackLiveInputCleanup({
+	clearScrollback,
+	currentCleanup,
+	startCleanup,
+}: {
+	clearScrollback: boolean;
+	currentCleanup?: Promise<boolean> | null;
+	startCleanup: () => Promise<boolean> | null;
+}): Promise<boolean> | null {
+	if (currentCleanup) return currentCleanup;
+	return clearScrollback ? startCleanup() : null;
+}
+
 export function registerTmuxScrollbackRemoteCopyModeExitCleanup({
 	barrier,
 	cleanup,

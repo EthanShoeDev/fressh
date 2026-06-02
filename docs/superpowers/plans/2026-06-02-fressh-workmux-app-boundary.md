@@ -47,7 +47,9 @@ and the final guard proves the boundary is complete.
 - Modify: `apps/mobile/src/app/shell/detail.tsx`
   - Send Workmux app scroll commands on touch-scroll entry and batches.
   - Add side-channel runner for keyboard Workmux app actions.
-- Modify: `apps/mobile/test/integration/tmux-scrollback.test.ts`
+- Modify: `apps/mobile/test/integration/tmux-scrollback-batch.test.ts`
+- Modify: `apps/mobile/test/integration/tmux-scrollback-cleanup.test.ts`
+- Modify: `apps/mobile/test/integration/tmux-scrollback-executor.test.ts`
   - Expect `mdev tmux app scroll ...` commands and line accumulation behavior.
 - Modify: `apps/mobile/src/lib/keyboard-actions.ts`
   - Add semantic Workmux action ids and delegate them to an action-context
@@ -944,11 +946,13 @@ git commit -m "fix(mobile): route notifications through mdev app"
 **Files:**
 - Modify: `apps/mobile/src/lib/tmux-scrollback.ts`
 - Modify: `apps/mobile/src/app/shell/detail.tsx`
-- Modify: `apps/mobile/test/integration/tmux-scrollback.test.ts`
+- Modify: `apps/mobile/test/integration/tmux-scrollback-batch.test.ts`
+- Modify: `apps/mobile/test/integration/tmux-scrollback-cleanup.test.ts`
+- Modify: `apps/mobile/test/integration/tmux-scrollback-executor.test.ts`
 
 - [ ] **Step 1: Replace scrollback command-builder tests**
 
-In `apps/mobile/test/integration/tmux-scrollback.test.ts`, remove imports for:
+In the scrollback integration tests, remove imports for:
 
 ```ts
 	buildTmuxScrollbackBatchCommand,
@@ -1029,7 +1033,10 @@ for live input, AppState transitions, and UI reset.
 Run:
 
 ```bash
-pnpm --filter @fressh/mobile exec tsx --test test/integration/tmux-scrollback.test.ts
+pnpm --filter @fressh/mobile exec tsx --test \
+	test/integration/tmux-scrollback-batch.test.ts \
+	test/integration/tmux-scrollback-cleanup.test.ts \
+	test/integration/tmux-scrollback-executor.test.ts
 ```
 
 Expected: FAIL because the new scrollback helper exports do not exist.
@@ -1210,7 +1217,10 @@ share one side-channel path.
 Run:
 
 ```bash
-pnpm --filter @fressh/mobile exec tsx --test test/integration/tmux-scrollback.test.ts
+pnpm --filter @fressh/mobile exec tsx --test \
+	test/integration/tmux-scrollback-batch.test.ts \
+	test/integration/tmux-scrollback-cleanup.test.ts \
+	test/integration/tmux-scrollback-executor.test.ts
 ```
 
 Expected: PASS.
@@ -1218,7 +1228,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/mobile/src/lib/tmux-scrollback.ts apps/mobile/src/app/shell/detail.tsx apps/mobile/test/integration/tmux-scrollback.test.ts
+git add apps/mobile/src/lib/tmux-scrollback.ts apps/mobile/src/app/shell/detail.tsx apps/mobile/test/integration/tmux-scrollback-batch.test.ts apps/mobile/test/integration/tmux-scrollback-cleanup.test.ts apps/mobile/test/integration/tmux-scrollback-executor.test.ts
 git commit -m "fix(mobile): drive scrollback through mdev app"
 ```
 
@@ -1824,7 +1834,9 @@ Run:
 pnpm --filter @fressh/mobile exec tsx --test \
 	test/integration/workmux-app-commands.test.ts \
 	test/integration/host-browser-actions.test.ts \
-	test/integration/tmux-scrollback.test.ts \
+	test/integration/tmux-scrollback-batch.test.ts \
+	test/integration/tmux-scrollback-cleanup.test.ts \
+	test/integration/tmux-scrollback-executor.test.ts \
 	test/integration/agent-notification-visibility.test.ts \
 	test/integration/keyboard-actions.test.ts \
 	test/integration/keyboard-config.test.ts \

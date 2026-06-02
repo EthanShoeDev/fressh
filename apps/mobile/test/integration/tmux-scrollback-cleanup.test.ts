@@ -12,6 +12,7 @@ import {
 	resetTmuxScrollbackRuntimeState,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resolveTmuxScrollbackEnterRequest,
+	resolveTmuxScrollbackLiveInputCleanup,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 } from '../../src/lib/tmux-scrollback';
 
@@ -332,6 +333,44 @@ void test('multiple live input events wait behind the same pending scrollback cl
 
 	assert.equal(sentPayloads.join(''), 'ab');
 	assert.equal(barrierRef.current(), null);
+});
+
+void test('live input joins current cleanup barrier before starting another remote exit', async () => {
+	const cleanupBlock = deferred<void>();
+	let cleanupStarts = 0;
+	const currentCleanup = cleanupBlock.promise.then(() => true);
+	const sentPayloads: string[] = [];
+
+	const queueLiveInput = (payload: string) => {
+		const plan = buildTmuxScrollbackLiveInputSendPlan({
+			scrollbackActive: true,
+			payloadSegments: [bytes([payload.charCodeAt(0)])],
+			scrollbackExitDelayMs: 10,
+		});
+		const cleanup = resolveTmuxScrollbackLiveInputCleanup({
+			clearScrollback: plan.clearScrollback,
+			currentCleanup,
+			startCleanup: () => {
+				cleanupStarts += 1;
+				return Promise.resolve(true);
+			},
+		});
+		void cleanup?.then((exited) => {
+			if (exited) sentPayloads.push(payload);
+		});
+	};
+
+	queueLiveInput('a');
+	queueLiveInput('b');
+
+	await Promise.resolve();
+	assert.deepEqual(sentPayloads, []);
+	assert.equal(cleanupStarts, 0);
+	cleanupBlock.resolve(undefined);
+	await currentCleanup;
+	await new Promise((resolve) => setImmediate(resolve));
+
+	assert.deepEqual(sentPayloads, ['a', 'b']);
 });
 
 void test('live input waits for externally initiated inactive cleanup barrier before sending primary payload', async () => {

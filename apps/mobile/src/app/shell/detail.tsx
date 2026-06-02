@@ -106,6 +106,7 @@ import {
 	registerTmuxScrollbackRemoteCopyModeExitCleanup,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resolveTmuxScrollbackEnterRequest,
+	resolveTmuxScrollbackLiveInputCleanup,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	type WorkmuxScrollbackCommandExecutor,
 	type WorkmuxScrollbackFailureContext,
@@ -911,9 +912,11 @@ function ShellDetail() {
 				scrollbackExitDelayMs,
 			});
 
-			const cleanupBarrier = plan.clearScrollback
-				? clearScrollbackState()
-				: scrollbackCleanupBarrierRef.current.current();
+			const cleanupBarrier = resolveTmuxScrollbackLiveInputCleanup({
+				clearScrollback: plan.clearScrollback,
+				currentCleanup: scrollbackCleanupBarrierRef.current.current(),
+				startCleanup: clearScrollbackState,
+			});
 			if (!plan.segments.length) return;
 
 			const send = () =>
