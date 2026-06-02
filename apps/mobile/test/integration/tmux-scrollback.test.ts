@@ -604,6 +604,28 @@ void test('workmux scrollback executor dispose requests Workmux scroll exit for 
 	assert.deepEqual(commands, ['slow-page', 'exit']);
 });
 
+void test('workmux scrollback executor dispose exit failures do not invoke active failure callback', async () => {
+	const commands: string[] = [];
+	const failures: string[] = [];
+	const disposeFailures: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			return { success: false, output: '', error: 'dispose exit failed' };
+		},
+		onFailure: (message) => failures.push(message),
+		onDisposeExitFailure: (message) => disposeFailures.push(message),
+	});
+
+	const exit = executor.dispose({ exitCommand: 'exit' });
+
+	assert.notEqual(exit, null);
+	assert.equal(await exit, false);
+	assert.deepEqual(commands, ['exit']);
+	assert.deepEqual(failures, []);
+	assert.deepEqual(disposeFailures, ['dispose exit failed']);
+});
+
 void test('resetTmuxScrollbackRuntimeState cancels inactive in-flight app scroll enter before remote copy mode ack', async () => {
 	const commandBlock = deferred<void>();
 	const commands: string[] = [];

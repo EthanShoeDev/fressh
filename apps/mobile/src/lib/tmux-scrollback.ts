@@ -20,6 +20,7 @@ export type WorkmuxScrollbackCommandResult = {
 };
 
 type WorkmuxScrollbackCommandKind = 'enter' | 'scroll';
+type WorkmuxScrollbackFailurePolicy = 'notify' | 'suppress';
 
 export type WorkmuxScrollbackCommandExecutor = {
 	runEnterCommand: (
@@ -34,9 +35,11 @@ export type WorkmuxScrollbackCommandExecutor = {
 export function createWorkmuxScrollbackCommandExecutor({
 	executeCommand,
 	onFailure,
+	onDisposeExitFailure,
 }: {
 	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>;
 	onFailure: (message: string) => void;
+	onDisposeExitFailure?: (message: string) => void;
 }): WorkmuxScrollbackCommandExecutor {
 	let tail: Promise<unknown> = Promise.resolve();
 	let closed = false;
@@ -72,12 +75,14 @@ export function createWorkmuxScrollbackCommandExecutor({
 		operationGeneration,
 		rollbackExitCommand,
 		durableExit = false,
+		failurePolicy = 'notify',
 	}: {
 		commands: string[];
 		commandKind: WorkmuxScrollbackCommandKind;
 		operationGeneration: number;
 		rollbackExitCommand?: string;
 		durableExit?: boolean;
+		failurePolicy?: WorkmuxScrollbackFailurePolicy;
 	}) => {
 		const isActive = durableExit ? isExitActive : isWorkActive;
 		if (disposed) return false;
@@ -94,13 +99,20 @@ export function createWorkmuxScrollbackCommandExecutor({
 				formatWorkmuxScrollbackCommandFailureMessage(result);
 			if (!failureMessage) continue;
 			clearPendingScrollBatches();
-			onFailure(failureMessage);
+			if (failurePolicy === 'notify') {
+				onFailure(failureMessage);
+			} else {
+				onDisposeExitFailure?.(failureMessage);
+			}
 			return false;
 		}
 		return true;
 	};
 
-	const reset = (options?: { exitCommand?: string }) => {
+	const reset = (options?: {
+		exitCommand?: string;
+		failurePolicy?: WorkmuxScrollbackFailurePolicy;
+	}) => {
 		workGeneration += 1;
 		clearPendingScrollBatches();
 		const exitCommand = options?.exitCommand;
@@ -114,6 +126,7 @@ export function createWorkmuxScrollbackCommandExecutor({
 				commandKind: 'scroll',
 				operationGeneration,
 				durableExit: true,
+				failurePolicy: options?.failurePolicy,
 			}),
 		);
 	};
@@ -170,7 +183,10 @@ export function createWorkmuxScrollbackCommandExecutor({
 		reset,
 		dispose: (options?: { exitCommand?: string }) => {
 			closed = true;
-			const exit = reset(options);
+			const exit = reset({
+				exitCommand: options?.exitCommand,
+				failurePolicy: 'suppress',
+			});
 			if (exit) {
 				void exit.finally(() => {
 					disposed = true;

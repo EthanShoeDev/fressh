@@ -838,6 +838,8 @@ function ShellDetail() {
 					);
 				},
 				onFailure: handleWorkmuxScrollbackCommandFailure,
+				onDisposeExitFailure: (message) =>
+					logger.warn(`Workmux scrollback dispose exit failed: ${message}`),
 			}),
 		[connection, handleWorkmuxScrollbackCommandFailure],
 	);
