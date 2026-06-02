@@ -963,7 +963,7 @@ In the scrollback integration tests, remove imports for:
 Add imports for:
 
 ```ts
-	buildWorkmuxScrollbackBatchCommands,
+	accumulateWorkmuxScrollbackBatchCommands,
 	clearTmuxScrollbackLineAccumulator,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLiveInputCleanupBarrier,
@@ -977,11 +977,11 @@ Replace the direct tmux command-builder tests at the top of the file with tests
 for the final Workmux scrollback surface:
 
 ```ts
-void test('buildWorkmuxScrollbackBatchCommands builds page scroll commands', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands builds page scroll commands', () => {
 	const pageStep = 24;
 
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'up',
 			pages: 2,
@@ -993,12 +993,12 @@ void test('buildWorkmuxScrollbackBatchCommands builds page scroll commands', () 
 	);
 });
 
-void test('buildWorkmuxScrollbackBatchCommands accumulates rows into receiver pages', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands accumulates rows into receiver pages', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 	const pageStep = 24;
 
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
@@ -1009,7 +1009,7 @@ void test('buildWorkmuxScrollbackBatchCommands accumulates rows into receiver pa
 		[],
 	);
 	assert.deepEqual(
-		buildWorkmuxScrollbackBatchCommands({
+		accumulateWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'down',
 			pages: 0,
@@ -1087,7 +1087,7 @@ export function createTmuxScrollbackLiveInputCleanupBarrier(...);
 export function registerTmuxScrollbackLiveInputCleanup(...): Promise<boolean> | null;
 export function registerTmuxScrollbackRemoteCopyModeExitCleanup(...): Promise<boolean> | null;
 
-export function buildWorkmuxScrollbackBatchCommands({
+export function accumulateWorkmuxScrollbackBatchCommands({
 	sessionName,
 	direction,
 	pages,
@@ -1121,7 +1121,7 @@ In `apps/mobile/src/app/shell/detail.tsx`, replace imports of
 `buildTmuxScrollbackBatchCommand` and `buildTmuxScrollbackCopyModeCommand` with:
 
 ```ts
-	buildWorkmuxScrollbackBatchCommands,
+	accumulateWorkmuxScrollbackBatchCommands,
 	createTmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
@@ -1194,7 +1194,7 @@ In `handleScrollbackBatch`, replace the current single command construction with
 
 ```ts
 const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-const commands = buildWorkmuxScrollbackBatchCommands({
+const commands = accumulateWorkmuxScrollbackBatchCommands({
 	sessionName: targetName,
 	direction: event.direction,
 	pages: event.pages,

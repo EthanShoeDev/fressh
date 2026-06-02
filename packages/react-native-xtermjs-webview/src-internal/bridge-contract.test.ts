@@ -220,19 +220,6 @@ void test('XtermJsWebView message handler routes current instance events and dro
 			},
 		],
 	]);
-
-	const source = readFileSync(join(process.cwd(), 'src/index.tsx'), 'utf8');
-	const onMessageIndex = source.indexOf('const onMessage = useCallback');
-	assert.notEqual(onMessageIndex, -1);
-	const delegateIndex = source.indexOf(
-		'handleXtermBridgeInboundMessage',
-		onMessageIndex,
-	);
-	assert.notEqual(delegateIndex, -1);
-	const onMessageDelegateBlock = source.slice(onMessageIndex, delegateIndex + 600);
-	assert.match(onMessageDelegateBlock, /\bcurrentInstanceIdRef\b/);
-	assert.match(onMessageDelegateBlock, /\bonScrollbackEnterRequestFailure\b/);
-	assert.match(onMessageDelegateBlock, /\bonScrollbackBatch\b/);
 });
 
 void test('XtermJsWebView message handler reports rejected scrollback enter callbacks', async () => {

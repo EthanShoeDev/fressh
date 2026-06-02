@@ -452,6 +452,84 @@ void test('touch scroll batch includes the producer page step', (t) => {
 	assert.equal(scrollBatch?.pageStep, 24);
 });
 
+void test('touch scroll quick release flushes after delayed enter ack', async (t) => {
+	installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	const messages: BridgeInboundMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root, 25) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
+
+	controller.setConfig({
+		enabled: true,
+		slopPx: 0,
+		pxPerLine: 1,
+		maxPagesPerFlush: 2,
+		maxExtraLines: 999,
+		coalesceMs: 0,
+		velocityMultiplierEnabled: false,
+		backlogMultiplierEnabled: false,
+	});
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 100,
+	});
+	dispatchPointerEvent(root, 'pointerup', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 120,
+	});
+	controller.handleEnterAck(1);
+	await new Promise((resolve) => setTimeout(resolve, 0));
+
+	const activeTransition = messages.find(
+		(
+			message,
+		): message is Extract<
+			BridgeInboundMessage,
+			{ type: 'scrollbackModeChanged' }
+		> =>
+			message.type === 'scrollbackModeChanged' &&
+			message.active &&
+			message.phase === 'active',
+	);
+	const scrollBatch = messages.find(
+		(
+			message,
+		): message is Extract<BridgeInboundMessage, { type: 'scrollbackBatch' }> =>
+			message.type === 'scrollbackBatch',
+	);
+
+	assert.notEqual(activeTransition, undefined);
+	assert.equal(scrollBatch?.pageStep, 24);
+	assert.equal(scrollBatch?.direction, 'up');
+});
+
 void test('touch scroll exit does not emit primary-shell cancel input after ack', (t) => {
 	installDomGlobals(t);
 

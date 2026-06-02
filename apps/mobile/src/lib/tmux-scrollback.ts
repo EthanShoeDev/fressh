@@ -547,9 +547,6 @@ export function accumulateWorkmuxScrollbackBatchCommands({
 	return commands;
 }
 
-export const buildWorkmuxScrollbackBatchCommands =
-	accumulateWorkmuxScrollbackBatchCommands;
-
 export function formatWorkmuxScrollbackCommandFailureMessage(result: {
 	success: boolean;
 	output: string;

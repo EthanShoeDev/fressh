@@ -1253,6 +1253,82 @@ void test('live input runner starts cleanup for exit-key-only payload without se
 	assert.deepEqual(sentSegments, []);
 });
 
+void test('live input runner sends non-empty payload after successful cleanup', async () => {
+	const cleanup = deferred<boolean>();
+	const sentSegments: number[][][] = [];
+	const plan = buildTmuxScrollbackLiveInputSendPlan({
+		scrollbackActive: true,
+		payloadSegments: [bytes([0x68, 0x69])],
+		scrollbackExitDelayMs: 10,
+	});
+
+	const result = runTmuxScrollbackLiveInputSendPlan({
+		plan,
+		currentCleanup: cleanup.promise,
+		startCleanup: () => {
+			throw new Error('should use current cleanup');
+		},
+		remoteCopyModeActive: true,
+		sendSegments: (segments) => {
+			sentSegments.push(segmentValues(segments));
+		},
+	});
+
+	assert.equal(result, cleanup.promise);
+	assert.deepEqual(sentSegments, []);
+	cleanup.resolve(true);
+	await cleanup.promise;
+	await Promise.resolve();
+	assert.deepEqual(sentSegments, [[[0x68, 0x69]]]);
+});
+
+void test('live input runner blocks non-empty payload after failed cleanup', async () => {
+	const cleanup = Promise.resolve(false);
+	const sentSegments: number[][][] = [];
+	const plan = buildTmuxScrollbackLiveInputSendPlan({
+		scrollbackActive: true,
+		payloadSegments: [bytes([0x68, 0x69])],
+		scrollbackExitDelayMs: 10,
+	});
+
+	const result = runTmuxScrollbackLiveInputSendPlan({
+		plan,
+		currentCleanup: cleanup,
+		startCleanup: () => null,
+		remoteCopyModeActive: true,
+		sendSegments: (segments) => {
+			sentSegments.push(segmentValues(segments));
+		},
+	});
+
+	assert.equal(result, cleanup);
+	await cleanup;
+	await Promise.resolve();
+	assert.deepEqual(sentSegments, []);
+});
+
+void test('live input runner blocks non-empty payload while remote copy mode is active without cleanup', () => {
+	const sentSegments: number[][][] = [];
+	const plan = buildTmuxScrollbackLiveInputSendPlan({
+		scrollbackActive: false,
+		payloadSegments: [bytes([0x68, 0x69])],
+		scrollbackExitDelayMs: 10,
+	});
+
+	const result = runTmuxScrollbackLiveInputSendPlan({
+		plan,
+		currentCleanup: null,
+		startCleanup: () => null,
+		remoteCopyModeActive: true,
+		sendSegments: (segments) => {
+			sentSegments.push(segmentValues(segments));
+		},
+	});
+
+	assert.equal(result, null);
+	assert.deepEqual(sentSegments, []);
+});
+
 void test('live input plan preserves multi-segment payload order after app-owned scrollback exit', () => {
 	const plan = buildTmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
