@@ -172,12 +172,18 @@ void test('workmux app parsers reject bad or ambiguous output', () => {
 	for (const output of [
 		'',
 		'not json',
+		'null',
+		'[]',
+		'"context"',
 		`${JSON.stringify(context)}\n${JSON.stringify(context)}`,
 		JSON.stringify({ ...context, paneId: '' }),
 		JSON.stringify({ ...context, paneTty: undefined }),
 		JSON.stringify({ ...context, paneTty: 12 }),
 		JSON.stringify({ ...context, roleWindow: 'true' }),
 		JSON.stringify({ ...context, windowIndex: '12' }),
+		JSON.stringify({ ...context, windowIndex: -1 }),
+		JSON.stringify({ ...context, windowIndex: 1.5 }),
+		JSON.stringify({ ...context, windowIndex: Number.MAX_SAFE_INTEGER + 1 }),
 	]) {
 		assert.throws(
 			() => parseWorkmuxAppContextOutput(output),
@@ -208,6 +214,23 @@ void test('workmux app parsers reject bad or ambiguous output', () => {
 			),
 		/Invalid Workmux app window/,
 	);
+
+	for (const output of [
+		'null',
+		'[]',
+		'"window"',
+		JSON.stringify({ ...windowProjection, windowIndex: -1 }),
+		JSON.stringify({ ...windowProjection, windowIndex: 1.5 }),
+		JSON.stringify({
+			...windowProjection,
+			windowIndex: Number.MAX_SAFE_INTEGER + 1,
+		}),
+	]) {
+		assert.throws(
+			() => parseWorkmuxAppWindowOutput(output),
+			/Invalid Workmux app window/,
+		);
+	}
 });
 
 void test('workmux app parsers default missing optional strings', () => {
