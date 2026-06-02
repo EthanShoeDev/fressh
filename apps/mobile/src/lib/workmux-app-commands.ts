@@ -343,7 +343,7 @@ function requireBoolean(
 
 function requireWindowIndex(value: JsonRecord, errorMessage: string): number {
 	const field = value.windowIndex;
-	if (!Number.isSafeInteger(field) || field < 0) {
+	if (typeof field !== 'number' || !Number.isSafeInteger(field) || field < 0) {
 		throw new Error(errorMessage);
 	}
 	return field;
