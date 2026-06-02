@@ -464,50 +464,6 @@ export function formatWorkmuxScrollbackCommandFailureMessage(result: {
 	);
 }
 
-export function handleWorkmuxScrollbackCommandFailureActions({
-	message,
-	alert,
-	copyMessage,
-	clearScrollbackState,
-	warn,
-}: {
-	message: string;
-	alert: (
-		title: string,
-		message: string,
-		buttons?: { text: string; onPress?: () => void }[],
-	) => void;
-	copyMessage: (message: string) => void;
-	clearScrollbackState: () => void;
-	warn: (message: string) => void;
-}): void {
-	try {
-		let warningError: unknown;
-		try {
-			warn(message);
-		} catch (error) {
-			warningError = error;
-		}
-		alert('Workmux scroll unavailable', message, [
-			{ text: 'Copy Message', onPress: () => copyMessage(message) },
-			{ text: 'OK' },
-		]);
-		if (warningError) throw warningError;
-	} finally {
-		clearScrollbackState();
-	}
-}
-
-export function handleWorkmuxScrollbackDisposeExitFailureActions({
-	message,
-	warn,
-}: {
-	message: string;
-	warn: (message: string) => void;
-}): void {
-	warn(message);
-}
-
 async function runSingleCommand(
 	command: string,
 	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>,

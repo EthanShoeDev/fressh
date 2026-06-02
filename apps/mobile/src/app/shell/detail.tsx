@@ -103,8 +103,6 @@ import {
 	buildTmuxScrollbackLiveInputSendPlan,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
-	handleWorkmuxScrollbackCommandFailureActions,
-	handleWorkmuxScrollbackDisposeExitFailureActions,
 	registerTmuxScrollbackLocalExitRequest,
 	resetTmuxScrollbackLocalExitRequests,
 	runTmuxScrollbackLiveInputSendPlan,
@@ -145,6 +143,11 @@ import {
 	TextEntryModal,
 	type TextInputScreenBounds,
 } from './components/TextEntryModal';
+import {
+	handleShellWorkmuxScrollbackCommandFailureActions,
+	handleShellWorkmuxScrollbackDisposeExitFailureActions,
+	runShellScrollbackInactiveCleanup,
+} from './shell-scrollback-policy';
 
 const logger = rootLogger.extend('TabsShellDetail');
 
@@ -822,7 +825,7 @@ function ShellDetail() {
 
 	const handleWorkmuxScrollbackCommandFailure = useCallback(
 		(message: string, context: WorkmuxScrollbackFailureContext) => {
-			handleWorkmuxScrollbackCommandFailureActions({
+			handleShellWorkmuxScrollbackCommandFailureActions({
 				message,
 				alert: (title, alertMessage, buttons) =>
 					Alert.alert(title, alertMessage, buttons),
@@ -860,7 +863,7 @@ function ShellDetail() {
 			},
 			onFailure: handleWorkmuxScrollbackCommandFailure,
 			onDisposeExitFailure: (message) =>
-				handleWorkmuxScrollbackDisposeExitFailureActions({
+				handleShellWorkmuxScrollbackDisposeExitFailureActions({
 					message,
 					warn: (warning) => logger.warn(warning),
 				}),
@@ -2385,18 +2388,12 @@ function ShellDetail() {
 				return;
 			}
 
-			if (previousState === 'active') {
-				let cleanup: Promise<boolean> | null;
-				try {
-					cleanup = clearScrollbackState();
-				} catch (error) {
-					logger.warn('Workmux inactive scrollback cleanup failed', error);
-					cleanup = null;
-				}
-				void cleanup?.catch((error) => {
-					logger.warn('Workmux inactive scrollback cleanup failed', error);
-				});
-			}
+			void runShellScrollbackInactiveCleanup({
+				previousState,
+				nextState,
+				clearScrollbackState,
+				warn: (message, error) => logger.warn(message, error),
+			});
 			if (previousState === 'active') {
 				agentNotificationAckRequestIdRef.current += 1;
 				if (isAndroid) {

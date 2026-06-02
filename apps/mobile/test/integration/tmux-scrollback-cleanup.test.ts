@@ -9,8 +9,6 @@ import {
 	disposeTmuxScrollbackRuntimeStateForUiReset,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
-	handleWorkmuxScrollbackCommandFailureActions,
-	handleWorkmuxScrollbackDisposeExitFailureActions,
 	registerTmuxScrollbackLocalExitRequest,
 	registerTmuxScrollbackLiveInputCleanup,
 	resetTmuxScrollbackLocalExitRequests,
@@ -591,94 +589,6 @@ void test('local scrollback exit request reset makes stale exits remote-owned ag
 		}),
 		true,
 	);
-});
-
-void test('workmux scrollback failure actions alert and clear without cancel before remote ack', () => {
-	const events: string[] = [];
-
-	handleWorkmuxScrollbackCommandFailureActions({
-		message: 'Update mdev',
-		alert: (title, message, buttons) => {
-			events.push(`alert:${title}:${message}:${buttons?.length ?? 0}`);
-			buttons?.[0]?.onPress?.();
-		},
-		copyMessage: (message) => events.push(`copy:${message}`),
-		clearScrollbackState: () => events.push('clear'),
-		warn: (message) => events.push(`warn:${message}`),
-	});
-
-	assert.deepEqual(events, [
-		'warn:Update mdev',
-		'alert:Workmux scroll unavailable:Update mdev:2',
-		'copy:Update mdev',
-		'clear',
-	]);
-});
-
-void test('workmux scrollback failure actions clear even when notification throws', () => {
-	const alertEvents: string[] = [];
-	assert.throws(
-		() =>
-			handleWorkmuxScrollbackCommandFailureActions({
-				message: 'Update mdev',
-				alert: () => {
-					alertEvents.push('alert');
-					throw new Error('alert failed');
-				},
-				copyMessage: () => {},
-				clearScrollbackState: () => alertEvents.push('clear'),
-				warn: () => alertEvents.push('warn'),
-			}),
-		/alert failed/,
-	);
-	assert.deepEqual(alertEvents, ['warn', 'alert', 'clear']);
-
-	const warnEvents: string[] = [];
-	assert.throws(
-		() =>
-			handleWorkmuxScrollbackCommandFailureActions({
-				message: 'Update mdev',
-				alert: () => warnEvents.push('alert'),
-				copyMessage: () => {},
-				clearScrollbackState: () => warnEvents.push('clear'),
-				warn: () => {
-					warnEvents.push('warn');
-					throw new Error('warn failed');
-				},
-			}),
-		/warn failed/,
-	);
-	assert.deepEqual(warnEvents, ['warn', 'alert', 'clear']);
-});
-
-void test('workmux scrollback failure actions use supplied app-exit cleanup after remote copy mode is acknowledged', () => {
-	const events: string[] = [];
-
-	handleWorkmuxScrollbackCommandFailureActions({
-		message: 'page failed',
-		alert: (title, message) => events.push(`alert:${title}:${message}`),
-		copyMessage: (message) => events.push(`copy:${message}`),
-		clearScrollbackState: () => events.push('exit', 'clear'),
-		warn: (message) => events.push(`warn:${message}`),
-	});
-
-	assert.deepEqual(events, [
-		'warn:page failed',
-		'alert:Workmux scroll unavailable:page failed',
-		'exit',
-		'clear',
-	]);
-});
-
-void test('dispose Workmux scroll exit failure logs without user alert', () => {
-	const events: string[] = [];
-
-	handleWorkmuxScrollbackDisposeExitFailureActions({
-		message: 'Update mdev',
-		warn: (message) => events.push(`warn:${message}`),
-	});
-
-	assert.deepEqual(events, ['warn:Update mdev']);
 });
 
 void test('scrollback enter request adapter acks only after Workmux enter succeeds', async () => {
