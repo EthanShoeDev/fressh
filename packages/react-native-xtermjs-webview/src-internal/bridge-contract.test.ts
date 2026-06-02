@@ -8,6 +8,7 @@ import {
 } from '../src/bridge';
 import {
 	buildScrollbackEnterRequestFailureMessage,
+	createScrollbackEnterRequestFailureHandler,
 	handleXtermBridgeInboundMessage,
 } from '../src/xterm-message-handler';
 
@@ -269,6 +270,100 @@ void test('XtermJsWebView message handler reports rejected scrollback enter call
 	]);
 });
 
+void test('XtermJsWebView message handler reports synchronous scrollback enter callback failures', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: 'instance-1' };
+	const pendingSelectionRef = { current: new Map() };
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'scrollbackEnterRequested',
+				instanceId: 'instance-1',
+				requestId: 7,
+			},
+			{
+				currentInstanceIdRef,
+				pendingSelectionRef,
+				autoFitFn: () => {},
+				setInitialized: () => {},
+				onScrollbackEnterRequested: () => {
+					throw new Error('sync enter failed');
+				},
+				onScrollbackEnterRequestFailure: (event, error) =>
+					events.push([
+						'failure',
+						event,
+						error instanceof Error ? error.message : String(error),
+					]),
+			},
+		),
+		true,
+	);
+
+	assert.deepEqual(events, [
+		[
+			'failure',
+			{
+				instanceId: 'instance-1',
+				requestId: 7,
+			},
+			'sync enter failed',
+		],
+	]);
+});
+
+void test('XtermJsWebView message handler isolates scrollback enter failure callback errors', async () => {
+	const currentInstanceIdRef = { current: 'instance-1' };
+	const pendingSelectionRef = { current: new Map() };
+
+	assert.doesNotThrow(() =>
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'scrollbackEnterRequested',
+				instanceId: 'instance-1',
+				requestId: 7,
+			},
+			{
+				currentInstanceIdRef,
+				pendingSelectionRef,
+				autoFitFn: () => {},
+				setInitialized: () => {},
+				onScrollbackEnterRequested: () => {
+					throw new Error('sync enter failed');
+				},
+				onScrollbackEnterRequestFailure: () => {
+					throw new Error('failure handler failed');
+				},
+			},
+		),
+	);
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'scrollbackEnterRequested',
+				instanceId: 'instance-1',
+				requestId: 8,
+			},
+			{
+				currentInstanceIdRef,
+				pendingSelectionRef,
+				autoFitFn: () => {},
+				setInitialized: () => {},
+				onScrollbackEnterRequested: async () => {
+					throw new Error('async enter failed');
+				},
+				onScrollbackEnterRequestFailure: () => {
+					throw new Error('failure handler failed');
+				},
+			},
+		),
+		true,
+	);
+	await Promise.resolve();
+});
+
 void test('XtermJsWebView message handler reports missing scrollback enter callbacks', () => {
 	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: 'instance-1' };
@@ -307,6 +402,33 @@ void test('XtermJsWebView message handler reports missing scrollback enter callb
 			'Missing scrollback enter handler.',
 		],
 	]);
+});
+
+void test('XtermJsWebView scrollback enter failure handler sends fallback exit', () => {
+	const sent: unknown[] = [];
+	const warnings: unknown[] = [];
+	const handler = createScrollbackEnterRequestFailureHandler({
+		logger: {
+			warn: (...args: unknown[]) => warnings.push(args),
+		},
+		sendToWebView: (message) => sent.push(message),
+	});
+
+	handler(
+		{
+			instanceId: 'instance-1',
+			requestId: 7,
+		},
+		new Error('enter failed'),
+	);
+
+	assert.deepEqual(sent, [
+		{
+			type: 'exitScrollback',
+			requestId: 7,
+		},
+	]);
+	assert.equal(warnings.length, 1);
 });
 
 void test('XtermJsWebView scrollback enter failure fallback exits pending request', () => {

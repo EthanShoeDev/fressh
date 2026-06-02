@@ -23,7 +23,7 @@ import {
 import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
 import { createDefaultXtermOptions } from './terminal-options';
 import {
-	buildScrollbackEnterRequestFailureMessage,
+	createScrollbackEnterRequestFailureHandler,
 	handleXtermBridgeInboundMessage,
 } from './xterm-message-handler';
 
@@ -418,6 +418,15 @@ export function XtermJsWebView({
 		appliedTouchConfigRef.current = normalizedConfig;
 	}, [initialized, sendToWebView, touchScrollConfig]);
 
+	const onScrollbackEnterRequestFailure = useMemo(
+		() =>
+			createScrollbackEnterRequestFailureHandler({
+				logger,
+				sendToWebView,
+			}),
+		[logger, sendToWebView],
+	);
+
 	const onMessage = useCallback(
 		(e: WebViewMessageEvent) => {
 			try {
@@ -438,17 +447,7 @@ export function XtermJsWebView({
 						onSelectionModeChange,
 						onScrollbackModeChange,
 						onScrollbackEnterRequested,
-						onScrollbackEnterRequestFailure: (event, error) => {
-							logger?.warn?.(
-								`scrollback enter request failed`,
-								event.instanceId,
-								event.requestId,
-								error,
-							);
-							sendToWebView({
-								...buildScrollbackEnterRequestFailureMessage(event),
-							});
-						},
+						onScrollbackEnterRequestFailure,
 						onScrollbackBatch,
 					})
 				) {
@@ -475,8 +474,8 @@ export function XtermJsWebView({
 			onSelectionModeChange,
 			onScrollbackModeChange,
 			onScrollbackEnterRequested,
+			onScrollbackEnterRequestFailure,
 			onScrollbackBatch,
-			sendToWebView,
 		],
 	);
 

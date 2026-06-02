@@ -14,6 +14,50 @@ type XtermMessageLogger = {
 	warn?: (...args: unknown[]) => void;
 };
 
+type ScrollbackEnterRequestEvent = {
+	instanceId: string;
+	requestId: number;
+};
+
+export function reportScrollbackEnterRequestFailure({
+	event,
+	error,
+	onScrollbackEnterRequestFailure,
+}: {
+	event: ScrollbackEnterRequestEvent;
+	error: unknown;
+	onScrollbackEnterRequestFailure?: (
+		event: ScrollbackEnterRequestEvent,
+		error: unknown,
+	) => void;
+}): void {
+	try {
+		onScrollbackEnterRequestFailure?.(event, error);
+	} catch {
+		// Failure fallback is best-effort; never rethrow into WebView message flow.
+	}
+}
+
+export function createScrollbackEnterRequestFailureHandler({
+	logger,
+	sendToWebView,
+}: {
+	logger?: XtermMessageLogger;
+	sendToWebView: (message: BridgeOutboundMessage) => void;
+}): (event: ScrollbackEnterRequestEvent, error: unknown) => void {
+	return (event, error) => {
+		logger?.warn?.(
+			`scrollback enter request failed`,
+			event.instanceId,
+			event.requestId,
+			error,
+		);
+		sendToWebView({
+			...buildScrollbackEnterRequestFailureMessage(event),
+		});
+	};
+}
+
 export function handleXtermBridgeInboundMessage(
 	msg: BridgeInboundMessage,
 	{
@@ -54,12 +98,11 @@ export function handleXtermBridgeInboundMessage(
 			instanceId: string;
 			requestId?: number;
 		}) => void;
-		onScrollbackEnterRequested?: (event: {
-			instanceId: string;
-			requestId: number;
-		}) => void | Promise<void>;
+		onScrollbackEnterRequested?: (
+			event: ScrollbackEnterRequestEvent,
+		) => void | Promise<void>;
 		onScrollbackEnterRequestFailure?: (
-			event: { instanceId: string; requestId: number },
+			event: ScrollbackEnterRequestEvent,
 			error: unknown,
 		) => void;
 		onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
@@ -131,15 +174,28 @@ export function handleXtermBridgeInboundMessage(
 			requestId: msg.requestId,
 		};
 		if (!onScrollbackEnterRequested) {
-			onScrollbackEnterRequestFailure?.(
+			reportScrollbackEnterRequestFailure({
 				event,
-				new Error('Missing scrollback enter handler.'),
-			);
+				error: new Error('Missing scrollback enter handler.'),
+				onScrollbackEnterRequestFailure,
+			});
 			return true;
 		}
-		void Promise.resolve(onScrollbackEnterRequested?.(event)).catch((error) => {
-			onScrollbackEnterRequestFailure?.(event, error);
-		});
+		try {
+			void Promise.resolve(onScrollbackEnterRequested(event)).catch((error) => {
+				reportScrollbackEnterRequestFailure({
+					event,
+					error,
+					onScrollbackEnterRequestFailure,
+				});
+			});
+		} catch (error) {
+			reportScrollbackEnterRequestFailure({
+				event,
+				error,
+				onScrollbackEnterRequestFailure,
+			});
+		}
 		return true;
 	}
 	return handleScrollbackBatchBridgeMessage(msg, onScrollbackBatch);

@@ -13,6 +13,7 @@ import {
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleWorkmuxScrollbackDisposeExitFailureActions,
 	registerTmuxScrollbackLiveInputCleanup,
+	runTmuxScrollbackLiveInputSendPlan,
 	resetTmuxScrollbackRuntimeState,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resolveTmuxScrollbackEnterRequest,
@@ -746,7 +747,49 @@ void test('scrollback enter request adapter skips ack on failed Workmux enter', 
 	assert.deepEqual(commands, [
 		"mdev tmux app scroll enter --session 'main'",
 	]);
-	assert.deepEqual(acks, []);
+	assert.deepEqual(acks, ['clear']);
+});
+
+void test('scrollback enter request adapter clears local UI when enter is canceled before ack', async () => {
+	const commandStarted = deferred<void>();
+	const commandCanFinish = deferred<void>();
+	const events: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			events.push(`command:${command}`);
+			commandStarted.resolve();
+			await commandCanFinish.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const enter = handleTmuxScrollbackEnterRequested({
+		event: { instanceId: 'current', requestId: 42 },
+		isAppActive: true,
+		currentInstanceId: 'current',
+		shellAvailable: true,
+		selectionModeEnabled: false,
+		tmuxEnabled: true,
+		connectionAvailable: true,
+		targetName: 'main',
+		commandExecutor: executor,
+		remoteCopyModeActiveRef: { current: false },
+		remoteCopyModeGenerationRef: { current: 0 },
+		clearLocalScrollbackUiState: () => events.push('clear'),
+		sendScrollbackEnterAck: () => events.push('ack'),
+	});
+
+	await commandStarted.promise;
+	void executor.dispose();
+	commandCanFinish.resolve();
+	await enter;
+
+	assert.deepEqual(events, [
+		"command:mdev tmux app scroll enter --session 'main'",
+		"command:mdev tmux app scroll exit --session 'main'",
+		'clear',
+	]);
 });
 
 void test('scrollback enter request adapter clears inactive current instance and ignores stale instance', async () => {
@@ -1004,6 +1047,37 @@ void test('live input plan drops the scrollback exit-key payload after cleanup',
 	assert.deepEqual(segmentValues(plan.segments), []);
 	assert.equal(plan.interSegmentDelayMs, 10);
 	assert.equal(plan.clearScrollback, true);
+});
+
+void test('live input runner starts cleanup for exit-key-only payload without sending bytes', async () => {
+	const cleanup = Promise.resolve(true);
+	let cleanupStarted = 0;
+	const sentSegments: number[][][] = [];
+	const plan = buildTmuxScrollbackLiveInputSendPlan({
+		scrollbackActive: true,
+		payloadSegments: [bytes([0x71])],
+		scrollbackExitKeyPayload: bytes([0x71]),
+		scrollbackExitDelayMs: 10,
+	});
+
+	const result = runTmuxScrollbackLiveInputSendPlan({
+		plan,
+		currentCleanup: null,
+		startCleanup: () => {
+			cleanupStarted += 1;
+			return cleanup;
+		},
+		remoteCopyModeActive: true,
+		sendSegments: (segments) => {
+			sentSegments.push(segmentValues(segments));
+		},
+	});
+
+	assert.equal(result, cleanup);
+	assert.equal(cleanupStarted, 1);
+	await cleanup;
+	await Promise.resolve();
+	assert.deepEqual(sentSegments, []);
 });
 
 void test('live input plan preserves multi-segment payload order after app-owned scrollback exit', () => {

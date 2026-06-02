@@ -106,8 +106,8 @@ import {
 	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleWorkmuxScrollbackDisposeExitFailureActions,
+	runTmuxScrollbackLiveInputSendPlan,
 	resetTmuxScrollbackRuntimeStateForUiReset,
-	resolveTmuxScrollbackLiveInputCleanup,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	type WorkmuxScrollbackCommandExecutor,
 	type WorkmuxScrollbackFailureContext,
@@ -909,31 +909,16 @@ function ShellDetail() {
 				scrollbackExitDelayMs,
 			});
 
-			const cleanupBarrier = resolveTmuxScrollbackLiveInputCleanup({
-				clearScrollback: plan.clearScrollback,
+			void runTmuxScrollbackLiveInputSendPlan({
+				plan,
 				currentCleanup: scrollbackCleanupBarrierRef.current.current(),
 				startCleanup: clearScrollbackState,
+				remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
+				sendSegments: (segments, options) =>
+					sendBytesQueued(segments, {
+						interSegmentDelayMs: options?.interSegmentDelayMs,
+					}),
 			});
-			if (!plan.segments.length) return;
-
-			const send = () =>
-				sendBytesQueued(plan.segments, {
-					interSegmentDelayMs: plan.interSegmentDelayMs,
-				});
-			if (!cleanupBarrier && tmuxRemoteScrollbackCopyModeActiveRef.current) {
-				return;
-			}
-			if (cleanupBarrier) {
-				void cleanupBarrier
-					.then((exited) => {
-						if (exited) {
-							void send()?.catch(() => {});
-						}
-					})
-					.catch(() => {});
-				return;
-			}
-			void send()?.catch(() => {});
 		},
 		[clearScrollbackState, sendBytesQueued],
 	);

@@ -511,6 +511,48 @@ export function resolveTmuxScrollbackLiveInputCleanup({
 	return clearScrollback ? startCleanup() : null;
 }
 
+export function runTmuxScrollbackLiveInputSendPlan({
+	plan,
+	currentCleanup,
+	startCleanup,
+	remoteCopyModeActive,
+	sendSegments,
+}: {
+	plan: TmuxScrollbackLiveInputSendPlan;
+	currentCleanup?: Promise<boolean> | null;
+	startCleanup: () => Promise<boolean> | null;
+	remoteCopyModeActive: boolean;
+	sendSegments: (
+		segments: Uint8Array<ArrayBuffer>[],
+		options?: { interSegmentDelayMs?: number },
+	) => void | Promise<unknown> | undefined;
+}): Promise<boolean> | null {
+	const cleanupBarrier = resolveTmuxScrollbackLiveInputCleanup({
+		clearScrollback: plan.clearScrollback,
+		currentCleanup,
+		startCleanup,
+	});
+	if (!plan.segments.length) return cleanupBarrier ?? null;
+
+	const send = () =>
+		sendSegments(plan.segments, {
+			interSegmentDelayMs: plan.interSegmentDelayMs,
+		});
+	if (!cleanupBarrier && remoteCopyModeActive) return null;
+	if (cleanupBarrier) {
+		void cleanupBarrier
+			.then((exited) => {
+				if (exited) {
+					void Promise.resolve(send()).catch(() => {});
+				}
+			})
+			.catch(() => {});
+		return cleanupBarrier;
+	}
+	void Promise.resolve(send()).catch(() => {});
+	return null;
+}
+
 export function registerTmuxScrollbackRemoteCopyModeExitCleanup({
 	barrier,
 	cleanup,
@@ -599,21 +641,21 @@ export function disposeTmuxScrollbackRuntimeStateForUiReset({
 	cleanupGeneration?: { current: number };
 	remoteCopyModeExitCommand: string;
 }): Promise<boolean> | null {
-	const disposeCommandExecutor: WorkmuxScrollbackCommandExecutor | null =
-		commandExecutor
-			? {
-					...commandExecutor,
-					reset: (options) =>
-						commandExecutor.dispose({ exitCommand: options?.exitCommand }),
-				}
-			: null;
-	return resetTmuxScrollbackRuntimeStateForUiReset({
-		lineAccumulator,
-		commandExecutor: disposeCommandExecutor,
-		cleanupBarrier,
+	const remoteCopyModeWasActive = remoteCopyModeActiveRef.current;
+	clearTmuxScrollbackLineAccumulator(lineAccumulator);
+	const cleanup =
+		commandExecutor?.dispose({
+			exitCommand: remoteCopyModeWasActive
+				? remoteCopyModeExitCommand
+				: undefined,
+		}) ?? null;
+	return registerTmuxScrollbackRemoteCopyModeExitCleanup({
+		barrier: cleanupBarrier,
+		cleanup,
 		remoteCopyModeActiveRef,
+		remoteCopyModeWasActive,
+		markRemoteCopyModeActiveOnFailedCleanup: true,
 		cleanupGeneration,
-		remoteCopyModeExitCommand,
 	});
 }
 
@@ -708,7 +750,10 @@ export async function handleTmuxScrollbackEnterRequested({
 	const entered = await commandExecutor.runEnterCommand(command, {
 		rollbackExitCommand: buildWorkmuxAppScrollExitCommand(targetName),
 	});
-	if (!entered) return;
+	if (!entered) {
+		clearLocalScrollbackUiState();
+		return;
+	}
 	remoteCopyModeGenerationRef.current += 1;
 	remoteCopyModeActiveRef.current = true;
 	sendScrollbackEnterAck(event.requestId, event.instanceId);

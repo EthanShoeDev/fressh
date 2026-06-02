@@ -8,6 +8,19 @@ type XtermMessageLogger = {
     log?: (...args: unknown[]) => void;
     warn?: (...args: unknown[]) => void;
 };
+type ScrollbackEnterRequestEvent = {
+    instanceId: string;
+    requestId: number;
+};
+export declare function reportScrollbackEnterRequestFailure({ event, error, onScrollbackEnterRequestFailure, }: {
+    event: ScrollbackEnterRequestEvent;
+    error: unknown;
+    onScrollbackEnterRequestFailure?: (event: ScrollbackEnterRequestEvent, error: unknown) => void;
+}): void;
+export declare function createScrollbackEnterRequestFailureHandler({ logger, sendToWebView, }: {
+    logger?: XtermMessageLogger;
+    sendToWebView: (message: BridgeOutboundMessage) => void;
+}): (event: ScrollbackEnterRequestEvent, error: unknown) => void;
 export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessage, { currentInstanceIdRef, pendingSelectionRef, logger, onInitialized, autoFitFn, setInitialized, onInput, onData, onResize, onSelection, onSelectionModeChange, onScrollbackModeChange, onScrollbackEnterRequested, onScrollbackEnterRequestFailure, onScrollbackBatch, }: {
     currentInstanceIdRef: {
         current: string | null;
@@ -32,14 +45,8 @@ export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessag
         instanceId: string;
         requestId?: number;
     }) => void;
-    onScrollbackEnterRequested?: (event: {
-        instanceId: string;
-        requestId: number;
-    }) => void | Promise<void>;
-    onScrollbackEnterRequestFailure?: (event: {
-        instanceId: string;
-        requestId: number;
-    }, error: unknown) => void;
+    onScrollbackEnterRequested?: (event: ScrollbackEnterRequestEvent) => void | Promise<void>;
+    onScrollbackEnterRequestFailure?: (event: ScrollbackEnterRequestEvent, error: unknown) => void;
     onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 }): boolean;
 export declare function buildScrollbackEnterRequestFailureMessage(event: {
