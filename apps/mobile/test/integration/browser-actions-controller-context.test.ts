@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
-	type WorkmuxAppContext,
-} from '../../src/lib/workmux-app-commands';
-import {
 	runBrowserActionsDetectedOpen,
 	runBrowserActionsDiffityShare,
 	type BrowserActionsRemoteCommand,
 } from '../../src/lib/browser-actions-controller-actions';
+import {
+	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	type WorkmuxAppContext,
+} from '../../src/lib/workmux-app-commands';
 
 const context: WorkmuxAppContext = {
 	sessionName: 'main',
@@ -73,8 +73,7 @@ void test('browser actions diffity resolves pane path through Workmux app contex
 			timeoutMs: 10_000,
 		},
 		{
-			command:
-				"cd '/home/muly/fressh/apps/mobile'\\''s' && mdev diffity share",
+			command: "cd '/home/muly/fressh/apps/mobile'\\''s' && mdev diffity share",
 			timeoutMs: 60_000,
 		},
 	]);

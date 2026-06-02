@@ -15,6 +15,7 @@ import {
 	runBrowserActionsDiffityShare,
 } from '@/lib/browser-actions-controller-actions';
 import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
+import { formatWorkmuxAppCommandFailureMessage } from '@/lib/workmux-app-commands';
 import {
 	buildHostBrowserStatusCycleCommand,
 	buildTmuxWindowConfigGetCommand,
@@ -25,9 +26,6 @@ import {
 	type HostBrowserOpenMode,
 	type HostBrowserUrlSlot,
 } from './host-browser-actions';
-import {
-	formatWorkmuxAppCommandFailureMessage,
-} from '@/lib/workmux-app-commands';
 import {
 	buildCreateGitHubIssueCommand,
 	buildFeatureRequestSubmittedAlert,
@@ -160,7 +158,10 @@ export type SkillSelectorControllerHandle = {
 export function useSkillSelectorController<TConnection>(deps: {
 	connection: TConnection | null;
 	tmuxEnabled: boolean;
-	runHostBrowserCommand: (command: string, timeoutMs?: number) => Promise<string>;
+	runHostBrowserCommand: (
+		command: string,
+		timeoutMs?: number,
+	) => Promise<string>;
 	resolveHostBrowserPanePath: () => Promise<string>;
 	sendTextRaw: (text: string) => void;
 	sourceKey: string;
@@ -538,7 +539,15 @@ export function useFeatureRequestController<TConnection>(
 			onClose: close,
 			onSubmit: submit,
 		}),
-		[close, error, isResolvingTarget, isSubmitting, open, submit, targetRepository],
+		[
+			close,
+			error,
+			isResolvingTarget,
+			isSubmitting,
+			open,
+			submit,
+			targetRepository,
+		],
 	);
 
 	return useMemo<FeatureRequestControllerHandle>(
@@ -592,7 +601,10 @@ export type BrowserActionsControllerHandle = {
 	close: () => void;
 	resolveHostBrowserPanePath: () => Promise<string>;
 	resolveCurrentGitHubRepository: () => Promise<string>;
-	runHostBrowserCommand: (command: string, timeoutMs?: number) => Promise<string>;
+	runHostBrowserCommand: (
+		command: string,
+		timeoutMs?: number,
+	) => Promise<string>;
 	invalidateHostUrlReads: () => void;
 	invalidateAll: () => void;
 	cycleWorkmuxStatus: () => void;
@@ -627,7 +639,9 @@ export function useBrowserActionsController<TConnection>(
 	const [hostUrlModalState, setHostUrlModalState] =
 		useState<HostUrlModalStateValue | null>(null);
 	const [hostUrlModalSubmitting, setHostUrlModalSubmitting] = useState(false);
-	const [hostUrlModalError, setHostUrlModalError] = useState<string | null>(null);
+	const [hostUrlModalError, setHostUrlModalError] = useState<string | null>(
+		null,
+	);
 
 	const hostUrlReadRequestId = useRequestId();
 	const hostUrlSubmitRequestId = useRequestId();

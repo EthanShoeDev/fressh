@@ -39,7 +39,10 @@ async function runWorkmuxAppContextCommand({
 	tmuxEnabled,
 	tmuxTarget,
 	runHostBrowserCommand,
-}: BrowserActionsContextDeps): Promise<{ output: string; sessionName: string }> {
+}: BrowserActionsContextDeps): Promise<{
+	output: string;
+	sessionName: string;
+}> {
 	if (!tmuxEnabled) {
 		throw new Error(
 			'Host browser actions require a Workmux-enabled connection.',
