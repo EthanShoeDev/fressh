@@ -1,10 +1,14 @@
 import {
+	WORKMUX_APP_SCROLL_MAX_COUNT,
 	buildWorkmuxAppScrollPageCommand,
+	formatWorkmuxAppCommandFailureMessage,
 	type WorkmuxScrollDirection,
 } from './workmux-app-commands';
 
 const encoder = new TextEncoder();
-const WORKMUX_APP_SCROLL_COMMAND_MAX_COUNT = 20;
+
+// Bounds malformed bridge batches before splitting into remote commands.
+export const TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH = 100;
 
 export type TmuxControlWriter = {
 	send: (bytes: Uint8Array<ArrayBufferLike>) => Promise<void>;
@@ -20,6 +24,13 @@ export function createTmuxScrollbackLineAccumulator(): TmuxScrollbackLineAccumul
 		direction: null,
 		lines: 0,
 	};
+}
+
+export function resolveTmuxScrollbackReceiverLinesPerPage(
+	rows: number | null | undefined,
+): number {
+	const rowCount = rows == null ? 24 : truncateNonNegativeInteger(rows);
+	return Math.max(10, rowCount - 1);
 }
 
 export function clearTmuxScrollbackLineAccumulator(
@@ -58,6 +69,7 @@ export function buildWorkmuxScrollbackBatchCommands({
 		pageCount += Math.trunc(lineAccumulator.lines / pageSize);
 		lineAccumulator.lines %= pageSize;
 	}
+	pageCount = Math.min(pageCount, TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH);
 
 	if (pageCount === 0) return [];
 
@@ -65,17 +77,28 @@ export function buildWorkmuxScrollbackBatchCommands({
 	for (
 		let remainingPages = pageCount;
 		remainingPages > 0;
-		remainingPages -= WORKMUX_APP_SCROLL_COMMAND_MAX_COUNT
+		remainingPages -= WORKMUX_APP_SCROLL_MAX_COUNT
 	) {
 		commands.push(
 			buildWorkmuxAppScrollPageCommand(
 				sessionName,
 				direction,
-				Math.min(remainingPages, WORKMUX_APP_SCROLL_COMMAND_MAX_COUNT),
+				Math.min(remainingPages, WORKMUX_APP_SCROLL_MAX_COUNT),
 			),
 		);
 	}
 	return commands;
+}
+
+export function formatWorkmuxScrollbackCommandFailureMessage(result: {
+	success: boolean;
+	output: string;
+	error?: string;
+}): string | null {
+	if (result.success) return null;
+	return formatWorkmuxAppCommandFailureMessage(
+		result.error || result.output || '',
+	);
 }
 
 export async function runTmuxControlCommand(
@@ -102,7 +125,7 @@ export function getTmuxScrollbackControlFailurePolicy({
 
 function truncateNonNegativeInteger(value: number): number {
 	if (!Number.isFinite(value)) return 0;
-	return Math.max(0, Math.trunc(value));
+	return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.trunc(value)));
 }
 
 export type TmuxScrollbackLiveInputSendPlan =

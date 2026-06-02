@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	WORKMUX_APP_SCROLL_MAX_COUNT,
 	buildWorkmuxAppContextCommand,
 	buildWorkmuxAppFocusCommand,
 	buildWorkmuxAppNavCommand,
@@ -108,6 +109,27 @@ void test('workmux scroll page builder rejects invalid counts', () => {
 	}
 });
 
+void test('workmux scroll page max count is exported by the command boundary', () => {
+	assert.equal(WORKMUX_APP_SCROLL_MAX_COUNT, 20);
+	assert.equal(
+		buildWorkmuxAppScrollPageCommand(
+			'main',
+			'up',
+			WORKMUX_APP_SCROLL_MAX_COUNT,
+		),
+		"mdev tmux app scroll page-up --count '20' --session 'main'",
+	);
+	assert.throws(
+		() =>
+			buildWorkmuxAppScrollPageCommand(
+				'main',
+				'up',
+				WORKMUX_APP_SCROLL_MAX_COUNT + 1,
+			),
+		/Invalid Workmux scroll count/,
+	);
+});
+
 void test('workmux scroll page builder rejects invalid directions', () => {
 	assert.throws(
 		() =>
@@ -128,12 +150,7 @@ void test('workmux nav select builder requires an index', () => {
 });
 
 void test('workmux nav select builder rejects invalid indexes', () => {
-	for (const index of [
-		-1,
-		Number.NaN,
-		1.5,
-		Number.MAX_SAFE_INTEGER + 1,
-	]) {
+	for (const index of [-1, Number.NaN, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
 		assert.throws(
 			() => buildWorkmuxAppNavCommand('main', 'select', index),
 			/Invalid Workmux nav select index/,
@@ -234,10 +251,16 @@ void test('workmux app parsers reject bad or ambiguous output', () => {
 });
 
 void test('workmux app parsers default missing optional strings', () => {
-	const { role: _contextRole, workspaceId: _contextWorkspaceId, ...baseContext } =
-		context;
-	const { role: _windowRole, workspaceId: _windowWorkspaceId, ...baseWindow } =
-		windowProjection;
+	const {
+		role: _contextRole,
+		workspaceId: _contextWorkspaceId,
+		...baseContext
+	} = context;
+	const {
+		role: _windowRole,
+		workspaceId: _windowWorkspaceId,
+		...baseWindow
+	} = windowProjection;
 
 	assert.deepEqual(parseWorkmuxAppContextOutput(JSON.stringify(baseContext)), {
 		...baseContext,

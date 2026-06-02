@@ -1,7 +1,7 @@
 export const WORKMUX_APP_COMMAND_UPDATE_MESSAGE =
 	'Update mdev on the remote machine; this action requires mdev tmux app commands.';
 
-const WORKMUX_APP_SCROLL_MAX_COUNT = 20;
+export const WORKMUX_APP_SCROLL_MAX_COUNT = 20;
 
 export type WorkmuxAppContext = {
 	sessionName: string;
@@ -154,7 +154,9 @@ export function buildWorkmuxAppNavCommand(
 	}
 
 	const command = ['mdev tmux app nav', quoteShellValue(action)];
-	command.push(`--session ${quoteShellValue(normalizeSessionName(sessionName))}`);
+	command.push(
+		`--session ${quoteShellValue(normalizeSessionName(sessionName))}`,
+	);
 
 	return command.join(' ');
 }
@@ -170,7 +172,11 @@ export function parseWorkmuxAppContextOutput(
 
 	const context: WorkmuxAppContext = {
 		...windowProjection,
-		paneId: requireNonEmptyString(value, 'paneId', 'Invalid Workmux app context'),
+		paneId: requireNonEmptyString(
+			value,
+			'paneId',
+			'Invalid Workmux app context',
+		),
 		paneTty: requireString(value, 'paneTty', 'Invalid Workmux app context'),
 		panePath: requireNonEmptyString(
 			value,
@@ -203,11 +209,7 @@ function parseWorkmuxAppWindowProjection(
 	errorMessage: string,
 ): WorkmuxAppWindow {
 	return {
-		sessionName: requireNonEmptyString(
-			value,
-			'sessionName',
-			errorMessage,
-		),
+		sessionName: requireNonEmptyString(value, 'sessionName', errorMessage),
 		target: requireNonEmptyString(value, 'target', errorMessage),
 		windowId: requireNonEmptyString(value, 'windowId', errorMessage),
 		windowIndex: requireWindowIndex(value, errorMessage),
@@ -236,7 +238,10 @@ function isSafeNonNegativeInteger(value: number): boolean {
 	return Number.isSafeInteger(value) && value >= 0;
 }
 
-function parseSingleJsonObject(output: string, errorMessage: string): JsonRecord {
+function parseSingleJsonObject(
+	output: string,
+	errorMessage: string,
+): JsonRecord {
 	const trimmed = output.trim();
 	if (!trimmed) {
 		throw new Error(errorMessage);

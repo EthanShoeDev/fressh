@@ -103,12 +103,11 @@ import {
 	buildWorkmuxScrollbackBatchCommands,
 	clearTmuxScrollbackLineAccumulator,
 	createTmuxScrollbackLineAccumulator,
-	getTmuxScrollbackControlFailurePolicy,
+	formatWorkmuxScrollbackCommandFailureMessage,
 	isValidTmuxCancelKey,
-	runTmuxControlCommand,
+	resolveTmuxScrollbackReceiverLinesPerPage,
 } from '@/lib/tmux-scrollback';
 import { queryClient } from '@/lib/utils';
-import { buildWorkmuxAppScrollEnterCommand } from '@/lib/workmux-app-commands';
 import {
 	canStartWisprTextEntryAutomation,
 	isWisprAutomationBusy,
@@ -127,6 +126,7 @@ import {
 	type WisprTextEditorAvailability,
 } from '@/lib/wispr-automation';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
+import { buildWorkmuxAppScrollEnterCommand } from '@/lib/workmux-app-commands';
 import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
@@ -155,6 +155,7 @@ const WISPR_TAP_RETRY_INTERVAL_MS = 200;
 const WISPR_TAP_ATTEMPT_TIMEOUT_MS = 750;
 const WISPR_PENDING_AUTO_CLOSE_EXPIRY_MS = 5_000;
 const WISPR_OPENING_FALLBACK_MS = 750;
+const WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS = 10_000;
 
 const getErrorMessage = (error: unknown) =>
 	error instanceof Error ? error.message : String(error);
@@ -468,7 +469,6 @@ function ShellDetail() {
 	);
 	const [tmuxEnabled, setTmuxEnabled] = useState(false);
 	const [tmuxControlReady, setTmuxControlReady] = useState(false);
-	const [tmuxControlRestartNonce, setTmuxControlRestartNonce] = useState(0);
 
 	useEffect(() => {
 		if (hasTmuxAttachError) return;
@@ -584,7 +584,7 @@ function ShellDetail() {
 				logger.warn('Failed to close tmux control shell', error);
 			});
 		};
-	}, [connection, tmuxControlRestartNonce, tmuxEnabled]);
+	}, [connection, tmuxEnabled]);
 
 	useEffect(() => {
 		return () => {
@@ -852,53 +852,54 @@ function ShellDetail() {
 		xtermRef.current?.exitScrollback({ emitExit: false });
 	}, []);
 
-	const handleTmuxControlUnavailable = useCallback(
-		(reason: string) => {
-			logger.warn(reason);
-			const failurePolicy = getTmuxScrollbackControlFailurePolicy({
-				scrollbackActive: scrollbackActiveRef.current,
-			});
-			const controlShell = tmuxControlShellRef.current;
-			const listenerId = tmuxControlListenerRef.current;
-			tmuxControlShellRef.current = null;
-			tmuxControlListenerRef.current = null;
-			tmuxControlWriterRef.current = null;
-			setTmuxControlReady(false);
-			if (failurePolicy === 'exit-scrollback-and-restart-control') {
+	const handleWorkmuxScrollbackCommandFailure = useCallback(
+		(message: string) => {
+			logger.warn(message);
+			Alert.alert('Workmux scroll unavailable', message);
+			if (scrollbackActiveRef.current) {
 				if (isValidTmuxCancelKey(cancelKeyBytes)) {
 					void sendBytesOrdered(cancelKeyBytes);
 				} else {
 					logger.warn(
-						'cancelKey invalid; cannot exit scrollback after control failure',
+						'cancelKey invalid; cannot exit scrollback after Workmux scroll failure',
 					);
 				}
 			}
 			clearScrollbackState();
-			setTmuxControlRestartNonce((prev) => prev + 1);
-			if (!controlShell) return;
-			if (listenerId != null) {
-				controlShell.removeListener(listenerId);
-			}
-			controlShell.close().catch((error) => {
-				logger.warn(
-					'Failed to close tmux control shell after send failure',
-					error,
-				);
-			});
 		},
 		[cancelKeyBytes, clearScrollbackState, sendBytesOrdered],
 	);
 
-	const sendTmuxControlCommand = useCallback(
+	const runWorkmuxScrollbackCommand = useCallback(
 		async (command: string) => {
-			const writer = tmuxControlWriterRef.current;
-			if (!writer) return false;
-			const sent = await runTmuxControlCommand(writer, command);
-			if (sent) return true;
-			handleTmuxControlUnavailable('tmux control send failed');
-			return false;
+			if (!connection) {
+				handleWorkmuxScrollbackCommandFailure('No SSH connection available.');
+				return false;
+			}
+			try {
+				const result = await executeSideChannelCommand(
+					connection,
+					command,
+					WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS,
+				);
+				const failureMessage =
+					formatWorkmuxScrollbackCommandFailureMessage(result);
+				if (!failureMessage) return true;
+				handleWorkmuxScrollbackCommandFailure(failureMessage);
+				return false;
+			} catch (error) {
+				const failureMessage = formatWorkmuxScrollbackCommandFailureMessage({
+					success: false,
+					output: '',
+					error: getErrorMessage(error),
+				});
+				handleWorkmuxScrollbackCommandFailure(
+					failureMessage ?? getErrorMessage(error),
+				);
+				return false;
+			}
 		},
-		[handleTmuxControlUnavailable],
+		[connection, handleWorkmuxScrollbackCommandFailure],
 	);
 
 	const sendLiveInputSegments = useCallback(
@@ -2458,18 +2459,13 @@ function ShellDetail() {
 			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 			const command = buildWorkmuxAppScrollEnterCommand(targetName);
-			if (!(await sendTmuxControlCommand(command))) {
-				logger.warn(
-					'tmux touch-scroll entry unavailable without tmux control shell',
-				);
-				return;
-			}
+			if (!(await runWorkmuxScrollbackCommand(command))) return;
 			xtermRef.current?.sendTmuxEnterCopyModeAck(
 				event.requestId,
 				event.instanceId,
 			);
 		},
-		[sendTmuxControlCommand, tmuxTarget],
+		[runWorkmuxScrollbackCommand, tmuxTarget],
 	);
 
 	const handleTmuxScrollBatch = useCallback(
@@ -2495,24 +2491,22 @@ function ShellDetail() {
 				direction: event.direction,
 				pages: event.pages,
 				lines: event.lines,
-				linesPerPage: lastSizeRef.current?.rows ?? 24,
+				linesPerPage: resolveTmuxScrollbackReceiverLinesPerPage(
+					lastSizeRef.current?.rows,
+				),
 				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
 			});
 			if (commands.length === 0) return;
 			void (async () => {
 				for (const command of commands) {
-					if (await sendTmuxControlCommand(command)) continue;
-					logger.warn(
-						'tmux touch-scroll batch unavailable without tmux control shell',
-					);
-					return;
+					if (!(await runWorkmuxScrollbackCommand(command))) return;
 				}
 			})();
 		},
 		[
 			shell,
 			selectionModeEnabled,
-			sendTmuxControlCommand,
+			runWorkmuxScrollbackCommand,
 			tmuxControlReady,
 			tmuxTarget,
 			tmuxEnabled,
