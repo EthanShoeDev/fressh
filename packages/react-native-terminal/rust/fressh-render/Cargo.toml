@@ -1,0 +1,43 @@
+[package]
+name = "fressh-render"
+version = "0.1.0"
+edition = "2021"
+
+# Renders `alacritty_terminal::Term` natively via alacritty's GLES2 renderer
+# (Strategy A, §5). Binding-agnostic; called by the C-ABI in fressh-core.
+#
+# RENDERER SOURCE (decided, §6): the renderer lives in alacritty's *binary*
+# crate (unpublished), so we consume our FORK as a git SUBMODULE checked out at
+#   rust/vendor/alacritty   (submodule of github.com/EthanShoeDev/alacritty, branch `fressh`)
+# and path-dep into the thin lib crate the fork's branch adds. One pin (the
+# submodule SHA); local source for free; the fork branch IS the repeatable patch.
+#
+# The fork's `alacritty_renderer` lib crate #[path]-includes renderer/ + the
+# small display/config/gl subset the renderer needs (measured: crate::gl,
+# display::{SizeInfo, content::RenderableCell, color::Rgb}, config::{Delta,font,
+# RendererPreference}), with NO winit/glutin (the context seam is ours). Update =
+# rebase the branch on an upstream tag + move the submodule pointer.
+#
+# Uncomment once the submodule exists:
+#   alacritty_renderer = { path = "../vendor/alacritty/alacritty_renderer" }
+
+[dependencies]
+alacritty_terminal = { workspace = true }
+thiserror = { workspace = true }
+
+# The vendored renderer (fork submodule). Both this crate and alacritty_renderer
+# depend on the SAME published alacritty_terminal =0.26.0, so cargo unifies them
+# to one instance (shared Term/grid types). (§6)
+alacritty_renderer = { path = "../vendor/alacritty/alacritty_renderer" }
+
+# Transitive deps the renderer needs once wired (measured from src/renderer/):
+#   crossfont (glyph rasterization, FreeType/CoreText — the mobile rider, §5),
+#   gl/gl_generator (raw GL bindings via build.rs), log, ahash, bitflags,
+#   unicode_width. winit/glutin are intentionally EXCLUDED.
+# TODO(scaffold): add the path-dep + transitive deps after `git submodule add`.
+
+[lib]
+crate-type = ["lib"]
+
+[lints]
+workspace = true

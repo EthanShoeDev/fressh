@@ -1,0 +1,4 @@
+[submodule "packages/react-native-terminal/rust/vendor/alacritty"]
+	path = packages/react-native-terminal/rust/vendor/alacritty
+	url = https://github.com/EthanShoeDev/alacritty.git
+	branch = fressh

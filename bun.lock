@@ -115,6 +115,20 @@
         "typescript": "catalog:",
       },
     },
+    "packages/react-native-terminal": {
+      "name": "@fressh/react-native-terminal",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/react": "catalog:",
+        "react": "catalog:",
+        "react-native": "catalog:",
+        "typescript": "catalog:",
+      },
+      "peerDependencies": {
+        "react": "*",
+        "react-native": "*",
+      },
+    },
     "packages/react-native-uniffi-russh": {
       "name": "@fressh/react-native-uniffi-russh",
       "version": "0.0.5",
@@ -666,6 +680,8 @@
     "@fressh/mobile": ["@fressh/mobile@workspace:apps/mobile"],
 
     "@fressh/oxlint-plugins": ["@fressh/oxlint-plugins@workspace:packages/oxlint-plugins"],
+
+    "@fressh/react-native-terminal": ["@fressh/react-native-terminal@workspace:packages/react-native-terminal"],
 
     "@fressh/react-native-uniffi-russh": ["@fressh/react-native-uniffi-russh@workspace:packages/react-native-uniffi-russh"],
 

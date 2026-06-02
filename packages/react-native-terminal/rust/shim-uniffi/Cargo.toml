@@ -1,0 +1,26 @@
+[package]
+name = "shim-uniffi"
+version = "0.1.0"
+edition = "2021"
+
+# The THIN, swappable binding shim we ship FIRST (§7). ~6-8 id-keyed functions
+# + an event sink, all delegating to fressh-core. No business logic here.
+# Swapped for `shim-craby` later by replacing wrappers, not rearchitecting.
+
+[dependencies]
+fressh-core = { path = "../fressh-core" }
+
+# `tokio` feature enables `#[uniffi::export(async_runtime = "tokio")]` so the
+# shim's async fns surface as JS Promises. NOTE: the runtime itself is owned by
+# fressh-core; this only lets uniffi await core's Futures on it.
+uniffi = { workspace = true, features = ["tokio"] }
+
+[build-dependencies]
+uniffi = { workspace = true, features = ["build"] }
+
+[lib]
+# cdylib/staticlib: what ubrn links. `lib`: tests.
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[lints]
+workspace = true

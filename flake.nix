@@ -71,6 +71,10 @@
           bash
           git
           pkg-config
+          # crossfont (alacritty font rasterization) needs FreeType + fontconfig
+          # for the host build of the vendored renderer. (react-native-terminal)
+          freetype
+          fontconfig
           jq
           nodejs_22
           turbo

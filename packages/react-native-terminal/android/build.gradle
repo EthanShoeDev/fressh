@@ -1,0 +1,8 @@
+// STUB — structure only. Model on
+// packages/react-native-uniffi-russh/android/build.gradle:
+//   - com.android.library + kotlin-android (+ com.facebook.react on new arch)
+//   - externalNativeBuild { cmake { path "CMakeLists.txt" } } (the umbrella, §8)
+//   - prefab true; ABI filters; -DANDROID_STL=c++_shared
+//   - namespace "com.fresshterminal"
+//
+// TODO(scaffold): fill in once the umbrella CMake target exists.

@@ -1,0 +1,77 @@
+{
+  "name": "@fressh/react-native-terminal",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Native SSH terminal for React Native: russh + alacritty_terminal engine + native GLES renderer, in one package.",
+  "keywords": [
+    "alacritty",
+    "android",
+    "expo",
+    "ios",
+    "react-native",
+    "russh",
+    "rust",
+    "ssh",
+    "terminal"
+  ],
+  "homepage": "https://github.com/EthanShoeDev/fressh#readme",
+  "bugs": {
+    "url": "https://github.com/EthanShoeDev/fressh/issues"
+  },
+  "license": "MIT",
+  "author": "EthanShoeDev <13422990+EthanShoeDev@users.noreply.github.com> (https://github.com/EthanShoeDev)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EthanShoeDev/fressh.git"
+  },
+  "files": [
+    "lib",
+    "android",
+    "ios",
+    "cpp",
+    "nitro",
+    "src",
+    "rust",
+    "*.podspec",
+    "*.xcframework/**",
+    "react-native.config.js",
+    "*.md",
+    "*.config.*",
+    "tsconfig*.json",
+    "LICENSE"
+  ],
+  "type": "module",
+  "main": "./lib/module/index.js",
+  "types": "./lib/typescript/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/typescript/src/index.d.ts",
+      "default": "./lib/module/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "tsgo:check": "tsgo --noEmit",
+    "//build": "TODO(scaffold): umbrella build is hand-authored (§8). Wire bob + ubrn (shim-uniffi) + nitrogen, then one CMake/podspec target.",
+    "//ubrn:build:android": "ubrn build android --and-generate --release",
+    "//ubrn:build:ios": "ubrn build ios --and-generate --release",
+    "//nitrogen": "nitro-codegen",
+    "cargo:build": "cd rust && cargo build",
+    "cargo:lint:fix": "cd rust && just lint",
+    "cargo:lint:check": "cd rust && just lint-check",
+    "cargo:fmt:fix": "cd rust && just fmt",
+    "cargo:fmt:check": "cd rust && just fmt-check",
+    "cargo:test": "cd rust && just test",
+    "cargo:update": "cd rust && just update-deps"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "react-native": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:",
+    "react-native": "catalog:"
+  }
+}

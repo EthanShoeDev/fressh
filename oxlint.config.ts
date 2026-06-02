@@ -395,6 +395,15 @@ export default defineConfig({
 	},
 	overrides: [
 		{
+			// Nitro spec files MUST use method signatures (`foo(): void`) so
+			// nitrogen distinguishes HybridView/HybridObject methods from props;
+			// method-signature-style would wrongly rewrite them to properties.
+			files: ['**/*.nitro.ts'],
+			rules: {
+				'typescript/method-signature-style': 'off',
+			},
+		},
+		{
 			// Mock callbacks/factories in test files need looser rules.
 			files: [
 				'**/*.{test,spec}.{ts,tsx,js,jsx}',

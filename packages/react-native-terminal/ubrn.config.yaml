@@ -1,0 +1,6 @@
+# uniffi-bindgen-react-native config. Points at the SHIM crate (shim-uniffi),
+# not the core — the shim is the only crate with uniffi annotations.
+# (We ship the uniffi shim first, swap to craby later. §7)
+rust:
+  directory: rust
+  manifestPath: shim-uniffi/Cargo.toml
