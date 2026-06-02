@@ -102,9 +102,20 @@ void test('buildWorkmuxScrollbackBatchCommands accumulates rows-minus-one line b
 	);
 });
 
-void test('buildWorkmuxScrollbackBatchCommands resets line leftovers on direction change', () => {
+void test('buildWorkmuxScrollbackBatchCommands nets line leftovers on direction change', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'up',
+			pages: 0,
+			lines: 12,
+			linesPerPage: 24,
+			lineAccumulator,
+		}),
+		[],
+	);
 	assert.deepEqual(
 		buildWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
@@ -119,7 +130,7 @@ void test('buildWorkmuxScrollbackBatchCommands resets line leftovers on directio
 	assert.deepEqual(
 		buildWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
-			direction: 'up',
+			direction: 'down',
 			pages: 0,
 			lines: 12,
 			linesPerPage: 24,
@@ -130,13 +141,13 @@ void test('buildWorkmuxScrollbackBatchCommands resets line leftovers on directio
 	assert.deepEqual(
 		buildWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
-			direction: 'up',
+			direction: 'down',
 			pages: 0,
 			lines: 12,
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		["mdev tmux app scroll page-up --count '1' --session 'main'"],
+		["mdev tmux app scroll page-down --count '1' --session 'main'"],
 	);
 });
 

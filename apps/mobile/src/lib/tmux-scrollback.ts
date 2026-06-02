@@ -324,15 +324,23 @@ export function buildWorkmuxScrollbackBatchCommands({
 	const lineCount = truncateNonNegativeInteger(lines);
 	const pageSize = Math.max(1, truncateNonNegativeInteger(linesPerPage));
 
-	if (lineAccumulator.direction !== direction) {
-		clearTmuxScrollbackLineAccumulator(lineAccumulator);
-		lineAccumulator.direction = direction;
-	}
-
 	if (lineCount > 0) {
-		lineAccumulator.lines += lineCount;
-		pageCount += Math.trunc(lineAccumulator.lines / pageSize);
-		lineAccumulator.lines %= pageSize;
+		const signedLineDelta = direction === 'up' ? lineCount : -lineCount;
+		const signedAccumulatedLines =
+			(lineAccumulator.direction === 'up'
+				? lineAccumulator.lines
+				: -lineAccumulator.lines) + signedLineDelta;
+		const accumulatedDirection =
+			signedAccumulatedLines >= 0 ? 'up' : ('down' as WorkmuxScrollDirection);
+		const accumulatedLines = Math.abs(signedAccumulatedLines);
+		const accumulatedPages = Math.trunc(accumulatedLines / pageSize);
+		lineAccumulator.direction = accumulatedLines === 0 ? null : accumulatedDirection;
+		lineAccumulator.lines = accumulatedLines % pageSize;
+
+		if (accumulatedPages > 0) {
+			pageCount += accumulatedPages;
+			direction = accumulatedDirection;
+		}
 	}
 	pageCount = Math.min(pageCount, TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH);
 
