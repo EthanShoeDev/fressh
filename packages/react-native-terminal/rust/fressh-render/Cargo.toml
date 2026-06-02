@@ -34,6 +34,14 @@ alacritty_renderer = { path = "../vendor/alacritty/alacritty_renderer" }
 # construct the Rasterizer for GlyphCache. Same instance the renderer uses.
 crossfont = "0.8.1"
 
+# Android EGL bring-up + C-ABI for the native view (the render-plane entry point).
+[target.'cfg(target_os = "android")'.dependencies]
+# `dynamic` loads libEGL.so at runtime (dlopen) — no pkg-config/link-time EGL,
+# which is what works for Android cross-compiles.
+khronos-egl = { version = "6", features = ["dynamic"] }
+log = "0.4"
+android_logger = "0.14"
+
 # Transitive deps the renderer needs once wired (measured from src/renderer/):
 #   crossfont (glyph rasterization, FreeType/CoreText — the mobile rider, §5),
 #   gl/gl_generator (raw GL bindings via build.rs), log, ahash, bitflags,
@@ -41,7 +49,9 @@ crossfont = "0.8.1"
 # TODO(scaffold): add the path-dep + transitive deps after `git submodule add`.
 
 [lib]
-crate-type = ["lib"]
+# cdylib/staticlib expose the Android C-ABI (android.rs) for the native view;
+# `lib` for use by fressh-core + tests.
+crate-type = ["lib", "cdylib", "staticlib"]
 
 [lints]
 workspace = true

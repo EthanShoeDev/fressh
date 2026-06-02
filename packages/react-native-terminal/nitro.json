@@ -1,0 +1,24 @@
+{
+	"$schema": "https://nitro.margelo.com/nitro.schema.json",
+	"cxxNamespace": ["fressh"],
+	"ios": {
+		"iosModuleName": "ReactNativeTerminal"
+	},
+	"android": {
+		"androidNamespace": ["fressh"],
+		"androidCxxLibName": "ReactNativeTerminal"
+	},
+	"autolinking": {
+		"Terminal": {
+			"android": {
+				"language": "kotlin",
+				"implementationClassName": "HybridTerminal"
+			},
+			"ios": {
+				"language": "swift",
+				"implementationClassName": "HybridTerminal"
+			}
+		}
+	},
+	"ignorePaths": ["**/node_modules", "rust/**", "lib/**"]
+}

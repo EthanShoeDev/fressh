@@ -4,4 +4,7 @@ members = ["uniffi-russh", "uniffi-bindgen", "uniffi-bindgen-swift"]
 resolver = "2"
 
 [workspace.dependencies]
-uniffi = "0.29"
+# Must match the uniffi version pinned by uniffi-bindgen-react-native (see the
+# package.json dep) so the generated JS/C++ bindings and the Rust scaffolding
+# agree on the uniffi FFI contract version. ubrn 0.31.0-3 pins "=0.31.0".
+uniffi = "=0.31.0"

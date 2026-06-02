@@ -632,12 +632,23 @@ Under `docs/cloned-repos-as-docs/`:
       (discovery); you bundle/point at a font and rasterize directly. So the
       RN-driven config (§6) must carry a **bundled monospace font path**.
 
-### Next
-- [ ] Write the **`Term → RenderableCell` iterator** (ours) + the small RN-driven
-      **config struct** (§6) in `fressh-render`.
-- [ ] **Android GLES PoC view**: wire `ANativeWindow* → EGL → render thread`,
-      feed `get_proc_address`/`is_gles` into `Renderer::new`, draw a hardcoded
-      grid at 60fps.
+### Done (proven) — cont.²
+- [x] **`Term → RenderableCell` iterator + RN config/palette** (`fressh-render/src/
+      {config,content}.rs`): `TerminalConfig` + `Palette` (256+13 list, OSC
+      overrides) + our own `renderable_cells()` (colors/dim/bold→bright, INVERSE,
+      block cursor, zerowidth/hyperlink; no selection/search/hints yet). A
+      `bytes_to_cells` test proves the GL-free data path (bytes → ANSI `Processor`
+      → `Term` → cells, correct chars + colors) — runs green.
+- [x] **Render driver** (`fressh-render/src/driver.rs`): `TerminalRenderer` builds
+      the GL `Renderer` + `GlyphCache` (bundled font via `Font::from_path`) behind
+      the context seam; `resize() → (cols,rows)` + `draw(term)`. Compiles host +
+      `aarch64-linux-android`.
+
+### Next (device-bound — not runnable in the CI sandbox)
+- [ ] **EGL bring-up + first pixels**: `ANativeWindow → EGL` + render thread, feed
+      `get_proc_address`/`is_gles` into `TerminalRenderer::new`, draw a **hardcoded
+      `Term`** at 60fps. Then the Nitro view (Kotlin `Surface` + C-ABI) + bundle a
+      monospace `.ttf` asset.
 - [ ] Confirm crossfont (or a FreeType bundle) builds for Android/iOS.
 - [ ] Decide Nitro view vs hand-written Fabric view (compare `TestView` wiring
       boilerplate vs a raw Fabric view).

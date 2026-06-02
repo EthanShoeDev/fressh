@@ -1,24 +1,17 @@
-import type { HybridRef } from 'react-native-nitro-modules';
-import type {
-	TerminalMethods,
-	TerminalProps,
-} from '../nitro/Terminal.nitro';
+import { getHostComponent, type HybridRef } from 'react-native-nitro-modules';
 
-// TODO(scaffold): once `nitro-codegen` runs, wire the real host component:
-//
-//   import { getHostComponent } from 'react-native-nitro-modules';
-//   import TerminalConfig from '../nitrogen/generated/shared/json/TerminalConfig.json';
-//   export const Terminal = getHostComponent<TerminalProps, TerminalMethods>(
-//       'Terminal',
-//       () => TerminalConfig,
-//   );
-//
-// Until then this is a typed placeholder so the public API shape is reviewable.
+import TerminalConfig from '../nitrogen/generated/shared/json/TerminalConfig.json';
+import type { TerminalMethods, TerminalProps } from '../nitro/Terminal.nitro';
 
+/** Ref handle for imperative methods on the native terminal view. */
 export type TerminalRef = HybridRef<TerminalProps, TerminalMethods>;
 
-export const Terminal = (_props: TerminalProps): null => {
-	throw new Error(
-		'@fressh/react-native-terminal: native view not built yet (run nitro-codegen + the umbrella native build). See docs/projects/native-rendering-refactor.md §10.',
-	);
-};
+/**
+ * Native terminal view (Nitro HybridView). Renders a hardcoded demo terminal
+ * from the bundled font at `fontPath` (PoC). Accepts standard RN view props
+ * (e.g. `style`).
+ */
+export const Terminal = getHostComponent<TerminalProps, TerminalMethods>(
+	'Terminal',
+	() => TerminalConfig,
+);

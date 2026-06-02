@@ -1,8 +1,121 @@
-// STUB — structure only. Model on
-// packages/react-native-uniffi-russh/android/build.gradle:
-//   - com.android.library + kotlin-android (+ com.facebook.react on new arch)
-//   - externalNativeBuild { cmake { path "CMakeLists.txt" } } (the umbrella, §8)
-//   - prefab true; ABI filters; -DANDROID_STL=c++_shared
-//   - namespace "com.fresshterminal"
-//
-// TODO(scaffold): fill in once the umbrella CMake target exists.
+def isNewArchitectureEnabled() {
+  return rootProject.hasProperty("newArchEnabled") && rootProject.getProperty("newArchEnabled") == "true"
+}
+
+def reactNativeArchitectures() {
+  def value = rootProject.getProperties().get("reactNativeArchitectures")
+  return value ? value.split(",") : ["x86", "x86_64", "armeabi-v7a", "arm64-v8a"]
+}
+
+// Build only ABIs the app is building (so the nitro prefab has a matching
+// libNitroModules.so) AND that we ship a prebuilt rust libfressh_render.so for
+// (see jniLibs). Building an ABI the app skips → header-only nitro prefab →
+// `undefined symbol: margelo::nitro::...` at link time.
+def supportedRustAbis = ["arm64-v8a", "x86_64"]
+def buildAbis = reactNativeArchitectures().findAll { supportedRustAbis.contains(it) }
+
+apply plugin: "com.android.library"
+apply plugin: "org.jetbrains.kotlin.android"
+// Nitrogen-generated: adds the generated kotlin srcDir.
+apply from: "../nitrogen/generated/android/ReactNativeTerminal+autolinking.gradle"
+// Nitro prefab workaround: makes the react-native-nitro-modules prefab link the
+// actual libNitroModules.so (not headers-only), else the native link fails with
+// `undefined symbol: margelo::nitro::HybridObject::...`. Every nitro module ships
+// this (react-native-nitro-modules + react-native-mmkv both apply it).
+apply from: "./fix-prefab.gradle"
+
+if (isNewArchitectureEnabled()) {
+  apply plugin: "com.facebook.react"
+}
+
+def getExtOrDefault(name) {
+  return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["ReactNativeTerminal_" + name]
+}
+
+def getExtOrIntegerDefault(name) {
+  return rootProject.ext.has(name) ? rootProject.ext.get(name) : (project.properties["ReactNativeTerminal_" + name]).toInteger()
+}
+
+android {
+  namespace "com.margelo.nitro.fressh"
+
+  ndkVersion getExtOrDefault("ndkVersion")
+  compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
+
+  defaultConfig {
+    minSdkVersion getExtOrIntegerDefault("minSdkVersion")
+    targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
+    buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
+
+    externalNativeBuild {
+      cmake {
+        cppFlags "-frtti -fexceptions -Wall -fstack-protector-all"
+        arguments "-DANDROID_STL=c++_shared"
+        abiFilters.addAll(buildAbis)
+      }
+    }
+    ndk {
+      abiFilters.addAll(buildAbis)
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path "CMakeLists.txt"
+    }
+  }
+
+  buildFeatures {
+    buildConfig true
+    prefab true
+  }
+
+  // These .so's are provided by react-native / nitro-modules at runtime; don't
+  // re-package them from our prefab inputs (avoids duplicate .so conflicts).
+  packagingOptions {
+    excludes = [
+      "META-INF",
+      "META-INF/**",
+      "**/libNitroModules.so",
+      "**/libc++_shared.so",
+      "**/libfbjni.so",
+      "**/libjsi.so",
+      "**/libreactnative.so",
+    ]
+  }
+
+  buildTypes {
+    release {
+      minifyEnabled false
+    }
+  }
+
+  lintOptions {
+    disable "GradleCompatible"
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_1_8
+    targetCompatibility JavaVersion.VERSION_1_8
+  }
+}
+
+repositories {
+  mavenCentral()
+  google()
+}
+
+dependencies {
+  //noinspection GradleDynamicVersion
+  implementation "com.facebook.react:react-native:+"
+  // NitroModules core (prefab consumed by the generated autolinking CMake).
+  implementation project(":react-native-nitro-modules")
+}
+
+if (isNewArchitectureEnabled()) {
+  react {
+    jsRootDir = file("../src/")
+    libraryName = "ReactNativeTerminal"
+    codegenJavaPackageName = "com.margelo.nitro.fressh"
+  }
+}

@@ -5,28 +5,19 @@ import type {
 } from 'react-native-nitro-modules';
 
 /**
- * The native terminal view (Nitro HybridView). It is the RENDER PLANE only
- * (§10): it owns the GL surface + render thread and draws shared native
- * `Term` state. It carries NO async and NO promises across the cxx seam — all
- * async lives in the uniffi/craby control-plane shim. (§7 "Nitro is for the
- * view only".)
+ * The native terminal view (Nitro HybridView) — the RENDER PLANE (§10). It owns
+ * the GL surface + render thread and draws shared native `Term` state. No async
+ * / no promises cross the cxx seam (§7 "Nitro is for the view only").
  *
- * The view attaches to a durable session by `shellId`: mount -> attach to the
- * existing `Term` in fressh-core's registry and draw current state instantly
- * (full scrollback, already parsed); unmount -> detach, `Term` keeps living.
- * This is the tmux reattach model (§9). No byte replay.
+ * PoC scope: the view renders a hardcoded demo `Term` from a bundled font.
+ * `shellId` (attach to a durable session) + config come back with SSH.
  */
 export interface TerminalProps extends HybridViewProps {
-	/** Durable session id (from `startShell`). The native view attaches to the
-	 *  matching `Term` in the registry. */
-	shellId: string;
-	// TODO(scaffold): fontSize, theme/palette, cursorStyle, scrollback bound.
+	/** Path to a bundled monospace font file (no fontconfig on mobile, §6). */
+	fontPath: string;
 }
 
-export interface TerminalMethods extends HybridViewMethods {
-	// Imperative, SYNC methods (no promises cross the seam). Stubs:
-	// TODO(scaffold): focus(): void; scrollToBottom(): void; paste(text: string): void;
-	focus(): void;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- no imperative methods yet
+export interface TerminalMethods extends HybridViewMethods {}
 
 export type Terminal = HybridView<TerminalProps, TerminalMethods>;

@@ -63,6 +63,7 @@
 		"typescript": "catalog:"
 	},
 	"overrides": {
+		"react-native-nitro-modules": "0.35.9",
 		"@effect/cli": "https://pkg.pr.new/EthanShoeDev/effect/@effect/cli@c8b2ef4",
 		"@effect/platform": "https://pkg.pr.new/EthanShoeDev/effect/@effect/platform@c8b2ef4",
 		"@effect/platform-bun": "https://pkg.pr.new/EthanShoeDev/effect/@effect/platform-bun@c8b2ef4",

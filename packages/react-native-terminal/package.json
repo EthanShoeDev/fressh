@@ -41,12 +41,15 @@
     "LICENSE"
   ],
   "type": "module",
-  "main": "./lib/module/index.js",
-  "types": "./lib/typescript/src/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "source": "./src/index.ts",
+  "react-native": "./src/index.ts",
   "exports": {
     ".": {
-      "types": "./lib/typescript/src/index.d.ts",
-      "default": "./lib/module/index.js"
+      "types": "./src/index.ts",
+      "react-native": "./src/index.ts",
+      "default": "./src/index.ts"
     },
     "./package.json": "./package.json"
   },
@@ -55,7 +58,8 @@
     "//build": "TODO(scaffold): umbrella build is hand-authored (§8). Wire bob + ubrn (shim-uniffi) + nitrogen, then one CMake/podspec target.",
     "//ubrn:build:android": "ubrn build android --and-generate --release",
     "//ubrn:build:ios": "ubrn build ios --and-generate --release",
-    "//nitrogen": "nitro-codegen",
+    "nitro:codegen": "nitrogen",
+    "native:build:android": "cd rust && cargo ndk -t arm64-v8a -t x86_64 -o ../android/src/main/jniLibs build -p fressh-render",
     "cargo:build": "cd rust && cargo build",
     "cargo:lint:fix": "cd rust && just lint",
     "cargo:lint:check": "cd rust && just lint-check",
@@ -66,12 +70,15 @@
   },
   "devDependencies": {
     "@types/react": "catalog:",
+    "nitrogen": "0.35.9",
     "react": "catalog:",
     "react-native": "catalog:",
+    "react-native-nitro-modules": "0.35.9",
     "typescript": "catalog:"
   },
   "peerDependencies": {
     "react": "catalog:",
-    "react-native": "catalog:"
+    "react-native": "catalog:",
+    "react-native-nitro-modules": "*"
   }
 }

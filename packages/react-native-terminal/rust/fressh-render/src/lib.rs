@@ -31,6 +31,9 @@ pub mod config;
 pub mod content;
 pub mod driver;
 
+#[cfg(target_os = "android")]
+pub mod android;
+
 pub use config::{ColorScheme, Palette, TerminalConfig};
 pub use content::renderable_cells;
 pub use driver::{RenderError, TerminalRenderer};
