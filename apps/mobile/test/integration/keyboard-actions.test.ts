@@ -4,6 +4,7 @@ import {
 	CONFIG_SUPPORTED_ACTION_IDS,
 	KNOWN_ACTION_IDS,
 	WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
+	WORKMUX_KEYBOARD_NO_CONNECTION_MESSAGE,
 	formatWorkmuxKeyboardCommandFailureMessage,
 	runAction,
 } from '../../src/lib/keyboard-actions';
@@ -230,15 +231,20 @@ void test('Workmux keyboard failure copy preserves local precondition failures',
 	assert.equal(
 		formatWorkmuxKeyboardCommandFailureMessage({
 			errorMessage: WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
-			localPreconditionFailure: true,
 			formatRemoteFailureMessage: () => WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 		}),
 		WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
 	);
 	assert.equal(
 		formatWorkmuxKeyboardCommandFailureMessage({
+			errorMessage: WORKMUX_KEYBOARD_NO_CONNECTION_MESSAGE,
+			formatRemoteFailureMessage: () => WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+		}),
+		WORKMUX_KEYBOARD_NO_CONNECTION_MESSAGE,
+	);
+	assert.equal(
+		formatWorkmuxKeyboardCommandFailureMessage({
 			errorMessage: 'mdev: command not found',
-			localPreconditionFailure: false,
 			formatRemoteFailureMessage: () => WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 		}),
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,

@@ -71,19 +71,30 @@ export type WorkmuxKeyboardCommand =
 	| { type: 'nav'; action: WorkmuxNavAction; index?: number };
 export const WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE =
 	'Workmux actions require a Workmux-enabled connection.';
+export const WORKMUX_KEYBOARD_NO_CONNECTION_MESSAGE =
+	'No SSH connection available.';
 
 export function formatWorkmuxKeyboardCommandFailureMessage({
 	errorMessage,
-	localPreconditionFailure,
+	localPreconditionFailure = isWorkmuxKeyboardLocalPreconditionFailure(
+		errorMessage,
+	),
 	formatRemoteFailureMessage,
 }: {
 	errorMessage: string;
-	localPreconditionFailure: boolean;
+	localPreconditionFailure?: boolean;
 	formatRemoteFailureMessage: (message: string) => string;
 }): string {
 	return localPreconditionFailure
 		? errorMessage
 		: formatRemoteFailureMessage(errorMessage);
+}
+
+function isWorkmuxKeyboardLocalPreconditionFailure(message: string): boolean {
+	return (
+		message === WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE ||
+		message === WORKMUX_KEYBOARD_NO_CONNECTION_MESSAGE
+	);
 }
 
 export type ActionContext = {

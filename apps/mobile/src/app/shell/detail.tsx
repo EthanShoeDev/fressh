@@ -2169,10 +2169,8 @@ function ShellDetail() {
 	const runWorkmuxKeyboardCommand = useCallback(
 		(command: WorkmuxKeyboardCommand) => {
 			void (async () => {
-				let localPreconditionFailure = false;
 				try {
 					if (!tmuxEnabled) {
-						localPreconditionFailure = true;
 						throw new Error(WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE);
 					}
 					const sessionName = tmuxTarget.trim() || 'main';
@@ -2188,7 +2186,6 @@ function ShellDetail() {
 				} catch (error) {
 					const message = formatWorkmuxKeyboardCommandFailureMessage({
 						errorMessage: getErrorMessage(error),
-						localPreconditionFailure,
 						formatRemoteFailureMessage: formatWorkmuxAppCommandFailureMessage,
 					});
 					Alert.alert('Workmux action failed', message);
