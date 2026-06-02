@@ -4,10 +4,30 @@
 export { Terminal, type TerminalRef } from './Terminal';
 export type { TerminalMethods, TerminalProps } from '../nitro/Terminal.nitro';
 
+// Control plane (§10): connect/shell lifecycle + key helpers + the event stream.
+export {
+	addFresshEventListener,
+	closeShell,
+	connect,
+	disconnect,
+	generateKeyPair,
+	KeyType,
+	resize,
+	respondToHostKey,
+	Security,
+	sendData,
+	SshConnectionProgressEvent,
+	startShell,
+	TerminalType,
+	validatePrivateKey,
+} from './ssh';
 export type {
+	ConnectionDetails,
 	ConnectionId,
-	ConnectOptions,
+	FresshEvent,
+	FresshEventCallback,
+	FresshEventListener,
+	ServerPublicKeyInfo,
 	ShellId,
 	ShellOptions,
 } from './ssh';
-// TODO(scaffold): export useSshConnect, sshStore, key helpers once the shim lands.

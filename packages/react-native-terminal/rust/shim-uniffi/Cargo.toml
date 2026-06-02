@@ -3,23 +3,36 @@ name = "shim-uniffi"
 version = "0.1.0"
 edition = "2021"
 
-# The THIN, swappable binding shim we ship FIRST (§7). ~6-8 id-keyed functions
-# + an event sink, all delegating to fressh-core. No business logic here.
-# Swapped for `shim-craby` later by replacing wrappers, not rearchitecting.
+# The single NATIVE crate for this package — the one cargo artifact CMake links
+# into the package's one `.so` (§8). It hosts BOTH planes that cross into C:
+#   - control plane: thin uniffi exports delegating to fressh-core (the swappable
+#     shim; ~the FresshControlSpec from §10)
+#   - render plane:  the Nitro view's C-ABI (`android.rs`) — kept HERE (not in a
+#     second crate) so there's ONE copy of fressh-core's registry `static`s; two
+#     archives would each bundle their own registry and `shell_term` would miss.
 
 [dependencies]
 fressh-core = { path = "../fressh-core" }
+# The renderer (EglContext) the render-plane C-ABI drives. Pure lib dep.
+fressh-render = { path = "../fressh-render" }
 
 # `tokio` feature enables `#[uniffi::export(async_runtime = "tokio")]` so the
 # shim's async fns surface as JS Promises. NOTE: the runtime itself is owned by
 # fressh-core; this only lets uniffi await core's Futures on it.
 uniffi = { workspace = true, features = ["tokio"] }
+thiserror = { workspace = true }
+
+# Render-plane C-ABI logging (android.rs).
+[target.'cfg(target_os = "android")'.dependencies]
+log = "0.4"
+android_logger = "0.14"
 
 [build-dependencies]
 uniffi = { workspace = true, features = ["build"] }
 
 [lib]
-# cdylib/staticlib: what ubrn links. `lib`: tests.
+# cdylib: what `ubrn build` compiles directly. staticlib: what the umbrella CMake
+# links into the package `.so`. `lib`: tests.
 crate-type = ["cdylib", "staticlib", "lib"]
 
 [lints]

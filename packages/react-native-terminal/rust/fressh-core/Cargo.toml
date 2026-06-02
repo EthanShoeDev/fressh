@@ -24,6 +24,9 @@ thiserror = { workspace = true }
 fressh-ssh = { path = "../fressh-ssh" }
 fressh-render = { path = "../fressh-render" }
 
+# For the `HostKeyVerifier` boxed-future seam (host-key park/resume).
+futures = "0.3.31"
+
 # TODO(scaffold): add `[build-dependencies] cbindgen` + a build.rs to emit the
 # C-ABI header the Nitro view links against.
 

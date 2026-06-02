@@ -1,6 +1,24 @@
-# uniffi-bindgen-react-native config. Points at the SHIM crate (shim-uniffi),
-# not the core — the shim is the only crate with uniffi annotations.
-# (We ship the uniffi shim first, swap to craby later. §7)
+# uniffi-bindgen-react-native config for the SSH control-plane shim.
+#
+# This package is unusual: it hosts BOTH a Nitro HybridView (the render plane)
+# AND the uniffi control plane in ONE `.so` (§8), so we do NOT let ubrn own the
+# android build files (Nitro's CMakeLists/build.gradle are hand-authored). The
+# `ubrn:generate` script runs `generate jsi bindings --library` against the
+# cargo-built `libshim_uniffi.a` to emit only the TS + C++ bindings; the umbrella
+# CMakeLists includes that C++ and links the staticlib (shared registry, §8).
 rust:
   directory: rust
   manifestPath: shim-uniffi/Cargo.toml
+
+bindings:
+  cpp: cpp/generated
+  ts: src/generated
+
+android:
+  jniLibs: android/src/main/jniLibs
+  # Linked as a static archive into the single package `.so` (shared registry
+  # statics, §8) — NOT a standalone shared lib.
+  useSharedLibrary: false
+  targets:
+    - arm64-v8a
+    - x86_64

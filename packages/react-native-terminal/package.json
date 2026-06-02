@@ -55,11 +55,11 @@
   },
   "scripts": {
     "tsgo:check": "tsgo --noEmit",
-    "//build": "TODO(scaffold): umbrella build is hand-authored (§8). Wire bob + ubrn (shim-uniffi) + nitrogen, then one CMake/podspec target.",
-    "//ubrn:build:android": "ubrn build android --and-generate --release",
-    "//ubrn:build:ios": "ubrn build ios --and-generate --release",
     "nitro:codegen": "nitrogen",
-    "native:build:android": "cd rust && cargo ndk -t arm64-v8a -t x86_64 -o ../android/src/main/jniLibs build -p fressh-render",
+    "//native": "Single .so (§8): cargo-ndk builds the shim-uniffi staticlib (uniffi control plane + render C-ABI, sharing fressh-core's registry statics); the umbrella android/CMakeLists links it + the ubrn-generated C++ + the Nitro C++ into libReactNativeTerminal.so.",
+    "native:build:android": "cd rust && cargo ndk -t arm64-v8a -t x86_64 build -p shim-uniffi --release",
+    "ubrn:generate": "cd rust && ubrn generate jsi bindings --library --ts-dir ../src/generated --cpp-dir ../cpp/generated target/x86_64-linux-android/release/libshim_uniffi.so",
+    "//ubrn:build:ios": "ubrn build ios --and-generate --release",
     "cargo:build": "cd rust && cargo build",
     "cargo:lint:fix": "cd rust && just lint",
     "cargo:lint:check": "cd rust && just lint-check",
@@ -67,6 +67,10 @@
     "cargo:fmt:check": "cd rust && just fmt-check",
     "cargo:test": "cd rust && just test",
     "cargo:update": "cd rust && just update-deps"
+  },
+  "dependencies": {
+    "@ubjs/core": "0.31.0-3",
+    "uniffi-bindgen-react-native": "0.31.0-3"
   },
   "devDependencies": {
     "@types/react": "catalog:",

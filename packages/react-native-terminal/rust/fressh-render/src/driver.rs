@@ -85,6 +85,16 @@ impl TerminalRenderer {
 		self.renderer.finish();
 	}
 
+	/// Present a single cleared frame (background color only). Used by the view
+	/// before a shell `Term` is bound, so the surface shows the theme background
+	/// instead of uninitialized GL memory.
+	pub fn present_clear(&mut self) {
+		use alacritty_terminal::term::color::Colors;
+		let background = self.palette.color(&Colors::default(), NamedColor::Background as usize);
+		self.renderer.clear(background, 1.0);
+		self.renderer.finish();
+	}
+
 	/// Replace the config (palette/font/etc.) at runtime, e.g. from RN props.
 	/// Font changes require rebuilding the glyph cache (TODO).
 	pub fn set_palette(&mut self, config: TerminalConfig) {

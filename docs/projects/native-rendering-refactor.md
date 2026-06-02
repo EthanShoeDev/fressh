@@ -4,8 +4,12 @@ Planning/architecture doc for replacing the WebView-based terminal with a
 native terminal emulator, and consolidating the SSH + terminal stack into a
 single React Native package.
 
-> Status: **planning / brainstorm captured.** No code written yet. This doc
-> records the decisions, the reasoning behind them, and the rejected
+> Status: **building.** The native renderer is device-verified on Android (commit
+> 039d5e5: `<Terminal/>` → Nitro view → EGL/GLES2 → Rust draws a `Term`), and the
+> binding-agnostic SSH core (`fressh-ssh` + `fressh-core`) is ported and host-tested
+> — bytes feed a durable `Term`, never crossing JS (§9, §10). Remaining: the render
+> plane C-ABI (attach `Term` by `shellId`), the uniffi shim, the app swap, and config
+> wiring — see §13. This doc records the decisions, the reasoning, and the rejected
 > alternatives so we don't re-derive them every session.
 
 ---
@@ -644,17 +648,87 @@ Under `docs/cloned-repos-as-docs/`:
       the context seam; `resize() → (cols,rows)` + `draw(term)`. Compiles host +
       `aarch64-linux-android`.
 
-### Next (device-bound — not runnable in the CI sandbox)
-- [ ] **EGL bring-up + first pixels**: `ANativeWindow → EGL` + render thread, feed
-      `get_proc_address`/`is_gles` into `TerminalRenderer::new`, draw a **hardcoded
-      `Term`** at 60fps. Then the Nitro view (Kotlin `Surface` + C-ABI) + bundle a
-      monospace `.ttf` asset.
-- [ ] Confirm crossfont (or a FreeType bundle) builds for Android/iOS.
-- [ ] Decide Nitro view vs hand-written Fabric view (compare `TestView` wiring
-      boilerplate vs a raw Fabric view).
-- [ ] Spike the umbrella `CMakeLists.txt` (Rust staticlib import + nitrogen
-      include + shim sources → one target).
-- [ ] Decide whether `wgpu` (Strategy B) should actually be v1 to skip the iOS
-      GLES/ANGLE question entirely.
-- [ ] Scrollback bound + close-session UX design in `apps/mobile`.
+### Done (device-verified) — cont.³
+- [x] **EGL bring-up + first pixels + Nitro view (device-verified, commit 039d5e5
+      on `refresh`).** `ANativeWindow → EGL → GLES2` render thread feeds
+      `get_proc_address`/`is_gles` into `TerminalRenderer::new` and draws a **Term**
+      at 60fps via a `Choreographer` loop. **Nitro HybridView chosen** (nitro 0.35.9,
+      codegen `nitrogen`): `<Terminal/>` → `HybridTerminalManager` → `HybridTerminal`
+      SurfaceView → C-ABI (`fressh_terminal_create/draw/destroy`) → Rust. A bundled
+      `DejaVuSansMono.ttf` ships as the monospace font; crossfont's Fontconfig-free
+      FreeType path links clean on Android. The four non-obvious Nitro-on-Android
+      integration gotchas (ReactPackage for autolinking + `createViewManagers`;
+      `fix-prefab.gradle` + matching `abiFilters`; `IMPORTED_NO_SONAME`; 16KB-page
+      emulator) are captured in the `native-terminal-refactor` memory.
+- [x] **russh works under RN 0.85** (the old uniffi-russh package): ubrn/uniffi
+      three-way version lock (`uniffi-bindgen-react-native` 0.31.0-3 + `@ubjs/core`
+      0.31.0-3 + Rust `uniffi =0.31.0`) + fbjni `cthis()` for the dropped
+      `CallInvokerHolderImpl.mHybridData`. (Bridges the gap until the shim lands.)
+
+### Done (host-verified) — cont.⁴ (the SSH-core port, this is the "bytes never cross JS" work)
+- [x] **`fressh-ssh` — russh ported, uniffi stripped.** `connection`/`shell`/
+      `private_key`/`utils` ported from the uniffi-russh crate with **all
+      `#[uniffi::*]` annotations and the JS-facing ring-buffer/broadcast/listener
+      machinery removed** (the durable `Term` replaces replay, §9). Host-key
+      verification is now a plain-Rust `HostKeyVerifier` (async→bool) seam; progress
+      is a plain `Fn` callback. A shell is a clean `ShellReader::recv() → ShellChunk`
+      + cloneable `ShellWriter{send_data,resize,close}` — russh's `ChannelMsg` no
+      longer leaks out. Compiles host; 5 key-validation tests green.
+- [x] **`fressh-core` — runtime + registry + sessions + host-key park/resume.**
+      Self-hosted `static` multi-thread tokio runtime (NOT driven by the shim, §7);
+      `DashMap` registry owning connection + shell lifetime (§7); `Session` owns
+      `Arc<Mutex<Term<CoreListener>>>` + a **reader loop that feeds `Term`
+      continuously** + a PTY-response drain (`CoreListener` forwards `Event::PtyWrite`
+      back to stdin). Host-key park/resume via `oneshot` keyed by a pre-assigned
+      connection id (emits `HostKeyPending`, resumes on `respond_to_host_key`).
+      One-way `EventSink` (connectProgress/hostKeyPending/connectionClosed/shellClosed).
+      Control plane: `connect/respond_to_host_key/start_shell/send_data/resize/
+      close_shell/disconnect/generate_key_pair/validate_private_key`, each running on
+      the core runtime via `runtime::run`. **Render plane:** `registry::shell_term(id)`
+      hands the view a `Term` clone to draw. Compiles host; PtyWrite-forwarding test green.
+
+### Done (host + android-compiles) — cont.⁵ (render C-ABI + uniffi shim, this session)
+- [x] **Render-plane C-ABI + the uniffi shim, in ONE crate.** Decisive constraint:
+      the render plane and the control plane MUST share one `.so`, else each static
+      archive bundles its own copy of fressh-core's registry `static`s and
+      `shell_term(shellId)` always misses. So **`shim-uniffi` is the single native
+      crate** hosting both: `lib.rs` = `uniffi::setup_scaffolding!` + id-keyed control
+      exports (DTO mirrors → `fressh-core`) + the `FresshEventListener` callback sink;
+      **`shim-uniffi/src/android.rs`** = the render C-ABI (`fressh_terminal_attach/
+      set_shell/draw/resize/send_input/destroy`) drawing `fressh_core::shell_term(id)`.
+      `fressh-render` is now lib-only — its old `android.rs` C-ABI became `egl.rs`
+      `EglContext` (pure, no `Term` ownership; `draw_term<T>`/`clear`/`resize`).
+      Workspace `uniffi` → `=0.31.0` (ubrn lock). `cargo ndk -t x86_64 build -p
+      shim-uniffi` compiles; host tests 7/7.
+- [x] **ubrn binding generation reproducible.** `ubrn generate jsi bindings --library`
+      (run from `rust/`, against the cargo-built `libshim_uniffi`) → `src/generated/
+      shim_uniffi{,-ffi}.ts` + `cpp/generated/shim_uniffi.{cpp,hpp}` (gitignored). Wired
+      as `ubrn:generate` + `native:build:android` (→ shim-uniffi) in package.json;
+      `ubrn.config.yaml` (`useSharedLibrary: false`); deps `@ubjs/core` +
+      `uniffi-bindgen-react-native` 0.31.0-3.
+- [x] **JS control-plane API** `src/ssh.ts`: typed wrappers over the generated bindings
+      (`connect/disconnect/respondToHostKey/startShell/sendData/resize/closeShell/
+      generateKeyPair/validatePrivateKey`) + a multi-subscriber `addFresshEventListener`
+      fan-out. `Terminal.nitro.ts` gained `shellId?`/`fontSize?` props. tsgo:check passes.
+
+### Next (the device-iteration remainder)
+- [ ] **Umbrella android build → one `libReactNativeTerminal.so`** (§8): merge the
+      uniffi-russh CMake/cpp-adapter pattern into the terminal package — one CMake target
+      including nitrogen's autolinking cmake + `cpp/generated/shim_uniffi.cpp` + a uniffi
+      install glue + the Nitro render cpp-adapter; **link `libshim_uniffi.a` STATIC**
+      (so the registry statics are shared). `nativeInstallRustCrate` via fbjni `cthis()`
+      (RN 0.85). One `System.loadLibrary("ReactNativeTerminal")`.
+- [ ] **nitrogen regen** + rewrite `HybridTerminal.kt` to drive the render C-ABI
+      (surfaceCreated→`attach`, shellId prop→`set_shell`, Choreographer→`draw`,
+      surfaceChanged→`resize`, destroy→`destroy`).
+- [ ] **App wiring**: rewrite `apps/mobile` `lib/ssh-store.ts` + `lib/query-fns.ts` +
+      `shell/detail.tsx` to the flat id-keyed API (host-key via the event stream +
+      `respondToHostKey`); `<Terminal shellId/>`; **delete `readBuffer`/`writeMany`/
+      `addListener` replay** (Term durable); input via `sendData`; resize on layout. Drop
+      the two old packages.
+- [ ] **Config wiring**: MMKV prefs (font size/colors/scrollback) + a Terminal Appearance
+      settings section → `fontSize` prop + a `set_config` C-ABI (`EglContext::set_config`
+      + `TerminalRenderer::set_palette` already exist).
+- [ ] iOS: deprecated GLES now → ANGLE→Metal later (contained swap, §5).
+- [ ] Decide whether `wgpu` (Strategy B) should be v1 to skip the iOS GLES/ANGLE question.
 - [ ] Final package name (`react-native-terminal` vs `react-native-ssh-terminal`).

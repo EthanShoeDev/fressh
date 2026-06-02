@@ -32,7 +32,9 @@ pub mod content;
 pub mod driver;
 
 #[cfg(target_os = "android")]
-pub mod android;
+pub mod egl;
+#[cfg(target_os = "android")]
+pub use egl::EglContext;
 
 pub use config::{ColorScheme, Palette, TerminalConfig};
 pub use content::renderable_cells;

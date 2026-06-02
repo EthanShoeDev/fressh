@@ -49,9 +49,10 @@ android_logger = "0.14"
 # TODO(scaffold): add the path-dep + transitive deps after `git submodule add`.
 
 [lib]
-# cdylib/staticlib expose the Android C-ABI (android.rs) for the native view;
-# `lib` for use by fressh-core + tests.
-crate-type = ["lib", "cdylib", "staticlib"]
+# Pure renderer library now: the render-plane C-ABI + the single `.so` live in
+# `shim-uniffi` (so the uniffi registry statics are shared, §8). This crate is
+# just a dependency — `lib` only.
+crate-type = ["lib"]
 
 [lints]
 workspace = true
