@@ -2486,7 +2486,7 @@ function ShellDetail() {
 	);
 
 	const handleWebViewInput = useCallback(
-		(input: { str: string; kind: 'typing' | 'scroll'; instanceId: string }) => {
+		(input: { str: string; instanceId: string }) => {
 			if (!shell) return;
 			if (
 				currentInstanceIdRef.current &&
@@ -2495,9 +2495,6 @@ function ShellDetail() {
 				return;
 			}
 			const bytes = encoder.encode(input.str);
-			if (input.kind === 'scroll') {
-				return;
-			}
 			if (selectionModeEnabled) exitSelectionMode();
 			sendBytesRaw(bytes);
 		},

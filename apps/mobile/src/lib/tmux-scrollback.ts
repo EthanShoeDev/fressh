@@ -27,7 +27,6 @@ export type WorkmuxScrollbackCommandExecutor = {
 		options?: { rollbackExitCommand?: string },
 	) => Promise<boolean>;
 	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
-	clearPendingScrollBatches: () => void;
 	reset: (options?: { exitCommand?: string }) => Promise<boolean> | null;
 	dispose: (options?: { exitCommand?: string }) => Promise<boolean> | null;
 };
@@ -168,7 +167,6 @@ export function createWorkmuxScrollbackCommandExecutor({
 
 			return promise;
 		},
-		clearPendingScrollBatches,
 		reset,
 		dispose: (options?: { exitCommand?: string }) => {
 			closed = true;

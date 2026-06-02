@@ -359,13 +359,14 @@ void test('workmux scrollback executor coalesces pending scroll batches while sl
 	assert.deepEqual(commands, ['first', 'latest']);
 });
 
-void test('workmux scrollback executor does not expose pending queue count', () => {
+void test('workmux scrollback executor does not expose queue internals', () => {
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async () => ({ success: true, output: '' }),
 		onFailure: () => {},
 	});
 
 	assert.equal('getPendingScrollBatchCount' in executor, false);
+	assert.equal('clearPendingScrollBatches' in executor, false);
 });
 
 void test('workmux scrollback executor dispose clears pending scroll and blocks queued execution', async () => {

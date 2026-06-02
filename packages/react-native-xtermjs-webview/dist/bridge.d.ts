@@ -7,7 +7,7 @@ export type BridgeInboundMessage = {
     type: 'input';
     str: string;
     instanceId: string;
-    kind?: 'typing' | 'scroll';
+    kind?: 'typing';
 } | {
     type: 'debug';
     message: string;

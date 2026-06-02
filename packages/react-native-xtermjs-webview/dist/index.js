@@ -76,14 +76,14 @@ function mA({
   webViewOptions: s = q,
   xtermOptions: w = $,
   onInitialized: I,
-  onData: U,
-  onInput: R,
-  onSelection: f,
-  onSelectionModeChange: S,
-  onResize: m,
-  onScrollbackModeChange: G,
-  onTmuxEnterCopyMode: p,
-  onTmuxScrollBatch: J,
+  onData: u,
+  onInput: U,
+  onSelection: R,
+  onSelectionModeChange: f,
+  onResize: S,
+  onScrollbackModeChange: m,
+  onTmuxEnterCopyMode: G,
+  onTmuxScrollBatch: p,
   coalescingThreshold: x = MA,
   logger: e,
   size: C,
@@ -91,12 +91,12 @@ function mA({
   devServerUrl: D,
   touchScrollConfig: b
 }) {
-  const y = h(null), [a, eA] = cA(!1), W = h(0), M = h(
+  const J = h(null), [a, eA] = cA(!1), W = h(0), M = h(
     /* @__PURE__ */ new Map()
   ), N = h(null), r = E(
     (A) => {
       var Y;
-      const i = y.current;
+      const i = J.current;
       if (!i) return;
       const B = JSON.stringify(A);
       (Y = e == null ? void 0 : e.debug) == null || Y.call(e, `sending msg to webview: ${B}`);
@@ -144,7 +144,7 @@ function mA({
   const k = E(() => {
     r({ type: "fit" });
   }, [r]), sA = E((A) => {
-    const i = y.current;
+    const i = J.current;
     if (!i) return;
     const B = `
 (() => {
@@ -190,7 +190,7 @@ function mA({
     clear: () => r({ type: "clear" }),
     focus: () => {
       var A;
-      r({ type: "focus" }), (A = y.current) == null || A.requestFocus();
+      r({ type: "focus" }), (A = J.current) == null || A.requestFocus();
     },
     setSystemKeyboardEnabled: sA,
     setSelectionModeEnabled: rA,
@@ -246,8 +246,8 @@ function mA({
           return;
         }
         if (t.type === "input") {
-          const u = t.kind ?? "typing";
-          R == null || R({ str: t.str, kind: u, instanceId: t.instanceId }), u === "typing" && (U == null || U(t.str));
+          const y = t.kind ?? "typing";
+          U == null || U({ str: t.str, kind: y, instanceId: t.instanceId }), u == null || u(t.str);
           return;
         }
         if (t.type === "debug") {
@@ -255,24 +255,24 @@ function mA({
           return;
         }
         if (t.type === "sizeChanged") {
-          (Y = e == null ? void 0 : e.log) == null || Y.call(e, `terminal size changed: ${t.cols}x${t.rows}`), m == null || m(t.cols, t.rows);
+          (Y = e == null ? void 0 : e.log) == null || Y.call(e, `terminal size changed: ${t.cols}x${t.rows}`), S == null || S(t.cols, t.rows);
           return;
         }
         if (t.type === "selection") {
-          const u = M.current.get(t.requestId);
-          u && (M.current.delete(t.requestId), u.resolve(t.text));
+          const y = M.current.get(t.requestId);
+          y && (M.current.delete(t.requestId), y.resolve(t.text));
           return;
         }
         if (t.type === "selectionChanged") {
-          f == null || f(t.text);
+          R == null || R(t.text);
           return;
         }
         if (t.type === "selectionModeChanged") {
-          S == null || S(t.enabled);
+          f == null || f(t.enabled);
           return;
         }
         if (t.type === "scrollbackModeChanged") {
-          G == null || G({
+          m == null || m({
             active: t.active,
             phase: t.phase,
             instanceId: t.instanceId,
@@ -281,14 +281,14 @@ function mA({
           return;
         }
         if (t.type === "tmuxEnterCopyMode") {
-          p == null || p({
+          G == null || G({
             instanceId: t.instanceId,
             requestId: t.requestId
           });
           return;
         }
         if (t.type === "tmuxScrollBatch") {
-          J == null || J({
+          p == null || p({
             direction: t.direction,
             pages: t.pages,
             lines: t.lines,
@@ -314,14 +314,14 @@ function mA({
       s,
       I,
       F,
+      u,
       U,
-      R,
-      m,
-      f,
       S,
+      R,
+      f,
+      m,
       G,
-      p,
-      J
+      p
     ]
   ), P = E(
     (A) => {
@@ -379,7 +379,7 @@ function mA({
   return /* @__PURE__ */ gA(
     CA,
     {
-      ref: y,
+      ref: J,
       source: QA,
       onMessage: nA,
       style: o,

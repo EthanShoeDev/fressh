@@ -55,7 +55,7 @@ export type XtermJsWebViewProps = {
     onData?: (data: string) => void;
     onInput?: (input: {
         str: string;
-        kind: 'typing' | 'scroll';
+        kind: 'typing';
         instanceId: string;
     }) => void;
     onSelection?: (text: string) => void;

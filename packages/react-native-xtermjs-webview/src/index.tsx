@@ -105,7 +105,7 @@ export type XtermJsWebViewProps = {
 	onData?: (data: string) => void;
 	onInput?: (input: {
 		str: string;
-		kind: 'typing' | 'scroll';
+		kind: 'typing';
 		instanceId: string;
 	}) => void;
 	onSelection?: (text: string) => void;
@@ -449,9 +449,7 @@ export function XtermJsWebView({
 				if (msg.type === 'input') {
 					const kind = msg.kind ?? 'typing';
 					onInput?.({ str: msg.str, kind, instanceId: msg.instanceId });
-					if (kind === 'typing') {
-						onData?.(msg.str);
-					}
+					onData?.(msg.str);
 					return;
 				}
 				if (msg.type === 'debug') {

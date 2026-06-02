@@ -507,9 +507,9 @@ void test('touch scroll exit does not emit primary-shell cancel input after ack'
 
 	controller.exitScrollback({ requestId: 2 });
 
-	const scrollInputs = messages.filter(
+	const inputMessages = messages.filter(
 		(message): message is Extract<BridgeInboundMessage, { type: 'input' }> =>
-			message.type === 'input' && message.kind === 'scroll',
+			message.type === 'input',
 	);
 	const exitTransition = messages.find(
 		(
@@ -523,7 +523,7 @@ void test('touch scroll exit does not emit primary-shell cancel input after ack'
 			message.requestId === 2,
 	);
 
-	assert.deepEqual(scrollInputs, []);
+	assert.deepEqual(inputMessages, []);
 	assert.equal(exitTransition?.active, false);
 });
 
