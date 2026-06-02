@@ -289,6 +289,7 @@ function SA({
             direction: t.direction,
             pages: t.pages,
             lines: t.lines,
+            pageStep: t.pageStep,
             instanceId: t.instanceId,
             seq: t.seq,
             ts: t.ts

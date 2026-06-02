@@ -98,12 +98,11 @@ import {
 import { useTheme } from '@/lib/theme';
 import {
 	buildWorkmuxScrollbackBatchCommands,
-	clearTmuxScrollbackLineAccumulator,
-	createWorkmuxScrollbackCommandQueue,
+	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
-	formatWorkmuxScrollbackCommandFailureMessage,
 	isValidTmuxCancelKey,
-	resolveTmuxScrollbackReceiverLinesPerPage,
+	resetTmuxScrollbackRuntimeState,
+	type WorkmuxScrollbackCommandExecutor,
 } from '@/lib/tmux-scrollback';
 import { queryClient } from '@/lib/utils';
 import {
@@ -411,6 +410,8 @@ function ShellDetail() {
 	const listenerIdRef = useRef<bigint | null>(null);
 	const attachedShellKeyRef = useRef<string | null>(null);
 	const hasAttachedOnceRef = useRef(false);
+	const workmuxScrollbackCommandExecutorRef =
+		useRef<WorkmuxScrollbackCommandExecutor | null>(null);
 	const [terminalReady, setTerminalReady] = useState(false);
 	const [hasRenderedTerminal, setHasRenderedTerminal] = useState(false);
 	const [shellConfigState, setShellConfigState] = useState(() =>
@@ -646,9 +647,6 @@ function ShellDetail() {
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
-	const workmuxScrollbackCommandQueueRef = useRef(
-		createWorkmuxScrollbackCommandQueue(),
-	);
 	const tmuxScrollbackLineAccumulatorRef = useRef(
 		createTmuxScrollbackLineAccumulator(),
 	);
@@ -790,9 +788,10 @@ function ShellDetail() {
 	const clearScrollbackState = useCallback(() => {
 		scrollbackActiveRef.current = false;
 		scrollbackPhaseRef.current = 'active';
-		clearTmuxScrollbackLineAccumulator(
-			tmuxScrollbackLineAccumulatorRef.current,
-		);
+		resetTmuxScrollbackRuntimeState({
+			lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
+			commandExecutor: workmuxScrollbackCommandExecutorRef.current,
+		});
 		setScrollbackActive(false);
 		xtermRef.current?.exitScrollback({ emitExit: false });
 	}, []);
@@ -815,37 +814,29 @@ function ShellDetail() {
 		[cancelKeyBytes, clearScrollbackState, sendBytesOrdered],
 	);
 
-	const runWorkmuxScrollbackCommand = useCallback(
-		async (command: string) => {
-			if (!connection) {
-				handleWorkmuxScrollbackCommandFailure('No SSH connection available.');
-				return false;
-			}
-			try {
-				const result = await executeSideChannelCommand(
-					connection,
-					command,
-					WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS,
-				);
-				const failureMessage =
-					formatWorkmuxScrollbackCommandFailureMessage(result);
-				if (!failureMessage) return true;
-				handleWorkmuxScrollbackCommandFailure(failureMessage);
-				return false;
-			} catch (error) {
-				const failureMessage = formatWorkmuxScrollbackCommandFailureMessage({
-					success: false,
-					output: '',
-					error: getErrorMessage(error),
-				});
-				handleWorkmuxScrollbackCommandFailure(
-					failureMessage ?? getErrorMessage(error),
-				);
-				return false;
-			}
-		},
+	const workmuxScrollbackCommandExecutor = useMemo(
+		() =>
+			createWorkmuxScrollbackCommandExecutor({
+				executeCommand: async (command) => {
+					if (!connection) {
+						return {
+							success: false,
+							output: '',
+							error: 'No SSH connection available.',
+						};
+					}
+					return executeSideChannelCommand(
+						connection,
+						command,
+						WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS,
+					);
+				},
+				onFailure: handleWorkmuxScrollbackCommandFailure,
+			}),
 		[connection, handleWorkmuxScrollbackCommandFailure],
 	);
+	workmuxScrollbackCommandExecutorRef.current =
+		workmuxScrollbackCommandExecutor;
 
 	const sendLiveInputSegments = useCallback(
 		(
@@ -2386,9 +2377,10 @@ function ShellDetail() {
 			scrollbackPhaseRef.current = event.phase;
 			setScrollbackActive(event.active);
 			if (!event.active) {
-				clearTmuxScrollbackLineAccumulator(
-					tmuxScrollbackLineAccumulatorRef.current,
-				);
+				resetTmuxScrollbackRuntimeState({
+					lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
+					commandExecutor: workmuxScrollbackCommandExecutorRef.current,
+				});
 			}
 		},
 		[],
@@ -2404,16 +2396,15 @@ function ShellDetail() {
 			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 			const command = buildWorkmuxAppScrollEnterCommand(targetName);
-			const entered = await workmuxScrollbackCommandQueueRef.current.enqueue(
-				() => runWorkmuxScrollbackCommand(command),
-			);
+			const entered =
+				await workmuxScrollbackCommandExecutor.runEnterCommand(command);
 			if (!entered) return;
 			xtermRef.current?.sendTmuxEnterCopyModeAck(
 				event.requestId,
 				event.instanceId,
 			);
 		},
-		[runWorkmuxScrollbackCommand, tmuxTarget],
+		[workmuxScrollbackCommandExecutor, tmuxTarget],
 	);
 
 	const handleTmuxScrollBatch = useCallback(
@@ -2421,6 +2412,7 @@ function ShellDetail() {
 			direction: 'up' | 'down';
 			pages: number;
 			lines: number;
+			pageStep: number;
 			instanceId: string;
 		}) => {
 			if (!shell) return;
@@ -2439,24 +2431,18 @@ function ShellDetail() {
 				direction: event.direction,
 				pages: event.pages,
 				lines: event.lines,
-				linesPerPage: resolveTmuxScrollbackReceiverLinesPerPage(
-					lastSizeRef.current?.rows,
-				),
+				linesPerPage: event.pageStep,
 				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
 			});
 			if (commands.length === 0) return;
-			void workmuxScrollbackCommandQueueRef.current.enqueue(async () => {
-				if (!scrollbackActiveRef.current) return;
-				for (const command of commands) {
-					if (!(await runWorkmuxScrollbackCommand(command))) return;
-				}
-			});
+			if (!scrollbackActiveRef.current) return;
+			void workmuxScrollbackCommandExecutor.enqueueScrollBatch(commands);
 		},
 		[
 			connection,
 			shell,
 			selectionModeEnabled,
-			runWorkmuxScrollbackCommand,
+			workmuxScrollbackCommandExecutor,
 			tmuxTarget,
 			tmuxEnabled,
 		],
@@ -2596,6 +2582,10 @@ function ShellDetail() {
 			currentInstanceIdRef.current = instanceId;
 			scrollbackActiveRef.current = false;
 			scrollbackPhaseRef.current = 'active';
+			resetTmuxScrollbackRuntimeState({
+				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
+				commandExecutor: workmuxScrollbackCommandExecutorRef.current,
+			});
 			setScrollbackActive(false);
 			hasAttachedOnceRef.current = false;
 

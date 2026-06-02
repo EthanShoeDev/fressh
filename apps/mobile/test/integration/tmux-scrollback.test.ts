@@ -4,11 +4,11 @@ import {
 	buildTmuxScrollbackLiveInputSendPlan,
 	buildWorkmuxScrollbackBatchCommands,
 	clearTmuxScrollbackLineAccumulator,
-	createWorkmuxScrollbackCommandQueue,
+	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	formatWorkmuxScrollbackCommandFailureMessage,
 	isValidTmuxCancelKey,
-	resolveTmuxScrollbackReceiverLinesPerPage,
+	resetTmuxScrollbackRuntimeState,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 } from '../../src/lib/tmux-scrollback';
 import { WORKMUX_APP_SCROLL_MAX_COUNT } from '../../src/lib/workmux-app-commands';
@@ -16,6 +16,15 @@ import { WORKMUX_APP_SCROLL_MAX_COUNT } from '../../src/lib/workmux-app-commands
 const bytes = (values: number[]) => new Uint8Array(values);
 const segmentValues = (segments: readonly Uint8Array<ArrayBuffer>[]) =>
 	segments.map((segment) => Array.from(segment));
+const deferred = <T>() => {
+	let resolve: (value: T) => void = () => {};
+	let reject: (reason?: unknown) => void = () => {};
+	const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+		resolve = resolvePromise;
+		reject = rejectPromise;
+	});
+	return { promise, resolve, reject };
+};
 
 void test('buildWorkmuxScrollbackBatchCommands builds page scroll commands', () => {
 	assert.deepEqual(
@@ -60,16 +69,15 @@ void test('buildWorkmuxScrollbackBatchCommands accumulates sub-page lines by dir
 
 void test('buildWorkmuxScrollbackBatchCommands accumulates rows-minus-one line batches into one receiver page', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
-	const linesPerPage = resolveTmuxScrollbackReceiverLinesPerPage(25);
+	const pageStep = 24;
 
-	assert.equal(linesPerPage, 24);
 	assert.deepEqual(
 		buildWorkmuxScrollbackBatchCommands({
 			sessionName: 'main',
 			direction: 'up',
 			pages: 0,
 			lines: 12,
-			linesPerPage,
+			linesPerPage: pageStep,
 			lineAccumulator,
 		}),
 		[],
@@ -80,7 +88,7 @@ void test('buildWorkmuxScrollbackBatchCommands accumulates rows-minus-one line b
 			direction: 'up',
 			pages: 0,
 			lines: 12,
-			linesPerPage,
+			linesPerPage: pageStep,
 			lineAccumulator,
 		}),
 		["mdev tmux app scroll page-up --count '1' --session 'main'"],
@@ -153,11 +161,6 @@ void test('clearTmuxScrollbackLineAccumulator drops line leftovers', () => {
 	);
 });
 
-void test('resolveTmuxScrollbackReceiverLinesPerPage matches the WebView producer floor', () => {
-	assert.equal(resolveTmuxScrollbackReceiverLinesPerPage(5), 10);
-	assert.equal(resolveTmuxScrollbackReceiverLinesPerPage(undefined), 23);
-});
-
 void test('buildWorkmuxScrollbackBatchCommands splits page commands above Workmux max count', () => {
 	assert.deepEqual(
 		buildWorkmuxScrollbackBatchCommands({
@@ -219,54 +222,141 @@ void test('formatWorkmuxScrollbackCommandFailureMessage formats missing mdev fai
 	);
 });
 
-void test('workmux scrollback command queue serializes concurrent operations', async () => {
-	const queue = createWorkmuxScrollbackCommandQueue();
-	const events: string[] = [];
-	let releaseFirst: () => void = () => {};
-	const firstBlock = new Promise<void>((resolve) => {
-		releaseFirst = resolve;
-	});
+void test('resetTmuxScrollbackRuntimeState clears stale line leftovers', () => {
+	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
-	const first = queue.enqueue(async () => {
-		events.push('first-start');
-		await firstBlock;
-		events.push('first-end');
-		return 'first';
-	});
-	const second = queue.enqueue(async () => {
-		events.push('second-start');
-		return 'second';
-	});
-
-	await Promise.resolve();
-	await Promise.resolve();
-	assert.deepEqual(events, ['first-start']);
-
-	releaseFirst();
-	assert.equal(await first, 'first');
-	assert.equal(await second, 'second');
-	assert.deepEqual(events, ['first-start', 'first-end', 'second-start']);
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'down',
+			pages: 0,
+			lines: 12,
+			linesPerPage: 24,
+			lineAccumulator,
+		}),
+		[],
+	);
+	resetTmuxScrollbackRuntimeState({ lineAccumulator });
+	assert.deepEqual(
+		buildWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'down',
+			pages: 0,
+			lines: 12,
+			linesPerPage: 24,
+			lineAccumulator,
+		}),
+		[],
+	);
 });
 
-void test('workmux scrollback command queue continues after failed operation', async () => {
-	const queue = createWorkmuxScrollbackCommandQueue();
-	const events: string[] = [];
+void test('workmux scrollback executor serializes enter before scroll batches', async () => {
+	const firstBlock = deferred<void>();
+	const commands: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'enter') {
+				await firstBlock.promise;
+			}
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
 
-	await assert.rejects(
-		queue.enqueue(async () => {
-			events.push('first');
-			throw new Error('failed');
+	const enter = executor.runEnterCommand('enter');
+	const batch = executor.enqueueScrollBatch(['page']);
+
+	await Promise.resolve();
+	assert.deepEqual(commands, ['enter']);
+	firstBlock.resolve(undefined);
+	assert.equal(await enter, true);
+	await batch;
+	assert.deepEqual(commands, ['enter', 'page']);
+});
+
+void test('workmux scrollback executor suppresses enter ack and clears pending scroll after failure', async () => {
+	const failures: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async () => ({
+			success: false,
+			output: '',
+			error: 'mdev: command not found',
 		}),
-		/failed/,
-	);
-	assert.equal(
-		await queue.enqueue(async () => {
-			events.push('second');
-			return 'ok';
+		onFailure: (message) => failures.push(message),
+	});
+
+	const enter = executor.runEnterCommand('enter');
+	const batch = executor.enqueueScrollBatch(['page']);
+
+	assert.equal(await enter, false);
+	assert.equal(await batch, false);
+	assert.deepEqual(failures, [
+		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
+	]);
+});
+
+void test('workmux scrollback executor formats thrown failures and stops a batch', async () => {
+	const commands: string[] = [];
+	const failures: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'first') throw new Error('Command timed out');
+			return { success: true, output: '' };
+		},
+		onFailure: (message) => failures.push(message),
+	});
+
+	assert.equal(await executor.enqueueScrollBatch(['first', 'second']), false);
+	assert.deepEqual(commands, ['first']);
+	assert.deepEqual(failures, ['Command timed out']);
+});
+
+void test('workmux scrollback executor invokes failure cleanup hooks', async () => {
+	const events: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async () => ({
+			success: false,
+			output: 'permission denied',
+			error: 'permission denied',
 		}),
-		'ok',
-	);
-	assert.deepEqual(events, ['first', 'second']);
+		onFailure: (message) => {
+			events.push(`failure:${message}`);
+			events.push('cancel');
+			events.push('clear');
+		},
+	});
+
+	assert.equal(await executor.runEnterCommand('enter'), false);
+	assert.deepEqual(events, ['failure:permission denied', 'cancel', 'clear']);
+});
+
+void test('workmux scrollback executor coalesces pending scroll batches while slow command runs', async () => {
+	const firstBlock = deferred<void>();
+	const commands: string[] = [];
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async (command) => {
+			commands.push(command);
+			if (command === 'first') await firstBlock.promise;
+			return { success: true, output: '' };
+		},
+		onFailure: () => {},
+	});
+
+	const first = executor.enqueueScrollBatch(['first']);
+	await Promise.resolve();
+	assert.deepEqual(commands, ['first']);
+
+	const stale = executor.enqueueScrollBatch(['stale']);
+	const latest = executor.enqueueScrollBatch(['latest']);
+	assert.equal(executor.getPendingScrollBatchCount(), 1);
+	firstBlock.resolve(undefined);
+
+	assert.equal(await first, true);
+	assert.equal(await stale, false);
+	assert.equal(await latest, true);
+	assert.deepEqual(commands, ['first', 'latest']);
 });
 
 void test('tmux cancel key validation accepts single non-escape keys only', () => {

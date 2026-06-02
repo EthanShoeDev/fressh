@@ -4,7 +4,12 @@ type ITerminalInitOnlyOptions = import('@xterm/xterm').ITerminalInitOnlyOptions;
 // Messages posted from the WebView (xterm page) to React Native
 export type BridgeInboundMessage =
 	| { type: 'initialized'; instanceId: string }
-	| { type: 'input'; str: string; instanceId: string; kind?: 'typing' | 'scroll' }
+	| {
+			type: 'input';
+			str: string;
+			instanceId: string;
+			kind?: 'typing' | 'scroll';
+	  }
 	| { type: 'debug'; message: string }
 	| { type: 'sizeChanged'; cols: number; rows: number }
 	| { type: 'selection'; requestId: number; text: string; instanceId: string }
@@ -23,6 +28,7 @@ export type BridgeInboundMessage =
 			direction: 'up' | 'down';
 			pages: number;
 			lines: number;
+			pageStep: number;
 			instanceId: string;
 			seq?: number;
 			ts?: number;

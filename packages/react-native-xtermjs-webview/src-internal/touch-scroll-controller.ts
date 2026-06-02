@@ -1,5 +1,8 @@
 import { type Terminal } from '@xterm/xterm';
-import { type BridgeInboundMessage, type TouchScrollConfig } from '../src/bridge';
+import {
+	type BridgeInboundMessage,
+	type TouchScrollConfig,
+} from '../src/bridge';
 
 type TouchScrollController = {
 	setConfig: (next: TouchScrollConfig) => void;
@@ -60,15 +63,13 @@ export const createTouchScrollController = ({
 	let debugOverlayEl: HTMLDivElement | null = null;
 	let debugOverlayLastTs = 0;
 	let debugTelemetryLastTs = 0;
-	let lastBatch:
-		| {
-				direction: 'up' | 'down';
-				pages: number;
-				lines: number;
-				totalLines: number;
-				pendingLines: number;
-		  }
-		| null = null;
+	let lastBatch: {
+		direction: 'up' | 'down';
+		pages: number;
+		lines: number;
+		totalLines: number;
+		pendingLines: number;
+	} | null = null;
 
 	let pendingEnterRequestId: number | null = null;
 	let enterRequestCounter = 0;
@@ -77,9 +78,11 @@ export const createTouchScrollController = ({
 	let target: HTMLElement | null = null;
 	let listenersInstalled = false;
 
+	const getPageStep = () => Math.max(10, term.rows - 1);
+
 	const getActiveConfig = () => {
 		if (!config || !config.enabled) return null;
-		const pageStep = Math.max(10, term.rows - 1);
+		const pageStep = getPageStep();
 		const fallbackExtraLines = Math.max(1, Math.min(24, pageStep));
 		return {
 			pxPerLine: config.pxPerLine ?? Math.max(12, lineHeightPx),
@@ -268,6 +271,7 @@ export const createTouchScrollController = ({
 		direction: 'up' | 'down';
 		pages: number;
 		lines: number;
+		pageStep: number;
 	}) => {
 		scrollBatchSeq += 1;
 		sendToRn({
@@ -275,6 +279,7 @@ export const createTouchScrollController = ({
 			direction: payload.direction,
 			pages: payload.pages,
 			lines: payload.lines,
+			pageStep: payload.pageStep,
 			instanceId,
 			seq: scrollBatchSeq,
 			ts: Date.now(),
@@ -290,11 +295,8 @@ export const createTouchScrollController = ({
 	const clampDesiredLines = (value: number) => {
 		const cfg = getActiveConfig();
 		if (!cfg) return value;
-		const pageStep = Math.max(10, term.rows - 1);
-		const maxBacklogLines = Math.max(
-			pageStep,
-			cfg.maxBacklogPages * pageStep,
-		);
+		const pageStep = getPageStep();
+		const maxBacklogLines = Math.max(pageStep, cfg.maxBacklogPages * pageStep);
 		const delta = value - sentLines;
 		if (Math.abs(delta) > maxBacklogLines) {
 			return sentLines + Math.sign(delta) * maxBacklogLines;
@@ -322,7 +324,7 @@ export const createTouchScrollController = ({
 		if (!pending) return;
 
 		const absPending = Math.abs(pending);
-		const pageStep = Math.max(10, term.rows - 1);
+		const pageStep = getPageStep();
 		const now = nowMs();
 		const inFlightCount = inFlightFlushes.length;
 
@@ -348,10 +350,7 @@ export const createTouchScrollController = ({
 		const backlogPages = absPending / pageStep;
 		let dynamicMaxPages = basePages;
 		if (backlogPages > basePages) {
-			dynamicMaxPages = Math.min(
-				maxPagesPerFlush,
-				Math.ceil(backlogPages / 2),
-			);
+			dynamicMaxPages = Math.min(maxPagesPerFlush, Math.ceil(backlogPages / 2));
 		}
 		if (rttEstimateMs > 120) {
 			dynamicMaxPages = Math.min(maxPagesPerFlush, dynamicMaxPages + 1);
@@ -362,10 +361,7 @@ export const createTouchScrollController = ({
 			Math.min(cfg.maxExtraLines, pageStep - 1),
 		);
 
-		const pages = Math.min(
-			dynamicMaxPages,
-			Math.floor(absPending / pageStep),
-		);
+		const pages = Math.min(dynamicMaxPages, Math.floor(absPending / pageStep));
 		let lines = absPending - pages * pageStep;
 		if (lines > maxExtraLines) lines = maxExtraLines;
 
@@ -383,6 +379,7 @@ export const createTouchScrollController = ({
 			direction: pending > 0 ? 'up' : 'down',
 			pages,
 			lines,
+			pageStep,
 		});
 		sentLines += (pending > 0 ? 1 : -1) * totalLines;
 		lastFlushTs = now;
@@ -551,14 +548,10 @@ export const createTouchScrollController = ({
 					const dt = Math.max(event.timeStamp - lastMoveTs, 8);
 					const speed = Math.abs(deltaY) / dt;
 					velocityEwma =
-						velocityEwma +
-						(speed - velocityEwma) * cfg.velocitySmoothing;
+						velocityEwma + (speed - velocityEwma) * cfg.velocitySmoothing;
 
 					const scrollDirection = Math.sign(deltaLines);
-					if (
-						scrollDirection &&
-						scrollDirection !== lastScrollDirection
-					) {
+					if (scrollDirection && scrollDirection !== lastScrollDirection) {
 						lastScrollDirection = scrollDirection;
 						velocityEwma = 0;
 						lastDirectionChangeTs = now;
@@ -568,16 +561,14 @@ export const createTouchScrollController = ({
 					if (cfg.velocityMultiplierEnabled) {
 						if (velocityEwma > cfg.velocityThreshold) {
 							multiplier +=
-								cfg.velocityBoost *
-								(velocityEwma - cfg.velocityThreshold);
+								cfg.velocityBoost * (velocityEwma - cfg.velocityThreshold);
 						}
 						multiplier = Math.min(multiplier, cfg.velocityBoostMax);
 					}
 					if (cfg.backlogMultiplierEnabled) {
 						const backlogLines = Math.abs(desiredLines - sentLines);
 						const backlogRefLines =
-							Math.max(1, cfg.backlogBoostRefPages) *
-							Math.max(1, term.rows);
+							Math.max(1, cfg.backlogBoostRefPages) * Math.max(1, term.rows);
 						const backlogBoost = Math.min(
 							backlogLines / backlogRefLines,
 							cfg.backlogBoostMax,
@@ -689,7 +680,10 @@ export const createTouchScrollController = ({
 		}
 	};
 
-	const exitScrollback = (opts?: { emitExit?: boolean; requestId?: number }) => {
+	const exitScrollback = (opts?: {
+		emitExit?: boolean;
+		requestId?: number;
+	}) => {
 		const emitExit = opts?.emitExit ?? true;
 		const requestId = opts?.requestId;
 		resetPendingScroll();

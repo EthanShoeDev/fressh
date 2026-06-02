@@ -139,7 +139,7 @@ function normalizeCommandPrefix(command: string): string {
 function isNonShellProseCall(source: string, commandStart: number): boolean {
 	const callPrefix = source.slice(Math.max(0, commandStart - 80), commandStart);
 	return (
-		/(?:(?:logger|console)\.[A-Za-z_$][\w$]*|handleTmuxControlUnavailable|(?:new\s+)?Error|Alert\.alert)(?:\s*\(\s*)?["'`]?\s*$/.test(
+		/(?:(?:logger|console)\.[A-Za-z_$][\w$]*|(?:new\s+)?Error|Alert\.alert)(?:\s*\(\s*)?["'`]?\s*$/.test(
 			callPrefix,
 		) ||
 		/\b(?:const|let|var)\s+(?:label|title|message|copy|text)\s*=\s*["'`]?\s*$/.test(

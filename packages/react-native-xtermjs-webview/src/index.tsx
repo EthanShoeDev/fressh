@@ -126,6 +126,7 @@ export type XtermJsWebViewProps = {
 		direction: 'up' | 'down';
 		pages: number;
 		lines: number;
+		pageStep: number;
 		instanceId: string;
 		seq?: number;
 		ts?: number;
@@ -501,6 +502,7 @@ export function XtermJsWebView({
 						direction: msg.direction,
 						pages: msg.pages,
 						lines: msg.lines,
+						pageStep: msg.pageStep,
 						instanceId: msg.instanceId,
 						seq: msg.seq,
 						ts: msg.ts,

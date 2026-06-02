@@ -13,18 +13,84 @@ export type TmuxScrollbackLineAccumulator = {
 	lines: number;
 };
 
-export type WorkmuxScrollbackCommandQueue = {
-	enqueue: <T>(operation: () => Promise<T>) => Promise<T>;
+export type WorkmuxScrollbackCommandResult = {
+	success: boolean;
+	output: string;
+	error?: string;
 };
 
-export function createWorkmuxScrollbackCommandQueue(): WorkmuxScrollbackCommandQueue {
+export type WorkmuxScrollbackCommandExecutor = {
+	runEnterCommand: (command: string) => Promise<boolean>;
+	enqueueScrollBatch: (commands: string[]) => Promise<boolean>;
+	clearPendingScrollBatches: () => void;
+	getPendingScrollBatchCount: () => number;
+};
+
+export function createWorkmuxScrollbackCommandExecutor({
+	executeCommand,
+	onFailure,
+}: {
+	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>;
+	onFailure: (message: string) => void;
+}): WorkmuxScrollbackCommandExecutor {
 	let tail: Promise<unknown> = Promise.resolve();
+	let scrollDrainQueued = false;
+	let pendingScrollBatch: {
+		commands: string[];
+		resolve: (value: boolean) => void;
+	} | null = null;
+
+	const clearPendingScrollBatches = () => {
+		pendingScrollBatch?.resolve(false);
+		pendingScrollBatch = null;
+	};
+
+	const enqueueSerialized = <T>(operation: () => Promise<T>) => {
+		const next = tail.then(operation, operation);
+		tail = next.catch(() => {});
+		return next;
+	};
+
+	const runCommands = async (commands: string[]) => {
+		for (const command of commands) {
+			const result = await runSingleCommand(command, executeCommand);
+			const failureMessage =
+				formatWorkmuxScrollbackCommandFailureMessage(result);
+			if (!failureMessage) continue;
+			clearPendingScrollBatches();
+			onFailure(failureMessage);
+			return false;
+		}
+		return true;
+	};
+
 	return {
-		enqueue: <T>(operation: () => Promise<T>) => {
-			const next = tail.then(operation, operation);
-			tail = next.catch(() => {});
-			return next;
+		runEnterCommand: (command: string) =>
+			enqueueSerialized(() => runCommands([command])),
+		enqueueScrollBatch: (commands: string[]) => {
+			if (commands.length === 0) return Promise.resolve(true);
+			const promise = new Promise<boolean>((resolve) => {
+				pendingScrollBatch?.resolve(false);
+				pendingScrollBatch = { commands, resolve };
+			});
+
+			if (!scrollDrainQueued) {
+				scrollDrainQueued = true;
+				void enqueueSerialized(async () => {
+					scrollDrainQueued = false;
+					const batch = pendingScrollBatch;
+					pendingScrollBatch = null;
+					if (!batch) return true;
+					const success = await runCommands(batch.commands);
+					batch.resolve(success);
+					return success;
+				});
+			}
+
+			return promise;
 		},
+		clearPendingScrollBatches,
+		getPendingScrollBatchCount: () => (pendingScrollBatch ? 1 : 0),
 	};
 }
 
@@ -35,18 +101,22 @@ export function createTmuxScrollbackLineAccumulator(): TmuxScrollbackLineAccumul
 	};
 }
 
-export function resolveTmuxScrollbackReceiverLinesPerPage(
-	rows: number | null | undefined,
-): number {
-	const rowCount = rows == null ? 24 : truncateNonNegativeInteger(rows);
-	return Math.max(10, rowCount - 1);
-}
-
 export function clearTmuxScrollbackLineAccumulator(
 	lineAccumulator: TmuxScrollbackLineAccumulator,
 ): void {
 	lineAccumulator.direction = null;
 	lineAccumulator.lines = 0;
+}
+
+export function resetTmuxScrollbackRuntimeState({
+	lineAccumulator,
+	commandExecutor,
+}: {
+	lineAccumulator: TmuxScrollbackLineAccumulator;
+	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
+}): void {
+	clearTmuxScrollbackLineAccumulator(lineAccumulator);
+	commandExecutor?.clearPendingScrollBatches();
 }
 
 export function buildWorkmuxScrollbackBatchCommands({
@@ -108,6 +178,21 @@ export function formatWorkmuxScrollbackCommandFailureMessage(result: {
 	return formatWorkmuxAppCommandFailureMessage(
 		result.error || result.output || '',
 	);
+}
+
+async function runSingleCommand(
+	command: string,
+	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>,
+): Promise<WorkmuxScrollbackCommandResult> {
+	try {
+		return await executeCommand(command);
+	} catch (error) {
+		return {
+			success: false,
+			output: '',
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
 }
 
 function truncateNonNegativeInteger(value: number): number {

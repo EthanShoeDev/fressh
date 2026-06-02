@@ -77,6 +77,7 @@ export type XtermJsWebViewProps = {
         direction: 'up' | 'down';
         pages: number;
         lines: number;
+        pageStep: number;
         instanceId: string;
         seq?: number;
         ts?: number;
