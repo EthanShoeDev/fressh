@@ -6,7 +6,10 @@ import {
 	handleScrollbackBatchBridgeMessage,
 	mapScrollbackBatchMessage,
 } from '../src/bridge';
-import { handleXtermBridgeInboundMessage } from '../src/xterm-message-handler';
+import {
+	buildScrollbackEnterRequestFailureMessage,
+	handleXtermBridgeInboundMessage,
+} from '../src/xterm-message-handler';
 
 void test('scrollback batch mapper strips only bridge message type', () => {
 	assert.deepEqual(
@@ -264,6 +267,18 @@ void test('XtermJsWebView message handler reports rejected scrollback enter call
 			'enter failed',
 		],
 	]);
+});
+
+void test('XtermJsWebView scrollback enter failure fallback exits pending request', () => {
+	assert.deepEqual(
+		buildScrollbackEnterRequestFailureMessage({
+			requestId: 7,
+		}),
+		{
+			type: 'exitScrollback',
+			requestId: 7,
+		},
+	);
 });
 
 void test('public dist artifacts keep the published touch scroll bridge contract', () => {

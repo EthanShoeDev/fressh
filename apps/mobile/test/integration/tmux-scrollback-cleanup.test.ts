@@ -460,6 +460,43 @@ void test('inactive AppState transition ignores non-active previous states', () 
 	assert.equal(cleanupCount, 0);
 });
 
+void test('inactive AppState transition ignores active next state', () => {
+	let cleanupCount = 0;
+
+	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
+		previousState: 'active',
+		nextState: 'active',
+		clearScrollbackState: () => {
+			cleanupCount += 1;
+			return null;
+		},
+		onCleanupError: () => {},
+	});
+
+	assert.equal(cleanup, null);
+	assert.equal(cleanupCount, 0);
+});
+
+void test('inactive AppState transition reports rejected cleanup', async () => {
+	const cleanupError = new Error('cleanup failed');
+	const reportedErrors: unknown[] = [];
+
+	const cleanup = handleTmuxScrollbackInactiveAppStateTransition({
+		previousState: 'active',
+		nextState: 'inactive',
+		clearScrollbackState: () => Promise.reject(cleanupError),
+		onCleanupError: (error) => reportedErrors.push(error),
+	});
+
+	assert.notEqual(cleanup, null);
+	if (!cleanup) {
+		throw new Error('expected cleanup promise');
+	}
+	await assert.rejects(cleanup, cleanupError);
+	await Promise.resolve();
+	assert.deepEqual(reportedErrors, [cleanupError]);
+});
+
 void test('Workmux scrollback enter request resolution clears inactive current instance only', () => {
 	assert.deepEqual(
 		resolveTmuxScrollbackEnterRequest({

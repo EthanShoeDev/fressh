@@ -101,6 +101,52 @@ void test('workmux scrollback executor invokes failure cleanup hooks', async () 
 	assert.deepEqual(events, ['failure:permission denied', 'cancel', 'clear']);
 });
 
+void test('workmux scrollback executor settles enter failure when callback throws', async () => {
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async () => ({
+			success: false,
+			output: '',
+			error: 'enter failed',
+		}),
+		onFailure: () => {
+			throw new Error('alert failed');
+		},
+	});
+
+	assert.equal(await executor.runEnterCommand('enter'), false);
+});
+
+void test('workmux scrollback executor settles scroll batch when failure callback throws', async () => {
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async () => ({
+			success: false,
+			output: '',
+			error: 'scroll failed',
+		}),
+		onFailure: () => {
+			throw new Error('alert failed');
+		},
+	});
+
+	assert.equal(await executor.enqueueScrollBatch(['page']), false);
+});
+
+void test('workmux scrollback executor settles dispose exit when callback throws', async () => {
+	const executor = createWorkmuxScrollbackCommandExecutor({
+		executeCommand: async () => ({
+			success: false,
+			output: '',
+			error: 'exit failed',
+		}),
+		onFailure: () => {},
+		onDisposeExitFailure: () => {
+			throw new Error('alert failed');
+		},
+	});
+
+	assert.equal(await executor.dispose({ exitCommand: 'exit' }), false);
+});
+
 void test('workmux scrollback executor preserves pending scroll batches while slow command runs', async () => {
 	const firstBlock = deferred<void>();
 	const commands: string[] = [];

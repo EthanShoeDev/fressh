@@ -1,6 +1,7 @@
 import {
 	handleScrollbackBatchBridgeMessage,
 	type BridgeInboundMessage,
+	type BridgeOutboundMessage,
 	type ScrollbackBatchEvent,
 } from './bridge';
 
@@ -135,4 +136,13 @@ export function handleXtermBridgeInboundMessage(
 		return true;
 	}
 	return handleScrollbackBatchBridgeMessage(msg, onScrollbackBatch);
+}
+
+export function buildScrollbackEnterRequestFailureMessage(event: {
+	requestId: number;
+}): BridgeOutboundMessage {
+	return {
+		type: 'exitScrollback',
+		requestId: event.requestId,
+	};
 }

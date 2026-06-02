@@ -70,6 +70,25 @@ export function createWorkmuxScrollbackCommandExecutor({
 		resolveAll: (value: boolean) => void;
 	} | null = null;
 
+	const notifyFailure = (
+		message: string,
+		context: WorkmuxScrollbackFailureContext,
+	) => {
+		try {
+			onFailure(message, context);
+		} catch {
+			// Failure notification is best-effort; command promises must still settle.
+		}
+	};
+
+	const notifyDisposeExitFailure = (message: string) => {
+		try {
+			onDisposeExitFailure?.(message);
+		} catch {
+			// Failure notification is best-effort; command promises must still settle.
+		}
+	};
+
 	const clearPendingScrollBatches = () => {
 		pendingScrollBatch?.resolveAll(false);
 		pendingScrollBatch = null;
@@ -121,9 +140,9 @@ export function createWorkmuxScrollbackCommandExecutor({
 						canceledEnterRollbackSucceeded && !rollbackFailureMessage;
 					if (rollbackFailureMessage) {
 						if (canceledEnterRollbackFailurePolicy === 'notify') {
-							onFailure(rollbackFailureMessage, { commandKind: 'exit' });
+							notifyFailure(rollbackFailureMessage, { commandKind: 'exit' });
 						} else {
-							onDisposeExitFailure?.(rollbackFailureMessage);
+							notifyDisposeExitFailure(rollbackFailureMessage);
 						}
 					}
 				}
@@ -134,11 +153,11 @@ export function createWorkmuxScrollbackCommandExecutor({
 			if (!failureMessage) continue;
 			clearPendingScrollBatches();
 			if (failurePolicy === 'notify') {
-				onFailure(failureMessage, {
+				notifyFailure(failureMessage, {
 					commandKind: durableExit ? 'exit' : commandKind,
 				});
 			} else {
-				onDisposeExitFailure?.(failureMessage);
+				notifyDisposeExitFailure(failureMessage);
 			}
 			return false;
 		}
@@ -230,12 +249,16 @@ export function createWorkmuxScrollbackCommandExecutor({
 					const batch = pendingScrollBatch;
 					pendingScrollBatch = null;
 					if (!batch) return true;
-					const success = await runCommands({
-						commands: batch.commands,
-						commandKind: 'scroll',
-						operationGeneration: batch.generation,
-					});
-					batch.resolveAll(success);
+					let success = false;
+					try {
+						success = await runCommands({
+							commands: batch.commands,
+							commandKind: 'scroll',
+							operationGeneration: batch.generation,
+						});
+					} finally {
+						batch.resolveAll(success);
+					}
 					return success;
 				});
 			}

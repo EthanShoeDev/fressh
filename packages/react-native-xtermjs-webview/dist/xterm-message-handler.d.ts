@@ -1,4 +1,4 @@
-import { BridgeInboundMessage, ScrollbackBatchEvent } from './bridge';
+import { BridgeInboundMessage, BridgeOutboundMessage, ScrollbackBatchEvent } from './bridge';
 type PendingSelectionRef = {
     current: Map<number, {
         resolve: (value: string) => void;
@@ -42,5 +42,8 @@ export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessag
     }, error: unknown) => void;
     onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 }): boolean;
+export declare function buildScrollbackEnterRequestFailureMessage(event: {
+    requestId: number;
+}): BridgeOutboundMessage;
 export {};
 //# sourceMappingURL=xterm-message-handler.d.ts.map

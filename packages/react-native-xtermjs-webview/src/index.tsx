@@ -22,7 +22,10 @@ import {
 } from './bridge';
 import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
 import { createDefaultXtermOptions } from './terminal-options';
-import { handleXtermBridgeInboundMessage } from './xterm-message-handler';
+import {
+	buildScrollbackEnterRequestFailureMessage,
+	handleXtermBridgeInboundMessage,
+} from './xterm-message-handler';
 
 export { bStrToBinary, binaryToBStr };
 export type { ScrollbackBatchEvent, TouchScrollConfig };
@@ -443,8 +446,7 @@ export function XtermJsWebView({
 								error,
 							);
 							sendToWebView({
-								type: 'exitScrollback',
-								requestId: event.requestId,
+								...buildScrollbackEnterRequestFailureMessage(event),
 							});
 						},
 						onScrollbackBatch,
