@@ -105,7 +105,7 @@ import {
 	handleWorkmuxScrollbackCommandFailureActions,
 	registerTmuxScrollbackRemoteCopyModeExitCleanup,
 	resetTmuxScrollbackRuntimeStateForUiReset,
-	shouldRequestWorkmuxScrollbackEnter,
+	resolveTmuxScrollbackEnterRequest,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	type WorkmuxScrollbackCommandExecutor,
 	type WorkmuxScrollbackFailureContext,
@@ -2462,16 +2462,14 @@ function ShellDetail() {
 
 	const handleTmuxEnterCopyMode = useCallback(
 		async (event: { instanceId: string; requestId: number }) => {
-			if (
-				!shouldRequestWorkmuxScrollbackEnter({
-					isAppActive: isAppActiveRef.current,
-					instanceId: event.instanceId,
-					currentInstanceId: currentInstanceIdRef.current,
-				})
-			) {
-				if (event.instanceId === currentInstanceIdRef.current) {
-					clearLocalScrollbackUiState();
-				}
+			const requestResolution = resolveTmuxScrollbackEnterRequest({
+				isAppActive: isAppActiveRef.current,
+				instanceId: event.instanceId,
+				currentInstanceId: currentInstanceIdRef.current,
+			});
+			if (requestResolution.action === 'ignore') return;
+			if (requestResolution.action === 'clear-local-ui') {
+				clearLocalScrollbackUiState();
 				return;
 			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';

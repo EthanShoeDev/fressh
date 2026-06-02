@@ -14,6 +14,7 @@ import {
 	registerTmuxScrollbackRemoteCopyModeExitCleanup,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resetTmuxScrollbackRuntimeState,
+	resolveTmuxScrollbackEnterRequest,
 	shouldRequestWorkmuxScrollbackEnter,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
@@ -982,6 +983,27 @@ void test('stale remote copy mode cleanup cannot clear a newer scrollback genera
 	assert.equal(remoteCopyModeActiveRef.current, true);
 });
 
+void test('stale failed remote copy mode cleanup cannot mark a newer generation active', async () => {
+	const cleanupBlock = deferred<boolean>();
+	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const remoteCopyModeActiveRef = { current: false };
+	const cleanupGeneration = { current: 1 };
+	const cleanup = registerTmuxScrollbackRemoteCopyModeExitCleanup({
+		barrier: cleanupBarrier,
+		cleanup: cleanupBlock.promise,
+		remoteCopyModeActiveRef,
+		remoteCopyModeWasActive: true,
+		markRemoteCopyModeActiveOnFailedCleanup: true,
+		cleanupGeneration,
+	});
+
+	assert.notEqual(cleanup, null);
+	cleanupGeneration.current += 1;
+	cleanupBlock.resolve(false);
+	assert.equal(await cleanup, false);
+	assert.equal(remoteCopyModeActiveRef.current, false);
+});
+
 void test('resetTmuxScrollbackRuntimeState returns a cleanup barrier for inactive in-flight app scroll enter before remote copy mode ack', async () => {
 	const commandBlock = deferred<void>();
 	const commands: string[] = [];
@@ -1284,6 +1306,33 @@ void test('Workmux scrollback enter is not requested for inactive app or stale i
 			currentInstanceId: 'current',
 		}),
 		false,
+	);
+});
+
+void test('Workmux scrollback enter request resolution clears inactive current instance only', () => {
+	assert.deepEqual(
+		resolveTmuxScrollbackEnterRequest({
+			isAppActive: true,
+			instanceId: 'current',
+			currentInstanceId: 'current',
+		}),
+		{ action: 'enter' },
+	);
+	assert.deepEqual(
+		resolveTmuxScrollbackEnterRequest({
+			isAppActive: false,
+			instanceId: 'current',
+			currentInstanceId: 'current',
+		}),
+		{ action: 'clear-local-ui' },
+	);
+	assert.deepEqual(
+		resolveTmuxScrollbackEnterRequest({
+			isAppActive: false,
+			instanceId: 'stale',
+			currentInstanceId: 'current',
+		}),
+		{ action: 'ignore' },
 	);
 });
 

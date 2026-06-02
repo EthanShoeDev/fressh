@@ -557,6 +557,27 @@ export function shouldRequestWorkmuxScrollbackEnter({
 	return isAppActive;
 }
 
+export type TmuxScrollbackEnterRequestResolution =
+	| { action: 'enter' }
+	| { action: 'clear-local-ui' }
+	| { action: 'ignore' };
+
+export function resolveTmuxScrollbackEnterRequest({
+	isAppActive,
+	instanceId,
+	currentInstanceId,
+}: {
+	isAppActive: boolean;
+	instanceId: string;
+	currentInstanceId?: string | null;
+}): TmuxScrollbackEnterRequestResolution {
+	if (currentInstanceId && instanceId !== currentInstanceId) {
+		return { action: 'ignore' };
+	}
+	if (!isAppActive) return { action: 'clear-local-ui' };
+	return { action: 'enter' };
+}
+
 export function buildTmuxScrollbackLiveInputSendPlan({
 	scrollbackActive,
 	payloadSegments,
