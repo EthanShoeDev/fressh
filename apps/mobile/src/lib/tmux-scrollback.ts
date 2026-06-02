@@ -420,6 +420,13 @@ export function createTmuxScrollbackLiveInputCleanupBarrier(): TmuxScrollbackLiv
 	};
 }
 
+export function registerTmuxScrollbackLiveInputCleanup(
+	barrier: TmuxScrollbackLiveInputCleanupBarrier,
+	cleanup?: Promise<boolean> | null,
+): Promise<boolean> | null {
+	return barrier.track(cleanup);
+}
+
 export function buildTmuxScrollbackLiveInputSendPlan({
 	scrollbackActive,
 	payloadSegments,

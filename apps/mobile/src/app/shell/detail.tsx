@@ -103,6 +103,7 @@ import {
 	createTmuxScrollbackLineAccumulator,
 	handleTmuxScrollbackInactiveAppStateTransition,
 	handleWorkmuxScrollbackCommandFailureActions,
+	registerTmuxScrollbackLiveInputCleanup,
 	resetTmuxScrollbackRuntimeState,
 	type WorkmuxScrollbackCommandExecutor,
 } from '@/lib/tmux-scrollback';
@@ -791,10 +792,14 @@ function ShellDetail() {
 				? buildWorkmuxAppScrollExitCommand(targetName)
 				: undefined,
 		});
-		void reset?.catch((error: unknown) => {
+		const cleanup = registerTmuxScrollbackLiveInputCleanup(
+			scrollbackCleanupBarrierRef.current,
+			reset,
+		);
+		void cleanup?.catch((error: unknown) => {
 			logger.warn('Workmux scrollback reset exit failed', error);
 		});
-		return reset;
+		return cleanup;
 	}, [tmuxTarget]);
 
 	const clearScrollbackState = useCallback(() => {
@@ -849,6 +854,7 @@ function ShellDetail() {
 	);
 
 	useEffect(() => {
+		const scrollbackCleanupBarrier = scrollbackCleanupBarrierRef.current;
 		workmuxScrollbackCommandExecutorRef.current =
 			workmuxScrollbackCommandExecutor;
 		return () => {
@@ -861,7 +867,13 @@ function ShellDetail() {
 					? buildWorkmuxAppScrollExitCommand(targetName)
 					: undefined,
 			});
-			void exit?.catch((error: unknown) => {
+			const cleanup = exit
+				? registerTmuxScrollbackLiveInputCleanup(
+						scrollbackCleanupBarrier,
+						exit,
+					)
+				: null;
+			void cleanup?.catch((error: unknown) => {
 				logger.warn('Workmux scrollback dispose exit failed', error);
 			});
 			if (
@@ -890,8 +902,9 @@ function ShellDetail() {
 				isCurrentPayloadExitKey: opts?.dropPayloadAfterExit,
 			});
 
-			const reset = plan.clearScrollback ? clearScrollbackState() : null;
-			const cleanupBarrier = scrollbackCleanupBarrierRef.current.track(reset);
+			const cleanupBarrier = plan.clearScrollback
+				? clearScrollbackState()
+				: scrollbackCleanupBarrierRef.current.current();
 			if (!plan.segments.length) return;
 
 			const send = () =>

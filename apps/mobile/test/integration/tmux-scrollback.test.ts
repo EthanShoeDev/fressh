@@ -10,6 +10,7 @@ import {
 	formatWorkmuxScrollbackCommandFailureMessage,
 	handleWorkmuxScrollbackCommandFailureActions,
 	handleTmuxScrollbackInactiveAppStateTransition,
+	registerTmuxScrollbackLiveInputCleanup,
 	resetTmuxScrollbackRuntimeState,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 } from '../../src/lib/tmux-scrollback';
@@ -810,6 +811,36 @@ void test('multiple live input events wait behind the same pending scrollback cl
 	await new Promise((resolve) => setImmediate(resolve));
 
 	assert.equal(sentPayloads.join(''), 'ab');
+	assert.equal(barrierRef.current(), null);
+});
+
+void test('live input waits for externally initiated inactive cleanup barrier before sending primary payload', async () => {
+	const cleanupBlock = deferred<void>();
+	const barrierRef = createTmuxScrollbackLiveInputCleanupBarrier();
+	const sentPayloads: string[] = [];
+	let scrollbackActive = true;
+
+	const externalCleanup = cleanupBlock.promise.then(() => true);
+	scrollbackActive = false;
+	void registerTmuxScrollbackLiveInputCleanup(barrierRef, externalCleanup);
+
+	const plan = buildTmuxScrollbackLiveInputSendPlan({
+		scrollbackActive,
+		payloadSegments: [bytes([0x70])],
+		scrollbackExitDelayMs: 10,
+	});
+	const barrier = barrierRef.track(plan.clearScrollback ? externalCleanup : null);
+	void (barrier ?? Promise.resolve(true)).then((exited) => {
+		if (exited) sentPayloads.push('payload');
+	});
+
+	await Promise.resolve();
+	assert.deepEqual(sentPayloads, []);
+	cleanupBlock.resolve(undefined);
+	await externalCleanup;
+	await new Promise((resolve) => setImmediate(resolve));
+
+	assert.deepEqual(sentPayloads, ['payload']);
 	assert.equal(barrierRef.current(), null);
 });
 
