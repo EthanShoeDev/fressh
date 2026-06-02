@@ -799,7 +799,7 @@ function ShellDetail() {
 		scrollbackPhaseRef.current = 'active';
 		const reset = resetTmuxScrollbackForUiReset();
 		setScrollbackActive(false);
-		xtermRef.current?.exitScrollback({ emitExit: false });
+		xtermRef.current?.exitScrollback();
 		return reset;
 	}, [resetTmuxScrollbackForUiReset]);
 

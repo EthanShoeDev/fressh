@@ -6,7 +6,7 @@ import {
 
 type TouchScrollController = {
 	setConfig: (next: TouchScrollConfig) => void;
-	exitScrollback: (opts?: { emitExit?: boolean; requestId?: number }) => void;
+	exitScrollback: (opts?: { requestId?: number }) => void;
 	handleEnterAck: (requestId: number) => void;
 	updateLineHeight: () => void;
 };
@@ -611,7 +611,7 @@ export const createTouchScrollController = ({
 	const setConfig = (next: TouchScrollConfig) => {
 		const shouldEnable = Boolean(next?.enabled);
 		if (enabled && !shouldEnable) {
-			exitScrollback({ emitExit: true });
+			exitScrollback();
 		}
 		config = next;
 		if (shouldEnable !== enabled) {
@@ -629,10 +629,7 @@ export const createTouchScrollController = ({
 		updateDebugOverlay({ force: true });
 	};
 
-	const exitScrollback = (opts?: {
-		emitExit?: boolean;
-		requestId?: number;
-	}) => {
+	const exitScrollback = (opts?: { requestId?: number }) => {
 		const requestId = opts?.requestId;
 		resetPendingScroll();
 		pendingEnterRequestId = null;

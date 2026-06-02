@@ -39,7 +39,6 @@ export type XtermWebViewHandle = {
     }) => void;
     fit: () => void;
     exitScrollback: (opts?: {
-        emitExit?: boolean;
         requestId?: number;
     }) => void;
     sendTmuxEnterCopyModeAck: (requestId: number, instanceId: string) => void;

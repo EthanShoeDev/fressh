@@ -74,7 +74,7 @@ export type BridgeOutboundMessage =
 	| { type: 'getSelection'; requestId: number }
 	| { type: 'setSelectionMode'; enabled: boolean }
 	| { type: 'setTouchScrollConfig'; config: TouchScrollConfig }
-	| { type: 'exitScrollback'; emitExit?: boolean; requestId?: number }
+	| { type: 'exitScrollback'; requestId?: number }
 	| {
 			type: 'tmuxEnterCopyModeAck';
 			requestId: number;

@@ -63,7 +63,7 @@ export type XtermWebViewHandle = {
 	getSelection: () => Promise<string>;
 	resize: (size: { cols: number; rows: number }) => void;
 	fit: () => void;
-	exitScrollback: (opts?: { emitExit?: boolean; requestId?: number }) => void;
+	exitScrollback: (opts?: { requestId?: number }) => void;
 	sendTmuxEnterCopyModeAck: (requestId: number, instanceId: string) => void;
 };
 

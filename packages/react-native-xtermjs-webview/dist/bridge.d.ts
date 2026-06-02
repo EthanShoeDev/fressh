@@ -101,7 +101,6 @@ export type BridgeOutboundMessage = {
     config: TouchScrollConfig;
 } | {
     type: 'exitScrollback';
-    emitExit?: boolean;
     requestId?: number;
 } | {
     type: 'tmuxEnterCopyModeAck';

@@ -262,7 +262,6 @@ window.onload = () => {
 					}
 					case 'exitScrollback': {
 						touchScrollController.exitScrollback({
-							emitExit: msg.emitExit,
 							requestId: msg.requestId,
 						});
 						break;

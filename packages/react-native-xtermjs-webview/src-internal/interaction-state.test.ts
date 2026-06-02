@@ -505,7 +505,7 @@ void test('touch scroll exit does not emit primary-shell cancel input after ack'
 		timeStamp: 120,
 	});
 
-	controller.exitScrollback({ emitExit: true, requestId: 2 });
+	controller.exitScrollback({ requestId: 2 });
 
 	const scrollInputs = messages.filter(
 		(message): message is Extract<BridgeInboundMessage, { type: 'input' }> =>
@@ -566,7 +566,7 @@ void test('touch scroll clears pending copy-mode entry when scrollback is force-
 		timeStamp: 16,
 	});
 
-	controller.exitScrollback({ emitExit: false, requestId: 1 });
+	controller.exitScrollback({ requestId: 1 });
 
 	dispatchPointerEvent(root, 'pointerdown', {
 		pointerId: 2,
