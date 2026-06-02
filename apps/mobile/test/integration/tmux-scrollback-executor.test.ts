@@ -552,6 +552,25 @@ void test('stale remote copy mode cleanup cannot clear a newer scrollback genera
 	assert.equal(remoteCopyModeActiveRef.current, true);
 });
 
+void test('successful current remote copy mode cleanup clears active state', async () => {
+	const cleanupBlock = deferred<boolean>();
+	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const remoteCopyModeActiveRef = { current: true };
+	const cleanupGeneration = { current: 1 };
+	const cleanup = registerTmuxScrollbackRemoteCopyModeExitCleanup({
+		barrier: cleanupBarrier,
+		cleanup: cleanupBlock.promise,
+		remoteCopyModeActiveRef,
+		remoteCopyModeWasActive: remoteCopyModeActiveRef.current,
+		cleanupGeneration,
+	});
+
+	assert.notEqual(cleanup, null);
+	cleanupBlock.resolve(true);
+	assert.equal(await cleanup, true);
+	assert.equal(remoteCopyModeActiveRef.current, false);
+});
+
 void test('stale failed remote copy mode cleanup cannot mark a newer generation active', async () => {
 	const cleanupBlock = deferred<boolean>();
 	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
