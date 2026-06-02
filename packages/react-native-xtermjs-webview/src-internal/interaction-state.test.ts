@@ -445,8 +445,8 @@ void test('touch scroll batch includes the producer page step', (t) => {
 	const scrollBatch = messages.find(
 		(
 			message,
-		): message is Extract<BridgeInboundMessage, { type: 'tmuxScrollBatch' }> =>
-			message.type === 'tmuxScrollBatch',
+		): message is Extract<BridgeInboundMessage, { type: 'scrollbackBatch' }> =>
+			message.type === 'scrollbackBatch',
 	);
 
 	assert.equal(scrollBatch?.pageStep, 24);

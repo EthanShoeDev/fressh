@@ -1,4 +1,4 @@
-import { BridgeInboundMessage, TmuxScrollBatchEvent } from './bridge';
+import { BridgeInboundMessage, ScrollbackBatchEvent } from './bridge';
 type PendingSelectionRef = {
     current: Map<number, {
         resolve: (value: string) => void;
@@ -8,7 +8,7 @@ type XtermMessageLogger = {
     log?: (...args: unknown[]) => void;
     warn?: (...args: unknown[]) => void;
 };
-export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessage, { currentInstanceIdRef, pendingSelectionRef, logger, onInitialized, autoFitFn, setInitialized, onInput, onData, onResize, onSelection, onSelectionModeChange, onScrollbackModeChange, onScrollbackEnterRequested, onTmuxScrollBatch, }: {
+export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessage, { currentInstanceIdRef, pendingSelectionRef, logger, onInitialized, autoFitFn, setInitialized, onInput, onData, onResize, onSelection, onSelectionModeChange, onScrollbackModeChange, onScrollbackEnterRequested, onScrollbackBatch, }: {
     currentInstanceIdRef: {
         current: string | null;
     };
@@ -36,7 +36,7 @@ export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessag
         instanceId: string;
         requestId: number;
     }) => void;
-    onTmuxScrollBatch?: (event: TmuxScrollBatchEvent) => void;
+    onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 }): boolean;
 export {};
 //# sourceMappingURL=xterm-message-handler.d.ts.map

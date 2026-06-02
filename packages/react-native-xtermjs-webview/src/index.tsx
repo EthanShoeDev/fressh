@@ -17,7 +17,7 @@ import {
 	bStrToBinary,
 	type BridgeInboundMessage,
 	type BridgeOutboundMessage,
-	type TmuxScrollBatchEvent,
+	type ScrollbackBatchEvent,
 	type TouchScrollConfig,
 } from './bridge';
 import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
@@ -25,7 +25,7 @@ import { createDefaultXtermOptions } from './terminal-options';
 import { handleXtermBridgeInboundMessage } from './xterm-message-handler';
 
 export { bStrToBinary, binaryToBStr };
-export type { TmuxScrollBatchEvent, TouchScrollConfig };
+export type { ScrollbackBatchEvent, TouchScrollConfig };
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
@@ -124,7 +124,7 @@ export type XtermJsWebViewProps = {
 		instanceId: string;
 		requestId: number;
 	}) => void;
-	onTmuxScrollBatch?: (event: TmuxScrollBatchEvent) => void;
+	onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 	logger?: {
 		debug?: (...args: unknown[]) => void;
 		log?: (...args: unknown[]) => void;
@@ -189,7 +189,7 @@ export function XtermJsWebView({
 	onResize,
 	onScrollbackModeChange,
 	onScrollbackEnterRequested,
-	onTmuxScrollBatch,
+	onScrollbackBatch,
 	coalescingThreshold = defaultCoalescingThreshold,
 	logger,
 	size,
@@ -435,7 +435,7 @@ export function XtermJsWebView({
 						onSelectionModeChange,
 						onScrollbackModeChange,
 						onScrollbackEnterRequested,
-						onTmuxScrollBatch,
+						onScrollbackBatch,
 					})
 				) {
 					return;
@@ -461,7 +461,7 @@ export function XtermJsWebView({
 			onSelectionModeChange,
 			onScrollbackModeChange,
 			onScrollbackEnterRequested,
-			onTmuxScrollBatch,
+			onScrollbackBatch,
 		],
 	);
 

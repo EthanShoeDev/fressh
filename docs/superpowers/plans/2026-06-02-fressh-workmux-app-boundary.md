@@ -1190,7 +1190,7 @@ and rollback after a successful `scroll enter`.
 mdev tmux app scroll exit --session <session>
 ```
 
-In `handleTmuxScrollBatch`, replace the current single command construction with:
+In `handleScrollbackBatch`, replace the current single command construction with:
 
 ```ts
 const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';

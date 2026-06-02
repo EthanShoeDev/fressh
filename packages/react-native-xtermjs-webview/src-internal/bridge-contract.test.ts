@@ -3,15 +3,15 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
-	handleTmuxScrollBatchBridgeMessage,
-	mapTmuxScrollBatchMessage,
+	handleScrollbackBatchBridgeMessage,
+	mapScrollbackBatchMessage,
 } from '../src/bridge';
 import { handleXtermBridgeInboundMessage } from '../src/xterm-message-handler';
 
-void test('tmux scroll batch mapper strips only bridge message type', () => {
+void test('scrollback batch mapper strips only bridge message type', () => {
 	assert.deepEqual(
-		mapTmuxScrollBatchMessage({
-			type: 'tmuxScrollBatch',
+		mapScrollbackBatchMessage({
+			type: 'scrollbackBatch',
 			direction: 'up',
 			pages: 2,
 			lines: 3,
@@ -32,13 +32,13 @@ void test('tmux scroll batch mapper strips only bridge message type', () => {
 	);
 });
 
-void test('tmuxScrollBatch bridge helper forwards pageStep', () => {
+void test('scrollbackBatch bridge helper forwards pageStep', () => {
 	const events: unknown[] = [];
 
 	assert.equal(
-		handleTmuxScrollBatchBridgeMessage(
+		handleScrollbackBatchBridgeMessage(
 			{
-				type: 'tmuxScrollBatch',
+				type: 'scrollbackBatch',
 				direction: 'down',
 				pages: 1,
 				lines: 5,
@@ -85,7 +85,7 @@ void test('XtermJsWebView message handler routes current instance events and dro
 			onScrollbackModeChange: (event) => events.push(['scrollback-mode', event]),
 			onScrollbackEnterRequested: (event) =>
 				events.push(['scrollback-enter', event]),
-			onTmuxScrollBatch: (event) => events.push(['scroll-batch', event]),
+			onScrollbackBatch: (event) => events.push(['scroll-batch', event]),
 		});
 
 	assert.equal(handle({ type: 'initialized', instanceId: 'instance-1' }), true);
@@ -99,7 +99,7 @@ void test('XtermJsWebView message handler routes current instance events and dro
 	);
 	assert.equal(
 		handle({
-			type: 'tmuxScrollBatch',
+			type: 'scrollbackBatch',
 			direction: 'down',
 			pages: 1,
 			lines: 5,
@@ -166,11 +166,14 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 		/['"]typing['"]\s*\|\s*['"]scroll['"]/,
 		/tmuxEnterCopyMode/,
 		/tmuxEnterCopyModeAck/,
+		/tmuxScrollBatch/,
+		/TmuxScrollBatch/,
+		/onTmuxScrollBatch/,
 	];
 
 	for (const { path, content } of artifacts) {
 		if (path === 'dist/index.d.ts') {
-			assert.match(content, /onTmuxScrollBatch\?: \(event: TmuxScrollBatchEvent\)/);
+			assert.match(content, /onScrollbackBatch\?: \(event: ScrollbackBatchEvent\)/);
 			assert.match(
 				content,
 				/onScrollbackEnterRequested\?: \(event: \{\s+instanceId: string;\s+requestId: number;\s+\}\) => void;/,
@@ -181,7 +184,7 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 			);
 			assert.match(
 				content,
-				/export type \{ TmuxScrollBatchEvent, TouchScrollConfig \}/,
+				/export type \{ ScrollbackBatchEvent, TouchScrollConfig \}/,
 			);
 		} else if (path === 'dist/bridge.d.ts') {
 			assert.match(content, /scrollbackEnterRequested/);

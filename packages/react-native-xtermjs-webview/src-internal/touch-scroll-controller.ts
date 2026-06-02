@@ -255,7 +255,7 @@ export const createTouchScrollController = ({
 	}) => {
 		scrollBatchSeq += 1;
 		sendToRn({
-			type: 'tmuxScrollBatch',
+			type: 'scrollbackBatch',
 			direction: payload.direction,
 			pages: payload.pages,
 			lines: payload.lines,

@@ -2497,7 +2497,7 @@ function ShellDetail() {
 		[clearLocalScrollbackUiState, workmuxScrollbackCommandExecutor, tmuxTarget],
 	);
 
-	const handleTmuxScrollBatch = useCallback(
+	const handleScrollbackBatch = useCallback(
 		(event: {
 			direction: 'up' | 'down';
 			pages: number;
@@ -2768,7 +2768,7 @@ function ShellDetail() {
 							onInput={handleWebViewInput}
 							onScrollbackModeChange={handleScrollbackModeChange}
 							onScrollbackEnterRequested={handleScrollbackEnterRequested}
-							onTmuxScrollBatch={handleTmuxScrollBatch}
+							onScrollbackBatch={handleScrollbackBatch}
 						/>
 						{scrollbackVisible && (
 							<Pressable

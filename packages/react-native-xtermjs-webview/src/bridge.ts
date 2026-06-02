@@ -24,7 +24,7 @@ export type BridgeInboundMessage =
 	  }
 	| { type: 'scrollbackEnterRequested'; instanceId: string; requestId: number }
 	| {
-			type: 'tmuxScrollBatch';
+			type: 'scrollbackBatch';
 			direction: 'up' | 'down';
 			pages: number;
 			lines: number;
@@ -34,29 +34,29 @@ export type BridgeInboundMessage =
 			ts?: number;
 	  };
 
-export type TmuxScrollBatchBridgeMessage = Extract<
+export type ScrollbackBatchBridgeMessage = Extract<
 	BridgeInboundMessage,
-	{ type: 'tmuxScrollBatch' }
+	{ type: 'scrollbackBatch' }
 >;
 
-export type TmuxScrollBatchEvent = Omit<TmuxScrollBatchBridgeMessage, 'type'>;
+export type ScrollbackBatchEvent = Omit<ScrollbackBatchBridgeMessage, 'type'>;
 
-export function mapTmuxScrollBatchMessage(
-	msg: TmuxScrollBatchBridgeMessage,
-): TmuxScrollBatchEvent {
-	const event = { ...msg } as TmuxScrollBatchEvent & {
-		type?: TmuxScrollBatchBridgeMessage['type'];
+export function mapScrollbackBatchMessage(
+	msg: ScrollbackBatchBridgeMessage,
+): ScrollbackBatchEvent {
+	const event = { ...msg } as ScrollbackBatchEvent & {
+		type?: ScrollbackBatchBridgeMessage['type'];
 	};
 	delete event.type;
 	return event;
 }
 
-export function handleTmuxScrollBatchBridgeMessage(
+export function handleScrollbackBatchBridgeMessage(
 	msg: BridgeInboundMessage,
-	onTmuxScrollBatch?: (event: TmuxScrollBatchEvent) => void,
-): msg is TmuxScrollBatchBridgeMessage {
-	if (msg.type !== 'tmuxScrollBatch') return false;
-	onTmuxScrollBatch?.(mapTmuxScrollBatchMessage(msg));
+	onScrollbackBatch?: (event: ScrollbackBatchEvent) => void,
+): msg is ScrollbackBatchBridgeMessage {
+	if (msg.type !== 'scrollbackBatch') return false;
+	onScrollbackBatch?.(mapScrollbackBatchMessage(msg));
 	return true;
 }
 

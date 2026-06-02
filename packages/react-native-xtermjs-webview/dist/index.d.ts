@@ -1,8 +1,8 @@
 import { default as React, RefObject } from 'react';
 import { WebView } from 'react-native-webview';
-import { binaryToBStr, bStrToBinary, TmuxScrollBatchEvent, TouchScrollConfig } from './bridge';
+import { binaryToBStr, bStrToBinary, ScrollbackBatchEvent, TouchScrollConfig } from './bridge';
 export { bStrToBinary, binaryToBStr };
-export type { TmuxScrollBatchEvent, TouchScrollConfig };
+export type { ScrollbackBatchEvent, TouchScrollConfig };
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type WebViewOptions = React.ComponentProps<typeof WebView>;
@@ -72,7 +72,7 @@ export type XtermJsWebViewProps = {
         instanceId: string;
         requestId: number;
     }) => void;
-    onTmuxScrollBatch?: (event: TmuxScrollBatchEvent) => void;
+    onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
     logger?: {
         debug?: (...args: unknown[]) => void;
         log?: (...args: unknown[]) => void;
@@ -87,5 +87,5 @@ export type XtermJsWebViewProps = {
     autoFit?: boolean;
     touchScrollConfig?: TouchScrollConfig;
 };
-export declare function XtermJsWebView({ ref, style, webViewOptions, xtermOptions, onInitialized, onData, onInput, onSelection, onSelectionModeChange, onResize, onScrollbackModeChange, onScrollbackEnterRequested, onTmuxScrollBatch, coalescingThreshold, logger, size, autoFit, devServerUrl, touchScrollConfig, }: XtermJsWebViewProps): import("react/jsx-runtime").JSX.Element;
+export declare function XtermJsWebView({ ref, style, webViewOptions, xtermOptions, onInitialized, onData, onInput, onSelection, onSelectionModeChange, onResize, onScrollbackModeChange, onScrollbackEnterRequested, onScrollbackBatch, coalescingThreshold, logger, size, autoFit, devServerUrl, touchScrollConfig, }: XtermJsWebViewProps): import("react/jsx-runtime").JSX.Element;
 //# sourceMappingURL=index.d.ts.map

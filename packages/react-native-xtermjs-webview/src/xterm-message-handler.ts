@@ -1,7 +1,7 @@
 import {
-	handleTmuxScrollBatchBridgeMessage,
+	handleScrollbackBatchBridgeMessage,
 	type BridgeInboundMessage,
-	type TmuxScrollBatchEvent,
+	type ScrollbackBatchEvent,
 } from './bridge';
 
 type PendingSelectionRef = {
@@ -29,7 +29,7 @@ export function handleXtermBridgeInboundMessage(
 		onSelectionModeChange,
 		onScrollbackModeChange,
 		onScrollbackEnterRequested,
-		onTmuxScrollBatch,
+		onScrollbackBatch,
 	}: {
 		currentInstanceIdRef: { current: string | null };
 		pendingSelectionRef: PendingSelectionRef;
@@ -56,7 +56,7 @@ export function handleXtermBridgeInboundMessage(
 			instanceId: string;
 			requestId: number;
 		}) => void;
-		onTmuxScrollBatch?: (event: TmuxScrollBatchEvent) => void;
+		onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 	},
 ): boolean {
 	if (msg.type === 'initialized') {
@@ -126,5 +126,5 @@ export function handleXtermBridgeInboundMessage(
 		});
 		return true;
 	}
-	return handleTmuxScrollBatchBridgeMessage(msg, onTmuxScrollBatch);
+	return handleScrollbackBatchBridgeMessage(msg, onScrollbackBatch);
 }
