@@ -79,10 +79,15 @@ Regression guards:
 **Files:**
 
 - Create: `packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_command.rs`
+- Create: `packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_channel.rs`
 - Modify: `packages/react-native-uniffi-russh/rust/uniffi-russh/src/lib.rs`
 - Modify: `packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_connection.rs`
+- Modify: `packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_shell.rs`
+- Modify: `packages/react-native-uniffi-russh/rust/uniffi-russh/src/utils.rs`
 
-- [ ] **Step 1: Write failing native command collector tests**
+Status: implemented and CE1-hardened. The source files above are now authoritative over the original illustrative snippets below. The implemented shape includes exec-request success/failure handling, bounded command channel open/exec/eof startup awaits with a total exec-reply deadline, bounded shell channel open/request startup awaits with total reply deadlines, connection disconnect on channel-open timeout before a channel owner exists, required stdin EOF after accepted exec, non-final server EOF handling so exit metadata is preserved, bounded one-shot and startup output, bounded startup message count, exported native output-cap constants for the Task 2 API contract, close-on-drop startup channel guards, weak command-stream registry ownership with drop cleanup, registry race cleanup, best-effort/idempotent public close methods, bounded disconnect, and panic-safe foreign callback emission. `RunCommandOptions` is a new native Task 1 record, and Task 2 keeps the TypeScript wrapper's ergonomic `{ command }` call by mapping omitted `maxOutputBytes` to the native default. Native command completion remains intentionally unbounded after exec acceptance; Task 3 adds one-shot timeout/cancellation at the mobile runner layer.
+
+- [x] **Step 1: Write failing native command collector tests**
 
 Create `packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_command.rs` with this initial test-focused content:
 
@@ -134,7 +139,7 @@ pub mod ssh_shell;
 pub mod utils;
 ```
 
-- [ ] **Step 2: Run native tests to verify they fail**
+- [x] **Step 2: Run native tests to verify they fail**
 
 Run:
 
@@ -145,7 +150,7 @@ cargo test command_output_collector
 
 Expected: FAIL because `CommandOutputCollector` and command output records are not defined.
 
-- [ ] **Step 3: Add the native command module**
+- [x] **Step 3: Add the native command module**
 
 Replace `packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_command.rs` with:
 
@@ -274,6 +279,7 @@ pub(crate) async fn run_command(
         client_handle.channel_open_session().await?
     };
     channel.exec(true, options.command).await?;
+    channel.eof().await?;
 
     let mut collector = CommandOutputCollector::default();
 
@@ -287,7 +293,10 @@ pub(crate) async fn run_command(
             ChannelMsg::ExitSignal { signal_name, .. } => {
                 collector.record_exit_signal(signal_name);
             }
-            ChannelMsg::Close | ChannelMsg::Eof => break,
+            // EOF only means no more channel data; continue so later exit
+            // status/signal metadata is still captured.
+            ChannelMsg::Eof => {}
+            ChannelMsg::Close => break,
             _ => {}
         }
     }
@@ -307,6 +316,7 @@ pub(crate) async fn start_command_stream(
     };
     let channel_id: u32 = channel.id().into();
     channel.exec(true, options.command).await?;
+    channel.eof().await?;
 
     let (mut reader, writer) = channel.split();
     let callback = options.on_event_callback.clone();
@@ -330,7 +340,10 @@ pub(crate) async fn start_command_stream(
                 ChannelMsg::ExitSignal { signal_name, .. } => {
                     callback.on_event(CommandStreamEvent::ExitSignal { signal_name });
                 }
-                ChannelMsg::Close | ChannelMsg::Eof => {
+                // EOF only means no more channel data; keep reading for
+                // exit status/signal and final close.
+                ChannelMsg::Eof => {}
+                ChannelMsg::Close => {
                     callback.on_event(CommandStreamEvent::Closed);
                     break;
                 }
@@ -443,7 +456,7 @@ for stream in command_streams {
 }
 ```
 
-- [ ] **Step 4: Run native tests to verify they pass**
+- [x] **Step 4: Run native tests to verify they pass**
 
 Run:
 
@@ -454,7 +467,7 @@ cargo test command_output_collector
 
 Expected: PASS for the two collector tests.
 
-- [ ] **Step 5: Run native compile checks**
+- [x] **Step 5: Run native compile checks**
 
 Run:
 
@@ -465,15 +478,19 @@ cargo test
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit native command primitives**
+- [x] **Step 6: Commit native command primitives**
 
 Run:
 
 ```bash
 git add \
   packages/react-native-uniffi-russh/rust/uniffi-russh/src/lib.rs \
+  packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_channel.rs \
   packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_command.rs \
-  packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_connection.rs
+  packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_connection.rs \
+  packages/react-native-uniffi-russh/rust/uniffi-russh/src/ssh_shell.rs \
+  packages/react-native-uniffi-russh/rust/uniffi-russh/src/utils.rs \
+  docs/superpowers/plans/2026-06-03-noninteractive-mdev-command-transport.md
 git commit -m "Add noninteractive SSH command primitives"
 ```
 
@@ -528,13 +545,18 @@ export type SshCommandStream = {
 	readonly connectionId: string;
 	close: (opts?: { signal?: AbortSignal }) => Promise<void>;
 };
+
+export const DEFAULT_RUN_COMMAND_MAX_OUTPUT_BYTES =
+	GeneratedRussh.defaultRunCommandMaxOutputBytes();
+export const MAX_RUN_COMMAND_MAX_OUTPUT_BYTES =
+	GeneratedRussh.maxRunCommandMaxOutputBytes();
 ```
 
 Extend `SshConnection` in the same file:
 
 ```ts
 runCommand: (
-	opts: { command: string },
+	opts: { command: string; maxOutputBytes?: number },
 	asyncOpts?: { signal?: AbortSignal },
 ) => Promise<CommandOutput>;
 startCommandStream: (
@@ -550,6 +572,11 @@ pnpm --filter @fressh/react-native-uniffi-russh typecheck
 
 Expected: FAIL because `wrapConnection` does not implement `runCommand` or
 `startCommandStream`.
+
+Compatibility note: the TypeScript wrapper keeps `{ command }` as the ergonomic
+call shape by passing `null`/`undefined` for the native `max_output_bytes`
+option. The wrapper should expose the generated cap constants and only pass a
+native override when `maxOutputBytes` is provided.
 
 - [ ] **Step 3: Implement TypeScript wrappers**
 

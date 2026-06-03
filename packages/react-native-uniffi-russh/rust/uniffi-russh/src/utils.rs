@@ -1,11 +1,28 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use futures::FutureExt;
+use std::{
+    future::Future,
+    panic::{catch_unwind, AssertUnwindSafe},
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use thiserror::Error;
+
+pub(crate) const CLOSE_TIMEOUT: Duration = Duration::from_millis(500);
 
 pub(crate) fn now_ms() -> f64 {
     let d = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     d.as_millis() as f64
+}
+
+pub(crate) fn catch_foreign_callback_unwind(callback: impl FnOnce()) -> bool {
+    catch_unwind(AssertUnwindSafe(callback)).is_ok()
+}
+
+pub(crate) async fn catch_foreign_callback_future_unwind<T>(
+    callback: impl Future<Output = T>,
+) -> Option<T> {
+    AssertUnwindSafe(callback).catch_unwind().await.ok()
 }
 
 // TODO: Split this into different errors for each public function
