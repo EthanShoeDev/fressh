@@ -25,6 +25,34 @@ export const KEYBOARD_TARGET_ACTION_IDS = [
 	'OPEN_BROWSER_KEYBOARD',
 ] as const;
 
+export type WorkmuxKeyboardCommand =
+	| { type: 'focus'; target: WorkmuxFocusTarget }
+	| { type: 'nav'; action: WorkmuxNavAction; index?: number };
+const WORKMUX_KEYBOARD_ACTION_ENTRIES = [
+	['WORKMUX_FOCUS_CLAUDE', { type: 'focus', target: 'claude' }],
+	['WORKMUX_FOCUS_GIT', { type: 'focus', target: 'git' }],
+	['WORKMUX_FOCUS_CODEX', { type: 'focus', target: 'codex' }],
+	['WORKMUX_FOCUS_BASH', { type: 'focus', target: 'bash' }],
+	['WORKMUX_FOCUS_PREV', { type: 'focus', target: 'prev' }],
+	['WORKMUX_FOCUS_NEXT', { type: 'focus', target: 'next' }],
+	[
+		'WORKMUX_FOCUS_TOGGLE_GIT_BASH',
+		{ type: 'focus', target: 'toggle-git-bash' },
+	],
+	['WORKMUX_NAV_PREV', { type: 'nav', action: 'prev' }],
+	['WORKMUX_NAV_NEXT', { type: 'nav', action: 'next' }],
+	['WORKMUX_NAV_PREV_ALL', { type: 'nav', action: 'prev-all' }],
+	['WORKMUX_NAV_NEXT_ALL', { type: 'nav', action: 'next-all' }],
+] as const satisfies readonly (readonly [string, WorkmuxKeyboardCommand])[];
+export type WorkmuxKeyboardActionId =
+	(typeof WORKMUX_KEYBOARD_ACTION_ENTRIES)[number][0];
+export const WORKMUX_KEYBOARD_ACTION_IDS = WORKMUX_KEYBOARD_ACTION_ENTRIES.map(
+	([actionId]) => actionId,
+);
+export const WORKMUX_KEYBOARD_ACTION_COMMANDS = Object.fromEntries(
+	WORKMUX_KEYBOARD_ACTION_ENTRIES,
+) as Record<WorkmuxKeyboardActionId, WorkmuxKeyboardCommand>;
+
 export const KNOWN_ACTION_IDS = [
 	'ROTATE_KEYBOARD',
 	'OPEN_KEYBOARD_SETTINGS',
@@ -49,17 +77,7 @@ export const KNOWN_ACTION_IDS = [
 	'EDIT_HOST_URL_DEV_SERVER',
 	'EDIT_HOST_URL_STORYBOOK',
 	'EDIT_HOST_URL_APP',
-	'WORKMUX_FOCUS_CLAUDE',
-	'WORKMUX_FOCUS_GIT',
-	'WORKMUX_FOCUS_CODEX',
-	'WORKMUX_FOCUS_BASH',
-	'WORKMUX_FOCUS_PREV',
-	'WORKMUX_FOCUS_NEXT',
-	'WORKMUX_FOCUS_TOGGLE_GIT_BASH',
-	'WORKMUX_NAV_PREV',
-	'WORKMUX_NAV_NEXT',
-	'WORKMUX_NAV_PREV_ALL',
-	'WORKMUX_NAV_NEXT_ALL',
+	...WORKMUX_KEYBOARD_ACTION_IDS,
 	'CYCLE_WORKMUX_STATUS',
 ] as const;
 
@@ -73,9 +91,6 @@ export type KnownActionId = (typeof KNOWN_ACTION_IDS)[number];
 export type KeyboardTargetActionId =
 	(typeof KEYBOARD_TARGET_ACTION_IDS)[number];
 export type ActionId = KnownActionId | (string & {});
-export type WorkmuxKeyboardCommand =
-	| { type: 'focus'; target: WorkmuxFocusTarget }
-	| { type: 'nav'; action: WorkmuxNavAction; index?: number };
 export type WorkmuxKeyboardCommandRunResult =
 	| { status: 'handled' }
 	| { status: 'superseded' };
@@ -121,7 +136,7 @@ export function createWorkmuxKeyboardCommandRunner({
 	let pending:
 		| {
 				command: WorkmuxKeyboardCommand;
-				resolves: ((result: WorkmuxKeyboardCommandRunResult) => void)[];
+				resolve: (result: WorkmuxKeyboardCommandRunResult) => void;
 			}
 		| null = null;
 
@@ -151,16 +166,14 @@ export function createWorkmuxKeyboardCommandRunner({
 
 	const drain = async (queued: {
 		command: WorkmuxKeyboardCommand;
-		resolves: ((result: WorkmuxKeyboardCommandRunResult) => void)[];
+		resolve: (result: WorkmuxKeyboardCommandRunResult) => void;
 	}): Promise<void> => {
 		running = true;
 		try {
 			let current: typeof queued | null = queued;
 			while (current) {
 				await execute(current.command);
-				for (const resolve of current.resolves) {
-					resolve({ status: 'handled' });
-				}
+				current.resolve({ status: 'handled' });
 				current = pending;
 				pending = null;
 			}
@@ -177,14 +190,12 @@ export function createWorkmuxKeyboardCommandRunner({
 	return {
 		run: (command) => {
 			return new Promise<WorkmuxKeyboardCommandRunResult>((resolve) => {
-				const queued = { command, resolves: [resolve] };
+				const queued = { command, resolve };
 				if (!running) {
 					void drain(queued);
 					return;
 				}
-				for (const resolve of pending?.resolves ?? []) {
-					resolve({ status: 'superseded' });
-				}
+				pending?.resolve({ status: 'superseded' });
 				pending = queued;
 			});
 		},
@@ -219,7 +230,9 @@ export type ActionContext = {
 	openHostUrlSlot?: (slot: HostBrowserUrlSlot) => void;
 	openHostDetected?: (mode: 'auto' | 'pick') => void;
 	editHostUrlSlot?: (slot: HostBrowserUrlSlot) => void;
-	runWorkmuxKeyboardCommand?: (command: WorkmuxKeyboardCommand) => void;
+	runWorkmuxKeyboardCommand?: (
+		command: WorkmuxKeyboardCommand,
+	) => Promise<WorkmuxKeyboardCommandRunResult>;
 	cycleWorkmuxStatus?: () => void;
 };
 
@@ -235,10 +248,26 @@ function selectKeyboardForAction(
 	}
 }
 
+function getWorkmuxKeyboardActionCommand(
+	actionId: ActionId,
+): WorkmuxKeyboardCommand | null {
+	return Object.prototype.hasOwnProperty.call(
+		WORKMUX_KEYBOARD_ACTION_COMMANDS,
+		actionId,
+	)
+		? WORKMUX_KEYBOARD_ACTION_COMMANDS[actionId as WorkmuxKeyboardActionId]
+		: null;
+}
+
 export async function runAction(
 	actionId: ActionId,
 	context: ActionContext,
-): Promise<void> {
+): Promise<void | WorkmuxKeyboardCommandRunResult> {
+	const workmuxKeyboardCommand = getWorkmuxKeyboardActionCommand(actionId);
+	if (workmuxKeyboardCommand) {
+		return context.runWorkmuxKeyboardCommand?.(workmuxKeyboardCommand);
+	}
+
 	switch (actionId) {
 		case 'OPEN_MAIN_MENU': {
 			selectKeyboardForAction('OPEN_MAIN_MENU', context);
@@ -322,53 +351,6 @@ export async function runAction(
 		}
 		case 'EDIT_HOST_URL_APP': {
 			context.editHostUrlSlot?.('app-url');
-			return;
-		}
-		case 'WORKMUX_FOCUS_CLAUDE': {
-			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'claude' });
-			return;
-		}
-		case 'WORKMUX_FOCUS_GIT': {
-			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'git' });
-			return;
-		}
-		case 'WORKMUX_FOCUS_CODEX': {
-			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'codex' });
-			return;
-		}
-		case 'WORKMUX_FOCUS_BASH': {
-			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'bash' });
-			return;
-		}
-		case 'WORKMUX_FOCUS_PREV': {
-			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'prev' });
-			return;
-		}
-		case 'WORKMUX_FOCUS_NEXT': {
-			context.runWorkmuxKeyboardCommand?.({ type: 'focus', target: 'next' });
-			return;
-		}
-		case 'WORKMUX_FOCUS_TOGGLE_GIT_BASH': {
-			context.runWorkmuxKeyboardCommand?.({
-				type: 'focus',
-				target: 'toggle-git-bash',
-			});
-			return;
-		}
-		case 'WORKMUX_NAV_PREV': {
-			context.runWorkmuxKeyboardCommand?.({ type: 'nav', action: 'prev' });
-			return;
-		}
-		case 'WORKMUX_NAV_NEXT': {
-			context.runWorkmuxKeyboardCommand?.({ type: 'nav', action: 'next' });
-			return;
-		}
-		case 'WORKMUX_NAV_PREV_ALL': {
-			context.runWorkmuxKeyboardCommand?.({ type: 'nav', action: 'prev-all' });
-			return;
-		}
-		case 'WORKMUX_NAV_NEXT_ALL': {
-			context.runWorkmuxKeyboardCommand?.({ type: 'nav', action: 'next-all' });
 			return;
 		}
 		case 'CYCLE_WORKMUX_STATUS': {

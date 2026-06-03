@@ -4,6 +4,8 @@ import { HOST_BROWSER_NO_CONNECTION_MESSAGE } from '../../src/lib/host-browser-a
 import {
 	CONFIG_SUPPORTED_ACTION_IDS,
 	KNOWN_ACTION_IDS,
+	WORKMUX_KEYBOARD_ACTION_COMMANDS,
+	WORKMUX_KEYBOARD_ACTION_IDS,
 	WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
 	createWorkmuxKeyboardCommandRunner,
 	formatWorkmuxKeyboardCommandFailureMessage,
@@ -205,22 +207,6 @@ void test('browser actions menu action delegates to the action context', async (
 });
 
 void test('Workmux keyboard actions delegate semantic commands without sending bytes', async () => {
-	const cases: [string, WorkmuxKeyboardCommand][] = [
-		['WORKMUX_FOCUS_CLAUDE', { type: 'focus', target: 'claude' }],
-		['WORKMUX_FOCUS_GIT', { type: 'focus', target: 'git' }],
-		['WORKMUX_FOCUS_CODEX', { type: 'focus', target: 'codex' }],
-		['WORKMUX_FOCUS_BASH', { type: 'focus', target: 'bash' }],
-		['WORKMUX_FOCUS_PREV', { type: 'focus', target: 'prev' }],
-		['WORKMUX_FOCUS_NEXT', { type: 'focus', target: 'next' }],
-		[
-			'WORKMUX_FOCUS_TOGGLE_GIT_BASH',
-			{ type: 'focus', target: 'toggle-git-bash' },
-		],
-		['WORKMUX_NAV_PREV', { type: 'nav', action: 'prev' }],
-		['WORKMUX_NAV_NEXT', { type: 'nav', action: 'next' }],
-		['WORKMUX_NAV_PREV_ALL', { type: 'nav', action: 'prev-all' }],
-		['WORKMUX_NAV_NEXT_ALL', { type: 'nav', action: 'next-all' }],
-	];
 	const commands: WorkmuxKeyboardCommand[] = [];
 	let sentBytes = 0;
 
@@ -234,21 +220,26 @@ void test('Workmux keyboard actions delegate semantic commands without sending b
 		},
 		pasteClipboard: async () => {},
 		copySelection: () => {},
-		runWorkmuxKeyboardCommand: (command: WorkmuxKeyboardCommand) => {
+		runWorkmuxKeyboardCommand: async (command: WorkmuxKeyboardCommand) => {
 			commands.push(command);
+			return { status: 'handled' };
 		},
 	} as Parameters<typeof runAction>[1];
 
-	for (const [actionId] of cases) {
-		await runAction(actionId, context);
+	for (const actionId of WORKMUX_KEYBOARD_ACTION_IDS) {
+		assert.deepEqual(await runAction(actionId, context), {
+			status: 'handled',
+		});
 	}
 
 	assert.deepEqual(
 		commands,
-		cases.map(([, command]) => command),
+		WORKMUX_KEYBOARD_ACTION_IDS.map(
+			(actionId) => WORKMUX_KEYBOARD_ACTION_COMMANDS[actionId],
+		),
 	);
 	assert.equal(sentBytes, 0);
-	for (const [actionId] of cases) {
+	for (const actionId of WORKMUX_KEYBOARD_ACTION_IDS) {
 		assert.equal(
 			KNOWN_ACTION_IDS.includes(actionId as (typeof KNOWN_ACTION_IDS)[number]),
 			true,
@@ -341,7 +332,13 @@ void test('Workmux keyboard command runner bounds pending repeated commands to t
 	const first = runner.run({ type: 'nav', action: 'prev' });
 	const queued: ReturnType<typeof runner.run>[] = [];
 	for (let index = 0; index < 1_000; index += 1) {
-		queued.push(runner.run({ type: 'nav', action: 'next' }));
+		queued.push(
+			runner.run(
+				index === 999
+					? { type: 'focus', target: 'bash' }
+					: { type: 'nav', action: 'next' },
+			),
+		);
 	}
 
 	await Promise.resolve();
@@ -352,7 +349,7 @@ void test('Workmux keyboard command runner bounds pending repeated commands to t
 
 	assert.deepEqual(calls, [
 		"mdev tmux app nav 'prev' --session 'main'",
-		"mdev tmux app nav 'next' --session 'main'",
+		"mdev tmux app focus 'bash' --session 'main'",
 	]);
 	assert.deepEqual(results, [
 		{ status: 'handled' },

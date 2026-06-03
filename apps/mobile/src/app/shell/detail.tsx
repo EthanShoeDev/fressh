@@ -2185,7 +2185,7 @@ function ShellDetail() {
 
 	const runWorkmuxKeyboardCommand = useCallback(
 		(command: WorkmuxKeyboardCommand) => {
-			void workmuxKeyboardCommandRunner.run(command);
+			return workmuxKeyboardCommandRunner.run(command);
 		},
 		[workmuxKeyboardCommandRunner],
 	);
