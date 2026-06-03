@@ -6,6 +6,7 @@ import {
 } from '../../src/lib/browser-actions-controller-actions';
 import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	isWorkmuxAppCommand,
 	type WorkmuxAppContext,
 } from '../../src/lib/workmux-app-commands';
 
@@ -43,7 +44,7 @@ function createRemoteHarness(options?: {
 			timeoutMs: number,
 		): Promise<string> => {
 			commands.push({ command, timeoutMs });
-			if (command.startsWith('mdev tmux app context ')) {
+			if (isWorkmuxAppCommand(command) && command.includes(' context ')) {
 				const failure = options?.contextFailure;
 				if (failure) {
 					throw new Error(
