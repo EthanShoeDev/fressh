@@ -1,6 +1,6 @@
 {
-	"version": "2026-06-01.1",
-	"updatedAt": "2026-06-01T09:49:09Z",
+	"version": "2026-06-03.1",
+	"updatedAt": "2026-06-03T05:39:32Z",
 	"defaultKeyboardId": "phone_base",
 	"activeKeyboardIds": ["phone_base", "advanced_keyboard", "browser_keyboard"],
 	"keyboardRouting": {
@@ -51,45 +51,45 @@
 						"icon": null
 					},
 					{
-						"type": "bytes",
-						"bytes": [27, 91, 49, 59, 53, 66],
+						"type": "action",
+						"actionId": "WORKMUX_FOCUS_NEXT",
 						"label": "Role",
 						"icon": "SquareSplitVertical",
 						"longPress": {
 							"options": [
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 53, 66],
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_NEXT",
 									"label": "Next role",
 									"icon": null
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 53, 65],
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_PREV",
 									"label": "Prev role",
 									"icon": null
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 99],
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_CLAUDE",
 									"label": "Claude",
 									"icon": null
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 103],
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_GIT",
 									"label": "Git",
 									"icon": null
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 120],
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_CODEX",
 									"label": "Codex",
 									"icon": null
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 98],
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_BASH",
 									"label": "Bash",
 									"icon": null
 								}
@@ -97,34 +97,34 @@
 						}
 					},
 					{
-						"type": "bytes",
-						"bytes": [27, 91, 49, 59, 53, 67],
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT",
 						"label": "Work",
 						"icon": "AppWindow",
 						"span": 2,
 						"longPress": {
 							"options": [
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 53, 67],
+									"type": "action",
+									"actionId": "WORKMUX_NAV_NEXT",
 									"label": "Next work",
 									"icon": null
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 53, 68],
+									"type": "action",
+									"actionId": "WORKMUX_NAV_PREV",
 									"label": "Prev work",
 									"icon": null
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 55, 67],
+									"type": "action",
+									"actionId": "WORKMUX_NAV_NEXT_ALL",
 									"label": "Next all",
 									"icon": null
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 55, 68],
+									"type": "action",
+									"actionId": "WORKMUX_NAV_PREV_ALL",
 									"label": "Prev all",
 									"icon": null
 								}
@@ -162,8 +162,8 @@
 									"icon": "ChevronsUp"
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 55, 68],
+									"type": "action",
+									"actionId": "WORKMUX_NAV_PREV_ALL",
 									"label": "Prev all",
 									"icon": null
 								}
@@ -190,8 +190,8 @@
 									"icon": "ChevronsDown"
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 55, 67],
+									"type": "action",
+									"actionId": "WORKMUX_NAV_NEXT_ALL",
 									"label": "Next all",
 									"icon": null
 								}
