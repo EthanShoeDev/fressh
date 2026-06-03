@@ -24,10 +24,11 @@ async function withTestTimeout<T>(promise: Promise<T>, timeoutMs = 100) {
 }
 
 function createConnection(options?: {
-	startCommandStream?: (
-		opts: { command: string; onEvent: (event: Event) => void },
-		asyncOpts?: { signal?: AbortSignal },
-	) => Promise<{ close: (opts?: { signal?: AbortSignal }) => Promise<void> }>;
+	startCommandStream?: (opts: {
+		command: string;
+		onEvent: (event: Event) => void;
+		abortSignal?: AbortSignal;
+	}) => Promise<{ close: (opts?: { signal?: AbortSignal }) => Promise<void> }>;
 	close?: (opts?: { signal?: AbortSignal }) => Promise<void>;
 }) {
 	let onEvent: ((event: Event) => void) | null = null;
@@ -44,14 +45,15 @@ function createConnection(options?: {
 			onEvent?.(event);
 		},
 		connection: {
-			startCommandStream: async (
-				opts: { command: string; onEvent: (event: Event) => void },
-				asyncOpts?: { signal?: AbortSignal },
-			) => {
-				starts.push({ command: opts.command, signal: asyncOpts?.signal });
+			startCommandStream: async (opts: {
+				command: string;
+				onEvent: (event: Event) => void;
+				abortSignal?: AbortSignal;
+			}) => {
+				starts.push({ command: opts.command, signal: opts.abortSignal });
 				onEvent = opts.onEvent;
 				if (options?.startCommandStream) {
-					return options.startCommandStream(opts, asyncOpts);
+					return options.startCommandStream(opts);
 				}
 				return {
 					close: async (closeOpts?: { signal?: AbortSignal }) => {
@@ -208,8 +210,8 @@ void test('startRemoteJsonlListener still closes after exit handler failure', as
 
 void test('startRemoteJsonlListener aborts slow start and logs slow close', async () => {
 	const fixture = createConnection({
-		startCommandStream: async (_opts, asyncOpts) => {
-			assert.equal(asyncOpts?.signal instanceof AbortSignal, true);
+		startCommandStream: async (opts) => {
+			assert.equal(opts.abortSignal instanceof AbortSignal, true);
 			return new Promise(() => {});
 		},
 	});
@@ -247,4 +249,32 @@ void test('startRemoteJsonlListener aborts slow start and logs slow close', asyn
 
 	assert.equal(closeFixture.closeOptions[0]?.signal?.aborted, true);
 	assert.equal(warn.mock.callCount(), 1);
+});
+
+void test('startRemoteJsonlListener closes a stream that exits before start resolves', async () => {
+	let closed = 0;
+	const fixture = createConnection({
+		startCommandStream: async (opts) => {
+			opts.onEvent({ type: 'exitStatus', exitStatus: 2 });
+			return {
+				close: async () => {
+					closed += 1;
+				},
+			};
+		},
+	});
+	const exits: unknown[] = [];
+
+	const handle = await startRemoteJsonlListener({
+		connection: fixture.connection,
+		command: 'listen',
+		onLine: () => {},
+		onExit: (error) => exits.push(error),
+	});
+	await waitTimeout(0);
+
+	assert.match(String(exits[0]), /Remote stream exited with status 2/);
+	assert.equal(closed, 1);
+	await handle.stop();
+	assert.equal(closed, 1);
 });

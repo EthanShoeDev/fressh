@@ -209,7 +209,7 @@ fn command_stream_reader_effects(
 
     if message_finishes_reader {
         return CommandStreamReaderEffects {
-            close_writer: false,
+            close_writer: true,
             emit_closed: true,
             remove_session: true,
             stop_reader: true,
@@ -765,7 +765,7 @@ mod tests {
             assert_eq!(
                 effects,
                 CommandStreamReaderEffects {
-                    close_writer: false,
+                    close_writer: true,
                     emit_closed: true,
                     remove_session: true,
                     stop_reader: true,

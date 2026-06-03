@@ -8,13 +8,11 @@ export type RemoteJsonlCommandStreamEvent =
 	| { type: 'closed' };
 
 export type RemoteJsonlStreamConnection = {
-	startCommandStream: (
-		opts: {
-			command: string;
-			onEvent: (event: RemoteJsonlCommandStreamEvent) => void;
-		},
-		asyncOpts?: { signal?: AbortSignal },
-	) => Promise<{ close: (opts?: { signal?: AbortSignal }) => Promise<void> }>;
+	startCommandStream: (opts: {
+		command: string;
+		onEvent: (event: RemoteJsonlCommandStreamEvent) => void;
+		abortSignal?: AbortSignal;
+	}) => Promise<{ close: (opts?: { signal?: AbortSignal }) => Promise<void> }>;
 };
 
 export type RemoteJsonlListenerHandle = {
@@ -87,6 +85,7 @@ export async function startRemoteJsonlListener(input: {
 	let stream: Awaited<
 		ReturnType<RemoteJsonlStreamConnection['startCommandStream']>
 	> | null = null;
+	let closeStreamAfterStart = false;
 
 	const closeStream = async (
 		targetStream: NonNullable<typeof stream>,
@@ -105,11 +104,15 @@ export async function startRemoteJsonlListener(input: {
 	const reportExit = (error?: unknown, options?: { closeStream?: boolean }) => {
 		if (stopped) return;
 		stopped = true;
-		if (options?.closeStream && stream) {
-			void closeStream(
-				stream,
-				'failed to close remote JSONL listener after exit',
-			);
+		if (options?.closeStream) {
+			if (stream) {
+				void closeStream(
+					stream,
+					'failed to close remote JSONL listener after exit',
+				);
+			} else {
+				closeStreamAfterStart = true;
+			}
 		}
 		try {
 			input.onExit(error);
@@ -119,54 +122,48 @@ export async function startRemoteJsonlListener(input: {
 	};
 
 	const startAbortController = new AbortController();
-	const startPromise = input.connection.startCommandStream(
-		{
-			command: input.command,
-			onEvent: (event) => {
-				if (stopped) return;
-				try {
-					if (event.type === 'stdout') {
-						emitLines({
-							chunk: stdoutDecoder.decode(event.bytes, { stream: true }),
-							buffer: stdoutBuffer,
-							onLine: input.onLine,
-						});
-						return;
-					}
-					if (event.type === 'stderr') {
-						emitLines({
-							chunk: stderrDecoder.decode(event.bytes, { stream: true }),
-							buffer: stderrBuffer,
-							onLine: input.onStderr ?? (() => {}),
-						});
-						return;
-					}
-					if (event.type === 'exitStatus' && event.exitStatus !== 0) {
-						reportExit(
-							new Error(
-								`Remote stream exited with status ${event.exitStatus}.`,
-							),
-							{ closeStream: true },
-						);
-						return;
-					}
-					if (event.type === 'exitSignal') {
-						reportExit(
-							new Error(
-								`Remote stream exited with signal ${event.signalName}.`,
-							),
-							{ closeStream: true },
-						);
-						return;
-					}
-					if (event.type === 'closed') reportExit();
-				} catch (error) {
-					reportExit(error, { closeStream: true });
+	const startPromise = input.connection.startCommandStream({
+		command: input.command,
+		abortSignal: startAbortController.signal,
+		onEvent: (event) => {
+			if (stopped) return;
+			try {
+				if (event.type === 'stdout') {
+					emitLines({
+						chunk: stdoutDecoder.decode(event.bytes, { stream: true }),
+						buffer: stdoutBuffer,
+						onLine: input.onLine,
+					});
+					return;
 				}
-			},
+				if (event.type === 'stderr') {
+					emitLines({
+						chunk: stderrDecoder.decode(event.bytes, { stream: true }),
+						buffer: stderrBuffer,
+						onLine: input.onStderr ?? (() => {}),
+					});
+					return;
+				}
+				if (event.type === 'exitStatus' && event.exitStatus !== 0) {
+					reportExit(
+						new Error(`Remote stream exited with status ${event.exitStatus}.`),
+						{ closeStream: true },
+					);
+					return;
+				}
+				if (event.type === 'exitSignal') {
+					reportExit(
+						new Error(`Remote stream exited with signal ${event.signalName}.`),
+						{ closeStream: true },
+					);
+					return;
+				}
+				if (event.type === 'closed') reportExit();
+			} catch (error) {
+				reportExit(error, { closeStream: true });
+			}
 		},
-		{ signal: startAbortController.signal },
-	);
+	});
 	try {
 		stream = await withListenerTimeout(
 			startPromise,
@@ -183,6 +180,12 @@ export async function startRemoteJsonlListener(input: {
 			)
 			.catch(() => {});
 		throw error;
+	}
+	if (closeStreamAfterStart) {
+		void closeStream(
+			stream,
+			'failed to close remote JSONL listener after exit',
+		);
 	}
 
 	return {
