@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import * as hostBrowserActions from '../../src/lib/host-browser-actions';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../../..');
 
@@ -332,4 +333,17 @@ void test('direct tmux command strings are absent outside the app boundary', () 
 		[],
 		JSON.stringify([...actualOccurrencesByFile.entries()]),
 	);
+});
+
+void test('host browser actions do not export legacy tmux context helpers', () => {
+	const removedExportNames = [
+		['build', 'HostBrowser', 'Pane', 'Context', 'Command'],
+		['build', 'HostBrowser', 'Pane', 'Path', 'Command'],
+		['build', 'Tmux', 'Current', 'Window', 'Id', 'Command'],
+		['parse', 'Tmux', 'Pane', 'Context', 'Output'],
+	].map((parts) => parts.join(''));
+
+	for (const name of removedExportNames) {
+		assert.equal(Object.hasOwn(hostBrowserActions, name), false, name);
+	}
 });
