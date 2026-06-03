@@ -7,7 +7,6 @@ import {
 	buildWorkmuxAppFocusCommand,
 	buildWorkmuxAppNavCommand,
 	buildWorkmuxAppNotificationOpenCommand,
-	buildWorkmuxAppStatusCycleCommand,
 	buildWorkmuxAppScrollEnterCommand,
 	buildWorkmuxAppScrollExitCommand,
 	buildWorkmuxAppScrollPageCommand,
@@ -96,10 +95,6 @@ void test('workmux app command builders shell-quote app arguments', () => {
 	assert.equal(
 		buildWorkmuxAppNavCommand('main', 'prev-all'),
 		"mdev tmux app nav 'prev-all' --session 'main'",
-	);
-	assert.equal(
-		buildWorkmuxAppStatusCycleCommand("main'quoted"),
-		"mdev tmux app nav 'next-all' --session 'main'\\''quoted'",
 	);
 });
 
@@ -282,6 +277,30 @@ void test('workmux app parsers default missing optional strings', () => {
 		workspaceId: '',
 		role: '',
 	});
+});
+
+void test('workmux app parsers do not require window metadata', () => {
+	const {
+		homeWindow: _contextHomeWindow,
+		roleWindow: _contextRoleWindow,
+		windowIndex: _contextWindowIndex,
+		...minimalContext
+	} = context;
+	const {
+		homeWindow: _windowHomeWindow,
+		roleWindow: _windowRoleWindow,
+		windowIndex: _windowIndex,
+		...minimalWindow
+	} = windowProjection;
+
+	assert.deepEqual(
+		parseWorkmuxAppContextOutput(JSON.stringify(minimalContext)),
+		minimalContext,
+	);
+	assert.deepEqual(
+		parseWorkmuxAppWindowOutput(JSON.stringify(minimalWindow)),
+		minimalWindow,
+	);
 });
 
 void test('workmux app parsers reject non-string optional fields', () => {

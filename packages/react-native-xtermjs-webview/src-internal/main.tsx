@@ -261,6 +261,7 @@ window.onload = () => {
 						break;
 					}
 					case 'exitScrollback': {
+						if (msg.instanceId && msg.instanceId !== instanceId) return;
 						touchScrollController.exitScrollback({
 							requestId: msg.requestId,
 						});

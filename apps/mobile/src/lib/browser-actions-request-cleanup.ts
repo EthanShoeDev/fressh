@@ -1,5 +1,4 @@
 import { type RequestIdHandle } from './request-id';
-import { type WorkmuxStatusCycleHandle } from './workmux-status-cycle';
 
 export type BrowserActionsRequestCleanupDeps = {
 	hostUrlReadRequestId: RequestIdHandle;
@@ -10,7 +9,6 @@ export type BrowserActionsRequestCleanupDeps = {
 	hostDiffityInFlightRef: { current: boolean };
 	hostDetectedOpenRequestId: RequestIdHandle;
 	hostDetectedOpenInFlightRef: { current: boolean };
-	statusCycleHandle: WorkmuxStatusCycleHandle;
 };
 
 export function cleanupBrowserActionRequests({
@@ -22,7 +20,6 @@ export function cleanupBrowserActionRequests({
 	hostDiffityInFlightRef,
 	hostDetectedOpenRequestId,
 	hostDetectedOpenInFlightRef,
-	statusCycleHandle,
 }: BrowserActionsRequestCleanupDeps): void {
 	hostUrlReadRequestId.invalidate();
 	hostUrlSubmitRequestId.invalidate();
@@ -32,5 +29,4 @@ export function cleanupBrowserActionRequests({
 	hostDiffityInFlightRef.current = false;
 	hostDetectedOpenRequestId.invalidate();
 	hostDetectedOpenInFlightRef.current = false;
-	statusCycleHandle.invalidate();
 }

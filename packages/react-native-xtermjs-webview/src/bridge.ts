@@ -99,7 +99,7 @@ export type BridgeOutboundMessage =
 	| { type: 'getSelection'; requestId: number }
 	| { type: 'setSelectionMode'; enabled: boolean }
 	| { type: 'setTouchScrollConfig'; config: TouchScrollConfig }
-	| { type: 'exitScrollback'; requestId?: number }
+	| { type: 'exitScrollback'; requestId?: number; instanceId?: string }
 	| {
 			type: 'scrollbackEnterAck';
 			requestId: number;

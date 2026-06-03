@@ -107,6 +107,7 @@ export type BridgeOutboundMessage = {
 } | {
     type: 'exitScrollback';
     requestId?: number;
+    instanceId?: string;
 } | {
     type: 'scrollbackEnterAck';
     requestId: number;

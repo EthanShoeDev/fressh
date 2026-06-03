@@ -19,10 +19,6 @@ import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
 import { createHostDiffityRequestController } from '@/lib/host-diffity-request-controller';
 import { formatWorkmuxAppCommandFailureMessage } from '@/lib/workmux-app-commands';
 import {
-	createWorkmuxStatusCycleHandle,
-	runWorkmuxStatusCycleRequest,
-} from '@/lib/workmux-status-cycle';
-import {
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
 	extractLastHttpsUrl,
@@ -613,7 +609,6 @@ export type BrowserActionsControllerHandle = {
 	) => Promise<string>;
 	invalidateHostUrlReads: () => void;
 	invalidateAll: () => void;
-	cycleWorkmuxStatus: () => void;
 };
 
 export type BrowserActionsControllerDeps<TConnection> = {
@@ -657,16 +652,6 @@ export function useBrowserActionsController<TConnection>(
 	const hostDiffityInFlightRef = useRef(false);
 	const hostDetectedOpenRequestId = useRequestId();
 	const hostDetectedOpenInFlightRef = useRef(false);
-	const statusCycleRequestId = useRequestId();
-	const statusCycleInFlightRef = useRef(false);
-	const statusCycleHandle = useMemo(
-		() =>
-			createWorkmuxStatusCycleHandle({
-				requestId: statusCycleRequestId,
-				inFlightRef: statusCycleInFlightRef,
-			}),
-		[statusCycleRequestId],
-	);
 
 	const showError = useCallback((title: string, message: string) => {
 		Alert.alert(title, message);
@@ -1030,24 +1015,6 @@ export function useBrowserActionsController<TConnection>(
 		],
 	);
 
-	const cycleWorkmuxStatus = useCallback(() => {
-		runWorkmuxStatusCycleRequest({
-			tmuxEnabled,
-			tmuxTarget,
-			handle: statusCycleHandle,
-			runHostBrowserCommand,
-			showError,
-			getErrorMessage,
-		});
-	}, [
-		getErrorMessage,
-		runHostBrowserCommand,
-		showError,
-		statusCycleHandle,
-		tmuxEnabled,
-		tmuxTarget,
-	]);
-
 	const invalidateAll = useCallback(() => {
 		cleanupBrowserActionRequests({
 			hostUrlReadRequestId,
@@ -1058,7 +1025,6 @@ export function useBrowserActionsController<TConnection>(
 			hostDiffityInFlightRef,
 			hostDetectedOpenRequestId,
 			hostDetectedOpenInFlightRef,
-			statusCycleHandle,
 		});
 		setHostUrlModalState(null);
 		setHostUrlModalSubmitting(false);
@@ -1069,7 +1035,6 @@ export function useBrowserActionsController<TConnection>(
 		hostDiffityRequestId,
 		hostUrlReadRequestId,
 		hostUrlSubmitRequestId,
-		statusCycleHandle,
 	]);
 
 	useEffect(() => {
@@ -1083,7 +1048,6 @@ export function useBrowserActionsController<TConnection>(
 				hostDiffityInFlightRef,
 				hostDetectedOpenRequestId,
 				hostDetectedOpenInFlightRef,
-				statusCycleHandle,
 			});
 		};
 	}, [
@@ -1092,7 +1056,6 @@ export function useBrowserActionsController<TConnection>(
 		hostDiffityRequestId,
 		hostUrlReadRequestId,
 		hostUrlSubmitRequestId,
-		statusCycleHandle,
 	]);
 
 	const browserActionsProps = useMemo<BrowserActionsModalProps>(
@@ -1154,12 +1117,10 @@ export function useBrowserActionsController<TConnection>(
 			runHostBrowserCommand,
 			invalidateHostUrlReads,
 			invalidateAll,
-			cycleWorkmuxStatus,
 		}),
 		[
 			browserActionsProps,
 			close,
-			cycleWorkmuxStatus,
 			hostUrlProps,
 			invalidateAll,
 			invalidateHostUrlReads,

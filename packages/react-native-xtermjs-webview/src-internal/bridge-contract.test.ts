@@ -453,6 +453,7 @@ void test('XtermJsWebView scrollback enter failure handler sends fallback exit',
 		{
 			type: 'exitScrollback',
 			requestId: 7,
+			instanceId: 'instance-1',
 		},
 	]);
 	assert.equal(warnings.length, 1);
@@ -461,11 +462,13 @@ void test('XtermJsWebView scrollback enter failure handler sends fallback exit',
 void test('XtermJsWebView scrollback enter failure fallback exits pending request', () => {
 	assert.deepEqual(
 		buildScrollbackEnterRequestFailureMessage({
+			instanceId: 'instance-1',
 			requestId: 7,
 		}),
 		{
 			type: 'exitScrollback',
 			requestId: 7,
+			instanceId: 'instance-1',
 		},
 	);
 });

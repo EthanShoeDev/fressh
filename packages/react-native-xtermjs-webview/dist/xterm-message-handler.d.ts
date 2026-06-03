@@ -50,6 +50,7 @@ export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessag
     onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 }): boolean;
 export declare function buildScrollbackEnterRequestFailureMessage(event: {
+    instanceId: string;
     requestId: number;
 }): BridgeOutboundMessage;
 export {};

@@ -67,6 +67,18 @@ void test('tmux history is not a known keyboard action', () => {
 		),
 		false,
 	);
+	assert.equal(
+		KNOWN_ACTION_IDS.includes(
+			'CYCLE_TMUX_WINDOW' as (typeof KNOWN_ACTION_IDS)[number],
+		),
+		false,
+	);
+	assert.equal(
+		CONFIG_SUPPORTED_ACTION_IDS.includes(
+			'CYCLE_TMUX_WINDOW' as (typeof CONFIG_SUPPORTED_ACTION_IDS)[number],
+		),
+		false,
+	);
 });
 
 void test('Wispr text action delegates to the action context', async () => {

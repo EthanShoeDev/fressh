@@ -40,6 +40,7 @@ export type XtermWebViewHandle = {
     fit: () => void;
     exitScrollback: (opts?: {
         requestId?: number;
+        instanceId?: string;
     }) => void;
     sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
 };

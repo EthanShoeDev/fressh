@@ -7,12 +7,12 @@ export type WorkmuxAppContext = {
 	sessionName: string;
 	target: string;
 	windowId: string;
-	windowIndex: number;
+	windowIndex?: number;
 	windowName: string;
 	workspaceId: string;
 	role: string;
-	roleWindow: boolean;
-	homeWindow: boolean;
+	roleWindow?: boolean;
+	homeWindow?: boolean;
 	paneId: string;
 	paneTty: string;
 	panePath: string;
@@ -160,12 +160,6 @@ export function buildWorkmuxAppNavCommand(
 	return command.join(' ');
 }
 
-export function buildWorkmuxAppStatusCycleCommand(
-	sessionName: string,
-): string {
-	return buildWorkmuxAppNavCommand(sessionName, 'next-all');
-}
-
 export function parseWorkmuxAppContextOutput(
 	output: string,
 ): WorkmuxAppContext {
@@ -213,17 +207,21 @@ function parseWorkmuxAppWindowProjection(
 	value: JsonRecord,
 	errorMessage: string,
 ): WorkmuxAppWindow {
-	return {
+	const projection: WorkmuxAppWindow = {
 		sessionName: requireNonEmptyString(value, 'sessionName', errorMessage),
 		target: requireNonEmptyString(value, 'target', errorMessage),
 		windowId: requireNonEmptyString(value, 'windowId', errorMessage),
-		windowIndex: requireWindowIndex(value, errorMessage),
 		windowName: requireNonEmptyString(value, 'windowName', errorMessage),
 		workspaceId: optionalString(value, 'workspaceId', errorMessage),
 		role: optionalString(value, 'role', errorMessage),
-		roleWindow: requireBoolean(value, 'roleWindow', errorMessage),
-		homeWindow: requireBoolean(value, 'homeWindow', errorMessage),
 	};
+	const windowIndex = optionalWindowIndex(value, errorMessage);
+	if (windowIndex !== undefined) projection.windowIndex = windowIndex;
+	const roleWindow = optionalBoolean(value, 'roleWindow', errorMessage);
+	if (roleWindow !== undefined) projection.roleWindow = roleWindow;
+	const homeWindow = optionalBoolean(value, 'homeWindow', errorMessage);
+	if (homeWindow !== undefined) projection.homeWindow = homeWindow;
+	return projection;
 }
 
 function normalizeSessionName(sessionName: string): string {
@@ -306,20 +304,25 @@ function optionalString(
 	return field;
 }
 
-function requireBoolean(
+function optionalBoolean(
 	value: JsonRecord,
 	fieldName: string,
 	errorMessage: string,
-): boolean {
+): boolean | undefined {
 	const field = value[fieldName];
+	if (field === undefined) return undefined;
 	if (typeof field !== 'boolean') {
 		throw new Error(errorMessage);
 	}
 	return field;
 }
 
-function requireWindowIndex(value: JsonRecord, errorMessage: string): number {
+function optionalWindowIndex(
+	value: JsonRecord,
+	errorMessage: string,
+): number | undefined {
 	const field = value.windowIndex;
+	if (field === undefined) return undefined;
 	if (typeof field !== 'number' || !Number.isSafeInteger(field) || field < 0) {
 		throw new Error(errorMessage);
 	}

@@ -65,7 +65,6 @@ export const KNOWN_ACTION_IDS = [
 	'OPEN_WISPR_TEXT_EDITOR',
 	'PASTE_CLIPBOARD',
 	'COPY_SELECTION',
-	'CYCLE_TMUX_WINDOW',
 	'OPEN_HOST_DIFFITY',
 	'OPEN_HOST_URL_WINDOW',
 	'OPEN_HOST_URL_DEV_SERVER',
@@ -328,10 +327,6 @@ export async function runAction(
 		}
 		case 'COPY_SELECTION': {
 			context.copySelection();
-			return;
-		}
-		case 'CYCLE_TMUX_WINDOW': {
-			context.sendBytes(new Uint8Array([27, 91, 49, 56, 126]));
 			return;
 		}
 		case 'OPEN_HOST_DIFFITY': {

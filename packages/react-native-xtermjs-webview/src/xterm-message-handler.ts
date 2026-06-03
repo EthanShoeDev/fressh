@@ -206,10 +206,12 @@ export function handleXtermBridgeInboundMessage(
 }
 
 export function buildScrollbackEnterRequestFailureMessage(event: {
+	instanceId: string;
 	requestId: number;
 }): BridgeOutboundMessage {
 	return {
 		type: 'exitScrollback',
 		requestId: event.requestId,
+		instanceId: event.instanceId,
 	};
 }

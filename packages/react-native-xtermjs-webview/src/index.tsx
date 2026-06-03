@@ -68,7 +68,7 @@ export type XtermWebViewHandle = {
 	getSelection: () => Promise<string>;
 	resize: (size: { cols: number; rows: number }) => void;
 	fit: () => void;
-	exitScrollback: (opts?: { requestId?: number }) => void;
+	exitScrollback: (opts?: { requestId?: number; instanceId?: string }) => void;
 	sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
 };
 
