@@ -135,6 +135,10 @@ fn signal_name_to_string(signal_name: Sig) -> String {
     }
 }
 
+fn command_stream_message_finishes_reader(message: Option<&ChannelMsg>) -> bool {
+    matches!(message, Some(ChannelMsg::Close) | None)
+}
+
 pub(crate) async fn run_command(
     connection: &SshConnection,
     options: RunCommandOptions,
@@ -181,10 +185,21 @@ pub(crate) async fn start_command_stream(
 
     let (mut reader, writer) = channel.split();
     let callback = options.on_event_callback.clone();
+    let parent = connection.self_weak.lock().await.clone();
+    let parent_for_reader = parent.clone();
 
     let reader_task = tokio::spawn(async move {
         loop {
-            match reader.wait().await {
+            let message = reader.wait().await;
+            if command_stream_message_finishes_reader(message.as_ref()) {
+                callback.on_event(CommandStreamEvent::Closed);
+                if let Some(parent) = parent_for_reader.upgrade() {
+                    parent.command_streams.lock().await.remove(&channel_id);
+                }
+                break;
+            }
+
+            match message {
                 Some(ChannelMsg::Data { data }) => {
                     callback.on_event(CommandStreamEvent::Stdout {
                         bytes: data.to_vec(),
@@ -203,10 +218,6 @@ pub(crate) async fn start_command_stream(
                         signal_name: signal_name_to_string(signal_name),
                     });
                 }
-                Some(ChannelMsg::Close) | None => {
-                    callback.on_event(CommandStreamEvent::Closed);
-                    break;
-                }
                 Some(ChannelMsg::Eof) => {}
                 _ => {}
             }
@@ -219,7 +230,7 @@ pub(crate) async fn start_command_stream(
             created_at_ms: started_at_ms,
             connection_id: connection.info.connection_id.clone(),
         },
-        parent: connection.self_weak.lock().await.clone(),
+        parent,
         writer: AsyncMutex::new(writer),
         reader_task,
     });
@@ -266,5 +277,16 @@ mod tests {
         assert_eq!(output.stderr, b"");
         assert_eq!(output.exit_status, None);
         assert_eq!(output.exit_signal, Some("TERM".to_string()));
+    }
+
+    #[test]
+    fn command_stream_reader_removes_session_on_final_close_only() {
+        assert!(!command_stream_message_finishes_reader(Some(
+            &ChannelMsg::Eof
+        )));
+        assert!(command_stream_message_finishes_reader(Some(
+            &ChannelMsg::Close
+        )));
+        assert!(command_stream_message_finishes_reader(None));
     }
 }
