@@ -6,11 +6,30 @@ import {
 	formatWorkmuxAppBoundaryFailureMessage,
 	type WorkmuxScrollDirection,
 } from './workmux-app-commands';
+import {
+	registerWorkmuxScrollbackLiveInputCleanup,
+	type WorkmuxScrollbackLiveInputCleanupBarrier,
+} from './workmux-scrollback-live-input';
 
 // Bounds malformed bridge batches before splitting into remote commands.
 export const TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH = 100;
-export const TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT = 100;
 export const TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES = 100;
+
+export {
+	createTmuxScrollbackLocalExitRequest,
+	registerTmuxScrollbackLocalExitRequest,
+	resetTmuxScrollbackLocalExitRequests,
+	TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT,
+} from './tmux-scrollback-local-exit';
+export {
+	buildWorkmuxScrollbackLiveInputSendPlan,
+	createWorkmuxScrollbackLiveInputCleanupBarrier,
+	registerWorkmuxScrollbackLiveInputCleanup,
+	resolveWorkmuxScrollbackLiveInputCleanup,
+	runWorkmuxScrollbackLiveInputSendPlan,
+	type WorkmuxScrollbackLiveInputCleanupBarrier,
+	type WorkmuxScrollbackLiveInputSendPlan,
+} from './workmux-scrollback-live-input';
 
 export type TmuxScrollbackLineAccumulator = {
 	direction: WorkmuxScrollDirection | null;
@@ -76,46 +95,6 @@ function coalesceWorkmuxScrollbackPendingPageCommands(
 			count: Math.abs(netPages),
 		},
 	];
-}
-
-export function registerTmuxScrollbackLocalExitRequest({
-	requestIds,
-	requestId,
-}: {
-	requestIds: Set<number>;
-	requestId: number;
-}) {
-	while (requestIds.size >= TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT) {
-		const oldestRequestId = requestIds.values().next().value;
-		if (oldestRequestId === undefined) break;
-		requestIds.delete(oldestRequestId);
-	}
-	requestIds.add(requestId);
-}
-
-export function createTmuxScrollbackLocalExitRequest({
-	requestIds,
-	requestId,
-	instanceId,
-}: {
-	requestIds: Set<number>;
-	requestId: number;
-	instanceId: string | null;
-}): { message: { requestId: number; instanceId?: string } } {
-	registerTmuxScrollbackLocalExitRequest({ requestIds, requestId });
-	return {
-		message:
-			instanceId == null
-				? { requestId }
-				: {
-						requestId,
-						instanceId,
-					},
-	};
-}
-
-export function resetTmuxScrollbackLocalExitRequests(requestIds: Set<number>) {
-	requestIds.clear();
 }
 
 export type WorkmuxScrollbackCommandResult = {
@@ -567,100 +546,6 @@ function isValidScrollbackBatchEvent(event: {
 	);
 }
 
-export type WorkmuxScrollbackLiveInputSendPlan = {
-	segments: Uint8Array<ArrayBuffer>[];
-	interSegmentDelayMs?: number;
-	clearScrollback: boolean;
-};
-
-export type WorkmuxScrollbackLiveInputCleanupBarrier = {
-	current: () => Promise<boolean> | null;
-	track: (cleanup?: Promise<boolean> | null) => Promise<boolean> | null;
-};
-
-export function createWorkmuxScrollbackLiveInputCleanupBarrier(): WorkmuxScrollbackLiveInputCleanupBarrier {
-	let pendingCleanup: Promise<boolean> | null = null;
-
-	return {
-		current: () => pendingCleanup,
-		track: (cleanup?: Promise<boolean> | null) => {
-			if (!cleanup) return pendingCleanup;
-			const barrier = cleanup.finally(() => {
-				if (pendingCleanup === barrier) {
-					pendingCleanup = null;
-				}
-			});
-			pendingCleanup = barrier;
-			return barrier;
-		},
-	};
-}
-
-export function registerWorkmuxScrollbackLiveInputCleanup(
-	barrier: WorkmuxScrollbackLiveInputCleanupBarrier,
-	cleanup?: Promise<boolean> | null,
-): Promise<boolean> | null {
-	return barrier.track(cleanup);
-}
-
-export function resolveWorkmuxScrollbackLiveInputCleanup({
-	clearScrollback,
-	currentCleanup,
-	startCleanup,
-}: {
-	clearScrollback: boolean;
-	currentCleanup?: Promise<boolean> | null;
-	startCleanup: () => Promise<boolean> | null;
-}): Promise<boolean> | null {
-	if (currentCleanup) return currentCleanup;
-	return clearScrollback ? startCleanup() : null;
-}
-
-export function runWorkmuxScrollbackLiveInputSendPlan({
-	plan,
-	currentCleanup,
-	startCleanup,
-	remoteCopyModeActive,
-	sendSegments,
-	isRequestCurrent = () => true,
-}: {
-	plan: WorkmuxScrollbackLiveInputSendPlan;
-	currentCleanup?: Promise<boolean> | null;
-	startCleanup: () => Promise<boolean> | null;
-	remoteCopyModeActive: boolean;
-	isRequestCurrent?: () => boolean;
-	sendSegments: (
-		segments: Uint8Array<ArrayBuffer>[],
-		options?: { interSegmentDelayMs?: number },
-	) => void | Promise<unknown> | undefined;
-}): Promise<boolean> | null {
-	const cleanupBarrier = resolveWorkmuxScrollbackLiveInputCleanup({
-		clearScrollback: plan.clearScrollback,
-		currentCleanup,
-		startCleanup,
-	});
-	if (!plan.segments.length) return cleanupBarrier ?? null;
-
-	const send = () =>
-		sendSegments(plan.segments, {
-			interSegmentDelayMs: plan.interSegmentDelayMs,
-		});
-	if (!cleanupBarrier && remoteCopyModeActive) return null;
-	if (cleanupBarrier) {
-		void cleanupBarrier
-			.then((exited) => {
-				if (exited && isRequestCurrent()) {
-					void Promise.resolve(send()).catch(() => {});
-				}
-			})
-			.catch(() => {});
-		return cleanupBarrier;
-	}
-	if (!isRequestCurrent()) return null;
-	void Promise.resolve(send()).catch(() => {});
-	return null;
-}
-
 export function registerTmuxScrollbackRemoteCopyModeExitCleanup({
 	barrier,
 	cleanup,
@@ -961,53 +846,5 @@ export function handleTmuxScrollbackBatchEvent({
 	});
 	if (commands.length === 0) return false;
 	void enqueueScrollBatch(commands);
-	return true;
-}
-
-export function buildWorkmuxScrollbackLiveInputSendPlan({
-	scrollbackActive,
-	payloadSegments,
-	scrollbackExitKeyPayload,
-	interSegmentDelayMs,
-	scrollbackExitDelayMs,
-}: {
-	scrollbackActive: boolean;
-	payloadSegments: Uint8Array<ArrayBuffer>[];
-	scrollbackExitKeyPayload?: Uint8Array<ArrayBuffer>;
-	interSegmentDelayMs?: number;
-	scrollbackExitDelayMs: number;
-}): WorkmuxScrollbackLiveInputSendPlan {
-	const nonEmptyPayloadSegments = payloadSegments.filter(
-		(segment) => segment.length > 0,
-	);
-
-	if (!scrollbackActive) {
-		return {
-			segments: nonEmptyPayloadSegments,
-			interSegmentDelayMs,
-			clearScrollback: false,
-		};
-	}
-
-	const isExitKeyOnlyPayload =
-		scrollbackExitKeyPayload != null &&
-		nonEmptyPayloadSegments.length === 1 &&
-		bytesEqual(nonEmptyPayloadSegments[0], scrollbackExitKeyPayload);
-
-	return {
-		segments: isExitKeyOnlyPayload ? [] : nonEmptyPayloadSegments,
-		interSegmentDelayMs: scrollbackExitDelayMs,
-		clearScrollback: true,
-	};
-}
-
-function bytesEqual(
-	a: Uint8Array<ArrayBuffer> | undefined,
-	b: Uint8Array<ArrayBuffer>,
-): boolean {
-	if (!a || a.length !== b.length) return false;
-	for (let index = 0; index < a.length; index += 1) {
-		if (a[index] !== b[index]) return false;
-	}
 	return true;
 }
