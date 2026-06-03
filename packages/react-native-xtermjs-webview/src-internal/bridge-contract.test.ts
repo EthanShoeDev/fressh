@@ -372,9 +372,53 @@ void test('XtermJsWebView message handler drops stale initialized messages', () 
 	]);
 });
 
+void test('XtermJsWebView message handler drops load-invalidated initialized messages', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: null as string | null };
+	const invalidatedInstanceIdsRef = {
+		current: new Set<string>(['old-instance']),
+	};
+	const pendingSelectionRef = {
+		current: new Map<number, { resolve: (value: string) => void }>([
+			[1, { resolve: (value) => events.push(`selection:${value}`) }],
+		]),
+	};
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'initialized',
+				instanceId: 'old-instance',
+			},
+			{
+				currentInstanceIdRef,
+				invalidatedInstanceIdsRef,
+				pendingSelectionRef,
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
+				autoFitFn: () => events.push('fit'),
+				setInitialized: (initialized) => events.push(`state:${initialized}`),
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentInstanceIdRef.current, null);
+	assert.equal(pendingSelectionRef.current.has(1), true);
+	assert.deepEqual(events, [
+		[
+			'warn',
+			['dropping invalidated webview initialized message', 'old-instance'],
+		],
+	]);
+});
+
 void test('XtermJsWebView message handler accepts initialized after load reset', () => {
 	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: null as string | null };
+	const invalidatedInstanceIdsRef = {
+		current: new Set<string>(['old-instance']),
+	};
 	const pendingSelectionRef = {
 		current: new Map<number, { resolve: (value: string) => void }>(),
 	};
@@ -387,6 +431,7 @@ void test('XtermJsWebView message handler accepts initialized after load reset',
 			},
 			{
 				currentInstanceIdRef,
+				invalidatedInstanceIdsRef,
 				pendingSelectionRef,
 				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
 				autoFitFn: () => events.push('fit'),
@@ -397,6 +442,7 @@ void test('XtermJsWebView message handler accepts initialized after load reset',
 	);
 
 	assert.equal(currentInstanceIdRef.current, 'new-instance');
+	assert.equal(invalidatedInstanceIdsRef.current.size, 0);
 	assert.deepEqual(events, [
 		'initialized:new-instance',
 		'fit',

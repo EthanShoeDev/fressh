@@ -219,6 +219,7 @@ export function XtermJsWebView({
 		new Map<number, { resolve: (value: string) => void }>(),
 	);
 	const currentInstanceIdRef = useRef<string | null>(null);
+	const invalidatedInstanceIdsRef = useRef(new Set<string>());
 
 	// ---- RN -> WebView message sender
 	const sendToWebView = useCallback(
@@ -456,6 +457,7 @@ export function XtermJsWebView({
 				if (
 					handleXtermBridgeInboundMessage(msg, {
 						currentInstanceIdRef,
+						invalidatedInstanceIdsRef,
 						pendingSelectionRef,
 						logger,
 						onInitialized,
@@ -529,6 +531,9 @@ export function XtermJsWebView({
 	);
 	const onLoadStart = useCallback<NonNullable<WebViewOptions['onLoadStart']>>(
 		(e) => {
+			if (currentInstanceIdRef.current) {
+				invalidatedInstanceIdsRef.current.add(currentInstanceIdRef.current);
+			}
 			currentInstanceIdRef.current = null;
 			pendingSelectionRef.current.clear();
 			setInitialized(false);

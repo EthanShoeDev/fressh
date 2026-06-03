@@ -76,8 +76,10 @@ export function handleXtermBridgeInboundMessage(
 		onScrollbackEnterRequested,
 		onScrollbackEnterRequestFailure,
 		onScrollbackBatch,
+		invalidatedInstanceIdsRef,
 	}: {
 		currentInstanceIdRef: { current: string | null };
+		invalidatedInstanceIdsRef?: { current: Set<string> };
 		pendingSelectionRef: PendingSelectionRef;
 		logger?: XtermMessageLogger;
 		onInitialized?: (instanceId: string) => void;
@@ -109,6 +111,13 @@ export function handleXtermBridgeInboundMessage(
 	},
 ): boolean {
 	if (msg.type === 'initialized') {
+		if (invalidatedInstanceIdsRef?.current.has(msg.instanceId)) {
+			logger?.warn?.(
+				`dropping invalidated webview initialized message`,
+				msg.instanceId,
+			);
+			return true;
+		}
 		if (
 			currentInstanceIdRef.current &&
 			msg.instanceId !== currentInstanceIdRef.current
@@ -120,6 +129,7 @@ export function handleXtermBridgeInboundMessage(
 			return true;
 		}
 		currentInstanceIdRef.current = msg.instanceId;
+		invalidatedInstanceIdsRef?.current.clear();
 		pendingSelectionRef.current.clear();
 		onInitialized?.(msg.instanceId);
 		autoFitFn();
