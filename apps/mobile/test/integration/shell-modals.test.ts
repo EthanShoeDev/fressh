@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { type RequestIdHandle } from '../../src/lib/request-id';
-import { runWorkmuxStatusCycleRequest } from '../../src/lib/workmux-status-cycle';
+import {
+	createWorkmuxStatusCycleHandle,
+	runWorkmuxStatusCycleRequest,
+} from '../../src/lib/workmux-status-cycle';
 
 const createRequestId = (): RequestIdHandle => {
 	let current = 0;
@@ -30,6 +33,7 @@ const deferred = <T>() => {
 void test('status cycle request serializes in-flight commands and suppresses stale errors', async () => {
 	const requestId = createRequestId();
 	const inFlightRef = { current: false };
+	const handle = createWorkmuxStatusCycleHandle({ requestId, inFlightRef });
 	const commandBlock = deferred<string>();
 	const commands: string[] = [];
 	const errors: string[] = [];
@@ -37,8 +41,7 @@ void test('status cycle request serializes in-flight commands and suppresses sta
 	const started = runWorkmuxStatusCycleRequest({
 		tmuxEnabled: true,
 		tmuxTarget: 'main',
-		requestId,
-		inFlightRef,
+		handle,
 		runHostBrowserCommand: async (command, timeoutMs) => {
 			commands.push(`${command}:${timeoutMs?.toString() ?? ''}`);
 			return commandBlock.promise;
@@ -50,8 +53,7 @@ void test('status cycle request serializes in-flight commands and suppresses sta
 	const overlapped = runWorkmuxStatusCycleRequest({
 		tmuxEnabled: true,
 		tmuxTarget: 'main',
-		requestId,
-		inFlightRef,
+		handle,
 		runHostBrowserCommand: async () => 'ignored',
 		showError: (title, message) => errors.push(`${title}:${message}`),
 		getErrorMessage: (error) =>
@@ -62,11 +64,24 @@ void test('status cycle request serializes in-flight commands and suppresses sta
 	assert.equal(overlapped, false);
 	assert.deepEqual(commands, ["mdev tmux nav cycle 'main:':10000"]);
 
-	requestId.invalidate();
-	inFlightRef.current = false;
+	handle.invalidate();
+	assert.equal(inFlightRef.current, false);
 	commandBlock.reject(new Error('stale failure'));
 	await assert.rejects(commandBlock.promise, /stale failure/);
 	await Promise.resolve();
 
 	assert.deepEqual(errors, []);
+
+	const restarted = runWorkmuxStatusCycleRequest({
+		tmuxEnabled: true,
+		tmuxTarget: 'main',
+		handle,
+		runHostBrowserCommand: async () => '',
+		showError: () => {
+			throw new Error('unexpected restart error');
+		},
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+	assert.equal(restarted, true);
 });

@@ -16,7 +16,10 @@ import {
 } from '@/lib/browser-actions-controller-actions';
 import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
 import { formatWorkmuxAppCommandFailureMessage } from '@/lib/workmux-app-commands';
-import { runWorkmuxStatusCycleRequest } from '@/lib/workmux-status-cycle';
+import {
+	createWorkmuxStatusCycleHandle,
+	runWorkmuxStatusCycleRequest,
+} from '@/lib/workmux-status-cycle';
 import {
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
@@ -654,6 +657,14 @@ export function useBrowserActionsController<TConnection>(
 	const hostDetectedOpenInFlightRef = useRef(false);
 	const statusCycleRequestId = useRequestId();
 	const statusCycleInFlightRef = useRef(false);
+	const statusCycleHandle = useMemo(
+		() =>
+			createWorkmuxStatusCycleHandle({
+				requestId: statusCycleRequestId,
+				inFlightRef: statusCycleInFlightRef,
+			}),
+		[statusCycleRequestId],
+	);
 
 	const showError = useCallback((title: string, message: string) => {
 		Alert.alert(title, message);
@@ -1018,8 +1029,7 @@ export function useBrowserActionsController<TConnection>(
 		runWorkmuxStatusCycleRequest({
 			tmuxEnabled,
 			tmuxTarget,
-			requestId: statusCycleRequestId,
-			inFlightRef: statusCycleInFlightRef,
+			handle: statusCycleHandle,
 			runHostBrowserCommand,
 			showError,
 			getErrorMessage,
@@ -1028,7 +1038,7 @@ export function useBrowserActionsController<TConnection>(
 		getErrorMessage,
 		runHostBrowserCommand,
 		showError,
-		statusCycleRequestId,
+		statusCycleHandle,
 		tmuxEnabled,
 		tmuxTarget,
 	]);
@@ -1039,11 +1049,10 @@ export function useBrowserActionsController<TConnection>(
 		browserGitHubTargetRequestId.invalidate();
 		hostDiffityRequestId.invalidate();
 		hostDetectedOpenRequestId.invalidate();
-		statusCycleRequestId.invalidate();
+		statusCycleHandle.invalidate();
 		hostUrlSubmitInFlightRef.current = false;
 		hostDiffityInFlightRef.current = false;
 		hostDetectedOpenInFlightRef.current = false;
-		statusCycleInFlightRef.current = false;
 		setHostUrlModalState(null);
 		setHostUrlModalSubmitting(false);
 		setHostUrlModalError(null);
@@ -1053,7 +1062,7 @@ export function useBrowserActionsController<TConnection>(
 		hostDiffityRequestId,
 		hostUrlReadRequestId,
 		hostUrlSubmitRequestId,
-		statusCycleRequestId,
+		statusCycleHandle,
 	]);
 
 	useEffect(() => {
@@ -1066,6 +1075,7 @@ export function useBrowserActionsController<TConnection>(
 			hostDiffityInFlightRef.current = false;
 			hostDetectedOpenRequestId.invalidate();
 			hostDetectedOpenInFlightRef.current = false;
+			statusCycleHandle.invalidate();
 		};
 	}, [
 		browserGitHubTargetRequestId,
@@ -1073,6 +1083,7 @@ export function useBrowserActionsController<TConnection>(
 		hostDiffityRequestId,
 		hostUrlReadRequestId,
 		hostUrlSubmitRequestId,
+		statusCycleHandle,
 	]);
 
 	const browserActionsProps = useMemo<BrowserActionsModalProps>(

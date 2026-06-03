@@ -1,11 +1,38 @@
 import { buildHostBrowserStatusCycleCommand } from './host-browser-actions';
 import { type RequestIdHandle } from './request-id';
 
+export type WorkmuxStatusCycleHandle = {
+	start: () => number | null;
+	isCurrent: (id: number) => boolean;
+	invalidate: () => void;
+};
+
+export function createWorkmuxStatusCycleHandle({
+	requestId,
+	inFlightRef,
+}: {
+	requestId: RequestIdHandle;
+	inFlightRef: { current: boolean };
+}): WorkmuxStatusCycleHandle {
+	return {
+		start: () => {
+			if (inFlightRef.current) return null;
+			const id = requestId.next();
+			inFlightRef.current = true;
+			return id;
+		},
+		isCurrent: (id) => requestId.isCurrent(id),
+		invalidate: () => {
+			requestId.invalidate();
+			inFlightRef.current = false;
+		},
+	};
+}
+
 export type WorkmuxStatusCycleRequestDeps = {
 	tmuxEnabled: boolean;
 	tmuxTarget: string;
-	requestId: RequestIdHandle;
-	inFlightRef: { current: boolean };
+	handle: WorkmuxStatusCycleHandle;
 	runHostBrowserCommand: (
 		command: string,
 		timeoutMs?: number,
@@ -17,15 +44,13 @@ export type WorkmuxStatusCycleRequestDeps = {
 export function runWorkmuxStatusCycleRequest({
 	tmuxEnabled,
 	tmuxTarget,
-	requestId,
-	inFlightRef,
+	handle,
 	runHostBrowserCommand,
 	showError,
 	getErrorMessage,
 }: WorkmuxStatusCycleRequestDeps): boolean {
-	if (inFlightRef.current) return false;
-	const id = requestId.next();
-	inFlightRef.current = true;
+	const id = handle.start();
+	if (id == null) return false;
 	void (async () => {
 		try {
 			if (!tmuxEnabled) {
@@ -37,12 +62,10 @@ export function runWorkmuxStatusCycleRequest({
 				10_000,
 			);
 		} catch (err) {
-			if (!requestId.isCurrent(id)) return;
+			if (!handle.isCurrent(id)) return;
 			showError('Status cycle failed', getErrorMessage(err));
 		} finally {
-			if (requestId.isCurrent(id)) {
-				inFlightRef.current = false;
-			}
+			if (handle.isCurrent(id)) handle.invalidate();
 		}
 	})();
 	return true;
