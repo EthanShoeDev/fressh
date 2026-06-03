@@ -983,7 +983,7 @@ git commit -m "Add mobile remote command runner"
 - Delete or narrow: `apps/mobile/src/lib/ssh-jsonl-listener.ts`
 - Delete or replace: `apps/mobile/test/integration/ssh-jsonl-listener.test.ts`
 
-- [ ] **Step 1: Write failing streaming listener tests**
+- [x] **Step 1: Write failing streaming listener tests**
 
 Create `apps/mobile/test/integration/remote-jsonl-listener.test.ts`:
 
@@ -1084,7 +1084,7 @@ void test('startRemoteJsonlListener reports stream closure once', async () => {
 });
 ```
 
-- [ ] **Step 2: Run streaming listener test to verify it fails**
+- [x] **Step 2: Run streaming listener test to verify it fails**
 
 Run:
 
@@ -1094,7 +1094,7 @@ pnpm --filter @fressh/mobile test:integration -- remote-jsonl-listener.test.ts
 
 Expected: FAIL because `remote-jsonl-listener` does not exist.
 
-- [ ] **Step 3: Implement streaming listener**
+- [x] **Step 3: Implement streaming listener**
 
 Create `apps/mobile/src/lib/remote-jsonl-listener.ts`:
 
@@ -1252,7 +1252,7 @@ export async function startRemoteJsonlListener(input: {
 }
 ```
 
-- [ ] **Step 4: Migrate `AgentNotificationBridgeManager` to the streaming runner**
+- [x] **Step 4: Migrate `AgentNotificationBridgeManager` to the streaming runner**
 
 In `apps/mobile/src/lib/AgentNotificationBridgeManager.tsx`, replace:
 
@@ -1309,7 +1309,7 @@ Delete `apps/mobile/src/lib/ssh-jsonl-listener.ts` after no imports remain.
 Delete `apps/mobile/test/integration/ssh-jsonl-listener.test.ts`; the new
 `remote-jsonl-listener.test.ts` replaces it.
 
-- [ ] **Step 5: Run notification listener tests**
+- [x] **Step 5: Run notification listener tests**
 
 Run:
 
@@ -1319,7 +1319,7 @@ pnpm --filter @fressh/mobile test:integration -- remote-jsonl-listener.test.ts a
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit streaming listener migration**
+- [x] **Step 6: Commit streaming listener migration**
 
 Run:
 
