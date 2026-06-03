@@ -6,7 +6,22 @@ export type { ScrollbackBatchEvent, TmuxScrollBatchEvent, TouchScrollConfig };
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type WebViewOptions = React.ComponentProps<typeof WebView>;
-export type XtermInbound = BridgeInboundMessage;
+type LegacyXtermInbound = {
+    type: 'initialized';
+} | {
+    type: 'data';
+    data: Uint8Array;
+} | {
+    type: 'debug';
+    message: string;
+} | {
+    type: 'selectionChanged';
+    text: string;
+} | {
+    type: 'selectionModeChanged';
+    enabled: boolean;
+};
+export type XtermInbound = BridgeInboundMessage | LegacyXtermInbound;
 export type XtermWebViewHandle = {
     write: (data: Uint8Array) => void;
     writeMany: (chunks: Uint8Array[]) => void;

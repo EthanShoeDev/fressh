@@ -109,6 +109,16 @@ export function handleXtermBridgeInboundMessage(
 	},
 ): boolean {
 	if (msg.type === 'initialized') {
+		if (
+			currentInstanceIdRef.current &&
+			msg.instanceId !== currentInstanceIdRef.current
+		) {
+			logger?.warn?.(
+				`dropping stale webview initialized message`,
+				msg.instanceId,
+			);
+			return true;
+		}
 		currentInstanceIdRef.current = msg.instanceId;
 		pendingSelectionRef.current.clear();
 		onInitialized?.(msg.instanceId);

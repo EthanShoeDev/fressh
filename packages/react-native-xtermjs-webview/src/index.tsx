@@ -47,7 +47,14 @@ const jetBrainsMonoFontCss = `
 }
 `;
 
-export type XtermInbound = BridgeInboundMessage;
+type LegacyXtermInbound =
+	| { type: 'initialized' }
+	| { type: 'data'; data: Uint8Array }
+	| { type: 'debug'; message: string }
+	| { type: 'selectionChanged'; text: string }
+	| { type: 'selectionModeChanged'; enabled: boolean };
+
+export type XtermInbound = BridgeInboundMessage | LegacyXtermInbound;
 
 export type XtermWebViewHandle = {
 	write: (data: Uint8Array) => void; // bytes in (batched)
@@ -520,17 +527,28 @@ export function XtermJsWebView({
 		},
 		[logger, webViewOptions],
 	);
+	const onLoadStart = useCallback<NonNullable<WebViewOptions['onLoadStart']>>(
+		(e) => {
+			currentInstanceIdRef.current = null;
+			pendingSelectionRef.current.clear();
+			setInitialized(false);
+			webViewOptions?.onLoadStart?.(e);
+		},
+		[webViewOptions],
+	);
 
 	const mergedWebViewOptions = useMemo(
 		() => ({
 			...defaultWebViewProps,
 			...webViewOptions,
+			onLoadStart,
 			onContentProcessDidTerminate,
 			onRenderProcessGone,
 			onLoadEnd,
 		}),
 		[
 			webViewOptions,
+			onLoadStart,
 			onContentProcessDidTerminate,
 			onRenderProcessGone,
 			onLoadEnd,

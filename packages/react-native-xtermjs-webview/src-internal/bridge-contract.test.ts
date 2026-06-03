@@ -335,6 +335,75 @@ void test('XtermJsWebView message handler drops stale size changes', () => {
 	]);
 });
 
+void test('XtermJsWebView message handler drops stale initialized messages', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: 'current-instance' };
+	const pendingSelectionRef = {
+		current: new Map<number, { resolve: (value: string) => void }>([
+			[1, { resolve: (value) => events.push(`selection:${value}`) }],
+		]),
+	};
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'initialized',
+				instanceId: 'stale-instance',
+			},
+			{
+				currentInstanceIdRef,
+				pendingSelectionRef,
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
+				autoFitFn: () => events.push('fit'),
+				setInitialized: (initialized) => events.push(`state:${initialized}`),
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentInstanceIdRef.current, 'current-instance');
+	assert.equal(pendingSelectionRef.current.has(1), true);
+	assert.deepEqual(events, [
+		[
+			'warn',
+			['dropping stale webview initialized message', 'stale-instance'],
+		],
+	]);
+});
+
+void test('XtermJsWebView message handler accepts initialized after load reset', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: null as string | null };
+	const pendingSelectionRef = {
+		current: new Map<number, { resolve: (value: string) => void }>(),
+	};
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'initialized',
+				instanceId: 'new-instance',
+			},
+			{
+				currentInstanceIdRef,
+				pendingSelectionRef,
+				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
+				autoFitFn: () => events.push('fit'),
+				setInitialized: (initialized) => events.push(`state:${initialized}`),
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentInstanceIdRef.current, 'new-instance');
+	assert.deepEqual(events, [
+		'initialized:new-instance',
+		'fit',
+		'state:true',
+	]);
+});
+
 void test('XtermJsWebView message handler does not forward stale scroll input to terminal data', () => {
 	const events: unknown[] = [];
 
@@ -706,6 +775,8 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 				/onTmuxEnterCopyMode\?: \(event: \{\s+instanceId: string;\s+requestId: number;\s+\}\) => void;/,
 			);
 			assert.match(content, /emitExit\?: boolean;/);
+			assert.match(content, /type: 'data';\s+data: Uint8Array;/);
+			assert.match(content, /export type XtermInbound = BridgeInboundMessage \| LegacyXtermInbound;/);
 			assert.match(
 				content,
 				/export type \{\s*ScrollbackBatchEvent,\s*TmuxScrollBatchEvent,\s*TouchScrollConfig\s*\}/,
