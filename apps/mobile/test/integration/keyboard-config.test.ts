@@ -323,7 +323,7 @@ void test('phone base keyboard does not expose stale pane labels', () => {
 	assert.equal(labels.includes('Alt-w'), false);
 });
 
-void test('phone base keyboard exposes explain, browser actions, and status actions', () => {
+void test('phone base keyboard exposes explain, browser actions, and work navigation actions', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -346,15 +346,15 @@ void test('phone base keyboard exposes explain, browser actions, and status acti
 	assert.deepEqual(phoneBaseKeyboard.grid[1]?.[2], {
 		type: 'action',
 		actionId: 'WORKMUX_NAV_NEXT_ALL',
-		label: 'Status',
-		icon: 'Clock',
+		label: 'Next all',
+		icon: null,
 		longPress: {
 			options: [
 				{
 					type: 'action',
 					actionId: 'WORKMUX_NAV_NEXT_ALL',
-					label: 'Status',
-					icon: 'Clock',
+					label: 'Next all',
+					icon: null,
 				},
 				{
 					type: 'bytes',

@@ -201,15 +201,15 @@
 					{
 						"type": "action",
 						"actionId": "WORKMUX_NAV_NEXT_ALL",
-						"label": "Status",
-						"icon": "Clock",
+						"label": "Next all",
+						"icon": null,
 						"longPress": {
 							"options": [
 								{
 									"type": "action",
 									"actionId": "WORKMUX_NAV_NEXT_ALL",
-									"label": "Status",
-									"icon": "Clock"
+									"label": "Next all",
+									"icon": null
 								},
 								{
 									"type": "bytes",
