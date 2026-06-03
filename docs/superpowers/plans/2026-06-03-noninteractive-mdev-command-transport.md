@@ -671,7 +671,7 @@ git commit -m "Expose SSH command API to TypeScript"
 - Create: `apps/mobile/src/lib/remote-command-runner.ts`
 - Create: `apps/mobile/test/integration/remote-command-runner.test.ts`
 
-- [ ] **Step 1: Write failing one-shot runner tests**
+- [x] **Step 1: Write failing one-shot runner tests**
 
 Create `apps/mobile/test/integration/remote-command-runner.test.ts`:
 
@@ -793,7 +793,7 @@ void test('executeRemoteCommand reports exit signals and missing exit status', a
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -803,7 +803,7 @@ pnpm --filter @fressh/mobile test:integration -- remote-command-runner.test.ts
 
 Expected: FAIL because `remote-command-runner` does not exist.
 
-- [ ] **Step 3: Implement the one-shot runner**
+- [x] **Step 3: Implement the one-shot runner**
 
 Create `apps/mobile/src/lib/remote-command-runner.ts`:
 
@@ -954,7 +954,7 @@ export async function runRemoteTextCommand(input: {
 }
 ```
 
-- [ ] **Step 4: Run one-shot runner tests**
+- [x] **Step 4: Run one-shot runner tests**
 
 Run:
 
@@ -964,7 +964,7 @@ pnpm --filter @fressh/mobile test:integration -- remote-command-runner.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the one-shot runner**
+- [x] **Step 5: Commit the one-shot runner**
 
 Run:
 
