@@ -229,6 +229,7 @@ export function XtermJsWebView({
 	const pendingSelectionRef = useRef(new Map<number, PendingSelection>());
 	const currentInstanceIdRef = useRef<string | null>(null);
 	const invalidatedInstanceIdsRef = useRef(new Set<string>());
+	const invalidatedBridgeLoadTokensRef = useRef(new Set<string>());
 	const currentBridgeLoadTokenRef = useRef<string | null>(null);
 	const awaitingBridgeDocumentStartRef = useRef(false);
 
@@ -473,6 +474,7 @@ export function XtermJsWebView({
 					handleXtermBridgeInboundMessage(msg, {
 						currentInstanceIdRef,
 						invalidatedInstanceIdsRef,
+						invalidatedBridgeLoadTokensRef,
 						currentBridgeLoadTokenRef,
 						awaitingBridgeDocumentStartRef,
 						pendingSelectionRef,
@@ -549,6 +551,11 @@ export function XtermJsWebView({
 	const onLoadStart = useCallback<NonNullable<WebViewOptions['onLoadStart']>>(
 		(e) => {
 			awaitingBridgeDocumentStartRef.current = true;
+			if (currentBridgeLoadTokenRef.current) {
+				invalidatedBridgeLoadTokensRef.current.add(
+					currentBridgeLoadTokenRef.current,
+				);
+			}
 			currentBridgeLoadTokenRef.current = null;
 			if (currentInstanceIdRef.current) {
 				invalidatedInstanceIdsRef.current.add(currentInstanceIdRef.current);

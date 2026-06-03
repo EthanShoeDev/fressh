@@ -42,6 +42,13 @@ const sendToRn = (msg: BridgeInboundDraftMessage) => {
  */
 window.onload = () => {
 	try {
+		if (window.__FRESSH_XTERM_BRIDGE__) {
+			sendToRn({
+				type: 'debug',
+				message: 'bridge already installed; ignoring duplicate boot',
+			});
+			return;
+		}
 		const bridgeLoadToken =
 			typeof crypto !== 'undefined' && 'randomUUID' in crypto
 				? crypto.randomUUID()
@@ -50,13 +57,6 @@ window.onload = () => {
 						.slice(2, 10)}`;
 		window.__FRESSH_XTERM_BRIDGE_LOAD_TOKEN__ = bridgeLoadToken;
 		sendToRn({ type: 'documentStarted', bridgeLoadToken });
-		if (window.__FRESSH_XTERM_BRIDGE__) {
-			sendToRn({
-				type: 'debug',
-				message: 'bridge already installed; ignoring duplicate boot',
-			});
-			return;
-		}
 
 		const injectedObjectJson =
 			window.ReactNativeWebView?.injectedObjectJson?.();

@@ -77,11 +77,13 @@ export function handleXtermBridgeInboundMessage(
 		onScrollbackEnterRequestFailure,
 		onScrollbackBatch,
 		invalidatedInstanceIdsRef,
+		invalidatedBridgeLoadTokensRef,
 		currentBridgeLoadTokenRef,
 		awaitingBridgeDocumentStartRef,
 	}: {
 		currentInstanceIdRef: { current: string | null };
 		invalidatedInstanceIdsRef?: { current: Set<string> };
+		invalidatedBridgeLoadTokensRef?: { current: Set<string> };
 		currentBridgeLoadTokenRef?: { current: string | null };
 		awaitingBridgeDocumentStartRef?: { current: boolean };
 		pendingSelectionRef: PendingSelectionRef;
@@ -126,11 +128,21 @@ export function handleXtermBridgeInboundMessage(
 			logger?.warn?.(`dropping malformed webview documentStarted message`);
 			return true;
 		}
+		if (invalidatedBridgeLoadTokensRef?.current.has(msg.bridgeLoadToken)) {
+			logger?.warn?.(
+				`dropping invalidated webview documentStarted message`,
+				msg.bridgeLoadToken,
+			);
+			return true;
+		}
 		currentBridgeLoadTokenRef &&
 			(currentBridgeLoadTokenRef.current = msg.bridgeLoadToken);
 		awaitingBridgeDocumentStartRef &&
 			(awaitingBridgeDocumentStartRef.current = false);
 		currentInstanceIdRef.current = null;
+		for (const pending of pendingSelectionRef.current.values()) {
+			pending.resolve('');
+		}
 		pendingSelectionRef.current.clear();
 		return true;
 	}

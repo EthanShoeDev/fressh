@@ -444,12 +444,13 @@ void test('XtermJsWebView message handler drops legacy non-initialized messages 
 });
 
 void test('XtermJsWebView message handler records the active bridge document token', () => {
+	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: 'old-instance' as string | null };
 	const currentBridgeLoadTokenRef = { current: null as string | null };
 	const awaitingBridgeDocumentStartRef = { current: true };
 	const pendingSelectionRef = {
 		current: new Map<number, { resolve: (value: string) => void }>([
-			[1, { resolve: () => {} }],
+			[1, { resolve: (value) => events.push(`selection:${value}`) }],
 		]),
 	};
 
@@ -475,6 +476,51 @@ void test('XtermJsWebView message handler records the active bridge document tok
 	assert.equal(currentBridgeLoadTokenRef.current, 'new-token');
 	assert.equal(awaitingBridgeDocumentStartRef.current, false);
 	assert.equal(pendingSelectionRef.current.size, 0);
+	assert.deepEqual(events, ['selection:']);
+});
+
+void test('XtermJsWebView message handler drops invalidated bridge document tokens', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: null as string | null };
+	const currentBridgeLoadTokenRef = { current: null as string | null };
+	const awaitingBridgeDocumentStartRef = { current: true };
+	const pendingSelectionRef = {
+		current: new Map<number, { resolve: (value: string) => void }>([
+			[1, { resolve: (value) => events.push(`selection:${value}`) }],
+		]),
+	};
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'documentStarted',
+				bridgeLoadToken: 'old-token',
+			},
+			{
+				currentInstanceIdRef,
+				invalidatedBridgeLoadTokensRef: {
+					current: new Set<string>(['old-token']),
+				},
+				currentBridgeLoadTokenRef,
+				awaitingBridgeDocumentStartRef,
+				pendingSelectionRef,
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				autoFitFn: () => {},
+				setInitialized: () => {},
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentBridgeLoadTokenRef.current, null);
+	assert.equal(awaitingBridgeDocumentStartRef.current, true);
+	assert.equal(pendingSelectionRef.current.size, 1);
+	assert.deepEqual(events, [
+		[
+			'warn',
+			['dropping invalidated webview documentStarted message', 'old-token'],
+		],
+	]);
 });
 
 void test('XtermJsWebView message handler drops stale initialized messages', () => {
