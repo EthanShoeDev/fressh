@@ -1,4 +1,7 @@
-use std::sync::{Arc, Weak};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Weak,
+};
 
 use russh::{client, ChannelMsg, Sig};
 use tokio::sync::Mutex as AsyncMutex;
@@ -139,6 +142,10 @@ fn command_stream_message_finishes_reader(message: Option<&ChannelMsg>) -> bool 
     matches!(message, Some(ChannelMsg::Close) | None)
 }
 
+fn command_stream_should_remain_registered_after_insert(reader_has_closed: bool) -> bool {
+    !reader_has_closed
+}
+
 pub(crate) async fn run_command(
     connection: &SshConnection,
     options: RunCommandOptions,
@@ -187,11 +194,14 @@ pub(crate) async fn start_command_stream(
     let callback = options.on_event_callback.clone();
     let parent = connection.self_weak.lock().await.clone();
     let parent_for_reader = parent.clone();
+    let reader_has_closed = Arc::new(AtomicBool::new(false));
+    let reader_has_closed_for_reader = reader_has_closed.clone();
 
     let reader_task = tokio::spawn(async move {
         loop {
             let message = reader.wait().await;
             if command_stream_message_finishes_reader(message.as_ref()) {
+                reader_has_closed_for_reader.store(true, Ordering::Release);
                 callback.on_event(CommandStreamEvent::Closed);
                 if let Some(parent) = parent_for_reader.upgrade() {
                     parent.command_streams.lock().await.remove(&channel_id);
@@ -235,11 +245,15 @@ pub(crate) async fn start_command_stream(
         reader_task,
     });
 
-    connection
-        .command_streams
-        .lock()
-        .await
-        .insert(channel_id, session.clone());
+    {
+        let mut command_streams = connection.command_streams.lock().await;
+        command_streams.insert(channel_id, session.clone());
+        if !command_stream_should_remain_registered_after_insert(
+            reader_has_closed.load(Ordering::Acquire),
+        ) {
+            command_streams.remove(&channel_id);
+        }
+    }
 
     Ok(session)
 }
@@ -288,5 +302,11 @@ mod tests {
             &ChannelMsg::Close
         )));
         assert!(command_stream_message_finishes_reader(None));
+    }
+
+    #[test]
+    fn command_stream_registration_cleans_up_if_reader_closed_before_insert() {
+        assert!(!command_stream_should_remain_registered_after_insert(true));
+        assert!(command_stream_should_remain_registered_after_insert(false));
     }
 }
