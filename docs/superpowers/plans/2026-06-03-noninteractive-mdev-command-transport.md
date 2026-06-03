@@ -1610,7 +1610,7 @@ git commit -m "Guard Workmux command boundary"
 
 - No new source files expected.
 
-- [ ] **Step 1: Run focused mobile integration tests**
+- [x] **Step 1: Run focused mobile integration tests**
 
 Run:
 
@@ -1620,7 +1620,7 @@ pnpm --filter @fressh/mobile test:integration -- remote-command-runner.test.ts r
 
 Expected: PASS.
 
-- [ ] **Step 2: Run native checks**
+- [x] **Step 2: Run native checks**
 
 Run:
 
@@ -1631,7 +1631,7 @@ cargo test
 
 Expected: PASS.
 
-- [ ] **Step 3: Run package type checks**
+- [x] **Step 3: Run package type checks**
 
 Run:
 
@@ -1652,7 +1652,7 @@ pnpm exec turbo lint:check
 
 Expected: PASS.
 
-- [ ] **Step 5: Build preview APK**
+- [x] **Step 5: Build preview APK**
 
 Run:
 
