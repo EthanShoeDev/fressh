@@ -67,6 +67,8 @@ function isMissingWorkmuxAppCommandFailure(message: string): boolean {
 		/\bunknown tmux command\b.*\bapp\b/i,
 		/\bunknown command:\s*tmux\b/i,
 		/\bunknown command\b.*\bapp\b/i,
+		/\bunrecognized subcommand ['"]?tmux['"]?\b/i,
+		/\bunrecognized subcommand ['"]?app['"]?\b/i,
 	].some((pattern) => pattern.test(message));
 }
 

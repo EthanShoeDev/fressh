@@ -392,6 +392,14 @@ void test('workmux app update message is explicit', () => {
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
 	assert.equal(
+		formatWorkmuxAppCommandFailureMessage("error: unrecognized subcommand 'tmux'"),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
+		formatWorkmuxAppCommandFailureMessage('error: unrecognized subcommand "app"'),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
 		formatWorkmuxAppCommandFailureMessage('unknown tmux app'),
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
