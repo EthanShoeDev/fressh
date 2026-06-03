@@ -14,6 +14,7 @@ import {
 	resolveBrowserActionsPanePath,
 	runBrowserActionsDiffityShare,
 } from '@/lib/browser-actions-controller-actions';
+import { cleanupBrowserActionRequests } from '@/lib/browser-actions-request-cleanup';
 import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
 import { formatWorkmuxAppCommandFailureMessage } from '@/lib/workmux-app-commands';
 import {
@@ -1044,15 +1045,17 @@ export function useBrowserActionsController<TConnection>(
 	]);
 
 	const invalidateAll = useCallback(() => {
-		hostUrlReadRequestId.invalidate();
-		hostUrlSubmitRequestId.invalidate();
-		browserGitHubTargetRequestId.invalidate();
-		hostDiffityRequestId.invalidate();
-		hostDetectedOpenRequestId.invalidate();
-		statusCycleHandle.invalidate();
-		hostUrlSubmitInFlightRef.current = false;
-		hostDiffityInFlightRef.current = false;
-		hostDetectedOpenInFlightRef.current = false;
+		cleanupBrowserActionRequests({
+			hostUrlReadRequestId,
+			hostUrlSubmitRequestId,
+			hostUrlSubmitInFlightRef,
+			browserGitHubTargetRequestId,
+			hostDiffityRequestId,
+			hostDiffityInFlightRef,
+			hostDetectedOpenRequestId,
+			hostDetectedOpenInFlightRef,
+			statusCycleHandle,
+		});
 		setHostUrlModalState(null);
 		setHostUrlModalSubmitting(false);
 		setHostUrlModalError(null);
@@ -1067,15 +1070,17 @@ export function useBrowserActionsController<TConnection>(
 
 	useEffect(() => {
 		return () => {
-			hostUrlReadRequestId.invalidate();
-			hostUrlSubmitRequestId.invalidate();
-			hostUrlSubmitInFlightRef.current = false;
-			browserGitHubTargetRequestId.invalidate();
-			hostDiffityRequestId.invalidate();
-			hostDiffityInFlightRef.current = false;
-			hostDetectedOpenRequestId.invalidate();
-			hostDetectedOpenInFlightRef.current = false;
-			statusCycleHandle.invalidate();
+			cleanupBrowserActionRequests({
+				hostUrlReadRequestId,
+				hostUrlSubmitRequestId,
+				hostUrlSubmitInFlightRef,
+				browserGitHubTargetRequestId,
+				hostDiffityRequestId,
+				hostDiffityInFlightRef,
+				hostDetectedOpenRequestId,
+				hostDetectedOpenInFlightRef,
+				statusCycleHandle,
+			});
 		};
 	}, [
 		browserGitHubTargetRequestId,
