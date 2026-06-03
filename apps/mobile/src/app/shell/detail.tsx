@@ -105,11 +105,11 @@ import {
 	createWorkmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
+	createTmuxScrollbackLocalExitRequest,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
 	buildWorkmuxScrollbackLiveInputSendPlan,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
-	registerTmuxScrollbackLocalExitRequest,
 	resetTmuxScrollbackLocalExitRequests,
 	runWorkmuxScrollbackLiveInputSendPlan,
 	resetTmuxScrollbackRuntimeStateForUiReset,
@@ -822,11 +822,12 @@ function ShellDetail() {
 		if (!xterm) return;
 		nextLocalScrollbackExitRequestIdRef.current += 1;
 		const requestId = nextLocalScrollbackExitRequestIdRef.current;
-		registerTmuxScrollbackLocalExitRequest({
+		const exitRequest = createTmuxScrollbackLocalExitRequest({
 			requestIds: localScrollbackExitRequestIdsRef.current,
 			requestId,
+			instanceId: currentInstanceIdRef.current,
 		});
-		xterm.exitScrollback({ requestId });
+		xterm.exitScrollback(exitRequest.message);
 	}, []);
 
 	const clearScrollbackState = useCallback(

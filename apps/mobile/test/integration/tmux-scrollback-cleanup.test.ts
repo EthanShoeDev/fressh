@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	buildWorkmuxScrollbackLiveInputSendPlan,
+	createTmuxScrollbackLocalExitRequest,
 	createWorkmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
@@ -612,6 +613,21 @@ void test('local scrollback exit request tracking is bounded and resettable', ()
 	resetTmuxScrollbackLocalExitRequests(localExitRequestIds);
 
 	assert.deepEqual(Array.from(localExitRequestIds), []);
+});
+
+void test('local scrollback exit request payload includes current instance', () => {
+	const localExitRequestIds = new Set<number>();
+	const request = createTmuxScrollbackLocalExitRequest({
+		requestIds: localExitRequestIds,
+		requestId: 12,
+		instanceId: 'current',
+	});
+
+	assert.deepEqual(request.message, {
+		requestId: 12,
+		instanceId: 'current',
+	});
+	assert.equal(localExitRequestIds.has(12), true);
 });
 
 void test('local scrollback exit request reset makes stale exits remote-owned again', () => {

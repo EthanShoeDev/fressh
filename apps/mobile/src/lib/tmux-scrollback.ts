@@ -93,6 +93,27 @@ export function registerTmuxScrollbackLocalExitRequest({
 	requestIds.add(requestId);
 }
 
+export function createTmuxScrollbackLocalExitRequest({
+	requestIds,
+	requestId,
+	instanceId,
+}: {
+	requestIds: Set<number>;
+	requestId: number;
+	instanceId: string | null;
+}): { message: { requestId: number; instanceId?: string } } {
+	registerTmuxScrollbackLocalExitRequest({ requestIds, requestId });
+	return {
+		message:
+			instanceId == null
+				? { requestId }
+				: {
+						requestId,
+						instanceId,
+					},
+	};
+}
+
 export function resetTmuxScrollbackLocalExitRequests(requestIds: Set<number>) {
 	requestIds.clear();
 }
