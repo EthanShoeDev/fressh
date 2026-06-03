@@ -3,7 +3,7 @@ import {
 	buildWorkmuxAppScrollEnterCommand,
 	buildWorkmuxAppScrollExitCommand,
 	buildWorkmuxAppScrollPageCommand,
-	formatWorkmuxAppCommandFailureMessage,
+	formatWorkmuxAppBoundaryFailureMessage,
 	type WorkmuxScrollDirection,
 } from './workmux-app-commands';
 
@@ -496,7 +496,7 @@ export function formatWorkmuxScrollbackCommandFailureMessage(result: {
 	error?: string;
 }): string | null {
 	if (result.success) return null;
-	return formatWorkmuxAppCommandFailureMessage(
+	return formatWorkmuxAppBoundaryFailureMessage(
 		result.error || result.output || '',
 	);
 }

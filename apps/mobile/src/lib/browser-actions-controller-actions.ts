@@ -6,7 +6,7 @@ import {
 } from './host-browser-actions';
 import {
 	buildWorkmuxAppContextCommand,
-	formatWorkmuxAppCommandFailureMessage,
+	formatWorkmuxAppBoundaryFailureMessage,
 	parseWorkmuxAppContextOutput,
 } from './workmux-app-commands';
 
@@ -57,7 +57,7 @@ async function runWorkmuxAppContextCommand({
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(formatWorkmuxAppCommandFailureMessage(message));
+		throw new Error(formatWorkmuxAppBoundaryFailureMessage(message));
 	}
 }
 

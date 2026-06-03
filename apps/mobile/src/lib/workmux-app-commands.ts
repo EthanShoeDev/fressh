@@ -55,6 +55,14 @@ export function formatWorkmuxAppCommandFailureMessage(_message: string): string 
 	return WORKMUX_APP_COMMAND_UPDATE_MESSAGE;
 }
 
+export function formatWorkmuxAppBoundaryFailureMessage(
+	message: string,
+): string {
+	const trimmed = message.trim();
+	if (/^No SSH connection available\b/.test(trimmed)) return trimmed;
+	return formatWorkmuxAppCommandFailureMessage(message);
+}
+
 export function buildWorkmuxAppContextCommand(sessionName: string): string {
 	return `mdev tmux app context --session ${quoteShellValue(
 		normalizeSessionName(sessionName),
