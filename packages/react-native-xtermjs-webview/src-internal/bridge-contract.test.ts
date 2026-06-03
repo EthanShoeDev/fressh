@@ -70,6 +70,39 @@ void test('scrollbackBatch bridge helper forwards pageStep', () => {
 	]);
 });
 
+void test('legacy tmuxScrollBatch bridge helper aliases scrollback batches', () => {
+	const events: unknown[] = [];
+
+	assert.equal(
+		handleScrollbackBatchBridgeMessage(
+			{
+				type: 'tmuxScrollBatch',
+				direction: 'up',
+				pages: 2,
+				lines: 4,
+				pageStep: 24,
+				instanceId: 'instance-legacy',
+				seq: 10,
+				ts: 789,
+			},
+			(event) => events.push(event),
+		),
+		true,
+	);
+
+	assert.deepEqual(events, [
+		{
+			direction: 'up',
+			pages: 2,
+			lines: 4,
+			pageStep: 24,
+			instanceId: 'instance-legacy',
+			seq: 10,
+			ts: 789,
+		},
+	]);
+});
+
 void test('XtermJsWebView message handler routes current instance events and drops stale ones', () => {
 	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: null as string | null };
@@ -163,6 +196,14 @@ void test('XtermJsWebView message handler routes current instance events and dro
 	);
 	assert.equal(
 		handle({
+			type: 'tmuxEnterCopyMode',
+			instanceId: 'instance-1',
+			requestId: 9,
+		}),
+		true,
+	);
+	assert.equal(
+		handle({
 			type: 'scrollbackBatch',
 			direction: 'down',
 			pages: 1,
@@ -213,6 +254,13 @@ void test('XtermJsWebView message handler routes current instance events and dro
 			{
 				instanceId: 'instance-1',
 				requestId: 7,
+			},
+		],
+		[
+			'scrollback-enter',
+			{
+				instanceId: 'instance-1',
+				requestId: 9,
 			},
 		],
 		[
@@ -345,8 +393,15 @@ void test('WebView outbound handler ignores stale scrollback instance messages',
 			instanceId: 'current-instance',
 		},
 	} as MessageEvent);
+	handler({
+		data: {
+			type: 'tmuxEnterCopyModeAck',
+			requestId: 5,
+			instanceId: 'current-instance',
+		},
+	} as MessageEvent);
 
-	assert.deepEqual(events, [['exit', { requestId: 3 }], ['ack', 4]]);
+	assert.deepEqual(events, [['exit', { requestId: 3 }], ['ack', 4], ['ack', 5]]);
 });
 
 void test('XtermJsWebView message handler reports rejected scrollback enter callbacks', async () => {
@@ -594,18 +649,12 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 			content: readFileSync(join(packageRoot, path), 'utf8'),
 		}));
 	const removedContracts = [
-		/emitExit/,
 		/enterDelayMs/,
 		/prefixKey/,
 		/copyModeKey/,
 		/cancelKey/,
 		/exitKey/,
 		/['"]typing['"]\s*\|\s*['"]scroll['"]/,
-		/tmuxEnterCopyMode/,
-		/tmuxEnterCopyModeAck/,
-		/tmuxScrollBatch/,
-		/TmuxScrollBatch/,
-		/onTmuxScrollBatch/,
 	];
 
 	for (const { path, content } of artifacts) {
@@ -621,11 +670,25 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 			);
 			assert.match(
 				content,
-				/export type \{ ScrollbackBatchEvent, TouchScrollConfig \}/,
+				/sendTmuxEnterCopyModeAck: \(requestId: number, instanceId: string\) => void;/,
+			);
+			assert.match(content, /onTmuxScrollBatch\?: \(event: ScrollbackBatchEvent\)/);
+			assert.match(
+				content,
+				/onTmuxEnterCopyMode\?: \(event: \{\s+instanceId: string;\s+requestId: number;\s+\}\) => void;/,
+			);
+			assert.match(content, /emitExit\?: boolean;/);
+			assert.match(
+				content,
+				/export type \{\s*ScrollbackBatchEvent,\s*TmuxScrollBatchEvent,\s*TouchScrollConfig\s*\}/,
 			);
 		} else if (path === 'dist/bridge.d.ts') {
 			assert.match(content, /scrollbackEnterRequested/);
 			assert.match(content, /scrollbackEnterAck/);
+			assert.match(content, /tmuxEnterCopyMode/);
+			assert.match(content, /tmuxEnterCopyModeAck/);
+			assert.match(content, /tmuxScrollBatch/);
+			assert.match(content, /TmuxScrollBatchEvent/);
 			assert.match(
 				content,
 				/type: 'sizeChanged';\s+cols: number;\s+rows: number;\s+instanceId: string;/,

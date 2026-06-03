@@ -23,8 +23,19 @@ export type BridgeInboundMessage =
 			requestId?: number;
 	  }
 	| { type: 'scrollbackEnterRequested'; instanceId: string; requestId: number }
+	| { type: 'tmuxEnterCopyMode'; instanceId: string; requestId: number }
 	| {
 			type: 'scrollbackBatch';
+			direction: 'up' | 'down';
+			pages: number;
+			lines: number;
+			pageStep: number;
+			instanceId: string;
+			seq?: number;
+			ts?: number;
+	  }
+	| {
+			type: 'tmuxScrollBatch';
 			direction: 'up' | 'down';
 			pages: number;
 			lines: number;
@@ -36,10 +47,11 @@ export type BridgeInboundMessage =
 
 export type ScrollbackBatchBridgeMessage = Extract<
 	BridgeInboundMessage,
-	{ type: 'scrollbackBatch' }
+	{ type: 'scrollbackBatch' | 'tmuxScrollBatch' }
 >;
 
 export type ScrollbackBatchEvent = Omit<ScrollbackBatchBridgeMessage, 'type'>;
+export type TmuxScrollBatchEvent = ScrollbackBatchEvent;
 
 export function mapScrollbackBatchMessage(
 	msg: ScrollbackBatchBridgeMessage,
@@ -55,7 +67,8 @@ export function handleScrollbackBatchBridgeMessage(
 	msg: BridgeInboundMessage,
 	onScrollbackBatch?: (event: ScrollbackBatchEvent) => void,
 ): msg is ScrollbackBatchBridgeMessage {
-	if (msg.type !== 'scrollbackBatch') return false;
+	if (msg.type !== 'scrollbackBatch' && msg.type !== 'tmuxScrollBatch')
+		return false;
 	onScrollbackBatch?.(mapScrollbackBatchMessage(msg));
 	return true;
 }
@@ -99,9 +112,19 @@ export type BridgeOutboundMessage =
 	| { type: 'getSelection'; requestId: number }
 	| { type: 'setSelectionMode'; enabled: boolean }
 	| { type: 'setTouchScrollConfig'; config: TouchScrollConfig }
-	| { type: 'exitScrollback'; requestId?: number; instanceId?: string }
+	| {
+			type: 'exitScrollback';
+			requestId?: number;
+			instanceId?: string;
+			emitExit?: boolean;
+	  }
 	| {
 			type: 'scrollbackEnterAck';
+			requestId: number;
+			instanceId: string;
+	  }
+	| {
+			type: 'tmuxEnterCopyModeAck';
 			requestId: number;
 			instanceId: string;
 	  }

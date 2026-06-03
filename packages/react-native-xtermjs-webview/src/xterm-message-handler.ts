@@ -172,7 +172,10 @@ export function handleXtermBridgeInboundMessage(
 		});
 		return true;
 	}
-	if (msg.type === 'scrollbackEnterRequested') {
+	if (
+		msg.type === 'scrollbackEnterRequested' ||
+		msg.type === 'tmuxEnterCopyMode'
+	) {
 		const event = {
 			instanceId: msg.instanceId,
 			requestId: msg.requestId,

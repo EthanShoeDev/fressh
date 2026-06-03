@@ -19,6 +19,7 @@ import {
 	type BridgeOutboundMessage,
 	type ScrollbackBatchEvent,
 	type TouchScrollConfig,
+	type TmuxScrollBatchEvent,
 } from './bridge';
 import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
 import { createDefaultXtermOptions } from './terminal-options';
@@ -28,7 +29,7 @@ import {
 } from './xterm-message-handler';
 
 export { bStrToBinary, binaryToBStr };
-export type { ScrollbackBatchEvent, TouchScrollConfig };
+export type { ScrollbackBatchEvent, TmuxScrollBatchEvent, TouchScrollConfig };
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
@@ -60,8 +61,13 @@ export type XtermWebViewHandle = {
 	getSelection: () => Promise<string>;
 	resize: (size: { cols: number; rows: number }) => void;
 	fit: () => void;
-	exitScrollback: (opts?: { requestId?: number; instanceId?: string }) => void;
+	exitScrollback: (opts?: {
+		requestId?: number;
+		instanceId?: string;
+		emitExit?: boolean;
+	}) => void;
 	sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
+	sendTmuxEnterCopyModeAck: (requestId: number, instanceId: string) => void;
 };
 
 const defaultWebViewProps: WebViewOptions = {
@@ -120,6 +126,11 @@ export type XtermJsWebViewProps = {
 		requestId: number;
 	}) => void;
 	onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
+	onTmuxEnterCopyMode?: (event: {
+		instanceId: string;
+		requestId: number;
+	}) => void;
+	onTmuxScrollBatch?: (event: ScrollbackBatchEvent) => void;
 	logger?: {
 		debug?: (...args: unknown[]) => void;
 		log?: (...args: unknown[]) => void;
@@ -185,6 +196,8 @@ export function XtermJsWebView({
 	onScrollbackModeChange,
 	onScrollbackEnterRequested,
 	onScrollbackBatch,
+	onTmuxEnterCopyMode,
+	onTmuxScrollBatch,
 	coalescingThreshold = defaultCoalescingThreshold,
 	logger,
 	size,
@@ -348,6 +361,17 @@ export function XtermJsWebView({
 		appliedSizeRef.current = size;
 	}, [size, sendToWebView, logger, autoFitFn, initialized]);
 
+	const sendScrollbackEnterAck = useCallback(
+		(requestId: number, instanceId: string) => {
+			sendToWebView({
+				type: 'scrollbackEnterAck',
+				requestId,
+				instanceId,
+			});
+		},
+		[sendToWebView],
+	);
+
 	useImperativeHandle(ref, () => ({
 		write,
 		writeMany,
@@ -369,13 +393,8 @@ export function XtermJsWebView({
 		exitScrollback: (opts) => {
 			sendToWebView({ type: 'exitScrollback', ...opts });
 		},
-		sendScrollbackEnterAck: (requestId, instanceId) => {
-			sendToWebView({
-				type: 'scrollbackEnterAck',
-				requestId,
-				instanceId,
-			});
-		},
+		sendScrollbackEnterAck,
+		sendTmuxEnterCopyModeAck: sendScrollbackEnterAck,
 	}));
 
 	const mergedXTermOptions = useMemo(
@@ -418,6 +437,9 @@ export function XtermJsWebView({
 			}),
 		[logger, sendToWebView],
 	);
+	const resolvedOnScrollbackEnterRequested =
+		onScrollbackEnterRequested ?? onTmuxEnterCopyMode;
+	const resolvedOnScrollbackBatch = onScrollbackBatch ?? onTmuxScrollBatch;
 
 	const onMessage = useCallback(
 		(e: WebViewMessageEvent) => {
@@ -438,9 +460,9 @@ export function XtermJsWebView({
 						onSelection,
 						onSelectionModeChange,
 						onScrollbackModeChange,
-						onScrollbackEnterRequested,
+						onScrollbackEnterRequested: resolvedOnScrollbackEnterRequested,
 						onScrollbackEnterRequestFailure,
-						onScrollbackBatch,
+						onScrollbackBatch: resolvedOnScrollbackBatch,
 					})
 				) {
 					return;
@@ -465,9 +487,9 @@ export function XtermJsWebView({
 			onSelection,
 			onSelectionModeChange,
 			onScrollbackModeChange,
-			onScrollbackEnterRequested,
+			resolvedOnScrollbackEnterRequested,
 			onScrollbackEnterRequestFailure,
-			onScrollbackBatch,
+			resolvedOnScrollbackBatch,
 		],
 	);
 

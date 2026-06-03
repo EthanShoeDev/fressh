@@ -69,6 +69,7 @@ import {
 import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
+import { OrderedWriter } from '@/lib/ordered-writer';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -164,8 +165,6 @@ import {
 
 const logger = rootLogger.extend('TabsShellDetail');
 
-type OrderedWriteFn = (bytes: Uint8Array<ArrayBufferLike>) => Promise<void>;
-
 const sleep = (ms: number) =>
 	new Promise<void>((resolve) => {
 		setTimeout(resolve, ms);
@@ -199,41 +198,6 @@ const getWisprTapFailureMessage = (
 	}
 	return 'Wispr automation failed.';
 };
-
-// Single-writer queue that guarantees no interleaving across all PTY writes.
-class OrderedWriter {
-	private tail: Promise<void> = Promise.resolve();
-
-	constructor(private write: OrderedWriteFn) {}
-
-	send(bytes: Uint8Array<ArrayBufferLike>) {
-		return this.enqueue(async () => {
-			await this.write(bytes);
-		});
-	}
-
-	sendBatch(
-		segments: Uint8Array<ArrayBufferLike>[],
-		opts?: { interSegmentDelayMs?: number },
-	) {
-		const delayMs = opts?.interSegmentDelayMs ?? 0;
-		return this.enqueue(async () => {
-			for (let i = 0; i < segments.length; i += 1) {
-				const segment = segments[i];
-				if (segment) await this.write(segment);
-				if (delayMs > 0 && i + 1 < segments.length) {
-					await sleep(delayMs);
-				}
-			}
-		});
-	}
-
-	private enqueue(task: () => Promise<void>) {
-		const next = this.tail.then(task, task);
-		this.tail = next.catch(() => {});
-		return next;
-	}
-}
 
 const GITHUB_ISSUES_URL = 'https://github.com/mulyoved/fressh/issues';
 const SHELL_CONFIG_DOC_URL =
@@ -943,24 +907,26 @@ function ShellDetail() {
 			});
 			const requestInstanceId = currentInstanceIdRef.current;
 			const requestWriter = writerRef.current;
+			const isLiveInputRequestCurrent = () =>
+				isWorkmuxScrollbackLiveInputRequestCurrent({
+					requestInstanceId,
+					requestWriter,
+					currentInstanceId: currentInstanceIdRef.current,
+					currentWriter: writerRef.current,
+					isFocused: isFocusedRef.current,
+					isAppActive: isAppActiveRef.current,
+				});
 
 			void runWorkmuxScrollbackLiveInputSendPlan({
 				plan,
 				currentCleanup: scrollbackCleanupBarrierRef.current.current(),
 				startCleanup: clearScrollbackState,
 				remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
-				isRequestCurrent: () =>
-					isWorkmuxScrollbackLiveInputRequestCurrent({
-						requestInstanceId,
-						requestWriter,
-						currentInstanceId: currentInstanceIdRef.current,
-						currentWriter: writerRef.current,
-						isFocused: isFocusedRef.current,
-						isAppActive: isAppActiveRef.current,
-					}),
+				isRequestCurrent: isLiveInputRequestCurrent,
 				sendSegments: (segments, options) =>
 					requestWriter?.sendBatch(segments, {
 						interSegmentDelayMs: options?.interSegmentDelayMs,
+						isCurrent: isLiveInputRequestCurrent,
 					}),
 			});
 		},

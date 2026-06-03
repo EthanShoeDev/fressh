@@ -114,7 +114,8 @@ export function createXtermWebViewMessageHandler({
 					});
 					break;
 				}
-				case 'scrollbackEnterAck': {
+				case 'scrollbackEnterAck':
+				case 'tmuxEnterCopyModeAck': {
 					if (msg.instanceId !== instanceId) return;
 					touchScrollController.handleEnterAck(msg.requestId);
 					break;
