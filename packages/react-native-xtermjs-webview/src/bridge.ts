@@ -1,11 +1,12 @@
 import { Base64 } from 'js-base64';
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type ITerminalInitOnlyOptions = import('@xterm/xterm').ITerminalInitOnlyOptions;
-type BridgeGeneration = { bridgeLoadToken: string };
+type BridgeLoad = { bridgeLoadId: number };
+type BridgeGeneration = BridgeLoad & { bridgeLoadToken: string };
 type LegacyBridgeGeneration = { bridgeStartedAt?: number };
 // Messages posted from the WebView (xterm page) to React Native
 export type BridgeInboundMessage =
-	| { type: 'documentStarted'; bridgeLoadToken: string }
+	| ({ type: 'documentStarted'; bridgeLoadToken: string } & BridgeLoad)
 	| ({ type: 'initialized'; instanceId: string } & BridgeGeneration)
 	| {
 			type: 'input';
@@ -74,6 +75,8 @@ type WithOptionalBridgeGeneration<T> = T extends BridgeGeneration
 	? Omit<T, keyof BridgeGeneration> &
 			Partial<BridgeGeneration> &
 			LegacyBridgeGeneration
+	: T extends BridgeLoad
+		? Omit<T, keyof BridgeLoad> & Partial<BridgeLoad>
 	: T;
 
 export type BridgeInboundDraftMessage =

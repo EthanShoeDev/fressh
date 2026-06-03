@@ -1,15 +1,18 @@
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type ITerminalInitOnlyOptions = import('@xterm/xterm').ITerminalInitOnlyOptions;
-type BridgeGeneration = {
+type BridgeLoad = {
+    bridgeLoadId: number;
+};
+type BridgeGeneration = BridgeLoad & {
     bridgeLoadToken: string;
 };
 type LegacyBridgeGeneration = {
     bridgeStartedAt?: number;
 };
-export type BridgeInboundMessage = {
+export type BridgeInboundMessage = ({
     type: 'documentStarted';
     bridgeLoadToken: string;
-} | ({
+} & BridgeLoad) | ({
     type: 'initialized';
     instanceId: string;
 } & BridgeGeneration) | {
@@ -71,7 +74,7 @@ export type BridgeInboundMessage = {
     seq?: number;
     ts?: number;
 } & BridgeGeneration;
-type WithOptionalBridgeGeneration<T> = T extends BridgeGeneration ? Omit<T, keyof BridgeGeneration> & Partial<BridgeGeneration> & LegacyBridgeGeneration : T;
+type WithOptionalBridgeGeneration<T> = T extends BridgeGeneration ? Omit<T, keyof BridgeGeneration> & Partial<BridgeGeneration> & LegacyBridgeGeneration : T extends BridgeLoad ? Omit<T, keyof BridgeLoad> & Partial<BridgeLoad> : T;
 export type BridgeInboundDraftMessage = WithOptionalBridgeGeneration<BridgeInboundMessage>;
 export type ScrollbackBatchBridgeMessage = Extract<BridgeInboundDraftMessage, {
     type: 'scrollbackBatch' | 'tmuxScrollBatch';

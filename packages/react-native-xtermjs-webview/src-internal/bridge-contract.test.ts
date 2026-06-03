@@ -378,10 +378,12 @@ void test('XtermJsWebView message handler drops non-initialized messages from a 
 				cols: 120,
 				rows: 40,
 				instanceId: 'old-instance',
+				bridgeLoadId: 1,
 				bridgeLoadToken: 'old-token',
 			},
 			{
 				currentInstanceIdRef: { current: null },
+				expectedBridgeLoadIdRef: { current: 2 },
 				currentBridgeLoadTokenRef: { current: 'new-token' },
 				pendingSelectionRef: { current: new Map() },
 				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
@@ -397,7 +399,7 @@ void test('XtermJsWebView message handler drops non-initialized messages from a 
 		[
 			'warn',
 			[
-				'dropping stale webview message generation',
+				'dropping stale webview message load',
 				'sizeChanged',
 				'old-instance',
 			],
@@ -458,10 +460,12 @@ void test('XtermJsWebView message handler records the active bridge document tok
 		handleXtermBridgeInboundMessage(
 			{
 				type: 'documentStarted',
+				bridgeLoadId: 2,
 				bridgeLoadToken: 'new-token',
 			},
 			{
 				currentInstanceIdRef,
+				expectedBridgeLoadIdRef: { current: 2 },
 				currentBridgeLoadTokenRef,
 				awaitingBridgeDocumentStartRef,
 				pendingSelectionRef,
@@ -479,6 +483,43 @@ void test('XtermJsWebView message handler records the active bridge document tok
 	assert.deepEqual(events, ['selection:']);
 });
 
+void test('XtermJsWebView message handler drops stale bridge document load ids', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: null as string | null };
+	const currentBridgeLoadTokenRef = { current: null as string | null };
+	const awaitingBridgeDocumentStartRef = { current: true };
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'documentStarted',
+				bridgeLoadId: 1,
+				bridgeLoadToken: 'old-token',
+			},
+			{
+				currentInstanceIdRef,
+				expectedBridgeLoadIdRef: { current: 2 },
+				currentBridgeLoadTokenRef,
+				awaitingBridgeDocumentStartRef,
+				pendingSelectionRef: { current: new Map() },
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				autoFitFn: () => {},
+				setInitialized: () => {},
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentBridgeLoadTokenRef.current, null);
+	assert.equal(awaitingBridgeDocumentStartRef.current, true);
+	assert.deepEqual(events, [
+		[
+			'warn',
+			['dropping stale webview documentStarted load', 'old-token'],
+		],
+	]);
+});
+
 void test('XtermJsWebView message handler drops invalidated bridge document tokens', () => {
 	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: null as string | null };
@@ -494,10 +535,12 @@ void test('XtermJsWebView message handler drops invalidated bridge document toke
 		handleXtermBridgeInboundMessage(
 			{
 				type: 'documentStarted',
+				bridgeLoadId: 2,
 				bridgeLoadToken: 'old-token',
 			},
 			{
 				currentInstanceIdRef,
+				expectedBridgeLoadIdRef: { current: 2 },
 				invalidatedBridgeLoadTokensRef: {
 					current: new Set<string>(['old-token']),
 				},
@@ -642,10 +685,12 @@ void test('XtermJsWebView message handler drops initialized messages from a prio
 			{
 				type: 'initialized',
 				instanceId: 'old-instance',
+				bridgeLoadId: 1,
 				bridgeLoadToken: 'old-token',
 			},
 			{
 				currentInstanceIdRef,
+				expectedBridgeLoadIdRef: { current: 2 },
 				currentBridgeLoadTokenRef: { current: 'new-token' },
 				pendingSelectionRef,
 				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
@@ -662,7 +707,7 @@ void test('XtermJsWebView message handler drops initialized messages from a prio
 	assert.deepEqual(events, [
 		[
 			'warn',
-			['dropping stale webview initialized generation', 'old-instance'],
+			['dropping stale webview initialized load', 'old-instance'],
 		],
 	]);
 });
@@ -714,11 +759,13 @@ void test('XtermJsWebView message handler accepts initialized after load reset',
 			{
 				type: 'initialized',
 				instanceId: 'new-instance',
+				bridgeLoadId: 2,
 				bridgeLoadToken: 'new-token',
 			},
 			{
 				currentInstanceIdRef,
 				invalidatedInstanceIdsRef,
+				expectedBridgeLoadIdRef: { current: 2 },
 				currentBridgeLoadTokenRef: { current: 'new-token' },
 				pendingSelectionRef,
 				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
@@ -1126,6 +1173,7 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 				content,
 				/type: 'sizeChanged';\s+cols: number;\s+rows: number;\s+instanceId: string;/,
 			);
+			assert.match(content, /bridgeLoadId: number/);
 			assert.match(content, /bridgeLoadToken: string/);
 		} else {
 			assert.match(content, /pageStep/);

@@ -230,6 +230,9 @@ export function XtermJsWebView({
 	const currentInstanceIdRef = useRef<string | null>(null);
 	const invalidatedInstanceIdsRef = useRef(new Set<string>());
 	const invalidatedBridgeLoadTokensRef = useRef(new Set<string>());
+	const [bridgeLoadId, setBridgeLoadId] = useState(1);
+	const expectedBridgeLoadIdRef = useRef(1);
+	const remountingForBridgeLoadRef = useRef(false);
 	const currentBridgeLoadTokenRef = useRef<string | null>(null);
 	const awaitingBridgeDocumentStartRef = useRef(false);
 
@@ -476,6 +479,7 @@ export function XtermJsWebView({
 						invalidatedInstanceIdsRef,
 						invalidatedBridgeLoadTokensRef,
 						currentBridgeLoadTokenRef,
+						expectedBridgeLoadIdRef,
 						awaitingBridgeDocumentStartRef,
 						pendingSelectionRef,
 						logger,
@@ -550,6 +554,14 @@ export function XtermJsWebView({
 	);
 	const onLoadStart = useCallback<NonNullable<WebViewOptions['onLoadStart']>>(
 		(e) => {
+			if (remountingForBridgeLoadRef.current) {
+				remountingForBridgeLoadRef.current = false;
+			} else {
+				const nextBridgeLoadId = expectedBridgeLoadIdRef.current + 1;
+				expectedBridgeLoadIdRef.current = nextBridgeLoadId;
+				remountingForBridgeLoadRef.current = true;
+				setBridgeLoadId(nextBridgeLoadId);
+			}
 			awaitingBridgeDocumentStartRef.current = true;
 			if (currentBridgeLoadTokenRef.current) {
 				invalidatedBridgeLoadTokensRef.current.add(
@@ -599,6 +611,9 @@ export function XtermJsWebView({
 		const optionsScript = `window.__FRESSH_XTERM_OPTIONS__ = ${JSON.stringify(
 			mergedXTermOptions,
 		)};`;
+		const bridgeLoadScript = `window.__FRESSH_XTERM_BRIDGE_LOAD_ID__ = ${JSON.stringify(
+			bridgeLoadId,
+		)};`;
 
 		return `
 			(function () {
@@ -611,11 +626,12 @@ export function XtermJsWebView({
 					(document.head || document.documentElement).appendChild(style);
 				}
 				${optionsScript}
+				${bridgeLoadScript}
 				${backgroundScript}
 			})();
 			true;
 		`;
-	}, [mergedXTermOptions]);
+	}, [bridgeLoadId, mergedXTermOptions]);
 
 	const webViewSource = useMemo(() => {
 		if (__DEV__ && devServerUrl) {
@@ -631,6 +647,7 @@ export function XtermJsWebView({
 
 	return (
 		<WebView
+			key={bridgeLoadId}
 			ref={webRef}
 			source={webViewSource}
 			onMessage={onMessage}

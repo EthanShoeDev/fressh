@@ -15,6 +15,7 @@ declare global {
 		fitAddon?: FitAddon;
 		terminalWriteBase64?: (data: string) => void;
 		__FRESSH_XTERM_OPTIONS__?: ITerminalOptions;
+		__FRESSH_XTERM_BRIDGE_LOAD_ID__?: number;
 		__FRESSH_XTERM_BRIDGE_LOAD_TOKEN__?: string;
 		ReactNativeWebView?: {
 			postMessage?: (data: string) => void;
@@ -28,10 +29,11 @@ declare global {
 }
 
 const sendToRn = (msg: BridgeInboundDraftMessage) => {
+	const bridgeLoadId = window.__FRESSH_XTERM_BRIDGE_LOAD_ID__;
 	const bridgeLoadToken = window.__FRESSH_XTERM_BRIDGE_LOAD_TOKEN__;
 	const generatedMsg =
 		typeof bridgeLoadToken === 'string' && 'instanceId' in msg
-			? { ...msg, bridgeLoadToken }
+			? { ...msg, bridgeLoadId, bridgeLoadToken }
 			: msg;
 	window.ReactNativeWebView?.postMessage?.(JSON.stringify(generatedMsg));
 };
@@ -56,7 +58,11 @@ window.onload = () => {
 						.toString(36)
 						.slice(2, 10)}`;
 		window.__FRESSH_XTERM_BRIDGE_LOAD_TOKEN__ = bridgeLoadToken;
-		sendToRn({ type: 'documentStarted', bridgeLoadToken });
+		sendToRn({
+			type: 'documentStarted',
+			bridgeLoadId: window.__FRESSH_XTERM_BRIDGE_LOAD_ID__,
+			bridgeLoadToken,
+		});
 
 		const injectedObjectJson =
 			window.ReactNativeWebView?.injectedObjectJson?.();

@@ -79,12 +79,14 @@ export function handleXtermBridgeInboundMessage(
 		invalidatedInstanceIdsRef,
 		invalidatedBridgeLoadTokensRef,
 		currentBridgeLoadTokenRef,
+		expectedBridgeLoadIdRef,
 		awaitingBridgeDocumentStartRef,
 	}: {
 		currentInstanceIdRef: { current: string | null };
 		invalidatedInstanceIdsRef?: { current: Set<string> };
 		invalidatedBridgeLoadTokensRef?: { current: Set<string> };
 		currentBridgeLoadTokenRef?: { current: string | null };
+		expectedBridgeLoadIdRef?: { current: number };
 		awaitingBridgeDocumentStartRef?: { current: boolean };
 		pendingSelectionRef: PendingSelectionRef;
 		logger?: XtermMessageLogger;
@@ -128,6 +130,16 @@ export function handleXtermBridgeInboundMessage(
 			logger?.warn?.(`dropping malformed webview documentStarted message`);
 			return true;
 		}
+		if (
+			expectedBridgeLoadIdRef &&
+			msg.bridgeLoadId !== expectedBridgeLoadIdRef.current
+		) {
+			logger?.warn?.(
+				`dropping stale webview documentStarted load`,
+				msg.bridgeLoadToken,
+			);
+			return true;
+		}
 		if (invalidatedBridgeLoadTokensRef?.current.has(msg.bridgeLoadToken)) {
 			logger?.warn?.(
 				`dropping invalidated webview documentStarted message`,
@@ -147,6 +159,27 @@ export function handleXtermBridgeInboundMessage(
 		return true;
 	}
 	if ('instanceId' in msg) {
+		if (
+				(awaitingBridgeDocumentStartRef?.current ||
+					currentBridgeLoadTokenRef?.current) &&
+			(expectedBridgeLoadIdRef
+				? msg.bridgeLoadId !== expectedBridgeLoadIdRef.current
+				: false)
+		) {
+			if (msg.type === 'initialized') {
+				logger?.warn?.(
+					`dropping stale webview initialized load`,
+					msg.instanceId,
+				);
+			} else {
+				logger?.warn?.(
+					`dropping stale webview message load`,
+					msg.type,
+					msg.instanceId,
+				);
+			}
+			return true;
+		}
 		if (
 			(awaitingBridgeDocumentStartRef?.current ||
 				currentBridgeLoadTokenRef?.current) &&
