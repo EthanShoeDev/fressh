@@ -81,6 +81,21 @@ void test('tmux history is not a known keyboard action', () => {
 	);
 });
 
+void test('stale keyboard target actions are not supported', () => {
+	for (const actionId of ['OPEN_SECONDARY_MENU', 'OPEN_KEYBOARD_MENU']) {
+		assert.equal(
+			KNOWN_ACTION_IDS.includes(actionId as (typeof KNOWN_ACTION_IDS)[number]),
+			false,
+		);
+		assert.equal(
+			CONFIG_SUPPORTED_ACTION_IDS.includes(
+				actionId as (typeof CONFIG_SUPPORTED_ACTION_IDS)[number],
+			),
+			false,
+		);
+	}
+});
+
 void test('Wispr text action delegates to the action context', async () => {
 	let opened = 0;
 

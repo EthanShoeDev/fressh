@@ -547,6 +547,20 @@ void test('advanced keyboard omits consolidated host URL setter actions', () => 
 		null,
 		null,
 	]);
+	assert.deepEqual(advancedKeyboard.grid[2]?.slice(7, 9), [
+		{
+			type: 'action',
+			actionId: 'WORKMUX_NAV_PREV_ALL',
+			label: 'Prev all',
+			icon: null,
+		},
+		{
+			type: 'action',
+			actionId: 'WORKMUX_NAV_NEXT_ALL',
+			label: 'Next all',
+			icon: null,
+		},
+	]);
 
 	const advancedActionIds = advancedKeyboard.grid.flatMap((row) =>
 		row.flatMap((item) => (item?.type === 'action' ? [item.actionId] : [])),

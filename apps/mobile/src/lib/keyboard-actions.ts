@@ -19,8 +19,6 @@ export const HANDLE_DEV_SERVER_URL = 'http://100.122.2.100:5173/';
 
 export const KEYBOARD_TARGET_ACTION_IDS = [
 	'OPEN_MAIN_MENU',
-	'OPEN_SECONDARY_MENU',
-	'OPEN_KEYBOARD_MENU',
 	'OPEN_ADVANCED_KEYBOARD',
 	'OPEN_BROWSER_KEYBOARD',
 ] as const;
@@ -295,14 +293,6 @@ export async function runAction(
 	switch (actionId) {
 		case 'OPEN_MAIN_MENU': {
 			selectKeyboardForAction('OPEN_MAIN_MENU', context);
-			return;
-		}
-		case 'OPEN_SECONDARY_MENU': {
-			selectKeyboardForAction('OPEN_SECONDARY_MENU', context);
-			return;
-		}
-		case 'OPEN_KEYBOARD_MENU': {
-			selectKeyboardForAction('OPEN_KEYBOARD_MENU', context);
 			return;
 		}
 		case 'OPEN_ADVANCED_KEYBOARD': {
