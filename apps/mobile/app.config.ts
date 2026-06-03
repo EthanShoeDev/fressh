@@ -63,7 +63,6 @@ const config: ExpoConfig = {
 				imageWidth: 200,
 			},
 		],
-		'expo-secure-store',
 		'expo-font',
 		'expo-dev-client',
 		'expo-image',

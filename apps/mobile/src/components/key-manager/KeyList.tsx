@@ -337,7 +337,7 @@ function KeyRow(props: {
 	const entryQuery = useQuery(secretsManager.keys.query.get(props.entryId));
 	const entry = entryQuery.data;
 	const [label, setLabel] = React.useState(
-		entry?.manifestEntry.metadata.label ?? '',
+		entry?.metadata.label ?? '',
 	);
 
 	const renameMutation = useMutation({
@@ -346,12 +346,12 @@ function KeyRow(props: {
 				return;
 			}
 			await secretsManager.keys.utils.upsertPrivateKey({
-				keyId: entry.manifestEntry.id,
+				keyId: entry.id,
 				value: entry.value,
 				metadata: {
-					priority: entry.manifestEntry.metadata.priority,
+					priority: entry.metadata.priority,
 					label: newLabel,
-					isDefault: entry.manifestEntry.metadata.isDefault,
+					isDefault: entry.metadata.isDefault,
 				},
 			});
 		},
@@ -416,11 +416,11 @@ function KeyRow(props: {
 						fontWeight: '600',
 					}}
 				>
-					{entry.manifestEntry.metadata.label ?? entry.manifestEntry.id}
-					{entry.manifestEntry.metadata.isDefault ? '  • Default' : ''}
+					{entry.metadata.label ?? entry.id}
+					{entry.metadata.isDefault ? '  • Default' : ''}
 				</Text>
 				<Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 2 }}>
-					ID: {entry.manifestEntry.id}
+					ID: {entry.id}
 				</Text>
 				{props.mode === 'manage' ? (
 					<TextInput
@@ -497,7 +497,7 @@ function KeyRow(props: {
 						</Text>
 					</Pressable>
 				) : null}
-				{!entry.manifestEntry.metadata.isDefault ? (
+				{!entry.metadata.isDefault ? (
 					<Pressable
 						style={{
 							backgroundColor: theme.colors.transparent,

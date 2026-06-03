@@ -1,308 +1,117 @@
 import { validatePrivateKey } from '@fressh/react-native-terminal';
 import { queryOptions } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
-import * as SecureStore from 'expo-secure-store';
+import * as Keychain from 'react-native-keychain';
 import * as z from 'zod';
 import { rootLogger } from './logger';
 import { queryClient, type StrictOmit } from './utils';
 
 const logger = rootLogger.extend('SecretsManager');
 
-function splitIntoChunks(data: string, chunkSize: number): string[] {
-	const chunks: string[] = [];
-	for (let i = 0; i < data.length; i += chunkSize) {
-		chunks.push(data.slice(i, i + chunkSize));
-	}
-	return chunks;
-}
-
 /**
- * Secure store does not support:
- * - Listing keys
- * - Storing more than 2048 bytes
+ * A thin store over the device keychain (iOS Keychain / Android Keystore-backed
+ * via react-native-keychain). The keychain encrypts every value at rest with a
+ * non-exportable, hardware-held key, so we no longer hand-roll encryption or
+ * chunking — it has no small per-value size limit and `getAllGenericPasswordServices`
+ * enumerates entries natively.
  *
- * We can bypass both of those by using manifest entries and chunking.
+ * Each logical entry is stored as TWO keychain services:
+ * - a *metadata* service (`<prefix>.meta.<id>`) — small, listable, never gated
+ * - a *value* service (`<prefix>.value.<id>`) — the secret itself
+ *
+ * Listing only ever reads metadata services, which is what makes future
+ * biometric gating clean: attaching `accessControl` to the value services
+ * (e.g. {@link Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET_OR_DEVICE_PASSCODE})
+ * gates {@link getEntry}/{@link getPrivateKey} without prompting during a list.
  */
-function makeBetterSecureStore<
-	T extends object = object,
-	Value = string,
->(storeParams: {
-	storagePrefix: string;
-	parseValue: (value: string) => Value;
-	extraManifestFieldsSchema?: z.ZodType<T>;
+// TODO: add tests for makeKeychainStore against a mocked react-native-keychain:
+// - upsert -> get round-trips metadata + value
+// - listEntries returns metadata only and never reads a `.value.` service
+// - upsert overwrites in place and upsertPrivateKey preserves createdAtMs
+// - deleteEntry removes both services; getEntry then throws
+// - half-finished write/delete (only one service present) can't surface a
+//   listed-but-valueless entry
+function makeKeychainStore<Metadata extends object, Value = string>(params: {
+	prefix: string;
+	metadataSchema: z.ZodType<Metadata>;
+	parseValue: (raw: string) => Value;
 }) {
-	// const sizeLimit = 2048;
-	const sizeLimit = 2000;
-	const rootManifestVersion = 1;
-	const manifestChunkVersion = 1;
+	const metaPrefix = `${params.prefix}.meta.`;
+	const metaService = (id: string) => `${metaPrefix}${id}`;
+	const valueService = (id: string) => `${params.prefix}.value.${id}`;
 
-	const rootManifestKey = [storeParams.storagePrefix, 'rootManifest'].join('-');
-	const manifestChunkKey = (manifestChunkId: string) =>
-		[storeParams.storagePrefix, 'manifestChunk', manifestChunkId].join('-');
-	const entryKey = (entryId: string, chunkIdx: number) =>
-		[storeParams.storagePrefix, 'entry', entryId, 'chunk', chunkIdx].join('-');
+	type Entry = { id: string; metadata: Metadata };
 
-	const rootManifestSchema = z.looseObject({
-		manifestVersion: z.number().default(rootManifestVersion),
-		// We need to chunk the manifest itself
-		manifestChunksIds: z.array(z.string()),
-	});
-
-	const entrySchema = z.object({
-		id: z.string(),
-		chunkCount: z.number().default(1),
-		metadata: storeParams.extraManifestFieldsSchema ?? z.object({}),
-	});
-	// type Entry = {
-	// 	id: string;
-	// 	chunkCount: number;
-	// 	metadata: T;
-	// };
-
-	type Entry = z.infer<typeof entrySchema>;
-
-	const manifestChunkSchema = z.object({
-		manifestChunkVersion: z.number().default(manifestChunkVersion),
-		entries: z.array(entrySchema),
-	});
-
-	async function getManifest() {
-		const rawRootManifestString =
-			await SecureStore.getItemAsync(rootManifestKey);
-
-		logger.debug('rawRootManifestString', rawRootManifestString);
-
-		logger.info(
-			`Root manifest for ${rootManifestKey} is ${rawRootManifestString?.length ?? 0} bytes`,
-		);
-		const unsafedRootManifest: unknown = rawRootManifestString
-			? JSON.parse(rawRootManifestString)
-			: {
-					manifestVersion: rootManifestVersion,
-					manifestChunksIds: [],
-				};
-		const rootManifest = rootManifestSchema.parse(unsafedRootManifest);
-		const manifestChunks = await Promise.all(
-			rootManifest.manifestChunksIds.map(async (manifestChunkId) => {
-				const manifestChunkKeyString = manifestChunkKey(manifestChunkId);
-				const rawManifestChunkString = await SecureStore.getItemAsync(
-					manifestChunkKeyString,
-				);
-				if (!rawManifestChunkString)
-					{throw new Error('Manifest chunk not found');}
-				logger.info(
-					`Manifest chunk for ${manifestChunkKeyString} is ${rawManifestChunkString.length} bytes`,
-				);
-				const unsafedManifestChunk: unknown = JSON.parse(
-					rawManifestChunkString,
-				);
-				return {
-					manifestChunk: manifestChunkSchema.parse(unsafedManifestChunk),
-					manifestChunkId,
-					manifestChunkSize: rawManifestChunkString.length,
-				};
-			}),
-		);
+	function parseMetadata(creds: Keychain.UserCredentials) {
 		return {
-			rootManifest,
-			manifestChunks,
-		};
+			id: creds.username,
+			metadata: params.metadataSchema.parse(JSON.parse(creds.password)),
+		} satisfies Entry;
 	}
 
-	async function _getEntryValueFromManifestEntry(
-		manifestEntry: Entry,
-	): Promise<Value> {
-		const rawEntryChunks = await Promise.all(
-			Array.from({ length: manifestEntry.chunkCount }, async (_, chunkIdx) => {
-				const entryKeyString = entryKey(manifestEntry.id, chunkIdx);
-				const rawEntryChunk = await SecureStore.getItemAsync(entryKeyString);
-				logger.info(
-					`Entry chunk for ${entryKeyString} is ${rawEntryChunk?.length} bytes`,
-				);
-				if (!rawEntryChunk) {throw new Error('Entry chunk not found');}
-				return rawEntryChunk;
-			}),
+	/** Metadata for every entry. Does not read any secret value. */
+	async function listEntries() {
+		const services = await Keychain.getAllGenericPasswordServices();
+		const entries = await Promise.all(
+			services
+				.filter((service) => service.startsWith(metaPrefix))
+				.map(async (service) => {
+					const creds = await Keychain.getGenericPassword({ service });
+					return creds ? parseMetadata(creds) : null;
+				}),
 		);
-		const entry = rawEntryChunks.join('');
-		return storeParams.parseValue(entry);
+		return entries.filter((entry): entry is Entry => entry !== null);
 	}
 
 	async function getEntry(id: string) {
-		const manifest = await getManifest();
-		const manifestEntry = manifest.manifestChunks
-			.flatMap((mChunk) => mChunk.manifestChunk.entries)
-			.find((entry) => entry.id === id);
-		if (!manifestEntry) {throw new Error('Entry not found');}
-
+		const [metaCreds, valueCreds] = await Promise.all([
+			Keychain.getGenericPassword({ service: metaService(id) }),
+			Keychain.getGenericPassword({ service: valueService(id) }),
+		]);
+		if (!metaCreds || !valueCreds) {
+			throw new Error(`Entry not found: ${id}`);
+		}
 		return {
-			value: await _getEntryValueFromManifestEntry(manifestEntry),
-			manifestEntry,
+			...parseMetadata(metaCreds),
+			value: params.parseValue(valueCreds.password),
 		};
 	}
 
-	async function listEntries() {
-		const manifest = await getManifest();
-		const manifestEntries = manifest.manifestChunks.flatMap(
-			(mChunk) => mChunk.manifestChunk.entries,
-		);
-		return manifestEntries;
+	async function listEntriesWithValues() {
+		const entries = await listEntries();
+		return Promise.all(entries.map((entry) => getEntry(entry.id)));
 	}
 
-	async function listEntriesWithValues(): Promise<
-		(Entry & { value: Value })[]
-	> {
-		const manifestEntries = await listEntries();
-		return await Promise.all(
-			manifestEntries.map(async (entry) => ({
-					...entry,
-					value: await _getEntryValueFromManifestEntry(entry),
-				})),
+	async function upsertEntry(input: {
+		id: string;
+		metadata: Metadata;
+		value: string;
+	}) {
+		// Write the secret first, then the metadata. Listing is driven by the
+		// metadata service, so even a half-finished write never surfaces an entry
+		// whose value is missing.
+		await Keychain.setGenericPassword(input.id, input.value, {
+			service: valueService(input.id),
+		});
+		await Keychain.setGenericPassword(
+			input.id,
+			JSON.stringify(input.metadata),
+			{ service: metaService(input.id) },
 		);
+		logger.info(`Stored entry ${input.id}`);
 	}
 
 	async function deleteEntry(id: string) {
-		let manifest = await getManifest();
-		const manifestChunkContainingEntry = manifest.manifestChunks.find(
-			(mChunk) => mChunk.manifestChunk.entries.some((entry) => entry.id === id),
-		);
-		if (!manifestChunkContainingEntry) {throw new Error('Entry not found');}
-
-		const manifestEntry =
-			manifestChunkContainingEntry.manifestChunk.entries.find(
-				(entry) => entry.id === id,
-			);
-		if (!manifestEntry) {throw new Error('Entry not found');}
-
-		await Promise.all([
-			...Array.from(
-				{ length: manifestEntry.chunkCount },
-				async (_, chunkIdx) => {
-					await SecureStore.deleteItemAsync(entryKey(id, chunkIdx));
-				},
-			),
-			SecureStore.setItemAsync(
-				manifestChunkKey(manifestChunkContainingEntry.manifestChunkId),
-				JSON.stringify({
-					...manifestChunkContainingEntry.manifestChunk,
-					entries: manifestChunkContainingEntry.manifestChunk.entries.filter(
-						(entry) => entry.id !== id,
-					),
-				}),
-			),
-		]);
-
-		manifest = await getManifest();
-
-		// check for empty manifest chunks
-		const emptyManifestChunks = manifest.manifestChunks.filter(
-			(mChunk) => mChunk.manifestChunk.entries.length === 0,
-		);
-		if (emptyManifestChunks.length > 0) {
-			logger.debug(
-				'removing empty manifest chunks',
-				emptyManifestChunks.length,
-			);
-			manifest.rootManifest.manifestChunksIds =
-				manifest.rootManifest.manifestChunksIds.filter(
-					(mChunkId) =>
-						!emptyManifestChunks.some(
-							(mChunk) => mChunk.manifestChunkId === mChunkId,
-						),
-				);
-			await Promise.all([
-				...emptyManifestChunks.map(async (mChunk) => {
-					await SecureStore.deleteItemAsync(
-						manifestChunkKey(mChunk.manifestChunkId),
-					);
-				}),
-				SecureStore.setItemAsync(
-					rootManifestKey,
-					JSON.stringify(manifest.rootManifest),
-				),
-			]);
-		}
-	}
-
-	async function upsertEntry(params: {
-		id: string;
-		metadata: T;
-		value: string;
-	}) {
-		await deleteEntry(params.id).catch(() => {
-			logger.info(`Entry ${params.id} not found, creating new one`);
-		});
-
-		const valueChunks = splitIntoChunks(params.value, sizeLimit);
-		const newManifestEntry = entrySchema.parse({
-			id: params.id,
-			chunkCount: valueChunks.length,
-			metadata: params.metadata,
-		} satisfies Entry);
-		const newManifestEntrySize = JSON.stringify(newManifestEntry).length;
-		if (newManifestEntrySize > sizeLimit / 2)
-			{throw new Error('Manifest entry size is too large');}
-		const manifest = await getManifest();
-
-		const existingManifestChunkWithRoom = manifest.manifestChunks.find(
-			(mChunk) => sizeLimit > mChunk.manifestChunkSize + newManifestEntrySize,
-		);
-		logger.debug(
-			'existingManifestChunkWithRoom',
-			existingManifestChunkWithRoom,
-		);
-		const manifestChunkWithRoom =
-			existingManifestChunkWithRoom ??
-			(await (async () => {
-				const newManifestChunk = {
-					manifestChunk: {
-						entries: [],
-						manifestChunkVersion: manifestChunkVersion,
-					},
-					manifestChunkId: Crypto.randomUUID(),
-					manifestChunkSize: 0,
-				} satisfies NonNullable<(typeof manifest.manifestChunks)[number]>;
-				logger.info(
-					`Adding new manifest chunk ${newManifestChunk.manifestChunkId}`,
-				);
-				manifest.rootManifest.manifestChunksIds.push(
-					newManifestChunk.manifestChunkId,
-				);
-				await SecureStore.setItemAsync(
-					rootManifestKey,
-					JSON.stringify(manifest.rootManifest),
-				);
-				logger.debug('newRootManifest', manifest.rootManifest);
-				return newManifestChunk;
-			})());
-
-		manifestChunkWithRoom.manifestChunk.entries.push(newManifestEntry);
-		const manifestChunkKeyString = manifestChunkKey(
-			manifestChunkWithRoom.manifestChunkId,
-		);
-		await Promise.all([
-			SecureStore.setItemAsync(
-				manifestChunkKeyString,
-				JSON.stringify(manifestChunkWithRoom.manifestChunk),
-			).then(() => {
-				logger.info(
-					`Set manifest chunk for ${manifestChunkKeyString} to ${JSON.stringify(manifestChunkWithRoom.manifestChunk).length} bytes`,
-				);
-			}),
-			...valueChunks.map(async (vChunk, chunkIdx) => {
-				const entryKeyString = entryKey(newManifestEntry.id, chunkIdx);
-				logger.debug('setting entry chunk', entryKeyString);
-				await SecureStore.setItemAsync(entryKeyString, vChunk);
-				logger.info(
-					`Set entry chunk for ${entryKeyString} ${chunkIdx} to ${vChunk.length} bytes`,
-				);
-			}),
-		]);
+		// Remove the metadata (the index) first so a half-finished delete can't
+		// leave a listed-but-valueless entry.
+		await Keychain.resetGenericPassword({ service: metaService(id) });
+		await Keychain.resetGenericPassword({ service: valueService(id) });
+		logger.info(`Deleted entry ${id}`);
 	}
 
 	return {
-		getManifest,
-		getEntry,
 		listEntries,
+		getEntry,
 		listEntriesWithValues,
 		upsertEntry,
 		deleteEntry,
@@ -319,9 +128,9 @@ const keyMetadataSchema = z.object({
 });
 export type KeyMetadata = z.infer<typeof keyMetadataSchema>;
 
-const betterKeyStorage = makeBetterSecureStore<KeyMetadata>({
-	storagePrefix: 'privateKey',
-	extraManifestFieldsSchema: keyMetadataSchema,
+const keyStore = makeKeychainStore({
+	prefix: 'fressh.key',
+	metadataSchema: keyMetadataSchema,
 	parseValue: (value) => value,
 });
 
@@ -338,30 +147,21 @@ async function upsertPrivateKey(params: {
 		throw new Error('Invalid private key', { cause: error });
 	}
 	const keyId = params.keyId ?? `key_${Crypto.randomUUID()}`;
-	logger.info(
-		`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`,
-	);
+	logger.info(`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`);
 	// Preserve createdAtMs if the entry already exists
-	const existing = await betterKeyStorage
-		.getEntry(keyId)
-		.catch(() => {});
-	const createdAtMs =
-		existing?.manifestEntry.metadata.createdAtMs ?? Date.now();
+	const existing = await keyStore.getEntry(keyId).catch(() => undefined);
+	const createdAtMs = existing?.metadata.createdAtMs ?? Date.now();
 
-	await betterKeyStorage.upsertEntry({
+	await keyStore.upsertEntry({
 		id: keyId,
-		metadata: {
-			...params.metadata,
-			createdAtMs,
-		},
+		metadata: { ...params.metadata, createdAtMs },
 		value: params.value,
 	});
-	logger.debug('invalidating key query');
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
 async function deletePrivateKey(keyId: string) {
-	await betterKeyStorage.deleteEntry(keyId);
+	await keyStore.deleteEntry(keyId);
 	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
@@ -370,7 +170,7 @@ const keyQueryKey = 'keys';
 const listKeysQueryOptions = queryOptions({
 	queryKey: [keyQueryKey],
 	queryFn: async () => {
-		const results = await betterKeyStorage.listEntriesWithValues();
+		const results = await keyStore.listEntries();
 		logger.info(`Listed ${results.length} private keys`);
 		return results;
 	},
@@ -379,7 +179,7 @@ const listKeysQueryOptions = queryOptions({
 const getKeyQueryOptions = (keyId: string) =>
 	queryOptions({
 		queryKey: [keyQueryKey, keyId],
-		queryFn: () => betterKeyStorage.getEntry(keyId),
+		queryFn: () => keyStore.getEntry(keyId),
 	});
 
 export const connectionDetailsSchema = z.object({
@@ -398,9 +198,9 @@ export const connectionDetailsSchema = z.object({
 	]),
 });
 
-const betterConnectionStorage = makeBetterSecureStore({
-	storagePrefix: 'connection',
-	extraManifestFieldsSchema: z.object({
+const connectionStore = makeKeychainStore({
+	prefix: 'fressh.connection',
+	metadataSchema: z.object({
 		priority: z.number(),
 		createdAtMs: z.int(),
 		modifiedAtMs: z.int(),
@@ -421,7 +221,7 @@ async function upsertConnection(params: {
 			'.',
 			'_',
 		);
-	await betterConnectionStorage.upsertEntry({
+	await connectionStore.upsertEntry({
 		id,
 		metadata: {
 			priority: params.priority,
@@ -431,13 +231,12 @@ async function upsertConnection(params: {
 		},
 		value: JSON.stringify(params.details),
 	});
-	logger.debug('invalidating connection query');
 	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
 	return params.details;
 }
 
 async function deleteConnection(id: string) {
-	await betterConnectionStorage.deleteEntry(id);
+	await connectionStore.deleteEntry(id);
 	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
 }
 
@@ -445,13 +244,13 @@ const connectionQueryKey = 'connections';
 
 const listConnectionsQueryOptions = queryOptions({
 	queryKey: [connectionQueryKey],
-	queryFn: () => betterConnectionStorage.listEntriesWithValues(),
+	queryFn: () => connectionStore.listEntries(),
 });
 
 const getConnectionQueryOptions = (id: string) =>
 	queryOptions({
 		queryKey: [connectionQueryKey, id],
-		queryFn: () => betterConnectionStorage.getEntry(id),
+		queryFn: () => connectionStore.getEntry(id),
 	});
 
 export const secretsManager = {
@@ -459,8 +258,8 @@ export const secretsManager = {
 		utils: {
 			upsertPrivateKey,
 			deletePrivateKey,
-			listEntriesWithValues: betterKeyStorage.listEntriesWithValues,
-			getPrivateKey: (keyId: string) => betterKeyStorage.getEntry(keyId),
+			listEntriesWithValues: keyStore.listEntriesWithValues,
+			getPrivateKey: (keyId: string) => keyStore.getEntry(keyId),
 		},
 		query: {
 			list: listKeysQueryOptions,
