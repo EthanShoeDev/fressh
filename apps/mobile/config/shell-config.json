@@ -423,14 +423,14 @@
 					null,
 					null,
 					{
-						"type": "bytes",
-						"bytes": [27, 91, 49, 59, 55, 68],
+						"type": "action",
+						"actionId": "WORKMUX_NAV_PREV_ALL",
 						"label": "Prev all",
 						"icon": null
 					},
 					{
-						"type": "bytes",
-						"bytes": [27, 91, 49, 59, 55, 67],
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT_ALL",
 						"label": "Next all",
 						"icon": null
 					},

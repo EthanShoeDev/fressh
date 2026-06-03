@@ -12,6 +12,7 @@ import {
 	createScrollbackEnterRequestFailureHandler,
 	handleXtermBridgeInboundMessage,
 } from '../src/xterm-message-handler';
+import { createXtermWebViewMessageHandler } from './webview-message-handler';
 
 void test('scrollback batch mapper strips only bridge message type', () => {
 	assert.deepEqual(
@@ -250,6 +251,67 @@ void test('XtermJsWebView message handler does not forward stale scroll input to
 	assert.deepEqual(events, [
 		['warn', ['dropping non-typing webview input', 'scroll']],
 	]);
+});
+
+void test('WebView outbound handler ignores stale scrollback instance messages', () => {
+	const events: unknown[] = [];
+	const handler = createXtermWebViewMessageHandler({
+		instanceId: 'current-instance',
+		term: {
+			cols: 80,
+			rows: 24,
+			options: {},
+			write: () => events.push('write'),
+			resize: () => events.push('resize'),
+			getSelection: () => 'selected',
+			clear: () => events.push('clear'),
+			focus: () => events.push('focus'),
+		},
+		fitAddon: {
+			fit: () => events.push('fit'),
+		},
+		selectionHandles: {
+			applySelectionMode: () => events.push('selection-mode'),
+		},
+		touchScrollController: {
+			setConfig: () => events.push('set-config'),
+			exitScrollback: (opts) => events.push(['exit', opts]),
+			handleEnterAck: (requestId) => events.push(['ack', requestId]),
+		},
+		sendToRn: (message) => events.push(['rn', message]),
+		applyFontFamily: () => events.push('font-family'),
+	});
+
+	handler({
+		data: {
+			type: 'exitScrollback',
+			requestId: 1,
+			instanceId: 'stale-instance',
+		},
+	} as MessageEvent);
+	handler({
+		data: {
+			type: 'scrollbackEnterAck',
+			requestId: 2,
+			instanceId: 'stale-instance',
+		},
+	} as MessageEvent);
+	handler({
+		data: {
+			type: 'exitScrollback',
+			requestId: 3,
+			instanceId: 'current-instance',
+		},
+	} as MessageEvent);
+	handler({
+		data: {
+			type: 'scrollbackEnterAck',
+			requestId: 4,
+			instanceId: 'current-instance',
+		},
+	} as MessageEvent);
+
+	assert.deepEqual(events, [['exit', { requestId: 3 }], ['ack', 4]]);
 });
 
 void test('XtermJsWebView message handler reports rejected scrollback enter callbacks', async () => {

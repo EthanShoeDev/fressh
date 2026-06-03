@@ -2,12 +2,12 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import {
-	bStrToBinary,
 	type BridgeInboundMessage,
 	type BridgeOutboundMessage,
 } from '../src/bridge';
 import { createSelectionHandles } from './selection-handles';
 import { createTouchScrollController } from './touch-scroll-controller';
+import { createXtermWebViewMessageHandler } from './webview-message-handler';
 
 declare global {
 	interface Window {
@@ -198,116 +198,15 @@ window.onload = () => {
 				window.__FRESSH_XTERM_MSG_HANDLER__!,
 			);
 
-		// RN -> WebView handler (write, resize, setFont, setTheme, setOptions, clear, focus)
-		const handler = (e: MessageEvent<BridgeOutboundMessage>) => {
-			try {
-				const msg = e.data;
-
-				if (!msg || typeof msg.type !== 'string') return;
-
-				// TODO: https://xtermjs.org/docs/guides/flowcontrol/#ideas-for-a-better-mechanism
-				const termWrite = (bStr: string) => {
-					const bytes = bStrToBinary(bStr);
-					term.write(bytes);
-				};
-
-				switch (msg.type) {
-					case 'write': {
-						termWrite(msg.bStr);
-						break;
-					}
-					case 'writeMany': {
-						for (const bStr of msg.chunks) {
-							termWrite(bStr);
-						}
-						break;
-					}
-					case 'resize': {
-						term.resize(msg.cols, msg.rows);
-						break;
-					}
-					case 'fit': {
-						fitAddon.fit();
-						// Report new size after fit (onResize may not fire if size unchanged)
-						if (term.cols >= 2 && term.rows >= 1) {
-							sendToRn({
-								type: 'sizeChanged',
-								cols: term.cols,
-								rows: term.rows,
-							});
-						}
-						break;
-					}
-					case 'getSelection': {
-						const text = term.getSelection();
-						sendToRn({
-							type: 'selection',
-							requestId: msg.requestId,
-							text,
-							instanceId,
-						});
-						break;
-					}
-					case 'setSelectionMode': {
-						sendToRn({
-							type: 'debug',
-							message: `setSelectionMode ${msg.enabled ? 'on' : 'off'}`,
-						});
-						selectionHandles.applySelectionMode(msg.enabled, { force: true });
-						break;
-					}
-					case 'setTouchScrollConfig': {
-						touchScrollController.setConfig(msg.config);
-						break;
-					}
-					case 'exitScrollback': {
-						if (msg.instanceId && msg.instanceId !== instanceId) return;
-						touchScrollController.exitScrollback({
-							requestId: msg.requestId,
-						});
-						break;
-					}
-					case 'scrollbackEnterAck': {
-						if (msg.instanceId !== instanceId) return;
-						touchScrollController.handleEnterAck(msg.requestId);
-						break;
-					}
-					case 'setOptions': {
-						const { theme, ...rest } = msg.opts;
-						for (const key in rest) {
-							if (key === 'cols' || key === 'rows') continue;
-							const value = rest[key as keyof typeof rest];
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							(term.options as any)[key] = value;
-						}
-						if (theme) {
-							term.options.theme = {
-								...term.options.theme,
-								...theme,
-							};
-						}
-						applyFontFamily(msg.opts.fontFamily);
-						if (theme?.background) {
-							document.body.style.backgroundColor = theme.background;
-						}
-						break;
-					}
-					case 'clear': {
-						term.clear();
-						break;
-					}
-					case 'focus': {
-						term.focus();
-						break;
-					}
-				}
-			} catch (err) {
-				sendToRn({
-					type: 'debug',
-					message: `message handler error: ${String(err)}`,
-				});
-			}
-		};
+		const handler = createXtermWebViewMessageHandler({
+			instanceId,
+			term,
+			fitAddon,
+			selectionHandles,
+			touchScrollController,
+			sendToRn,
+			applyFontFamily,
+		});
 
 		window.__FRESSH_XTERM_MSG_HANDLER__ = handler;
 		window.addEventListener('message', handler);

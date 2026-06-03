@@ -1,29 +1,12 @@
 import { default as React, RefObject } from 'react';
 import { WebView } from 'react-native-webview';
-import { binaryToBStr, bStrToBinary, ScrollbackBatchEvent, TouchScrollConfig } from './bridge';
+import { binaryToBStr, bStrToBinary, BridgeInboundMessage, ScrollbackBatchEvent, TouchScrollConfig } from './bridge';
 export { bStrToBinary, binaryToBStr };
 export type { ScrollbackBatchEvent, TouchScrollConfig };
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type WebViewOptions = React.ComponentProps<typeof WebView>;
-/**
- * Message from this pkg to calling RN
- */
-export type XtermInbound = {
-    type: 'initialized';
-} | {
-    type: 'data';
-    data: Uint8Array;
-} | {
-    type: 'debug';
-    message: string;
-} | {
-    type: 'selectionChanged';
-    text: string;
-} | {
-    type: 'selectionModeChanged';
-    enabled: boolean;
-};
+export type XtermInbound = BridgeInboundMessage;
 export type XtermWebViewHandle = {
     write: (data: Uint8Array) => void;
     writeMany: (chunks: Uint8Array[]) => void;

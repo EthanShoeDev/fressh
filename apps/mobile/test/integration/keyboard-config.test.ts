@@ -323,6 +323,32 @@ void test('phone base keyboard does not expose stale pane labels', () => {
 	assert.equal(labels.includes('Alt-w'), false);
 });
 
+void test('bundled Workmux all-window nav keys use semantic actions', () => {
+	const config = getBundledShellConfig();
+	const workmuxAllNavSlots = config.keyboards.flatMap((keyboard) =>
+		keyboard.grid.flatMap((row) =>
+			row.flatMap((slot) => {
+				const options = slot?.longPress?.options ?? [];
+				return [slot, ...options].filter(
+					(option) =>
+						option?.label === 'Prev all' || option?.label === 'Next all',
+				);
+			}),
+		),
+	);
+
+	assert.notEqual(workmuxAllNavSlots.length, 0);
+	for (const slot of workmuxAllNavSlots) {
+		assert.equal(slot?.type, 'action');
+		if (slot?.type !== 'action') continue;
+		if (slot?.label === 'Prev all') {
+			assert.equal(slot.actionId, 'WORKMUX_NAV_PREV_ALL');
+		} else {
+			assert.equal(slot.actionId, 'WORKMUX_NAV_NEXT_ALL');
+		}
+	}
+});
+
 void test('phone base keyboard exposes explain, browser actions, and work navigation actions', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(

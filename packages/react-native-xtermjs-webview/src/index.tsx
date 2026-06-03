@@ -46,15 +46,7 @@ const jetBrainsMonoFontCss = `
 }
 `;
 
-/**
- * Message from this pkg to calling RN
- */
-export type XtermInbound =
-	| { type: 'initialized' }
-	| { type: 'data'; data: Uint8Array }
-	| { type: 'debug'; message: string }
-	| { type: 'selectionChanged'; text: string }
-	| { type: 'selectionModeChanged'; enabled: boolean };
+export type XtermInbound = BridgeInboundMessage;
 
 export type XtermWebViewHandle = {
 	write: (data: Uint8Array) => void; // bytes in (batched)
