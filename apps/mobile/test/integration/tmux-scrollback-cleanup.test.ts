@@ -1180,6 +1180,37 @@ void test('live input runner sends non-empty payload after successful cleanup', 
 	assert.deepEqual(sentSegments, [[[0x68, 0x69]]]);
 });
 
+void test('live input runner suppresses deferred payload after request invalidation', async () => {
+	const cleanup = deferred<boolean>();
+	const sentSegments: number[][][] = [];
+	let requestCurrent = true;
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
+		scrollbackActive: true,
+		payloadSegments: [bytes([0x68, 0x69])],
+		scrollbackExitDelayMs: 10,
+	});
+
+	const result = runWorkmuxScrollbackLiveInputSendPlan({
+		plan,
+		currentCleanup: cleanup.promise,
+		startCleanup: () => {
+			throw new Error('should use current cleanup');
+		},
+		remoteCopyModeActive: true,
+		isRequestCurrent: () => requestCurrent,
+		sendSegments: (segments) => {
+			sentSegments.push(segmentValues(segments));
+		},
+	});
+
+	assert.equal(result, cleanup.promise);
+	requestCurrent = false;
+	cleanup.resolve(true);
+	await cleanup.promise;
+	await Promise.resolve();
+	assert.deepEqual(sentSegments, []);
+});
+
 void test('live input runner blocks non-empty payload after failed cleanup', async () => {
 	const cleanup = Promise.resolve(false);
 	const sentSegments: number[][][] = [];

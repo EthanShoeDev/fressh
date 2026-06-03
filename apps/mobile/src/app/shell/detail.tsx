@@ -946,6 +946,10 @@ function ShellDetail() {
 				currentCleanup: scrollbackCleanupBarrierRef.current.current(),
 				startCleanup: clearScrollbackState,
 				remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
+				isRequestCurrent: () =>
+					isFocusedRef.current &&
+					isAppActiveRef.current &&
+					currentInstanceIdRef.current != null,
 				sendSegments: (segments, options) =>
 					sendBytesQueued(segments, {
 						interSegmentDelayMs: options?.interSegmentDelayMs,
