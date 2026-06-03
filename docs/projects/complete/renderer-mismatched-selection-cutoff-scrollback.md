@@ -1,12 +1,80 @@
 # Terminal renderer ↔ view size mismatch (selection drift + cut-off scrollback)
 
-**Status:** unresolved, investigation paused. Touch scroll + selection are *implemented*
-and the selection-coordinate mapping has been made resolution-independent, but a deeper
-**surface/grid/view size desync** when the soft keyboard opens is still suspected and not
-fully confirmed. All code below is **uncommitted** (working tree only).
+**Status: RESOLVED (2026-06-03), device-verified on the Android emulator (BOTH keyboard
+directions).** Real root cause turned out to be deeper than the layout: `egl.resize()` read
+the surface size from **`eglQuerySurface(EGL_WIDTH/HEIGHT)`**, which **lags the SurfaceView's
+new buffer geometry by ~one frame** (it reflects the buffer from the last `eglSwapBuffers`).
+So whenever it was read one-shot in `surfaceChanged`, it returned the *previous* size and the
+grid was set one transition behind — wrong after every keyboard toggle. Fix = a JS layout
+change that reliably resizes the view + polling the surface size from the **draw loop**
+(post-swap, so the value has settled) and reflowing only when it actually changes. Fix code
+is **uncommitted** (working tree). See **"The fix (RESOLVED)"**; original investigation kept
+for history.
 
-This doc captures the symptoms, what we proved, the dead ends, the code state, and the
-next steps so we can pick it up cold.
+## The fix (RESOLVED)
+
+Three parts (JS + Kotlin + Rust; the Rust part needs a `.so` rebuild — `native:build:android`
+— but no ubrn regen since the C-ABI signatures are unchanged):
+
+1. **JS — `detail.tsx`:** dropped KC's `KeyboardAvoidingView`. The terminal stays `flex:1`
+   inside a fixed-height column (the window does NOT shrink for the IME here); a settled
+   `KeyboardEvents` `keyboardDidShow/Hide` listener tracks the keyboard height and drives the
+   toolbar's `marginBottom`. Growing that margin makes flexbox shrink the `flex:1` terminal →
+   a real layout change in BOTH directions → `onLayout` (sizeRef) and the native
+   `onSizeChanged` both refire. `marginBottom` clears the keyboard's overlap with *this
+   column*, not the whole screen: the column sits above the native bottom tab bar
+   (expo-router `NativeTabs`), so we `measureInWindow` the column's on-screen bottom and
+   subtract the reserved space below it from the screen-relative keyboard height
+   (`marginBottom = max(keyboardHeight − bottomReserved, insets.bottom)`). Without that the
+   toolbar floated a tab-bar-height above the keyboard.
+2. **Native — `HybridTerminal.kt`:** plain default `SurfaceView` (buffer auto-tracks the view).
+   *(An earlier `onSizeChanged → setFixedSize(w,h)` made SHRINK work but broke GROW — a fixed
+   buffer just gets scaled, so growing the view never requested a bigger buffer. Reverted.)*
+3. **Rust — `egl.rs` + `shim-uniffi/android.rs`:** added `EglContext::surface_size()` and a
+   `sync_surface_size(attached)` that re-queries the surface size and reflows the renderer +
+   bound shell **only when it changed since the last sync**. It's called every frame from the
+   **draw loop** (`fressh_terminal_draw`) — which runs after `eglSwapBuffers`, so the queried
+   size has settled — and from `surfaceChanged` (`fressh_terminal_resize`, now a thin caller;
+   it no-ops on the lagged read and the draw loop catches the settled size 1–2 frames later).
+   The grid/`SizeInfo`/PTY now converge to the real surface size in both directions.
+
+**Device verification (emulator, `ethan@nas.lan` shell):**
+- Keyboard UP→DOWN→UP round-trip: `sync_surface_size` reflows the grid in BOTH directions —
+  `surface=(1028x1564) grid=31x24` (kb down) ↔ `surface=(1028x744) grid=31x11` (kb up). The
+  queried surface size now MATCHES the view's `onSizeChanged` size (no lag).
+- Keyboard down: terminal grows and **fills with content** (scrollback pulled in to fill the
+  new rows) — no "cut off halfway / blank below". Keyboard up: content bottom-anchored, prompt
+  at the bottom edge — no cut-off.
+- `frac_to_point` uses the current resized grid (`lines=24`, `disp=0`); long-press "stored"
+  mapped to its exact cell (`col3 vp_line15`) and the highlight + Copy landed on that word —
+  no multi-row drift.
+- **Both** toolbar rows (incl. CTRL/ALT) visible above the keyboard.
+
+**Cleanup done (2026-06-03):**
+- Toolbar↔keyboard gap closed via the `measureInWindow`-based `marginBottom` above
+  (device-verified: toolbar now sits just above the keyboard, both rows visible).
+- All temp diagnostics removed: control.rs `log::info!` (frac/selection), the
+  `sync_surface_size` + Kotlin `onSizeChanged` logs, and the `log` dep in
+  `fressh-core/Cargo.toml`. `.so` rebuilt + app reinstalled; both keyboard directions
+  re-verified visually (content fills in both states, no cut-off, gap closed).
+
+**Remaining note (non-blocking):**
+- An agent-device *stationary* long-press sometimes yields an empty Semantic selection on the
+  lower rows (no word-snap) — a test-harness artifact observed during verification, not a
+  product misalignment (the "stored" case word-snapped + highlighted correctly).
+
+All fix code is **uncommitted** (working tree): `apps/mobile/src/app/(tabs)/shell/detail.tsx`,
+`packages/react-native-terminal/android/.../HybridTerminal.kt`,
+`packages/react-native-terminal/rust/fressh-render/src/egl.rs`,
+`packages/react-native-terminal/rust/shim-uniffi/src/android.rs`
+(+ `fressh-core/Cargo.toml`, `fressh-core/src/control.rs` diagnostic removals).
+
+---
+
+## (historical) original investigation
+
+This doc captured the symptoms, what we proved, the dead ends, the code state, and the
+next steps so we could pick it up cold. Superseded by the fix above.
 
 ---
 

@@ -197,7 +197,6 @@ pub fn selection_start(shell_id: &str, fx: f32, fy: f32, kind: SelectionKind) {
 		SelectionKind::Line => SelectionType::Lines,
 	};
 	term.selection = Some(Selection::new(ty, point, side));
-	log::info!("selection_start: text={:?}", term.selection_to_string());
 	// A following drag extends the selection — don't let leftover scroll remainder
 	// bleed into it.
 	*shell.scroll_remainder.lock().unwrap_or_else(|p| p.into_inner()) = 0.0;
@@ -243,10 +242,6 @@ fn frac_to_point(term: &Term<CoreListener>, fx: f32, fy: f32) -> (Point, Side) {
 	let viewport_line = ((fy * screen_lines as f32) as usize).min(screen_lines - 1);
 	let side = if (col_f - col as f32) < 0.5 { Side::Left } else { Side::Right };
 	let point = viewport_to_point(display_offset, Point::new(viewport_line, Column(col)));
-	log::info!(
-		"frac_to_point: fx={fx:.3} fy={fy:.3} cols={columns} lines={screen_lines} \
-		 disp={display_offset} -> col={col} vp_line={viewport_line}"
-	);
 	(point, side)
 }
 

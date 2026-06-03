@@ -29,12 +29,13 @@ import {
 	Pressable,
 	Text,
 	TextInput,
+	useWindowDimensions,
 	View,
 	type StyleProp,
 	type ViewStyle,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { KeyboardEvents } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { rootLogger } from '@/lib/logger';
 import { useTerminalRenderConfig } from '@/lib/preferences';
@@ -111,6 +112,52 @@ function ShellDetail() {
 	const router = useRouter();
 	const theme = useTheme();
 	const insets = useSafeAreaInsets();
+
+	// Settled keyboard height (dp), from KC's did-show/did-hide (NOT the per-frame
+	// animation). The window does NOT shrink for the IME on this edge-to-edge build,
+	// so we shrink the terminal ourselves: growing the toolbar's marginBottom by this
+	// amount makes the flex:1 terminal give up exactly that many dp. That layout change
+	// is what fires the gesture view's onLayout AND the native SurfaceView's
+	// onSizeChanged -> setFixedSize -> surfaceChanged -> nativeResize, so the grid,
+	// surface buffer, and on-screen bounds stay in lockstep (selection stays aligned).
+	// One resize per keyboard transition (no per-frame PTY reflow): correctness over
+	// animation smoothness. See
+	// docs/projects/complete/renderer-mismatched-selection-cutoff-scrollback.md.
+	const [keyboardHeight, setKeyboardHeight] = useState(0);
+	useEffect(() => {
+		const show = KeyboardEvents.addListener('keyboardDidShow', (e) =>
+			setKeyboardHeight(e.height),
+		);
+		const hide = KeyboardEvents.addListener('keyboardDidHide', () =>
+			setKeyboardHeight(0),
+		);
+		return () => {
+			show.remove();
+			hide.remove();
+		};
+	}, []);
+
+	// The toolbar's marginBottom must clear the keyboard's overlap with THIS column,
+	// not the whole screen. The column's bottom sits above the native bottom tab bar
+	// (expo-router NativeTabs), so we measure the space below the column (tab bar +
+	// nav inset) and subtract it from the screen-relative keyboard height — otherwise
+	// the toolbar floats a tab-bar-height above the keyboard. (keyboardHeight is
+	// measured from the screen bottom; measureInWindow + window height give us the
+	// reserved space below the column.)
+	const windowHeight = useWindowDimensions().height;
+	const columnRef = useRef<View>(null);
+	const [bottomReserved, setBottomReserved] = useState(insets.bottom);
+	const measureColumn = useCallback(() => {
+		columnRef.current?.measureInWindow((_x, y, _w, h) => {
+			if (h > 0) {
+				setBottomReserved(Math.max(0, windowHeight - (y + h)));
+			}
+		});
+	}, [windowHeight]);
+	const toolbarMarginBottom =
+		keyboardHeight > 0
+			? Math.max(keyboardHeight - bottomReserved, insets.bottom)
+			: insets.bottom;
 
 	// Shells are keyed in the store by their native `shellId` (opaque), but the
 	// route only carries connectionId + channelId — so resolve by those fields.
@@ -217,15 +264,13 @@ function ShellDetail() {
 						),
 					}}
 				/>
-				{/* react-native-keyboard-controller's KeyboardAvoidingView (NOT RN's): on
-						this edge-to-edge build only KC's actually shrinks the column when the
-						IME opens, which resizes the terminal SurfaceView (surfaceChanged ->
-						nativeResize -> new cell metrics) so touch coords stay aligned with
-						surface pixels (RN's left the surface full-height -> selection mismatch).
-						NO keyboardVerticalOffset — it desyncs the surface from the touch view
-						and breaks alignment. The toolbar instead clears the keyboard via its own
-						marginBottom (below). Paired with softwareKeyboardLayoutMode='resize'. */}
-				<KeyboardAvoidingView behavior='height' style={{ flex: 1, gap: 4 }}>
+				{/* Fixed-height column (the window does NOT shrink for the IME here). We
+						avoid for the keyboard ourselves via the toolbar's marginBottom below,
+						which shrinks the flex:1 terminal by the keyboard height and triggers the
+						deterministic surface resize. (A KeyboardAvoidingView resized the surface
+						only inconsistently and clipped the 2nd toolbar row.) Paired with
+						softwareKeyboardLayoutMode='resize'. */}
+				<View ref={columnRef} onLayout={measureColumn} style={{ flex: 1, gap: 4 }}>
 					<KeyboardToolBarContext value={toolbarContext}>
 						<View
 							style={{
@@ -279,21 +324,16 @@ function ShellDetail() {
 								style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
 							/>
 						</View>
-						{/* Lift the toolbar above the gesture-nav inset so its 2nd row
-								(CTRL/ALT) clears the keyboard — KC's KAV doesn't subtract the
-								bottom inset. Done as marginBottom on the toolbar (not a KAV
-								offset) so the terminal's size/mapping is untouched. */}
-						<View style={{ marginBottom: insets.bottom }}>
+						{/* marginBottom reserves space below the toolbar: the keyboard height
+								when it's up (so both rows — incl. CTRL/ALT — clear the keyboard and
+								the terminal shrinks to match), else the gesture-nav inset. This is
+								the single knob that drives the deterministic terminal resize. */}
+						<View style={{ marginBottom: toolbarMarginBottom }}>
 							<KeyboardToolbar />
 						</View>
 					</KeyboardToolBarContext>
-				</KeyboardAvoidingView>
+				</View>
 			</View>
-			{/* <KeyboardToolbar
-				offset={{
-					opened: -80,
-				}}
-			/> */}
 		</>
 	);
 }

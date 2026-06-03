@@ -35,6 +35,32 @@ pub struct AttachedTerminal {
 	font_path: String,
 	shell_id: Option<String>,
 	last_state: Option<DrawState>,
+	/// The surface buffer size we last reflowed the grid to. We poll the real size
+	/// from the draw loop and resize when it actually changes — `eglQuerySurface`
+	/// lags the SurfaceView geometry by a frame, so a one-shot read in
+	/// `surfaceChanged` is unreliable (esp. on GROW). See `sync_surface_size`.
+	last_surface_size: (i32, i32),
+}
+
+/// Re-sync the renderer + bound shell to the surface's *current* buffer size, but
+/// only when it actually changed since the last sync. Called every frame from the
+/// draw loop (which runs after `eglSwapBuffers`, so the queried size has settled)
+/// and from `surfaceChanged`. This is what keeps the grid/`SizeInfo`/PTY in lockstep
+/// with the on-screen view in BOTH directions when the keyboard opens/closes.
+fn sync_surface_size(attached: &mut AttachedTerminal) {
+	let size = attached.egl.surface_size();
+	if size == attached.last_surface_size || size.0 <= 0 || size.1 <= 0 {
+		return;
+	}
+	attached.last_surface_size = size;
+	let (cols, rows) = attached.egl.resize();
+	let (cw, ch, px, py) = attached.egl.cell_metrics();
+	if let Some(id) = attached.shell_id.clone() {
+		set_render_metrics(&id, cw, ch, px, py);
+		runtime::handle().spawn(async move {
+			let _ = fressh_core::resize(id, cols, rows).await;
+		});
+	}
 }
 
 /// The render config as it crosses the C-ABI: a JSON blob assembled by the Kotlin
@@ -122,7 +148,14 @@ pub unsafe extern "C" fn fressh_terminal_attach(
 	match EglContext::create(window, config) {
 		Ok(egl) => {
 			log::info!("fressh_terminal_attach: created, grid={:?}", egl.grid_size());
-			Box::into_raw(Box::new(AttachedTerminal { egl, font_path, shell_id, last_state: None }))
+			Box::into_raw(Box::new(AttachedTerminal {
+				egl,
+				font_path,
+				shell_id,
+				last_state: None,
+				// (0,0) so the first draw-loop sync reflows the grid + Term to the real size.
+				last_surface_size: (0, 0),
+			}))
 		}
 		Err(err) => {
 			log::error!("fressh_terminal_attach failed: {err}");
@@ -190,6 +223,10 @@ pub unsafe extern "C" fn fressh_terminal_draw(ptr: *mut AttachedTerminal) {
 	let Some(attached) = (unsafe { ptr.as_mut() }) else {
 		return;
 	};
+	// Poll the real surface size every frame and reflow if it changed. eglQuerySurface
+	// lags the SurfaceView geometry right after a resize, so this (post-swap) is the
+	// reliable place to catch keyboard-open/close size changes in both directions.
+	sync_surface_size(attached);
 	let state = match attached.shell_id.as_deref() {
 		Some(id) => match shell_term(id) {
 			Some(term) => {
@@ -222,31 +259,19 @@ pub unsafe extern "C" fn fressh_terminal_draw(ptr: *mut AttachedTerminal) {
 	attached.last_state = Some(state);
 }
 
-/// Re-query the surface size, resize the renderer, and reflow the bound shell's
-/// `Term` + PTY to the new grid.
+/// Surface geometry changed (the SurfaceView's `surfaceChanged`). We don't trust
+/// the size read here — `eglQuerySurface` lags the new geometry by a frame — so we
+/// just run the same poll the draw loop runs; it no-ops until the size has actually
+/// settled and the draw loop then catches it. Kept so a paused draw loop still
+/// eventually reflows.
 ///
 /// # Safety
 /// `ptr` must be a non-null handle from [`fressh_terminal_attach`].
 #[no_mangle]
 pub unsafe extern "C" fn fressh_terminal_resize(ptr: *mut AttachedTerminal) {
 	// SAFETY: caller guarantees `ptr` is a live handle from attach.
-	let Some(attached) = (unsafe { ptr.as_mut() }) else {
-		return;
-	};
-	let (cols, rows) = attached.egl.resize();
-	let (cw, ch, px, py) = attached.egl.cell_metrics();
-	log::info!(
-		"fressh_terminal_resize: grid={cols}x{rows} cell=({cw:.1},{ch:.1}) pad=({px:.1},{py:.1}) \
-		 surface~=({:.0}x{:.0}) shell_id={:?}",
-		cols as f32 * cw + 2.0 * px,
-		rows as f32 * ch + 2.0 * py,
-		attached.shell_id,
-	);
-	if let Some(id) = attached.shell_id.clone() {
-		set_render_metrics(&id, cw, ch, px, py);
-		runtime::handle().spawn(async move {
-			let _ = fressh_core::resize(id, cols, rows).await;
-		});
+	if let Some(attached) = unsafe { ptr.as_mut() } {
+		sync_surface_size(attached);
 	}
 }
 

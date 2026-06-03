@@ -88,9 +88,19 @@ impl EglContext {
 	/// Re-query the surface size and resize the renderer. Returns the resulting
 	/// grid `(columns, rows)` so the caller can reflow the `Term` + PTY to match.
 	pub fn resize(&mut self) -> (usize, usize) {
+		let (width, height) = self.surface_size();
+		self.renderer.resize(width as f32, height as f32)
+	}
+
+	/// The EGL surface's current buffer dimensions in physical px, via
+	/// `eglQuerySurface`. NOTE: this reflects the size of the buffer from the last
+	/// `eglSwapBuffers`, so right after a SurfaceView resize it can lag the new
+	/// geometry by a frame — callers should poll it from the draw loop (which swaps
+	/// every frame) rather than trusting a one-shot read in `surfaceChanged`.
+	pub fn surface_size(&self) -> (i32, i32) {
 		let width = self.egl.query_surface(self.display, self.surface, egl::WIDTH).unwrap_or(0);
 		let height = self.egl.query_surface(self.display, self.surface, egl::HEIGHT).unwrap_or(0);
-		self.renderer.resize(width as f32, height as f32)
+		(width, height)
 	}
 
 	/// The renderer's current grid size in `(columns, rows)`.

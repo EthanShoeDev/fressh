@@ -21,6 +21,13 @@ import com.facebook.react.uimanager.ThemedReactContext
 class HybridTerminal(
   val context: ThemedReactContext,
 ) : HybridTerminalSpec() {
+  // Plain SurfaceView: the buffer auto-tracks the view bounds. Keeping the grid in
+  // lockstep with the on-screen size when the keyboard opens/closes is handled on the
+  // Rust side, which polls the *settled* surface size from the draw loop (eglQuerySurface
+  // lags the new geometry by a frame, so a one-shot read in surfaceChanged is unreliable
+  // — esp. on GROW). The JS side (terminal flex:1 + the toolbar's keyboard-height-driven
+  // marginBottom) is what actually resizes this view in both directions. See
+  // docs/projects/complete/renderer-mismatched-selection-cutoff-scrollback.md.
   private val surfaceView = SurfaceView(context)
 
   /** Opaque pointer to the native render handle (0 = none). */
