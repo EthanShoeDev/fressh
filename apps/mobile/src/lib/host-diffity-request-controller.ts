@@ -3,7 +3,6 @@ import { type RequestIdHandle } from './request-id';
 export type HostDiffityRequestController = {
 	start: () => number | null;
 	finish: (id: number) => void;
-	invalidate: () => void;
 	isCurrent: (id: number) => boolean;
 };
 
@@ -23,10 +22,6 @@ export function createHostDiffityRequestController({
 		},
 		finish: (id) => {
 			if (!requestId.isCurrent(id)) return;
-			inFlightRef.current = false;
-		},
-		invalidate: () => {
-			requestId.invalidate();
 			inFlightRef.current = false;
 		},
 		isCurrent: (id) => requestId.isCurrent(id),

@@ -69,7 +69,8 @@ void test('stale Diffity completion cannot clear a newer in-flight request', asy
 	assert.equal(first, 1);
 	assert.equal(inFlightRef.current, true);
 
-	controller.invalidate();
+	requestId.invalidate();
+	inFlightRef.current = false;
 	assert.equal(inFlightRef.current, false);
 
 	const second = controller.start();
