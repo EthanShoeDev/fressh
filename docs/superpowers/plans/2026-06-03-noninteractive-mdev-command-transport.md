@@ -1540,7 +1540,7 @@ git commit -m "Route Workmux commands through SSH exec"
 
 - Create: `apps/mobile/test/integration/workmux-command-boundary.test.ts`
 
-- [ ] **Step 1: Write static guard tests**
+- [x] **Step 1: Write static guard tests**
 
 Create `apps/mobile/test/integration/workmux-command-boundary.test.ts`:
 
@@ -1585,7 +1585,7 @@ void test('mobile app command code does not call direct tmux helpers', () => {
 });
 ```
 
-- [ ] **Step 2: Run static guard test**
+- [x] **Step 2: Run static guard test**
 
 Run:
 
@@ -1595,7 +1595,7 @@ pnpm --filter @fressh/mobile test:integration -- workmux-command-boundary.test.t
 
 Expected: PASS with no direct app-command matches.
 
-- [ ] **Step 3: Commit regression guard**
+- [x] **Step 3: Commit regression guard**
 
 Run:
 
