@@ -56,6 +56,8 @@ type LegacyXtermInbound =
 
 export type XtermInbound = BridgeInboundMessage | LegacyXtermInbound;
 
+type PendingSelection = { resolve: (value: string) => void };
+
 export type XtermWebViewHandle = {
 	write: (data: Uint8Array) => void; // bytes in (batched)
 	// Efficiently write many chunks in one postMessage (for initial replay)
@@ -189,6 +191,15 @@ function touchScrollConfigEquals(
 	return true;
 }
 
+function resolvePendingSelections(
+	pendingSelectionMap: Map<number, PendingSelection>,
+): void {
+	for (const pending of pendingSelectionMap.values()) {
+		pending.resolve('');
+	}
+	pendingSelectionMap.clear();
+}
+
 export function XtermJsWebView({
 	ref,
 	style,
@@ -215,9 +226,7 @@ export function XtermJsWebView({
 	const webRef = useRef<WebView>(null);
 	const [initialized, setInitialized] = useState(false);
 	const selectionRequestIdRef = useRef(0);
-	const pendingSelectionRef = useRef(
-		new Map<number, { resolve: (value: string) => void }>(),
-	);
+	const pendingSelectionRef = useRef(new Map<number, PendingSelection>());
 	const currentInstanceIdRef = useRef<string | null>(null);
 	const invalidatedInstanceIdsRef = useRef(new Set<string>());
 	const lastLoadStartAtRef = useRef(0);
@@ -249,6 +258,12 @@ export function XtermJsWebView({
 		}
 		sendToWebView({ type: 'write', bStr });
 	}, [sendToWebView]);
+
+	const cancelPendingWrite = useCallback(() => {
+		if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+		rafRef.current = null;
+		bufRef.current = null;
+	}, []);
 
 	const schedule = useCallback(() => {
 		if (rafRef.current != null) return;
@@ -290,12 +305,10 @@ export function XtermJsWebView({
 	useEffect(() => {
 		const pendingSelectionMap = pendingSelectionRef.current;
 		return () => {
-			if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-			rafRef.current = null;
-			bufRef.current = null;
-			pendingSelectionMap.clear();
+			cancelPendingWrite();
+			resolvePendingSelections(pendingSelectionMap);
 		};
-	}, []);
+	}, [cancelPendingWrite]);
 
 	const fit = useCallback(() => {
 		sendToWebView({ type: 'fit' });
@@ -538,11 +551,15 @@ export function XtermJsWebView({
 				invalidatedInstanceIdsRef.current.add(currentInstanceIdRef.current);
 			}
 			currentInstanceIdRef.current = null;
-			pendingSelectionRef.current.clear();
+			appliedSizeRef.current = null;
+			appliedXtermOptionsRef.current = null;
+			appliedTouchConfigRef.current = null;
+			cancelPendingWrite();
+			resolvePendingSelections(pendingSelectionRef.current);
 			setInitialized(false);
 			webViewOptions?.onLoadStart?.(e);
 		},
-		[webViewOptions],
+		[cancelPendingWrite, webViewOptions],
 	);
 
 	const mergedWebViewOptions = useMemo(

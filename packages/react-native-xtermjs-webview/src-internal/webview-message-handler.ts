@@ -1,5 +1,5 @@
-import type { FitAddon } from '@xterm/addon-fit';
-import type { ITerminalOptions, Terminal } from '@xterm/xterm';
+import { type FitAddon } from '@xterm/addon-fit';
+import { type ITerminalOptions, type Terminal } from '@xterm/xterm';
 import {
 	bStrToBinary,
 	type BridgeInboundMessage,

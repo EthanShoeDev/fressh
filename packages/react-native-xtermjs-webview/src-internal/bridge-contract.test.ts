@@ -335,6 +335,114 @@ void test('XtermJsWebView message handler drops stale size changes', () => {
 	]);
 });
 
+void test('XtermJsWebView message handler drops invalidated non-initialized messages', () => {
+	const events: unknown[] = [];
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'input',
+				str: 'stale',
+				instanceId: 'old-instance',
+			},
+			{
+				currentInstanceIdRef: { current: null },
+				invalidatedInstanceIdsRef: {
+					current: new Set<string>(['old-instance']),
+				},
+				pendingSelectionRef: { current: new Map() },
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				autoFitFn: () => {},
+				setInitialized: () => {},
+				onData: (data) => events.push(`data:${data}`),
+			},
+		),
+		true,
+	);
+
+	assert.deepEqual(events, [
+		[
+			'warn',
+			['dropping invalidated webview message', 'input', 'old-instance'],
+		],
+	]);
+});
+
+void test('XtermJsWebView message handler drops non-initialized messages from a prior load generation', () => {
+	const events: unknown[] = [];
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'sizeChanged',
+				cols: 120,
+				rows: 40,
+				instanceId: 'old-instance',
+				bridgeStartedAt: 1_000,
+			},
+			{
+				currentInstanceIdRef: { current: null },
+				lastLoadStartAtRef: { current: 2_000 },
+				pendingSelectionRef: { current: new Map() },
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				autoFitFn: () => {},
+				setInitialized: () => {},
+				onResize: (cols, rows) => events.push(`resize:${cols}x${rows}`),
+			},
+		),
+		true,
+	);
+
+	assert.deepEqual(events, [
+		[
+			'warn',
+			[
+				'dropping stale webview message generation',
+				'sizeChanged',
+				'old-instance',
+			],
+		],
+	]);
+});
+
+void test('XtermJsWebView message handler drops legacy non-initialized messages after a load reset', () => {
+	const events: unknown[] = [];
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'scrollbackBatch',
+				direction: 'down',
+				pages: 1,
+				lines: 0,
+				pageStep: 24,
+				instanceId: 'legacy-instance',
+			},
+			{
+				currentInstanceIdRef: { current: null },
+				lastLoadStartAtRef: { current: 2_000 },
+				pendingSelectionRef: { current: new Map() },
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				autoFitFn: () => {},
+				setInitialized: () => {},
+				onScrollbackBatch: (event) => events.push(['scroll-batch', event]),
+			},
+		),
+		true,
+	);
+
+	assert.deepEqual(events, [
+		[
+			'warn',
+			[
+				'dropping stale webview message generation',
+				'scrollbackBatch',
+				'legacy-instance',
+			],
+		],
+	]);
+});
+
 void test('XtermJsWebView message handler drops stale initialized messages', () => {
 	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: 'current-instance' };

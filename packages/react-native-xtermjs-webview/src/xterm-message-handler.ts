@@ -112,54 +112,68 @@ export function handleXtermBridgeInboundMessage(
 		onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 	},
 ): boolean {
-	if (msg.type === 'initialized') {
+	if ('instanceId' in msg) {
 		const lastLoadStartAt = lastLoadStartAtRef?.current ?? 0;
 		if (
 			lastLoadStartAt > 0 &&
 			(typeof msg.bridgeStartedAt !== 'number' ||
 				msg.bridgeStartedAt < lastLoadStartAt)
 		) {
-			logger?.warn?.(
-				`dropping stale webview initialized generation`,
-				msg.instanceId,
-			);
+			if (msg.type === 'initialized') {
+				logger?.warn?.(
+					`dropping stale webview initialized generation`,
+					msg.instanceId,
+				);
+			} else {
+				logger?.warn?.(
+					`dropping stale webview message generation`,
+					msg.type,
+					msg.instanceId,
+				);
+			}
 			return true;
 		}
 		if (invalidatedInstanceIdsRef?.current.has(msg.instanceId)) {
-			logger?.warn?.(
-				`dropping invalidated webview initialized message`,
-				msg.instanceId,
-			);
+			if (msg.type === 'initialized') {
+				logger?.warn?.(
+					`dropping invalidated webview initialized message`,
+					msg.instanceId,
+				);
+			} else {
+				logger?.warn?.(
+					`dropping invalidated webview message`,
+					msg.type,
+					msg.instanceId,
+				);
+			}
 			return true;
 		}
 		if (
 			currentInstanceIdRef.current &&
 			msg.instanceId !== currentInstanceIdRef.current
 		) {
-			logger?.warn?.(
-				`dropping stale webview initialized message`,
-				msg.instanceId,
-			);
+			if (msg.type === 'initialized') {
+				logger?.warn?.(
+					`dropping stale webview initialized message`,
+					msg.instanceId,
+				);
+			} else {
+				logger?.warn?.(
+					`dropping stale webview message`,
+					msg.type,
+					msg.instanceId,
+				);
+			}
 			return true;
 		}
+	}
+	if (msg.type === 'initialized') {
 		currentInstanceIdRef.current = msg.instanceId;
 		invalidatedInstanceIdsRef?.current.clear();
 		pendingSelectionRef.current.clear();
 		onInitialized?.(msg.instanceId);
 		autoFitFn();
 		setInitialized(true);
-		return true;
-	}
-	if (
-		'instanceId' in msg &&
-		currentInstanceIdRef.current &&
-		msg.instanceId !== currentInstanceIdRef.current
-	) {
-		logger?.warn?.(
-			`dropping stale webview message`,
-			msg.type,
-			msg.instanceId,
-		);
 		return true;
 	}
 	if (msg.type === 'input') {

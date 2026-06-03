@@ -1,5 +1,8 @@
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type ITerminalInitOnlyOptions = import('@xterm/xterm').ITerminalInitOnlyOptions;
+type BridgeGeneration = {
+    bridgeStartedAt?: number;
+};
 export type BridgeInboundMessage = {
     type: 'initialized';
     instanceId: string;
@@ -9,42 +12,42 @@ export type BridgeInboundMessage = {
     str: string;
     instanceId: string;
     kind?: 'typing';
-} | {
+} & BridgeGeneration | {
     type: 'debug';
     message: string;
-} | {
+} | ({
     type: 'sizeChanged';
     cols: number;
     rows: number;
     instanceId: string;
-} | {
+} & BridgeGeneration) | ({
     type: 'selection';
     requestId: number;
     text: string;
     instanceId: string;
-} | {
+} & BridgeGeneration) | ({
     type: 'selectionChanged';
     text: string;
     instanceId: string;
-} | {
+} & BridgeGeneration) | ({
     type: 'selectionModeChanged';
     enabled: boolean;
     instanceId: string;
-} | {
+} & BridgeGeneration) | {
     type: 'scrollbackModeChanged';
     active: boolean;
     phase: 'dragging' | 'active';
     instanceId: string;
     requestId?: number;
-} | {
+} & BridgeGeneration | ({
     type: 'scrollbackEnterRequested';
     instanceId: string;
     requestId: number;
-} | {
+} & BridgeGeneration) | ({
     type: 'tmuxEnterCopyMode';
     instanceId: string;
     requestId: number;
-} | {
+} & BridgeGeneration) | {
     type: 'scrollbackBatch';
     direction: 'up' | 'down';
     pages: number;
@@ -53,7 +56,7 @@ export type BridgeInboundMessage = {
     instanceId: string;
     seq?: number;
     ts?: number;
-} | {
+} & BridgeGeneration | {
     type: 'tmuxScrollBatch';
     direction: 'up' | 'down';
     pages: number;
@@ -62,7 +65,7 @@ export type BridgeInboundMessage = {
     instanceId: string;
     seq?: number;
     ts?: number;
-};
+} & BridgeGeneration;
 export type ScrollbackBatchBridgeMessage = Extract<BridgeInboundMessage, {
     type: 'scrollbackBatch' | 'tmuxScrollBatch';
 }>;

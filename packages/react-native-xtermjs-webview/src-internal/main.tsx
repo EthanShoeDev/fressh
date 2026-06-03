@@ -20,14 +20,21 @@ declare global {
 			injectedObjectJson?: () => string | undefined;
 		};
 		__FRESSH_XTERM_BRIDGE__?: boolean;
+		__FRESSH_XTERM_BRIDGE_STARTED_AT__?: number;
 		__FRESSH_XTERM_MSG_HANDLER__?: (
 			e: MessageEvent<BridgeOutboundMessage>,
 		) => void;
 	}
 }
 
-const sendToRn = (msg: BridgeInboundMessage) =>
-	window.ReactNativeWebView?.postMessage?.(JSON.stringify(msg));
+const sendToRn = (msg: BridgeInboundMessage) => {
+	const bridgeStartedAt = window.__FRESSH_XTERM_BRIDGE_STARTED_AT__;
+	const generatedMsg =
+		typeof bridgeStartedAt === 'number' && 'instanceId' in msg
+			? { ...msg, bridgeStartedAt }
+			: msg;
+	window.ReactNativeWebView?.postMessage?.(JSON.stringify(generatedMsg));
+};
 
 /**
  * Idempotent boot guard: ensure we only install once.
@@ -36,6 +43,7 @@ const sendToRn = (msg: BridgeInboundMessage) =>
 window.onload = () => {
 	try {
 		const bridgeStartedAt = Date.now();
+		window.__FRESSH_XTERM_BRIDGE_STARTED_AT__ = bridgeStartedAt;
 		if (window.__FRESSH_XTERM_BRIDGE__) {
 			sendToRn({
 				type: 'debug',
