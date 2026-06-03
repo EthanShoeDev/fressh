@@ -940,7 +940,7 @@ export function handleTmuxScrollbackBatchEvent({
 	return true;
 }
 
-export function buildTmuxScrollbackLiveInputSendPlan({
+export function buildWorkmuxScrollbackLiveInputSendPlan({
 	scrollbackActive,
 	payloadSegments,
 	scrollbackExitKeyPayload,

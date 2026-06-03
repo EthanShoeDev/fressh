@@ -102,7 +102,7 @@ import {
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
-	buildTmuxScrollbackLiveInputSendPlan,
+	buildWorkmuxScrollbackLiveInputSendPlan,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
 	registerTmuxScrollbackLocalExitRequest,
@@ -922,7 +922,7 @@ function ShellDetail() {
 				interSegmentDelayMs?: number;
 			},
 		) => {
-			const plan = buildTmuxScrollbackLiveInputSendPlan({
+			const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 				scrollbackActive:
 					scrollbackActiveRef.current ||
 					tmuxRemoteScrollbackCopyModeActiveRef.current,

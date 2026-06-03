@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-	buildTmuxScrollbackLiveInputSendPlan,
+	buildWorkmuxScrollbackLiveInputSendPlan,
 	createTmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
@@ -94,7 +94,7 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 	assert.equal(remoteCopyModeActiveRef.current, true);
 	assert.equal(cleanupBarrier.current(), null);
 
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: localScrollbackActive || remoteCopyModeActiveRef.current,
 		payloadSegments: [bytes([0x70])],
 		scrollbackExitDelayMs: 10,
@@ -241,7 +241,7 @@ void test('failed UI reset exit keeps remote copy mode active and blocks later l
 	assert.equal(cleanupBarrier.current(), null);
 	assert.equal(remoteCopyModeActiveRef.current, true);
 
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: remoteCopyModeActiveRef.current,
 		payloadSegments: [bytes([0x70])],
 		scrollbackExitDelayMs: 10,
@@ -405,7 +405,7 @@ void test('multiple live input events wait behind the same pending scrollback cl
 		payload: string,
 		cleanup: Promise<boolean> | null = null,
 	) => {
-		const plan = buildTmuxScrollbackLiveInputSendPlan({
+		const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 			scrollbackActive,
 			payloadSegments: [bytes([payload.charCodeAt(0)])],
 			scrollbackExitDelayMs: 10,
@@ -438,7 +438,7 @@ void test('live input joins current cleanup barrier before starting another remo
 	const sentPayloads: string[] = [];
 
 	const queueLiveInput = (payload: string) => {
-		const plan = buildTmuxScrollbackLiveInputSendPlan({
+		const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 			scrollbackActive: true,
 			payloadSegments: [bytes([payload.charCodeAt(0)])],
 			scrollbackExitDelayMs: 10,
@@ -479,7 +479,7 @@ void test('live input waits for externally initiated inactive cleanup barrier be
 	scrollbackActive = false;
 	void registerTmuxScrollbackLiveInputCleanup(barrierRef, externalCleanup);
 
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive,
 		payloadSegments: [bytes([0x70])],
 		scrollbackExitDelayMs: 10,
@@ -1021,7 +1021,7 @@ void test('scrollback batch adapter gates events and passes pageStep into comman
 });
 
 void test('live input plan passes payload through when scrollback is inactive', () => {
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: false,
 		payloadSegments: [bytes([0x61, 0x62])],
 		interSegmentDelayMs: 7,
@@ -1036,7 +1036,7 @@ void test('live input plan passes payload through when scrollback is inactive', 
 });
 
 void test('live input plan drops empty payload segments while inactive', () => {
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: false,
 		payloadSegments: [bytes([]), bytes([0x68]), bytes([]), bytes([0x69, 0x21])],
 		interSegmentDelayMs: 3,
@@ -1051,7 +1051,7 @@ void test('live input plan drops empty payload segments while inactive', () => {
 });
 
 void test('live input plan exits active scrollback without primary-shell cancel before payload', () => {
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		payloadSegments: [bytes([0x61, 0x62])],
 		interSegmentDelayMs: 0,
@@ -1064,7 +1064,7 @@ void test('live input plan exits active scrollback without primary-shell cancel 
 });
 
 void test('live input plan drops the scrollback exit-key payload after cleanup', () => {
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		payloadSegments: [bytes([0x71])],
 		scrollbackExitKeyPayload: bytes([0x71]),
@@ -1080,7 +1080,7 @@ void test('live input runner starts cleanup for exit-key-only payload without se
 	const cleanup = Promise.resolve(true);
 	let cleanupStarted = 0;
 	const sentSegments: number[][][] = [];
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		payloadSegments: [bytes([0x71])],
 		scrollbackExitKeyPayload: bytes([0x71]),
@@ -1110,7 +1110,7 @@ void test('live input runner starts cleanup for exit-key-only payload without se
 void test('live input runner sends non-empty payload after successful cleanup', async () => {
 	const cleanup = deferred<boolean>();
 	const sentSegments: number[][][] = [];
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		payloadSegments: [bytes([0x68, 0x69])],
 		scrollbackExitDelayMs: 10,
@@ -1139,7 +1139,7 @@ void test('live input runner sends non-empty payload after successful cleanup', 
 void test('live input runner blocks non-empty payload after failed cleanup', async () => {
 	const cleanup = Promise.resolve(false);
 	const sentSegments: number[][][] = [];
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		payloadSegments: [bytes([0x68, 0x69])],
 		scrollbackExitDelayMs: 10,
@@ -1163,7 +1163,7 @@ void test('live input runner blocks non-empty payload after failed cleanup', asy
 
 void test('live input runner blocks non-empty payload while remote copy mode is active without cleanup', () => {
 	const sentSegments: number[][][] = [];
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: false,
 		payloadSegments: [bytes([0x68, 0x69])],
 		scrollbackExitDelayMs: 10,
@@ -1184,7 +1184,7 @@ void test('live input runner blocks non-empty payload while remote copy mode is 
 });
 
 void test('live input plan preserves multi-segment payload order after app-owned scrollback exit', () => {
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		payloadSegments: [bytes([0x68, 0x69]), bytes([0x0d])],
 		interSegmentDelayMs: 3,
@@ -1197,7 +1197,7 @@ void test('live input plan preserves multi-segment payload order after app-owned
 });
 
 void test('live input plan drops empty payload segments while preserving order', () => {
-	const plan = buildTmuxScrollbackLiveInputSendPlan({
+	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		payloadSegments: [bytes([]), bytes([0x68]), bytes([]), bytes([0x69, 0x21])],
 		interSegmentDelayMs: 3,

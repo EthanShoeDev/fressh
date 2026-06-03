@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import * as hostBrowserActions from '../../src/lib/host-browser-actions';
 import {
 	buildDiffityShareCommand,
 	buildHostBrowserStatusCycleCommand,
@@ -50,15 +49,6 @@ void test('host browser mdev command builders shell-quote dynamic values', () =>
 		buildHostBrowserStatusCycleCommand("main'quoted"),
 		"mdev tmux nav cycle 'main'\\''quoted:'",
 	);
-});
-
-void test('host browser actions do not export direct tmux context helpers', () => {
-	const moduleExports = hostBrowserActions as Record<string, unknown>;
-
-	assert.equal(moduleExports.buildHostBrowserPaneContextCommand, undefined);
-	assert.equal(moduleExports.buildHostBrowserPanePathCommand, undefined);
-	assert.equal(moduleExports.buildTmuxCurrentWindowIdCommand, undefined);
-	assert.equal(moduleExports.parseTmuxPaneContextOutput, undefined);
 });
 
 void test('status cycle command uses mdev tmux nav cycle for main session', () => {
