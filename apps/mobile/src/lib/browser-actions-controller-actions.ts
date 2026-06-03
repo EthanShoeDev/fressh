@@ -10,11 +10,6 @@ import {
 	parseWorkmuxAppContextOutput,
 } from './workmux-app-commands';
 
-export type BrowserActionsRemoteCommand = {
-	command: string;
-	timeoutMs: number;
-};
-
 export type BrowserActionsRunHostBrowserCommand = (
 	command: string,
 	timeoutMs: number,

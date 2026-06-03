@@ -3,12 +3,16 @@ import test from 'node:test';
 import {
 	runBrowserActionsDetectedOpen,
 	runBrowserActionsDiffityShare,
-	type BrowserActionsRemoteCommand,
 } from '../../src/lib/browser-actions-controller-actions';
 import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	type WorkmuxAppContext,
 } from '../../src/lib/workmux-app-commands';
+
+type BrowserActionsRemoteCommand = {
+	command: string;
+	timeoutMs: number;
+};
 
 const context: WorkmuxAppContext = {
 	sessionName: 'main',

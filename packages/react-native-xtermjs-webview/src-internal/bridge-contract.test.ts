@@ -8,7 +8,6 @@ import {
 	mapScrollbackBatchMessage,
 } from '../src/bridge';
 import {
-	buildScrollbackEnterRequestFailureMessage,
 	createScrollbackEnterRequestFailureHandler,
 	handleXtermBridgeInboundMessage,
 } from '../src/xterm-message-handler';
@@ -558,16 +557,28 @@ void test('XtermJsWebView scrollback enter failure handler sends fallback exit',
 });
 
 void test('XtermJsWebView scrollback enter failure fallback exits pending request', () => {
-	assert.deepEqual(
-		buildScrollbackEnterRequestFailureMessage({
+	const sent: unknown[] = [];
+	const handler = createScrollbackEnterRequestFailureHandler({
+		sendToWebView: (message) => sent.push(message),
+	});
+
+	handler(
+		{
 			instanceId: 'instance-1',
 			requestId: 7,
-		}),
+		},
+		'enter failed',
+	);
+
+	assert.deepEqual(
+		sent,
+		[
 		{
 			type: 'exitScrollback',
 			requestId: 7,
 			instanceId: 'instance-1',
 		},
+		],
 	);
 });
 

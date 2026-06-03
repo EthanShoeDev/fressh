@@ -204,7 +204,7 @@ export function shouldRunTmuxScrollbackRemoteResetForModeChange({
 	return true;
 }
 
-export type TmuxScrollbackEnterRequestResolution =
+type TmuxScrollbackEnterRequestResolution =
 	| { action: 'enter' }
 	| { action: 'clear-local-ui' }
 	| { action: 'ignore' };

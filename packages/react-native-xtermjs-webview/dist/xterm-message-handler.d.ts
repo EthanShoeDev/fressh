@@ -12,11 +12,6 @@ type ScrollbackEnterRequestEvent = {
     instanceId: string;
     requestId: number;
 };
-export declare function reportScrollbackEnterRequestFailure({ event, error, onScrollbackEnterRequestFailure, }: {
-    event: ScrollbackEnterRequestEvent;
-    error: unknown;
-    onScrollbackEnterRequestFailure?: (event: ScrollbackEnterRequestEvent, error: unknown) => void;
-}): void;
 export declare function createScrollbackEnterRequestFailureHandler({ logger, sendToWebView, }: {
     logger?: XtermMessageLogger;
     sendToWebView: (message: BridgeOutboundMessage) => void;
@@ -49,9 +44,5 @@ export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessag
     onScrollbackEnterRequestFailure?: (event: ScrollbackEnterRequestEvent, error: unknown) => void;
     onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 }): boolean;
-export declare function buildScrollbackEnterRequestFailureMessage(event: {
-    instanceId: string;
-    requestId: number;
-}): BridgeOutboundMessage;
 export {};
 //# sourceMappingURL=xterm-message-handler.d.ts.map

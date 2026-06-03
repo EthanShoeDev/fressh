@@ -376,6 +376,10 @@ void test('workmux app update message is explicit', () => {
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
 	assert.equal(
+		formatWorkmuxAppCommandFailureMessage('Unknown command: tmux'),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
 		formatWorkmuxAppCommandFailureMessage('unknown tmux app'),
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);

@@ -19,7 +19,7 @@ type ScrollbackEnterRequestEvent = {
 	requestId: number;
 };
 
-export function reportScrollbackEnterRequestFailure({
+function reportScrollbackEnterRequestFailure({
 	event,
 	error,
 	onScrollbackEnterRequestFailure,
@@ -205,7 +205,7 @@ export function handleXtermBridgeInboundMessage(
 	return handleScrollbackBatchBridgeMessage(msg, onScrollbackBatch);
 }
 
-export function buildScrollbackEnterRequestFailureMessage(event: {
+function buildScrollbackEnterRequestFailureMessage(event: {
 	instanceId: string;
 	requestId: number;
 }): BridgeOutboundMessage {
