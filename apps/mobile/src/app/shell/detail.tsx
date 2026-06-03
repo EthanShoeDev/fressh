@@ -1788,6 +1788,15 @@ function ShellDetail() {
 		getErrorMessage,
 		closeOtherModals: closeBrowserActionsOtherModals,
 	});
+	const workmuxKeyboardTmuxEnabledRef = useRef(tmuxEnabled);
+	const workmuxKeyboardTmuxTargetRef = useRef(tmuxTarget);
+	const workmuxKeyboardRunHostCommandRef = useRef(
+		browserActions.runHostBrowserCommand,
+	);
+	workmuxKeyboardTmuxEnabledRef.current = tmuxEnabled;
+	workmuxKeyboardTmuxTargetRef.current = tmuxTarget;
+	workmuxKeyboardRunHostCommandRef.current =
+		browserActions.runHostBrowserCommand;
 
 	const closeFeatureRequestOtherModals = useCallback(() => {
 		browserActions.invalidateHostUrlReads();
@@ -2163,14 +2172,15 @@ function ShellDetail() {
 	const workmuxKeyboardCommandRunner = useMemo(
 		() =>
 			createWorkmuxKeyboardCommandRunner({
-				isTmuxEnabled: () => tmuxEnabled,
-				getSessionName: () => tmuxTarget,
-				runHostCommand: browserActions.runHostBrowserCommand,
+				isTmuxEnabled: () => workmuxKeyboardTmuxEnabledRef.current,
+				getSessionName: () => workmuxKeyboardTmuxTargetRef.current,
+				runHostCommand: (command, timeoutMs) =>
+					workmuxKeyboardRunHostCommandRef.current(command, timeoutMs),
 				showFailure: (message) =>
 					Alert.alert('Workmux action failed', message),
 				getErrorMessage,
 			}),
-		[browserActions.runHostBrowserCommand, tmuxEnabled, tmuxTarget],
+		[],
 	);
 
 	const runWorkmuxKeyboardCommand = useCallback(

@@ -353,6 +353,35 @@ void test('Workmux keyboard command runner bounds pending repeated commands to t
 	]);
 });
 
+void test('Workmux keyboard command runner reads live dependencies for pending commands', async () => {
+	const firstBlock = deferred<void>();
+	const calls: string[] = [];
+	let sessionName = 'old';
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => true,
+		getSessionName: () => sessionName,
+		runHostCommand: async (command) => {
+			calls.push(command);
+			if (calls.length === 1) await firstBlock.promise;
+		},
+		showFailure: () => {},
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	const first = runner.run({ type: 'focus', target: 'git' });
+	const second = runner.run({ type: 'focus', target: 'bash' });
+	await Promise.resolve();
+	sessionName = 'new';
+	firstBlock.resolve(undefined);
+	await Promise.all([first, second]);
+
+	assert.deepEqual(calls, [
+		"mdev tmux app focus 'git' --session 'old'",
+		"mdev tmux app focus 'bash' --session 'new'",
+	]);
+});
+
 void test('Workmux keyboard command runner preserves local failures and maps remote failures', async () => {
 	const failures: string[] = [];
 	let tmuxEnabled = false;
