@@ -16,8 +16,8 @@ import {
 } from '@/lib/browser-actions-controller-actions';
 import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
 import { formatWorkmuxAppCommandFailureMessage } from '@/lib/workmux-app-commands';
+import { runWorkmuxStatusCycleRequest } from '@/lib/workmux-status-cycle';
 import {
-	buildHostBrowserStatusCycleCommand,
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
 	extractLastHttpsUrl,
@@ -652,6 +652,8 @@ export function useBrowserActionsController<TConnection>(
 	const hostDiffityInFlightRef = useRef(false);
 	const hostDetectedOpenRequestId = useRequestId();
 	const hostDetectedOpenInFlightRef = useRef(false);
+	const statusCycleRequestId = useRequestId();
+	const statusCycleInFlightRef = useRef(false);
 
 	const showError = useCallback((title: string, message: string) => {
 		Alert.alert(title, message);
@@ -1013,24 +1015,20 @@ export function useBrowserActionsController<TConnection>(
 	);
 
 	const cycleWorkmuxStatus = useCallback(() => {
-		void (async () => {
-			try {
-				if (!tmuxEnabled) {
-					throw new Error('Status cycle requires a tmux-enabled connection.');
-				}
-				const sessionName = tmuxTarget.trim() || 'main';
-				await runHostBrowserCommand(
-					buildHostBrowserStatusCycleCommand(sessionName),
-					10_000,
-				);
-			} catch (err) {
-				showError('Status cycle failed', getErrorMessage(err));
-			}
-		})();
+		runWorkmuxStatusCycleRequest({
+			tmuxEnabled,
+			tmuxTarget,
+			requestId: statusCycleRequestId,
+			inFlightRef: statusCycleInFlightRef,
+			runHostBrowserCommand,
+			showError,
+			getErrorMessage,
+		});
 	}, [
 		getErrorMessage,
 		runHostBrowserCommand,
 		showError,
+		statusCycleRequestId,
 		tmuxEnabled,
 		tmuxTarget,
 	]);
@@ -1041,9 +1039,11 @@ export function useBrowserActionsController<TConnection>(
 		browserGitHubTargetRequestId.invalidate();
 		hostDiffityRequestId.invalidate();
 		hostDetectedOpenRequestId.invalidate();
+		statusCycleRequestId.invalidate();
 		hostUrlSubmitInFlightRef.current = false;
 		hostDiffityInFlightRef.current = false;
 		hostDetectedOpenInFlightRef.current = false;
+		statusCycleInFlightRef.current = false;
 		setHostUrlModalState(null);
 		setHostUrlModalSubmitting(false);
 		setHostUrlModalError(null);
@@ -1053,6 +1053,7 @@ export function useBrowserActionsController<TConnection>(
 		hostDiffityRequestId,
 		hostUrlReadRequestId,
 		hostUrlSubmitRequestId,
+		statusCycleRequestId,
 	]);
 
 	useEffect(() => {

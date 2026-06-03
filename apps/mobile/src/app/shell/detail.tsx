@@ -2156,11 +2156,14 @@ function ShellDetail() {
 		if (isFocused) {
 			void acknowledgeVisibleAgentNotification();
 		} else {
+			browserActions.invalidateAll();
+			browserActions.close();
 			scrollbackEnterRequestGenerationRef.current += 1;
 			void clearScrollbackState({ failurePolicy: 'suppress' });
 		}
 	}, [
 		acknowledgeVisibleAgentNotification,
+		browserActions,
 		channelId,
 		clearScrollbackState,
 		connectionStoredConnectionId,
