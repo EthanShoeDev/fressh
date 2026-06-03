@@ -413,6 +413,77 @@ void test('XtermJsWebView message handler drops load-invalidated initialized mes
 	]);
 });
 
+void test('XtermJsWebView message handler drops initialized messages from a prior load generation', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: null as string | null };
+	const pendingSelectionRef = {
+		current: new Map<number, { resolve: (value: string) => void }>([
+			[1, { resolve: (value) => events.push(`selection:${value}`) }],
+		]),
+	};
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'initialized',
+				instanceId: 'old-instance',
+				bridgeStartedAt: 1_000,
+			},
+			{
+				currentInstanceIdRef,
+				lastLoadStartAtRef: { current: 2_000 },
+				pendingSelectionRef,
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
+				autoFitFn: () => events.push('fit'),
+				setInitialized: (initialized) => events.push(`state:${initialized}`),
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentInstanceIdRef.current, null);
+	assert.equal(pendingSelectionRef.current.has(1), true);
+	assert.deepEqual(events, [
+		[
+			'warn',
+			['dropping stale webview initialized generation', 'old-instance'],
+		],
+	]);
+});
+
+void test('XtermJsWebView message handler drops initialized messages without generation metadata after a load reset', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: null as string | null };
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'initialized',
+				instanceId: 'legacy-instance',
+			},
+			{
+				currentInstanceIdRef,
+				lastLoadStartAtRef: { current: 2_000 },
+				pendingSelectionRef: { current: new Map() },
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
+				autoFitFn: () => events.push('fit'),
+				setInitialized: (initialized) => events.push(`state:${initialized}`),
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentInstanceIdRef.current, null);
+	assert.deepEqual(events, [
+		[
+			'warn',
+			['dropping stale webview initialized generation', 'legacy-instance'],
+		],
+	]);
+});
+
 void test('XtermJsWebView message handler accepts initialized after load reset', () => {
 	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: null as string | null };
@@ -428,10 +499,12 @@ void test('XtermJsWebView message handler accepts initialized after load reset',
 			{
 				type: 'initialized',
 				instanceId: 'new-instance',
+				bridgeStartedAt: 3_000,
 			},
 			{
 				currentInstanceIdRef,
 				invalidatedInstanceIdsRef,
+				lastLoadStartAtRef: { current: 2_000 },
 				pendingSelectionRef,
 				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
 				autoFitFn: () => events.push('fit'),
@@ -838,6 +911,7 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 				content,
 				/type: 'sizeChanged';\s+cols: number;\s+rows: number;\s+instanceId: string;/,
 			);
+			assert.match(content, /bridgeStartedAt\?: number/);
 		} else {
 			assert.match(content, /pageStep/);
 			assert.match(content, /scrollbackEnterRequested/);

@@ -35,6 +35,7 @@ const sendToRn = (msg: BridgeInboundMessage) =>
  */
 window.onload = () => {
 	try {
+		const bridgeStartedAt = Date.now();
 		if (window.__FRESSH_XTERM_BRIDGE__) {
 			sendToRn({
 				type: 'debug',
@@ -228,7 +229,7 @@ window.onload = () => {
 			ta.setAttribute('spellcheck', 'false');
 			ta.setAttribute('inputmode', 'verbatim');
 
-			return sendToRn({ type: 'initialized', instanceId });
+			return sendToRn({ type: 'initialized', instanceId, bridgeStartedAt });
 		}, 200);
 	} catch (e) {
 		sendToRn({

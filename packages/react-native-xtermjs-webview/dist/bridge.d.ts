@@ -3,6 +3,7 @@ type ITerminalInitOnlyOptions = import('@xterm/xterm').ITerminalInitOnlyOptions;
 export type BridgeInboundMessage = {
     type: 'initialized';
     instanceId: string;
+    bridgeStartedAt?: number;
 } | {
     type: 'input';
     str: string;
