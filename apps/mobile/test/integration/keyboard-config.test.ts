@@ -492,7 +492,7 @@ void test('browser keyboard exposes host navigation actions', () => {
 	assert.deepEqual(config.macrosByKeyboardId.browser_keyboard, []);
 });
 
-void test('shell config rejects internal detected-open action ids', () => {
+void test('shell config accepts legacy detected-open action ids', () => {
 	const config = getBundledShellConfig();
 	const actionConfig = JSON.parse(JSON.stringify(config));
 	actionConfig.keyboards[0].grid[0][0] = {
@@ -502,10 +502,7 @@ void test('shell config rejects internal detected-open action ids', () => {
 		icon: 'ExternalLink',
 	};
 
-	assert.throws(
-		() => parseShellConfigData(actionConfig),
-		/Unsupported actionId OPEN_HOST_DETECTED_AUTO/,
-	);
+	assert.doesNotThrow(() => parseShellConfigData(actionConfig));
 
 	const macroConfig = JSON.parse(JSON.stringify(config));
 	macroConfig.macrosByKeyboardId.phone_base.push({
@@ -519,10 +516,7 @@ void test('shell config rejects internal detected-open action ids', () => {
 		}),
 	});
 
-	assert.throws(
-		() => parseShellConfigData(macroConfig),
-		/Unsupported macro actionId OPEN_HOST_DETECTED_PICK/,
-	);
+	assert.doesNotThrow(() => parseShellConfigData(macroConfig));
 });
 
 void test('advanced keyboard omits consolidated host URL setter actions', () => {

@@ -12,22 +12,26 @@ type ListenerLogger = {
 
 export function detachTerminalShellListener({
 	shell,
+	listenerOwnerRef,
 	listenerIdRef,
 	attachedShellKeyRef,
 	logger,
 }: {
-	shell: ShellListenerOwner | null | undefined;
+	shell?: ShellListenerOwner | null | undefined;
+	listenerOwnerRef: MutableRef<ShellListenerOwner | null>;
 	listenerIdRef: MutableRef<bigint | null>;
 	attachedShellKeyRef: MutableRef<string | null>;
 	logger: ListenerLogger;
 }): void {
-	if (listenerIdRef.current != null && shell) {
+	const owner = listenerOwnerRef.current ?? shell;
+	if (listenerIdRef.current != null && owner) {
 		try {
-			shell.removeListener(listenerIdRef.current);
+			owner.removeListener(listenerIdRef.current);
 		} catch (error) {
 			logger.warn('Failed to remove prior shell listener', error);
 		}
 	}
 	listenerIdRef.current = null;
+	listenerOwnerRef.current = null;
 	attachedShellKeyRef.current = null;
 }

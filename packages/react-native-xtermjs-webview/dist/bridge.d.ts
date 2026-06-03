@@ -1,9 +1,12 @@
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type ITerminalInitOnlyOptions = import('@xterm/xterm').ITerminalInitOnlyOptions;
 type BridgeGeneration = {
-    bridgeStartedAt: number;
+    bridgeLoadToken: string;
 };
-export type BridgeInboundMessage = ({
+export type BridgeInboundMessage = {
+    type: 'documentStarted';
+    bridgeLoadToken: string;
+} | ({
     type: 'initialized';
     instanceId: string;
 } & BridgeGeneration) | {

@@ -15,7 +15,7 @@ declare const __DEV__: boolean | undefined;
 import {
 	binaryToBStr,
 	bStrToBinary,
-	type BridgeInboundMessage,
+	type BridgeInboundDraftMessage,
 	type BridgeOutboundMessage,
 	type ScrollbackBatchEvent,
 	type TouchScrollConfig,
@@ -54,7 +54,7 @@ type LegacyXtermInbound =
 	| { type: 'selectionChanged'; text: string }
 	| { type: 'selectionModeChanged'; enabled: boolean };
 
-export type XtermInbound = BridgeInboundMessage | LegacyXtermInbound;
+export type XtermInbound = BridgeInboundDraftMessage | LegacyXtermInbound;
 
 type PendingSelection = { resolve: (value: string) => void };
 
@@ -229,7 +229,8 @@ export function XtermJsWebView({
 	const pendingSelectionRef = useRef(new Map<number, PendingSelection>());
 	const currentInstanceIdRef = useRef<string | null>(null);
 	const invalidatedInstanceIdsRef = useRef(new Set<string>());
-	const lastLoadStartAtRef = useRef(0);
+	const currentBridgeLoadTokenRef = useRef<string | null>(null);
+	const awaitingBridgeDocumentStartRef = useRef(false);
 
 	// ---- RN -> WebView message sender
 	const sendToWebView = useCallback(
@@ -466,13 +467,14 @@ export function XtermJsWebView({
 	const onMessage = useCallback(
 		(e: WebViewMessageEvent) => {
 			try {
-				const msg = JSON.parse(e.nativeEvent.data) as BridgeInboundMessage;
+				const msg = JSON.parse(e.nativeEvent.data) as BridgeInboundDraftMessage;
 				logger?.log?.(`received msg from webview: `, msg);
 				if (
 					handleXtermBridgeInboundMessage(msg, {
 						currentInstanceIdRef,
 						invalidatedInstanceIdsRef,
-						lastLoadStartAtRef,
+						currentBridgeLoadTokenRef,
+						awaitingBridgeDocumentStartRef,
 						pendingSelectionRef,
 						logger,
 						onInitialized,
@@ -546,7 +548,8 @@ export function XtermJsWebView({
 	);
 	const onLoadStart = useCallback<NonNullable<WebViewOptions['onLoadStart']>>(
 		(e) => {
-			lastLoadStartAtRef.current = Date.now();
+			awaitingBridgeDocumentStartRef.current = true;
+			currentBridgeLoadTokenRef.current = null;
 			if (currentInstanceIdRef.current) {
 				invalidatedInstanceIdsRef.current.add(currentInstanceIdRef.current);
 			}

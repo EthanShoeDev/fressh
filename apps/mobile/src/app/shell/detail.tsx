@@ -394,6 +394,9 @@ const scrollbackExitKeyPayload = encoder.encode('q');
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
 	const listenerIdRef = useRef<bigint | null>(null);
+	const listenerOwnerRef = useRef<{ removeListener: (id: bigint) => void } | null>(
+		null,
+	);
 	const attachedShellKeyRef = useRef<string | null>(null);
 	const hasAttachedOnceRef = useRef(false);
 	const workmuxScrollbackCommandExecutorRef =
@@ -507,10 +510,14 @@ function ShellDetail() {
 	useEffect(() => {
 		const xterm = xtermRef.current;
 		return () => {
-			if (shell && listenerIdRef.current != null)
-				shell.removeListener(listenerIdRef.current);
-			listenerIdRef.current = null;
-			attachedShellKeyRef.current = null;
+			if (listenerIdRef.current != null)
+				detachTerminalShellListener({
+					shell,
+					listenerOwnerRef,
+					listenerIdRef,
+					attachedShellKeyRef,
+					logger,
+				});
 			if (xterm) xterm.flush();
 		};
 	}, [shell]);
@@ -2662,6 +2669,7 @@ function ShellDetail() {
 	const detachShellListener = useCallback(() => {
 		detachTerminalShellListener({
 			shell,
+			listenerOwnerRef,
 			listenerIdRef,
 			attachedShellKeyRef,
 			logger,
@@ -2735,6 +2743,7 @@ function ShellDetail() {
 				);
 				logger.info('shell listener attached', id.toString());
 				listenerIdRef.current = id;
+				listenerOwnerRef.current = shell;
 				hasAttachedOnceRef.current = true;
 				return;
 			}
@@ -2752,6 +2761,7 @@ function ShellDetail() {
 			);
 			logger.info('shell listener attached (live)', id.toString());
 			listenerIdRef.current = id;
+			listenerOwnerRef.current = shell;
 		})();
 
 		// Focus to pop the keyboard (iOS needs the prop we set).

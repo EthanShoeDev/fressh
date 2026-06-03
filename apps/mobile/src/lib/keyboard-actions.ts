@@ -1,4 +1,3 @@
-import { DETECTED_OPEN_ACTION_IDS } from '@/lib/detected-open-actions';
 import {
 	HOST_BROWSER_NO_CONNECTION_MESSAGE,
 	type HostBrowserUrlSlot,
@@ -86,11 +85,7 @@ export const KNOWN_ACTION_IDS = [
 	...WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_IDS,
 ] as const;
 
-const INTERNAL_ACTION_IDS = new Set<string>(DETECTED_OPEN_ACTION_IDS);
-
-export const CONFIG_SUPPORTED_ACTION_IDS = KNOWN_ACTION_IDS.filter(
-	(actionId) => !INTERNAL_ACTION_IDS.has(actionId),
-);
+export const CONFIG_SUPPORTED_ACTION_IDS = KNOWN_ACTION_IDS;
 
 export type KnownActionId = (typeof KNOWN_ACTION_IDS)[number];
 export type KeyboardTargetActionId =

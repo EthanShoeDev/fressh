@@ -16,15 +16,18 @@ export declare function createScrollbackEnterRequestFailureHandler({ logger, sen
     logger?: XtermMessageLogger;
     sendToWebView: (message: BridgeOutboundMessage) => void;
 }): (event: ScrollbackEnterRequestEvent, error: unknown) => void;
-export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundDraftMessage, { currentInstanceIdRef, pendingSelectionRef, logger, onInitialized, autoFitFn, setInitialized, onInput, onData, onResize, onSelection, onSelectionModeChange, onScrollbackModeChange, onScrollbackEnterRequested, onScrollbackEnterRequestFailure, onScrollbackBatch, invalidatedInstanceIdsRef, lastLoadStartAtRef, }: {
+export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundDraftMessage, { currentInstanceIdRef, pendingSelectionRef, logger, onInitialized, autoFitFn, setInitialized, onInput, onData, onResize, onSelection, onSelectionModeChange, onScrollbackModeChange, onScrollbackEnterRequested, onScrollbackEnterRequestFailure, onScrollbackBatch, invalidatedInstanceIdsRef, currentBridgeLoadTokenRef, awaitingBridgeDocumentStartRef, }: {
     currentInstanceIdRef: {
         current: string | null;
     };
     invalidatedInstanceIdsRef?: {
         current: Set<string>;
     };
-    lastLoadStartAtRef?: {
-        current: number;
+    currentBridgeLoadTokenRef?: {
+        current: string | null;
+    };
+    awaitingBridgeDocumentStartRef?: {
+        current: boolean;
     };
     pendingSelectionRef: PendingSelectionRef;
     logger?: XtermMessageLogger;

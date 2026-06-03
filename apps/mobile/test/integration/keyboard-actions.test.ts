@@ -212,11 +212,11 @@ void test('host browser actions delegate to action context callbacks', async () 
 	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_HOST_DETECTED_PICK'), true);
 	assert.equal(
 		CONFIG_SUPPORTED_ACTION_IDS.includes('OPEN_HOST_DETECTED_AUTO'),
-		false,
+		true,
 	);
 	assert.equal(
 		CONFIG_SUPPORTED_ACTION_IDS.includes('OPEN_HOST_DETECTED_PICK'),
-		false,
+		true,
 	);
 });
 

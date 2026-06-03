@@ -15,12 +15,12 @@ declare global {
 		fitAddon?: FitAddon;
 		terminalWriteBase64?: (data: string) => void;
 		__FRESSH_XTERM_OPTIONS__?: ITerminalOptions;
+		__FRESSH_XTERM_BRIDGE_LOAD_TOKEN__?: string;
 		ReactNativeWebView?: {
 			postMessage?: (data: string) => void;
 			injectedObjectJson?: () => string | undefined;
 		};
 		__FRESSH_XTERM_BRIDGE__?: boolean;
-		__FRESSH_XTERM_BRIDGE_STARTED_AT__?: number;
 		__FRESSH_XTERM_MSG_HANDLER__?: (
 			e: MessageEvent<BridgeOutboundMessage>,
 		) => void;
@@ -28,10 +28,10 @@ declare global {
 }
 
 const sendToRn = (msg: BridgeInboundDraftMessage) => {
-	const bridgeStartedAt = window.__FRESSH_XTERM_BRIDGE_STARTED_AT__;
+	const bridgeLoadToken = window.__FRESSH_XTERM_BRIDGE_LOAD_TOKEN__;
 	const generatedMsg =
-		typeof bridgeStartedAt === 'number' && 'instanceId' in msg
-			? { ...msg, bridgeStartedAt }
+		typeof bridgeLoadToken === 'string' && 'instanceId' in msg
+			? { ...msg, bridgeLoadToken }
 			: msg;
 	window.ReactNativeWebView?.postMessage?.(JSON.stringify(generatedMsg));
 };
@@ -42,8 +42,14 @@ const sendToRn = (msg: BridgeInboundDraftMessage) => {
  */
 window.onload = () => {
 	try {
-		const bridgeStartedAt = Date.now();
-		window.__FRESSH_XTERM_BRIDGE_STARTED_AT__ = bridgeStartedAt;
+		const bridgeLoadToken =
+			typeof crypto !== 'undefined' && 'randomUUID' in crypto
+				? crypto.randomUUID()
+				: `${Date.now().toString(36)}-${Math.random()
+						.toString(36)
+						.slice(2, 10)}`;
+		window.__FRESSH_XTERM_BRIDGE_LOAD_TOKEN__ = bridgeLoadToken;
+		sendToRn({ type: 'documentStarted', bridgeLoadToken });
 		if (window.__FRESSH_XTERM_BRIDGE__) {
 			sendToRn({
 				type: 'debug',
@@ -237,7 +243,7 @@ window.onload = () => {
 			ta.setAttribute('spellcheck', 'false');
 			ta.setAttribute('inputmode', 'verbatim');
 
-			return sendToRn({ type: 'initialized', instanceId, bridgeStartedAt });
+			return sendToRn({ type: 'initialized', instanceId });
 		}, 200);
 	} catch (e) {
 		sendToRn({

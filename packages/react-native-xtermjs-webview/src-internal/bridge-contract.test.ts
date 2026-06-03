@@ -378,11 +378,11 @@ void test('XtermJsWebView message handler drops non-initialized messages from a 
 				cols: 120,
 				rows: 40,
 				instanceId: 'old-instance',
-				bridgeStartedAt: 1_000,
+				bridgeLoadToken: 'old-token',
 			},
 			{
 				currentInstanceIdRef: { current: null },
-				lastLoadStartAtRef: { current: 2_000 },
+				currentBridgeLoadTokenRef: { current: 'new-token' },
 				pendingSelectionRef: { current: new Map() },
 				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
 				autoFitFn: () => {},
@@ -420,7 +420,7 @@ void test('XtermJsWebView message handler drops legacy non-initialized messages 
 			},
 			{
 				currentInstanceIdRef: { current: null },
-				lastLoadStartAtRef: { current: 2_000 },
+				awaitingBridgeDocumentStartRef: { current: true },
 				pendingSelectionRef: { current: new Map() },
 				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
 				autoFitFn: () => {},
@@ -441,6 +441,40 @@ void test('XtermJsWebView message handler drops legacy non-initialized messages 
 			],
 		],
 	]);
+});
+
+void test('XtermJsWebView message handler records the active bridge document token', () => {
+	const currentInstanceIdRef = { current: 'old-instance' as string | null };
+	const currentBridgeLoadTokenRef = { current: null as string | null };
+	const awaitingBridgeDocumentStartRef = { current: true };
+	const pendingSelectionRef = {
+		current: new Map<number, { resolve: (value: string) => void }>([
+			[1, { resolve: () => {} }],
+		]),
+	};
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'documentStarted',
+				bridgeLoadToken: 'new-token',
+			},
+			{
+				currentInstanceIdRef,
+				currentBridgeLoadTokenRef,
+				awaitingBridgeDocumentStartRef,
+				pendingSelectionRef,
+				autoFitFn: () => {},
+				setInitialized: () => {},
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentInstanceIdRef.current, null);
+	assert.equal(currentBridgeLoadTokenRef.current, 'new-token');
+	assert.equal(awaitingBridgeDocumentStartRef.current, false);
+	assert.equal(pendingSelectionRef.current.size, 0);
 });
 
 void test('XtermJsWebView message handler drops stale initialized messages', () => {
@@ -562,11 +596,11 @@ void test('XtermJsWebView message handler drops initialized messages from a prio
 			{
 				type: 'initialized',
 				instanceId: 'old-instance',
-				bridgeStartedAt: 1_000,
+				bridgeLoadToken: 'old-token',
 			},
 			{
 				currentInstanceIdRef,
-				lastLoadStartAtRef: { current: 2_000 },
+				currentBridgeLoadTokenRef: { current: 'new-token' },
 				pendingSelectionRef,
 				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
 				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
@@ -599,7 +633,7 @@ void test('XtermJsWebView message handler drops initialized messages without gen
 			},
 			{
 				currentInstanceIdRef,
-				lastLoadStartAtRef: { current: 2_000 },
+				awaitingBridgeDocumentStartRef: { current: true },
 				pendingSelectionRef: { current: new Map() },
 				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
 				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
@@ -634,12 +668,12 @@ void test('XtermJsWebView message handler accepts initialized after load reset',
 			{
 				type: 'initialized',
 				instanceId: 'new-instance',
-				bridgeStartedAt: 3_000,
+				bridgeLoadToken: 'new-token',
 			},
 			{
 				currentInstanceIdRef,
 				invalidatedInstanceIdsRef,
-				lastLoadStartAtRef: { current: 2_000 },
+				currentBridgeLoadTokenRef: { current: 'new-token' },
 				pendingSelectionRef,
 				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
 				autoFitFn: () => events.push('fit'),
@@ -1030,7 +1064,7 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 			);
 			assert.match(content, /emitExit\?: boolean;/);
 			assert.match(content, /type: 'data';\s+data: Uint8Array;/);
-			assert.match(content, /export type XtermInbound = BridgeInboundMessage \| LegacyXtermInbound;/);
+			assert.match(content, /export type XtermInbound = BridgeInboundDraftMessage \| LegacyXtermInbound;/);
 			assert.match(
 				content,
 				/export type \{\s*ScrollbackBatchEvent,\s*TmuxScrollBatchEvent,\s*TouchScrollConfig\s*\}/,
@@ -1046,7 +1080,7 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 				content,
 				/type: 'sizeChanged';\s+cols: number;\s+rows: number;\s+instanceId: string;/,
 			);
-			assert.match(content, /bridgeStartedAt: number/);
+			assert.match(content, /bridgeLoadToken: string/);
 		} else {
 			assert.match(content, /pageStep/);
 			assert.match(content, /scrollbackEnterRequested/);

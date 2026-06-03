@@ -1,6 +1,6 @@
 import { default as React, RefObject } from 'react';
 import { WebView } from 'react-native-webview';
-import { binaryToBStr, bStrToBinary, BridgeInboundMessage, ScrollbackBatchEvent, TouchScrollConfig, TmuxScrollBatchEvent } from './bridge';
+import { binaryToBStr, bStrToBinary, BridgeInboundDraftMessage, ScrollbackBatchEvent, TouchScrollConfig, TmuxScrollBatchEvent } from './bridge';
 export { bStrToBinary, binaryToBStr };
 export type { ScrollbackBatchEvent, TmuxScrollBatchEvent, TouchScrollConfig };
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
@@ -21,7 +21,7 @@ type LegacyXtermInbound = {
     type: 'selectionModeChanged';
     enabled: boolean;
 };
-export type XtermInbound = BridgeInboundMessage | LegacyXtermInbound;
+export type XtermInbound = BridgeInboundDraftMessage | LegacyXtermInbound;
 export type XtermWebViewHandle = {
     write: (data: Uint8Array) => void;
     writeMany: (chunks: Uint8Array[]) => void;

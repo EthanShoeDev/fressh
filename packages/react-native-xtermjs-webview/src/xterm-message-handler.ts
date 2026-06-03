@@ -77,11 +77,13 @@ export function handleXtermBridgeInboundMessage(
 		onScrollbackEnterRequestFailure,
 		onScrollbackBatch,
 		invalidatedInstanceIdsRef,
-		lastLoadStartAtRef,
+		currentBridgeLoadTokenRef,
+		awaitingBridgeDocumentStartRef,
 	}: {
 		currentInstanceIdRef: { current: string | null };
 		invalidatedInstanceIdsRef?: { current: Set<string> };
-		lastLoadStartAtRef?: { current: number };
+		currentBridgeLoadTokenRef?: { current: string | null };
+		awaitingBridgeDocumentStartRef?: { current: boolean };
 		pendingSelectionRef: PendingSelectionRef;
 		logger?: XtermMessageLogger;
 		onInitialized?: (instanceId: string) => void;
@@ -119,12 +121,25 @@ export function handleXtermBridgeInboundMessage(
 		logger?.warn?.(`dropping malformed webview initialized message`);
 		return true;
 	}
+	if (msg.type === 'documentStarted') {
+		if (typeof msg.bridgeLoadToken !== 'string') {
+			logger?.warn?.(`dropping malformed webview documentStarted message`);
+			return true;
+		}
+		currentBridgeLoadTokenRef &&
+			(currentBridgeLoadTokenRef.current = msg.bridgeLoadToken);
+		awaitingBridgeDocumentStartRef &&
+			(awaitingBridgeDocumentStartRef.current = false);
+		currentInstanceIdRef.current = null;
+		pendingSelectionRef.current.clear();
+		return true;
+	}
 	if ('instanceId' in msg) {
-		const lastLoadStartAt = lastLoadStartAtRef?.current ?? 0;
 		if (
-			lastLoadStartAt > 0 &&
-			(typeof msg.bridgeStartedAt !== 'number' ||
-				msg.bridgeStartedAt < lastLoadStartAt)
+			(awaitingBridgeDocumentStartRef?.current ||
+				currentBridgeLoadTokenRef?.current) &&
+			(typeof msg.bridgeLoadToken !== 'string' ||
+				msg.bridgeLoadToken !== currentBridgeLoadTokenRef?.current)
 		) {
 			if (msg.type === 'initialized') {
 				logger?.warn?.(
