@@ -480,6 +480,33 @@ void test('XtermJsWebView message handler drops stale initialized messages', () 
 	]);
 });
 
+void test('XtermJsWebView message handler rejects malformed legacy initialized messages', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: null as string | null };
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'initialized',
+			} as never,
+			{
+				currentInstanceIdRef,
+				pendingSelectionRef: { current: new Map() },
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
+				autoFitFn: () => events.push('fit'),
+				setInitialized: (initialized) => events.push(`state:${initialized}`),
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentInstanceIdRef.current, null);
+	assert.deepEqual(events, [
+		['warn', ['dropping malformed webview initialized message']],
+	]);
+});
+
 void test('XtermJsWebView message handler drops load-invalidated initialized messages', () => {
 	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: null as string | null };
@@ -1019,7 +1046,7 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 				content,
 				/type: 'sizeChanged';\s+cols: number;\s+rows: number;\s+instanceId: string;/,
 			);
-			assert.match(content, /bridgeStartedAt\?: number/);
+			assert.match(content, /bridgeStartedAt: number/);
 		} else {
 			assert.match(content, /pageStep/);
 			assert.match(content, /scrollbackEnterRequested/);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import {
-	type BridgeInboundMessage,
+	type BridgeInboundDraftMessage,
 	type TouchScrollConfig,
 } from '../src/bridge';
 import { createSelectionHandles } from './selection-handles';
@@ -334,7 +334,7 @@ void test('touch scroll cancels pending scrollback entry when selection mode tak
 		bottom: 200,
 	});
 
-	const messages: BridgeInboundMessage[] = [];
+	const messages: BridgeInboundDraftMessage[] = [];
 	let selectionModeEnabled = false;
 	const controller = createTouchScrollController({
 		term: createTouchScrollTerm(root) as never,
@@ -377,7 +377,7 @@ void test('touch scroll cancels pending scrollback entry when selection mode tak
 			(
 				message,
 			): message is Extract<
-				BridgeInboundMessage,
+				BridgeInboundDraftMessage,
 				{ type: 'scrollbackModeChanged' }
 			> => message.type === 'scrollbackModeChanged',
 		)
@@ -400,7 +400,7 @@ void test('touch scroll batch includes the producer page step', (t) => {
 		bottom: 200,
 	});
 
-	const messages: BridgeInboundMessage[] = [];
+	const messages: BridgeInboundDraftMessage[] = [];
 	const controller = createTouchScrollController({
 		term: createTouchScrollTerm(root, 25) as never,
 		root: root as never,
@@ -445,7 +445,7 @@ void test('touch scroll batch includes the producer page step', (t) => {
 	const scrollBatch = messages.find(
 		(
 			message,
-		): message is Extract<BridgeInboundMessage, { type: 'scrollbackBatch' }> =>
+		): message is Extract<BridgeInboundDraftMessage, { type: 'scrollbackBatch' }> =>
 			message.type === 'scrollbackBatch',
 	);
 
@@ -463,7 +463,7 @@ void test('touch scroll quick release flushes after delayed enter ack', async (t
 		bottom: 200,
 	});
 
-	const messages: BridgeInboundMessage[] = [];
+	const messages: BridgeInboundDraftMessage[] = [];
 	const controller = createTouchScrollController({
 		term: createTouchScrollTerm(root, 25) as never,
 		root: root as never,
@@ -517,7 +517,7 @@ void test('touch scroll quick release flushes after delayed enter ack', async (t
 		(
 			message,
 		): message is Extract<
-			BridgeInboundMessage,
+			BridgeInboundDraftMessage,
 			{ type: 'scrollbackModeChanged' }
 		> =>
 			message.type === 'scrollbackModeChanged' &&
@@ -527,7 +527,7 @@ void test('touch scroll quick release flushes after delayed enter ack', async (t
 	const scrollBatches = messages.filter(
 		(
 			message,
-		): message is Extract<BridgeInboundMessage, { type: 'scrollbackBatch' }> =>
+		): message is Extract<BridgeInboundDraftMessage, { type: 'scrollbackBatch' }> =>
 			message.type === 'scrollbackBatch',
 	);
 
@@ -549,7 +549,7 @@ void test('touch scroll pointer cancel before enter ack ignores the late ack', a
 		bottom: 200,
 	});
 
-	const messages: BridgeInboundMessage[] = [];
+	const messages: BridgeInboundDraftMessage[] = [];
 	const controller = createTouchScrollController({
 		term: createTouchScrollTerm(root, 25) as never,
 		root: root as never,
@@ -598,7 +598,7 @@ void test('touch scroll pointer cancel before enter ack ignores the late ack', a
 			(
 				message,
 			): message is Extract<
-				BridgeInboundMessage,
+				BridgeInboundDraftMessage,
 				{ type: 'scrollbackModeChanged' }
 			> => message.type === 'scrollbackModeChanged',
 		)
@@ -625,7 +625,7 @@ void test('touch scroll exit does not emit primary-shell cancel input after ack'
 		bottom: 200,
 	});
 
-	const messages: BridgeInboundMessage[] = [];
+	const messages: BridgeInboundDraftMessage[] = [];
 	const controller = createTouchScrollController({
 		term: createTouchScrollTerm(root, 25) as never,
 		root: root as never,
@@ -670,14 +670,14 @@ void test('touch scroll exit does not emit primary-shell cancel input after ack'
 	controller.exitScrollback({ requestId: 2 });
 
 	const inputMessages = messages.filter(
-		(message): message is Extract<BridgeInboundMessage, { type: 'input' }> =>
+		(message): message is Extract<BridgeInboundDraftMessage, { type: 'input' }> =>
 			message.type === 'input',
 	);
 	const exitTransition = messages.find(
 		(
 			message,
 		): message is Extract<
-			BridgeInboundMessage,
+			BridgeInboundDraftMessage,
 			{ type: 'scrollbackModeChanged' }
 		> =>
 			message.type === 'scrollbackModeChanged' &&
@@ -700,7 +700,7 @@ void test('touch scroll clears pending scrollback entry when scrollback is force
 		bottom: 200,
 	});
 
-	const messages: BridgeInboundMessage[] = [];
+	const messages: BridgeInboundDraftMessage[] = [];
 	const controller = createTouchScrollController({
 		term: createTouchScrollTerm(root) as never,
 		root: root as never,
@@ -747,7 +747,7 @@ void test('touch scroll clears pending scrollback entry when scrollback is force
 		(
 			message,
 		): message is Extract<
-			BridgeInboundMessage,
+			BridgeInboundDraftMessage,
 			{ type: 'scrollbackEnterRequested' }
 		> => message.type === 'scrollbackEnterRequested',
 	);
@@ -770,7 +770,7 @@ void test('touch scroll clears pending scrollback entry when enter ack is lost',
 		bottom: 200,
 	});
 
-	const messages: BridgeInboundMessage[] = [];
+	const messages: BridgeInboundDraftMessage[] = [];
 	const controller = createTouchScrollController({
 		term: createTouchScrollTerm(root) as never,
 		root: root as never,
@@ -817,7 +817,7 @@ void test('touch scroll clears pending scrollback entry when enter ack is lost',
 		(
 			message,
 		): message is Extract<
-			BridgeInboundMessage,
+			BridgeInboundDraftMessage,
 			{ type: 'scrollbackEnterRequested' }
 		> => message.type === 'scrollbackEnterRequested',
 	);
@@ -825,7 +825,7 @@ void test('touch scroll clears pending scrollback entry when enter ack is lost',
 		(
 			message,
 		): message is Extract<
-			BridgeInboundMessage,
+			BridgeInboundDraftMessage,
 			{ type: 'scrollbackModeChanged' }
 		> =>
 			message.type === 'scrollbackModeChanged' &&
@@ -851,7 +851,7 @@ void test('touch scroll lost ack timeout restarts enter for newer active drag', 
 		bottom: 200,
 	});
 
-	const messages: BridgeInboundMessage[] = [];
+	const messages: BridgeInboundDraftMessage[] = [];
 	const controller = createTouchScrollController({
 		term: createTouchScrollTerm(root) as never,
 		root: root as never,
@@ -917,7 +917,7 @@ void test('touch scroll lost ack timeout restarts enter for newer active drag', 
 		(
 			message,
 		): message is Extract<
-			BridgeInboundMessage,
+			BridgeInboundDraftMessage,
 			{ type: 'scrollbackEnterRequested' }
 		> => message.type === 'scrollbackEnterRequested',
 	);
@@ -925,7 +925,7 @@ void test('touch scroll lost ack timeout restarts enter for newer active drag', 
 		(
 			message,
 		): message is Extract<
-			BridgeInboundMessage,
+			BridgeInboundDraftMessage,
 			{ type: 'scrollbackModeChanged' }
 		> =>
 			message.type === 'scrollbackModeChanged' &&
@@ -935,7 +935,7 @@ void test('touch scroll lost ack timeout restarts enter for newer active drag', 
 	const scrollBatches = messages.filter(
 		(
 			message,
-		): message is Extract<BridgeInboundMessage, { type: 'scrollbackBatch' }> =>
+		): message is Extract<BridgeInboundDraftMessage, { type: 'scrollbackBatch' }> =>
 			message.type === 'scrollbackBatch',
 	);
 

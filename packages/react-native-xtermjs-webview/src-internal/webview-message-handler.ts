@@ -2,7 +2,7 @@ import { type FitAddon } from '@xterm/addon-fit';
 import { type ITerminalOptions, type Terminal } from '@xterm/xterm';
 import {
 	bStrToBinary,
-	type BridgeInboundMessage,
+	type BridgeInboundDraftMessage,
 	type BridgeOutboundMessage,
 	type TouchScrollConfig,
 } from '../src/bridge';
@@ -44,7 +44,7 @@ export function createXtermWebViewMessageHandler({
 	fitAddon: Pick<FitAddon, 'fit'>;
 	selectionHandles: SelectionHandles;
 	touchScrollController: TouchScrollController;
-	sendToRn: (msg: BridgeInboundMessage) => void;
+	sendToRn: (msg: BridgeInboundDraftMessage) => void;
 	applyFontFamily: (family?: string) => void;
 }) {
 	const termWrite = (bStr: string) => {

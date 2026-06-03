@@ -1,6 +1,6 @@
 import {
 	handleScrollbackBatchBridgeMessage,
-	type BridgeInboundMessage,
+	type BridgeInboundDraftMessage,
 	type BridgeOutboundMessage,
 	type ScrollbackBatchEvent,
 } from './bridge';
@@ -59,7 +59,7 @@ export function createScrollbackEnterRequestFailureHandler({
 }
 
 export function handleXtermBridgeInboundMessage(
-	msg: BridgeInboundMessage,
+	msg: BridgeInboundDraftMessage,
 	{
 		currentInstanceIdRef,
 		pendingSelectionRef,
@@ -112,6 +112,13 @@ export function handleXtermBridgeInboundMessage(
 		onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 	},
 ): boolean {
+	if (
+		msg.type === 'initialized' &&
+		typeof (msg as { instanceId?: unknown }).instanceId !== 'string'
+	) {
+		logger?.warn?.(`dropping malformed webview initialized message`);
+		return true;
+	}
 	if ('instanceId' in msg) {
 		const lastLoadStartAt = lastLoadStartAtRef?.current ?? 0;
 		if (

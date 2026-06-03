@@ -2,7 +2,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import {
-	type BridgeInboundMessage,
+	type BridgeInboundDraftMessage,
 	type BridgeOutboundMessage,
 } from '../src/bridge';
 import { createSelectionHandles } from './selection-handles';
@@ -27,7 +27,7 @@ declare global {
 	}
 }
 
-const sendToRn = (msg: BridgeInboundMessage) => {
+const sendToRn = (msg: BridgeInboundDraftMessage) => {
 	const bridgeStartedAt = window.__FRESSH_XTERM_BRIDGE_STARTED_AT__;
 	const generatedMsg =
 		typeof bridgeStartedAt === 'number' && 'instanceId' in msg

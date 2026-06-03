@@ -1,4 +1,4 @@
-import { BridgeInboundMessage, BridgeOutboundMessage, ScrollbackBatchEvent } from './bridge';
+import { BridgeInboundDraftMessage, BridgeOutboundMessage, ScrollbackBatchEvent } from './bridge';
 type PendingSelectionRef = {
     current: Map<number, {
         resolve: (value: string) => void;
@@ -16,7 +16,7 @@ export declare function createScrollbackEnterRequestFailureHandler({ logger, sen
     logger?: XtermMessageLogger;
     sendToWebView: (message: BridgeOutboundMessage) => void;
 }): (event: ScrollbackEnterRequestEvent, error: unknown) => void;
-export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundMessage, { currentInstanceIdRef, pendingSelectionRef, logger, onInitialized, autoFitFn, setInitialized, onInput, onData, onResize, onSelection, onSelectionModeChange, onScrollbackModeChange, onScrollbackEnterRequested, onScrollbackEnterRequestFailure, onScrollbackBatch, invalidatedInstanceIdsRef, lastLoadStartAtRef, }: {
+export declare function handleXtermBridgeInboundMessage(msg: BridgeInboundDraftMessage, { currentInstanceIdRef, pendingSelectionRef, logger, onInitialized, autoFitFn, setInitialized, onInput, onData, onResize, onSelection, onSelectionModeChange, onScrollbackModeChange, onScrollbackEnterRequested, onScrollbackEnterRequestFailure, onScrollbackBatch, invalidatedInstanceIdsRef, lastLoadStartAtRef, }: {
     currentInstanceIdRef: {
         current: string | null;
     };

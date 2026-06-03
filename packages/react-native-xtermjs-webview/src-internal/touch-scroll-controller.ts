@@ -1,6 +1,6 @@
 import { type Terminal } from '@xterm/xterm';
 import {
-	type BridgeInboundMessage,
+	type BridgeInboundDraftMessage,
 	type TouchScrollConfig,
 } from '../src/bridge';
 
@@ -23,7 +23,7 @@ export const createTouchScrollController = ({
 	term: Terminal;
 	root: HTMLElement;
 	instanceId: string;
-	sendToRn: (msg: BridgeInboundMessage) => void;
+	sendToRn: (msg: BridgeInboundDraftMessage) => void;
 	isSelectionModeEnabled: () => boolean;
 	cancelLongPress: () => void;
 	scrollbackEnterTimeoutMs?: number;

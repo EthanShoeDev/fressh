@@ -101,6 +101,7 @@ import {
 	buildCommanderExecuteSegments,
 	buildTextEntryPasteSegments,
 } from '@/lib/terminal-input-payloads';
+import { detachTerminalShellListener } from '@/lib/terminal-shell-listener';
 import { useTheme } from '@/lib/theme';
 import {
 	disposeTmuxScrollbackRuntimeStateForUiReset,
@@ -2658,6 +2659,22 @@ function ShellDetail() {
 		xtermRef.current?.write(bytes);
 	}, []);
 
+	const detachShellListener = useCallback(() => {
+		detachTerminalShellListener({
+			shell,
+			listenerIdRef,
+			attachedShellKeyRef,
+			logger,
+		});
+	}, [shell]);
+
+	const handleTerminalLoadStart = useCallback(() => {
+		detachShellListener();
+		currentInstanceIdRef.current = null;
+		hasAttachedOnceRef.current = false;
+		setTerminalReady(false);
+	}, [detachShellListener]);
+
 	const attachShellToTerminal = useCallback(() => {
 		if (!terminalReady) return;
 		if (!shell) return;
@@ -2754,20 +2771,12 @@ function ShellDetail() {
 			setScrollbackActive(false);
 			hasAttachedOnceRef.current = false;
 
-			if (listenerIdRef.current != null && shell) {
-				try {
-					shell.removeListener(listenerIdRef.current);
-				} catch (error) {
-					logger.warn('Failed to remove prior shell listener', error);
-				}
-			}
-			listenerIdRef.current = null;
-			attachedShellKeyRef.current = null;
+			detachShellListener();
 
 			setTerminalReady(true);
 			setHasRenderedTerminal(true);
 		},
-		[resetTmuxScrollbackForUiReset, shell],
+		[detachShellListener, resetTmuxScrollbackForUiReset],
 	);
 
 	useEffect(() => {
@@ -2834,6 +2843,7 @@ function ShellDetail() {
 							webViewOptions={{
 								// Prevent iOS from adding automatic top inset inside WebView
 								contentInsetAdjustmentBehavior: 'never',
+								onLoadStart: handleTerminalLoadStart,
 								onLayout: () => {
 									// Refit terminal when container size changes
 									xtermRef.current?.fit();

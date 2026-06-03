@@ -1,13 +1,12 @@
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type ITerminalInitOnlyOptions = import('@xterm/xterm').ITerminalInitOnlyOptions;
 type BridgeGeneration = {
-    bridgeStartedAt?: number;
+    bridgeStartedAt: number;
 };
-export type BridgeInboundMessage = {
+export type BridgeInboundMessage = ({
     type: 'initialized';
     instanceId: string;
-    bridgeStartedAt?: number;
-} | {
+} & BridgeGeneration) | {
     type: 'input';
     str: string;
     instanceId: string;
@@ -66,7 +65,9 @@ export type BridgeInboundMessage = {
     seq?: number;
     ts?: number;
 } & BridgeGeneration;
-export type ScrollbackBatchBridgeMessage = Extract<BridgeInboundMessage, {
+type WithOptionalBridgeGeneration<T> = T extends BridgeGeneration ? Omit<T, keyof BridgeGeneration> & Partial<BridgeGeneration> : T;
+export type BridgeInboundDraftMessage = WithOptionalBridgeGeneration<BridgeInboundMessage>;
+export type ScrollbackBatchBridgeMessage = Extract<BridgeInboundDraftMessage, {
     type: 'scrollbackBatch' | 'tmuxScrollBatch';
 }>;
 export type ScrollbackBatchEvent = {
@@ -82,7 +83,7 @@ export type TmuxScrollBatchEvent = Omit<Extract<BridgeInboundMessage, {
     type: 'tmuxScrollBatch';
 }>, 'type'>;
 export declare function mapScrollbackBatchMessage(msg: ScrollbackBatchBridgeMessage): ScrollbackBatchEvent;
-export declare function handleScrollbackBatchBridgeMessage(msg: BridgeInboundMessage, onScrollbackBatch?: (event: ScrollbackBatchEvent) => void): msg is ScrollbackBatchBridgeMessage;
+export declare function handleScrollbackBatchBridgeMessage(msg: BridgeInboundDraftMessage, onScrollbackBatch?: (event: ScrollbackBatchEvent) => void): msg is ScrollbackBatchBridgeMessage;
 export type TouchScrollConfig = {
     enabled: false;
 } | {

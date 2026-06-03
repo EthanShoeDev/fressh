@@ -1,10 +1,10 @@
 import { Base64 } from 'js-base64';
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type ITerminalInitOnlyOptions = import('@xterm/xterm').ITerminalInitOnlyOptions;
-type BridgeGeneration = { bridgeStartedAt?: number };
+type BridgeGeneration = { bridgeStartedAt: number };
 // Messages posted from the WebView (xterm page) to React Native
 export type BridgeInboundMessage =
-	| { type: 'initialized'; instanceId: string; bridgeStartedAt?: number }
+	| ({ type: 'initialized'; instanceId: string } & BridgeGeneration)
 	| {
 			type: 'input';
 			str: string;
@@ -68,8 +68,15 @@ export type BridgeInboundMessage =
 			ts?: number;
 	  } & BridgeGeneration;
 
+type WithOptionalBridgeGeneration<T> = T extends BridgeGeneration
+	? Omit<T, keyof BridgeGeneration> & Partial<BridgeGeneration>
+	: T;
+
+export type BridgeInboundDraftMessage =
+	WithOptionalBridgeGeneration<BridgeInboundMessage>;
+
 export type ScrollbackBatchBridgeMessage = Extract<
-	BridgeInboundMessage,
+	BridgeInboundDraftMessage,
 	{ type: 'scrollbackBatch' | 'tmuxScrollBatch' }
 >;
 
@@ -101,7 +108,7 @@ export function mapScrollbackBatchMessage(
 }
 
 export function handleScrollbackBatchBridgeMessage(
-	msg: BridgeInboundMessage,
+	msg: BridgeInboundDraftMessage,
 	onScrollbackBatch?: (event: ScrollbackBatchEvent) => void,
 ): msg is ScrollbackBatchBridgeMessage {
 	if (msg.type !== 'scrollbackBatch' && msg.type !== 'tmuxScrollBatch')

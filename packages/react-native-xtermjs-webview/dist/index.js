@@ -40,14 +40,14 @@ function SA({
   logger: A,
   sendToWebView: r
 }) {
-  return (s, i) => {
+  return (s, t) => {
     var c;
     (c = A == null ? void 0 : A.warn) == null || c.call(
       A,
       "scrollback enter request failed",
       s.instanceId,
       s.requestId,
-      i
+      t
     ), r({
       ...GA(s)
     });
@@ -56,7 +56,7 @@ function SA({
 function mA(A, {
   currentInstanceIdRef: r,
   pendingSelectionRef: s,
-  logger: i,
+  logger: t,
   onInitialized: c,
   autoFitFn: x,
   setInitialized: H,
@@ -64,61 +64,63 @@ function mA(A, {
   onData: f,
   onResize: S,
   onSelection: m,
-  onSelectionModeChange: p,
-  onScrollbackModeChange: J,
+  onSelectionModeChange: G,
+  onScrollbackModeChange: p,
   onScrollbackEnterRequested: b,
-  onScrollbackEnterRequestFailure: _,
+  onScrollbackEnterRequestFailure: J,
   onScrollbackBatch: W,
-  invalidatedInstanceIdsRef: t,
+  invalidatedInstanceIdsRef: i,
   lastLoadStartAtRef: g
 }) {
-  var y, l, T, F, h, N, k, w, D;
+  var _, l, y, F, h, T, N, w, D, k;
+  if (A.type === "initialized" && typeof A.instanceId != "string")
+    return (_ = t == null ? void 0 : t.warn) == null || _.call(t, "dropping malformed webview initialized message"), !0;
   if ("instanceId" in A) {
     const o = (g == null ? void 0 : g.current) ?? 0;
     if (o > 0 && (typeof A.bridgeStartedAt != "number" || A.bridgeStartedAt < o))
-      return A.type === "initialized" ? (y = i == null ? void 0 : i.warn) == null || y.call(
-        i,
+      return A.type === "initialized" ? (l = t == null ? void 0 : t.warn) == null || l.call(
+        t,
         "dropping stale webview initialized generation",
         A.instanceId
-      ) : (l = i == null ? void 0 : i.warn) == null || l.call(
-        i,
+      ) : (y = t == null ? void 0 : t.warn) == null || y.call(
+        t,
         "dropping stale webview message generation",
         A.type,
         A.instanceId
       ), !0;
-    if (t != null && t.current.has(A.instanceId))
-      return A.type === "initialized" ? (T = i == null ? void 0 : i.warn) == null || T.call(
-        i,
+    if (i != null && i.current.has(A.instanceId))
+      return A.type === "initialized" ? (F = t == null ? void 0 : t.warn) == null || F.call(
+        t,
         "dropping invalidated webview initialized message",
         A.instanceId
-      ) : (F = i == null ? void 0 : i.warn) == null || F.call(
-        i,
+      ) : (h = t == null ? void 0 : t.warn) == null || h.call(
+        t,
         "dropping invalidated webview message",
         A.type,
         A.instanceId
       ), !0;
     if (r.current && A.instanceId !== r.current)
-      return A.type === "initialized" ? (h = i == null ? void 0 : i.warn) == null || h.call(
-        i,
+      return A.type === "initialized" ? (T = t == null ? void 0 : t.warn) == null || T.call(
+        t,
         "dropping stale webview initialized message",
         A.instanceId
-      ) : (N = i == null ? void 0 : i.warn) == null || N.call(
-        i,
+      ) : (N = t == null ? void 0 : t.warn) == null || N.call(
+        t,
         "dropping stale webview message",
         A.type,
         A.instanceId
       ), !0;
   }
   if (A.type === "initialized")
-    return r.current = A.instanceId, t == null || t.current.clear(), s.current.clear(), c == null || c(A.instanceId), x(), H(!0), !0;
+    return r.current = A.instanceId, i == null || i.current.clear(), s.current.clear(), c == null || c(A.instanceId), x(), H(!0), !0;
   if (A.type === "input") {
     const o = A.kind ?? "typing";
-    return o === "typing" ? (R == null || R({ str: A.str, kind: o, instanceId: A.instanceId }), f == null || f(A.str)) : (k = i == null ? void 0 : i.warn) == null || k.call(i, "dropping non-typing webview input", o), !0;
+    return o === "typing" ? (R == null || R({ str: A.str, kind: o, instanceId: A.instanceId }), f == null || f(A.str)) : (w = t == null ? void 0 : t.warn) == null || w.call(t, "dropping non-typing webview input", o), !0;
   }
   if (A.type === "debug")
-    return (w = i == null ? void 0 : i.log) == null || w.call(i, "received debug msg from webview: ", A.message), !0;
+    return (D = t == null ? void 0 : t.log) == null || D.call(t, "received debug msg from webview: ", A.message), !0;
   if (A.type === "sizeChanged")
-    return (D = i == null ? void 0 : i.log) == null || D.call(i, `terminal size changed: ${A.cols}x${A.rows}`), S == null || S(A.cols, A.rows), !0;
+    return (k = t == null ? void 0 : t.log) == null || k.call(t, `terminal size changed: ${A.cols}x${A.rows}`), S == null || S(A.cols, A.rows), !0;
   if (A.type === "selection") {
     const o = s.current.get(A.requestId);
     return o && (s.current.delete(A.requestId), o.resolve(A.text)), !0;
@@ -126,9 +128,9 @@ function mA(A, {
   if (A.type === "selectionChanged")
     return m == null || m(A.text), !0;
   if (A.type === "selectionModeChanged")
-    return p == null || p(A.enabled), !0;
+    return G == null || G(A.enabled), !0;
   if (A.type === "scrollbackModeChanged")
-    return J == null || J({
+    return p == null || p({
       active: A.active,
       phase: A.phase,
       instanceId: A.instanceId,
@@ -143,21 +145,21 @@ function mA(A, {
       return K({
         event: o,
         error: new Error("Missing scrollback enter handler."),
-        onScrollbackEnterRequestFailure: _
+        onScrollbackEnterRequestFailure: J
       }), !0;
     try {
-      Promise.resolve(b(o)).catch((G) => {
+      Promise.resolve(b(o)).catch((n) => {
         K({
           event: o,
-          error: G,
-          onScrollbackEnterRequestFailure: _
+          error: n,
+          onScrollbackEnterRequestFailure: J
         });
       });
-    } catch (G) {
+    } catch (n) {
       K({
         event: o,
-        error: G,
-        onScrollbackEnterRequestFailure: _
+        error: n,
+        onScrollbackEnterRequestFailure: J
       });
     }
     return !0;
@@ -205,8 +207,8 @@ function yA(A, r) {
     ...Object.keys(A),
     ...Object.keys(r)
   ]);
-  for (const i of s) {
-    const c = i;
+  for (const t of s) {
+    const c = t;
     if (A[c] !== r[c]) return !1;
   }
   return !0;
@@ -218,8 +220,8 @@ function TA(A, r) {
     ...Object.keys(A),
     ...Object.keys(r)
   ]);
-  for (const i of s)
-    if (A[i] !== r[i])
+  for (const t of s)
+    if (A[t] !== r[t])
       return !1;
   return !0;
 }
@@ -232,7 +234,7 @@ function bA({
   ref: A,
   style: r,
   webViewOptions: s = rA,
-  xtermOptions: i = nA,
+  xtermOptions: t = nA,
   onInitialized: c,
   onData: x,
   onInput: H,
@@ -240,28 +242,28 @@ function bA({
   onSelectionModeChange: f,
   onResize: S,
   onScrollbackModeChange: m,
-  onScrollbackEnterRequested: p,
-  onScrollbackBatch: J,
+  onScrollbackEnterRequested: G,
+  onScrollbackBatch: p,
   onTmuxEnterCopyMode: b,
-  onTmuxScrollBatch: _,
+  onTmuxScrollBatch: J,
   coalescingThreshold: W = pA,
-  logger: t,
+  logger: i,
   size: g,
-  autoFit: y = !0,
+  autoFit: _ = !0,
   devServerUrl: l,
-  touchScrollConfig: T
+  touchScrollConfig: y
 }) {
-  const F = a(null), [h, N] = dA(!1), k = a(0), w = a(/* @__PURE__ */ new Map()), D = a(null), o = a(/* @__PURE__ */ new Set()), G = a(0), n = Q(
+  const F = a(null), [h, T] = dA(!1), N = a(0), w = a(/* @__PURE__ */ new Map()), D = a(null), k = a(/* @__PURE__ */ new Set()), o = a(0), n = Q(
     (e) => {
       var U;
       const B = F.current;
       if (!B) return;
       const E = JSON.stringify(e);
-      (U = t == null ? void 0 : t.debug) == null || U.call(t, `sending msg to webview: ${E}`);
+      (U = i == null ? void 0 : i.debug) == null || U.call(i, `sending msg to webview: ${E}`);
       const d = `window.dispatchEvent(new MessageEvent('message',{data:${E}})); true;`;
       B.injectJavaScript(d);
     },
-    [t]
+    [i]
   ), I = a(null), M = a(null), Y = Q(() => {
     if (!I.current) return;
     const e = BA(I.current);
@@ -324,8 +326,8 @@ function bA({
     B.injectJavaScript(E), e && B.requestFocus();
   }, []), hA = Q(() => {
     if (!h) return Promise.resolve("");
-    const e = k.current + 1;
-    return k.current = e, new Promise((B) => {
+    const e = N.current + 1;
+    return N.current = e, new Promise((B) => {
       w.current.set(e, { resolve: B }), n({ type: "getSelection", requestId: e }), setTimeout(() => {
         w.current.has(e) && (w.current.delete(e), B(""));
       }, 5e3);
@@ -336,14 +338,14 @@ function bA({
     },
     [n]
   ), u = Q(() => {
-    y && P();
-  }, [y, P]), z = a(null);
+    _ && P();
+  }, [_, P]), z = a(null);
   L(() => {
     var B;
     if (!h) return;
     const e = z.current;
-    g && ((e == null ? void 0 : e.cols) === g.cols && (e == null ? void 0 : e.rows) === g.rows || ((B = t == null ? void 0 : t.log) == null || B.call(t, "calling resize", g), n({ type: "resize", cols: g.cols, rows: g.rows }), u(), z.current = g));
-  }, [g, n, t, u, h]);
+    g && ((e == null ? void 0 : e.cols) === g.cols && (e == null ? void 0 : e.rows) === g.rows || ((B = i == null ? void 0 : i.log) == null || B.call(i, "calling resize", g), n({ type: "resize", cols: g.cols, rows: g.rows }), u(), z.current = g));
+  }, [g, n, i, u, h]);
   const Z = Q(
     (e, B) => {
       n({
@@ -379,40 +381,40 @@ function bA({
   const C = v(
     () => ({
       ...nA,
-      ...i
+      ...t
     }),
-    [i]
+    [t]
   ), V = a(null), O = a(null);
   L(() => {
     var B;
     if (!h) return;
     const e = V.current;
-    yA(e, C) || ((B = t == null ? void 0 : t.log) == null || B.call(t, "setting options: ", C), n({ type: "setOptions", opts: C }), u(), V.current = C);
-  }, [C, n, t, h, u]), L(() => {
+    yA(e, C) || ((B = i == null ? void 0 : i.log) == null || B.call(i, "setting options: ", C), n({ type: "setOptions", opts: C }), u(), V.current = C);
+  }, [C, n, i, h, u]), L(() => {
     if (!h) return;
-    const e = T ?? { enabled: !1 }, B = O.current;
+    const e = y ?? { enabled: !1 }, B = O.current;
     TA(B, e) || (n({ type: "setTouchScrollConfig", config: e }), O.current = e);
-  }, [h, n, T]);
+  }, [h, n, y]);
   const q = v(
     () => SA({
-      logger: t,
+      logger: i,
       sendToWebView: n
     }),
-    [t, n]
-  ), $ = p ?? b, AA = J ?? _, CA = Q(
+    [i, n]
+  ), $ = G ?? b, AA = p ?? J, CA = Q(
     (e) => {
       var B, E, d;
       try {
         const U = JSON.parse(e.nativeEvent.data);
-        if ((B = t == null ? void 0 : t.log) == null || B.call(t, "received msg from webview: ", U), mA(U, {
+        if ((B = i == null ? void 0 : i.log) == null || B.call(i, "received msg from webview: ", U), mA(U, {
           currentInstanceIdRef: D,
-          invalidatedInstanceIdsRef: o,
-          lastLoadStartAtRef: G,
+          invalidatedInstanceIdsRef: k,
+          lastLoadStartAtRef: o,
           pendingSelectionRef: w,
-          logger: t,
+          logger: i,
           onInitialized: c,
           autoFitFn: u,
-          setInitialized: N,
+          setInitialized: T,
           onInput: H,
           onData: x,
           onResize: S,
@@ -426,8 +428,8 @@ function bA({
           return;
         (E = s == null ? void 0 : s.onMessage) == null || E.call(s, e);
       } catch (U) {
-        (d = t == null ? void 0 : t.warn) == null || d.call(
-          t,
+        (d = i == null ? void 0 : i.warn) == null || d.call(
+          i,
           "received unknown msg from webview: ",
           e.nativeEvent.data,
           U
@@ -435,7 +437,7 @@ function bA({
       }
     },
     [
-      t,
+      i,
       s,
       c,
       u,
@@ -452,25 +454,25 @@ function bA({
   ), eA = Q(
     (e) => {
       var B, E;
-      (B = t == null ? void 0 : t.warn) == null || B.call(t, "WebView Crashed on iOS! onContentProcessDidTerminate"), (E = s == null ? void 0 : s.onContentProcessDidTerminate) == null || E.call(s, e);
+      (B = i == null ? void 0 : i.warn) == null || B.call(i, "WebView Crashed on iOS! onContentProcessDidTerminate"), (E = s == null ? void 0 : s.onContentProcessDidTerminate) == null || E.call(s, e);
     },
-    [t, s]
+    [i, s]
   ), tA = Q(
     (e) => {
       var B, E;
-      (B = t == null ? void 0 : t.warn) == null || B.call(t, "WebView Crashed on Android! onRenderProcessGone"), (E = s == null ? void 0 : s.onRenderProcessGone) == null || E.call(s, e);
+      (B = i == null ? void 0 : i.warn) == null || B.call(i, "WebView Crashed on Android! onRenderProcessGone"), (E = s == null ? void 0 : s.onRenderProcessGone) == null || E.call(s, e);
     },
-    [t, s]
+    [i, s]
   ), iA = Q(
     (e) => {
       var B, E;
-      (B = t == null ? void 0 : t.log) == null || B.call(t, "WebView onLoadEnd"), (E = s == null ? void 0 : s.onLoadEnd) == null || E.call(s, e);
+      (B = i == null ? void 0 : i.log) == null || B.call(i, "WebView onLoadEnd"), (E = s == null ? void 0 : s.onLoadEnd) == null || E.call(s, e);
     },
-    [t, s]
+    [i, s]
   ), sA = Q(
     (e) => {
       var B;
-      G.current = Date.now(), D.current && o.current.add(D.current), D.current = null, z.current = null, V.current = null, O.current = null, j(), EA(w.current), N(!1), (B = s == null ? void 0 : s.onLoadStart) == null || B.call(s, e);
+      o.current = Date.now(), D.current && k.current.add(D.current), D.current = null, z.current = null, V.current = null, O.current = null, j(), EA(w.current), T(!1), (B = s == null ? void 0 : s.onLoadStart) == null || B.call(s, e);
     },
     [j, s]
   ), lA = v(
