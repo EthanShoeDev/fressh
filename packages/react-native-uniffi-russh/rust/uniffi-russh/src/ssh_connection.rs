@@ -9,6 +9,9 @@ use russh::keys::PrivateKeyWithHashAlg;
 use russh::{self, client, ChannelMsg, Disconnect};
 
 use crate::private_key::normalize_openssh_ed25519_seed_key;
+use crate::ssh_command::{
+    CommandOutput, CommandStreamSession, RunCommandOptions, StartCommandStreamOptions,
+};
 use crate::ssh_shell::{
     append_and_broadcast, Chunk, ShellSession, ShellSessionInfo, StartShellOptions, StreamKind,
     DEFAULT_BROADCAST_CHUNK_CAPACITY, DEFAULT_MAX_CHUNK_SIZE, DEFAULT_SHELL_RING_BUFFER_CAPACITY,
@@ -195,6 +198,7 @@ pub struct SshConnection {
     pub(crate) client_handle: AsyncMutex<ClientHandle<NoopHandler>>,
 
     pub(crate) shells: AsyncMutex<HashMap<u32, Arc<ShellSession>>>,
+    pub(crate) command_streams: AsyncMutex<HashMap<u32, Arc<CommandStreamSession>>>,
 
     // Weak self for child sessions to refer back without cycles.
     pub(crate) self_weak: AsyncMutex<Weak<SshConnection>>,
@@ -460,6 +464,17 @@ impl SshConnection {
         Ok(session)
     }
 
+    pub async fn run_command(&self, opts: RunCommandOptions) -> Result<CommandOutput, SshError> {
+        crate::ssh_command::run_command(self, opts).await
+    }
+
+    pub async fn start_command_stream(
+        &self,
+        opts: StartCommandStreamOptions,
+    ) -> Result<Arc<CommandStreamSession>, SshError> {
+        crate::ssh_command::start_command_stream(self, opts).await
+    }
+
     pub async fn disconnect(&self) -> Result<(), SshError> {
         // TODO: Check if we need to close all these if we are about to disconnect?
         let sessions: Vec<Arc<ShellSession>> = {
@@ -468,6 +483,14 @@ impl SshConnection {
         };
         for s in sessions {
             s.close().await?;
+        }
+
+        let command_streams: Vec<Arc<CommandStreamSession>> = {
+            let map = self.command_streams.lock().await;
+            map.values().cloned().collect()
+        };
+        for stream in command_streams {
+            stream.close().await?;
         }
 
         let h = self.client_handle.lock().await;
@@ -558,6 +581,7 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
         },
         client_handle: AsyncMutex::new(handle),
         shells: AsyncMutex::new(HashMap::new()),
+        command_streams: AsyncMutex::new(HashMap::new()),
         self_weak: AsyncMutex::new(Weak::new()),
         on_disconnected_callback: options.on_disconnected_callback.clone(),
     });
