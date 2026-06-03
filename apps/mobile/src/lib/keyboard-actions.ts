@@ -27,7 +27,7 @@ export const KEYBOARD_TARGET_ACTION_IDS = [
 
 export type WorkmuxKeyboardCommand =
 	| { type: 'focus'; target: WorkmuxFocusTarget }
-	| { type: 'nav'; action: WorkmuxNavAction; index?: number };
+	| { type: 'nav'; action: Exclude<WorkmuxNavAction, 'select'> };
 const WORKMUX_KEYBOARD_ACTION_ENTRIES = [
 	['WORKMUX_FOCUS_CLAUDE', { type: 'focus', target: 'claude' }],
 	['WORKMUX_FOCUS_GIT', { type: 'focus', target: 'git' }],
@@ -117,6 +117,7 @@ export type WorkmuxKeyboardCommandRunner = {
 	run: (
 		command: WorkmuxKeyboardCommand,
 	) => Promise<WorkmuxKeyboardCommandRunResult>;
+	invalidate: () => void;
 };
 
 export function createWorkmuxKeyboardCommandRunner({
@@ -133,15 +134,28 @@ export function createWorkmuxKeyboardCommandRunner({
 	getErrorMessage: (error: unknown) => string;
 }): WorkmuxKeyboardCommandRunner {
 	let running = false;
+	let generation = 0;
 	let pending:
 		| {
 				command: WorkmuxKeyboardCommand;
+				generation: number;
 				resolve: (result: WorkmuxKeyboardCommandRunResult) => void;
 			}
 		| null = null;
 
-	const execute = async (command: WorkmuxKeyboardCommand): Promise<void> => {
+	const supersedePending = (): void => {
+		pending?.resolve({ status: 'superseded' });
+		pending = null;
+	};
+
+	const execute = async (
+		command: WorkmuxKeyboardCommand,
+		commandGeneration: number,
+	): Promise<WorkmuxKeyboardCommandRunResult> => {
 		try {
+			if (commandGeneration !== generation) {
+				return { status: 'superseded' };
+			}
 			if (!isTmuxEnabled()) {
 				throw new Error(WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE);
 			}
@@ -152,28 +166,36 @@ export function createWorkmuxKeyboardCommandRunner({
 					: buildWorkmuxAppNavCommand(
 							sessionName,
 							command.action,
-							command.index,
 						);
 			await runHostCommand(remoteCommand, 10_000);
+			return commandGeneration === generation
+				? { status: 'handled' }
+				: { status: 'superseded' };
 		} catch (error) {
-			showFailure(
-				formatWorkmuxKeyboardCommandFailureMessage({
-					errorMessage: getErrorMessage(error),
-				}) || WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
-			);
+			if (commandGeneration === generation) {
+				showFailure(
+					formatWorkmuxKeyboardCommandFailureMessage({
+						errorMessage: getErrorMessage(error),
+					}) || WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+				);
+				return { status: 'handled' };
+			}
+			return { status: 'superseded' };
 		}
 	};
 
 	const drain = async (queued: {
 		command: WorkmuxKeyboardCommand;
+		generation: number;
 		resolve: (result: WorkmuxKeyboardCommandRunResult) => void;
 	}): Promise<void> => {
 		running = true;
 		try {
 			let current: typeof queued | null = queued;
 			while (current) {
-				await execute(current.command);
-				current.resolve({ status: 'handled' });
+				current.resolve(
+					await execute(current.command, current.generation),
+				);
 				current = pending;
 				pending = null;
 			}
@@ -190,7 +212,7 @@ export function createWorkmuxKeyboardCommandRunner({
 	return {
 		run: (command) => {
 			return new Promise<WorkmuxKeyboardCommandRunResult>((resolve) => {
-				const queued = { command, resolve };
+				const queued = { command, generation, resolve };
 				if (!running) {
 					void drain(queued);
 					return;
@@ -198,6 +220,10 @@ export function createWorkmuxKeyboardCommandRunner({
 				pending?.resolve({ status: 'superseded' });
 				pending = queued;
 			});
+		},
+		invalidate: () => {
+			generation += 1;
+			supersedePending();
 		},
 	};
 }
@@ -262,10 +288,11 @@ function getWorkmuxKeyboardActionCommand(
 export async function runAction(
 	actionId: ActionId,
 	context: ActionContext,
-): Promise<void | WorkmuxKeyboardCommandRunResult> {
+): Promise<void> {
 	const workmuxKeyboardCommand = getWorkmuxKeyboardActionCommand(actionId);
 	if (workmuxKeyboardCommand) {
-		return context.runWorkmuxKeyboardCommand?.(workmuxKeyboardCommand);
+		await context.runWorkmuxKeyboardCommand?.(workmuxKeyboardCommand);
+		return;
 	}
 
 	switch (actionId) {

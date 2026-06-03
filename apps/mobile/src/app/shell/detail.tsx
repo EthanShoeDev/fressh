@@ -2182,6 +2182,24 @@ function ShellDetail() {
 			}),
 		[],
 	);
+	const workmuxKeyboardSourceKeyRef = useRef(skillSelectorSourceKey);
+
+	useLayoutEffect(() => {
+		if (isFocused) return;
+		workmuxKeyboardCommandRunner.invalidate();
+	}, [isFocused, workmuxKeyboardCommandRunner]);
+
+	useLayoutEffect(() => {
+		if (workmuxKeyboardSourceKeyRef.current === skillSelectorSourceKey) return;
+		workmuxKeyboardSourceKeyRef.current = skillSelectorSourceKey;
+		workmuxKeyboardCommandRunner.invalidate();
+	}, [skillSelectorSourceKey, workmuxKeyboardCommandRunner]);
+
+	useLayoutEffect(() => {
+		return () => {
+			workmuxKeyboardCommandRunner.invalidate();
+		};
+	}, [workmuxKeyboardCommandRunner]);
 
 	const runWorkmuxKeyboardCommand = useCallback(
 		(command: WorkmuxKeyboardCommand) => {

@@ -227,9 +227,7 @@ void test('Workmux keyboard actions delegate semantic commands without sending b
 	} as Parameters<typeof runAction>[1];
 
 	for (const actionId of WORKMUX_KEYBOARD_ACTION_IDS) {
-		assert.deepEqual(await runAction(actionId, context), {
-			status: 'handled',
-		});
+		await runAction(actionId, context);
 	}
 
 	assert.deepEqual(
@@ -429,6 +427,39 @@ void test('Workmux keyboard command runner reads live enabled state for pending 
 	]);
 	assert.deepEqual(calls, ["mdev tmux app focus 'git' --session 'main'"]);
 	assert.deepEqual(failures, [WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE]);
+});
+
+void test('Workmux keyboard command runner invalidates pending commands and stale failures', async () => {
+	const firstBlock = deferred<void>();
+	const calls: string[] = [];
+	const failures: string[] = [];
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => true,
+		getSessionName: () => 'main',
+		runHostCommand: async (command) => {
+			calls.push(command);
+			if (calls.length === 1) {
+				await firstBlock.promise;
+				throw new Error('mdev: command not found');
+			}
+		},
+		showFailure: (message) => failures.push(message),
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	const first = runner.run({ type: 'nav', action: 'prev' });
+	const second = runner.run({ type: 'focus', target: 'bash' });
+	await Promise.resolve();
+	runner.invalidate();
+	firstBlock.resolve(undefined);
+
+	assert.deepEqual(await Promise.all([first, second]), [
+		{ status: 'superseded' },
+		{ status: 'superseded' },
+	]);
+	assert.deepEqual(calls, ["mdev tmux app nav 'prev' --session 'main'"]);
+	assert.deepEqual(failures, []);
 });
 
 void test('Workmux keyboard command runner preserves local failures and maps remote failures', async () => {
