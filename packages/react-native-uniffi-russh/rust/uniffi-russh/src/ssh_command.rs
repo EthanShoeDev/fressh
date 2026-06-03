@@ -199,6 +199,11 @@ fn pre_session_channel_guard_should_close_on_drop(is_disarmed: bool) -> bool {
     !is_disarmed
 }
 
+#[cfg(test)]
+fn stream_startup_guard_can_disarm(parent_loaded: bool, registry_locked: bool) -> bool {
+    parent_loaded && registry_locked
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExecRequestReply {
     Success,
@@ -336,14 +341,15 @@ pub(crate) async fn start_command_stream(
     let channel_id: u32 = channel_guard.channel().id().into();
     channel_guard.channel().exec(true, options.command).await?;
     let buffered_messages = wait_for_exec_request_success(channel_guard.channel_mut()).await?;
-    let channel = channel_guard.into_inner();
-
-    let (mut reader, writer) = channel.split();
     let callback = options.on_event_callback.clone();
     let parent = connection.self_weak.lock().await.clone();
+    let mut command_streams = connection.command_streams.lock().await;
     let parent_for_reader = parent.clone();
     let reader_has_closed = Arc::new(AtomicBool::new(false));
     let reader_has_closed_for_reader = reader_has_closed.clone();
+
+    let channel = channel_guard.into_inner();
+    let (mut reader, writer) = channel.split();
 
     let reader_task = tokio::spawn(async move {
         for message in buffered_messages {
@@ -378,14 +384,11 @@ pub(crate) async fn start_command_stream(
         reader_task,
     });
 
-    {
-        let mut command_streams = connection.command_streams.lock().await;
-        command_streams.insert(channel_id, session.clone());
-        if !command_stream_should_remain_registered_after_insert(
-            reader_has_closed.load(Ordering::Acquire),
-        ) {
-            command_streams.remove(&channel_id);
-        }
+    command_streams.insert(channel_id, session.clone());
+    if !command_stream_should_remain_registered_after_insert(
+        reader_has_closed.load(Ordering::Acquire),
+    ) {
+        command_streams.remove(&channel_id);
     }
 
     Ok(session)
@@ -460,5 +463,12 @@ mod tests {
     fn pre_session_channel_guard_closes_until_disarmed() {
         assert!(pre_session_channel_guard_should_close_on_drop(false));
         assert!(!pre_session_channel_guard_should_close_on_drop(true));
+    }
+
+    #[test]
+    fn stream_startup_guard_disarms_only_after_awaited_setup() {
+        assert!(!stream_startup_guard_can_disarm(false, true));
+        assert!(!stream_startup_guard_can_disarm(true, false));
+        assert!(stream_startup_guard_can_disarm(true, true));
     }
 }
