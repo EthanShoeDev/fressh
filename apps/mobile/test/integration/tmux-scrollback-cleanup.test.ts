@@ -3,20 +3,20 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	buildWorkmuxScrollbackLiveInputSendPlan,
-	createTmuxScrollbackLiveInputCleanupBarrier,
+	createWorkmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
 	registerTmuxScrollbackLocalExitRequest,
-	registerTmuxScrollbackLiveInputCleanup,
+	registerWorkmuxScrollbackLiveInputCleanup,
 	resetTmuxScrollbackLocalExitRequests,
-	runTmuxScrollbackLiveInputSendPlan,
+	runWorkmuxScrollbackLiveInputSendPlan,
 	resetTmuxScrollbackRuntimeState,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resolveTmuxScrollbackEnterRequest,
-	resolveTmuxScrollbackLiveInputCleanup,
+	resolveWorkmuxScrollbackLiveInputCleanup,
 	TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	type WorkmuxScrollbackPageCommand,
@@ -41,7 +41,7 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 	const failures: string[] = [];
 	const sentPayloads: number[][] = [];
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
-	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const remoteCopyModeActiveRef = { current: false };
 	let localScrollbackActive = true;
 	const executor = createWorkmuxScrollbackCommandExecutor({
@@ -131,7 +131,7 @@ void test('inactive Workmux scroll enter cleanup suppresses canceled enter alert
 	const failures: string[] = [];
 	const disposeFailures: string[] = [];
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
-	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const remoteCopyModeActiveRef = { current: false };
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
@@ -172,7 +172,7 @@ void test('inactive Workmux scroll enter cleanup suppresses canceled enter alert
 void test('component disposal UI reset clears line accumulator and disposes executor', async () => {
 	const commands: string[] = [];
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
-	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const remoteCopyModeActiveRef = { current: true };
 	const cleanupGeneration = { current: 0 };
 	const executor = createWorkmuxScrollbackCommandExecutor({
@@ -207,7 +207,7 @@ void test('failed UI reset exit keeps remote copy mode active and blocks later l
 	const commands: string[] = [];
 	const sentPayloads: number[][] = [];
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
-	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const remoteCopyModeActiveRef = { current: false };
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
@@ -361,7 +361,7 @@ void test('pending enter rollback exit failure marks remote copy mode active for
 	const enterBlock = deferred<void>();
 	const commands: string[] = [];
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
-	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const remoteCopyModeActiveRef = { current: false };
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
@@ -397,7 +397,7 @@ void test('pending enter rollback exit failure marks remote copy mode active for
 
 void test('multiple live input events wait behind the same pending scrollback cleanup barrier', async () => {
 	const cleanupBlock = deferred<void>();
-	const barrierRef = createTmuxScrollbackLiveInputCleanupBarrier();
+	const barrierRef = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const sentPayloads: string[] = [];
 	let scrollbackActive = true;
 
@@ -443,7 +443,7 @@ void test('live input joins current cleanup barrier before starting another remo
 			payloadSegments: [bytes([payload.charCodeAt(0)])],
 			scrollbackExitDelayMs: 10,
 		});
-		const cleanup = resolveTmuxScrollbackLiveInputCleanup({
+		const cleanup = resolveWorkmuxScrollbackLiveInputCleanup({
 			clearScrollback: plan.clearScrollback,
 			currentCleanup,
 			startCleanup: () => {
@@ -471,13 +471,13 @@ void test('live input joins current cleanup barrier before starting another remo
 
 void test('live input waits for externally initiated inactive cleanup barrier before sending primary payload', async () => {
 	const cleanupBlock = deferred<void>();
-	const barrierRef = createTmuxScrollbackLiveInputCleanupBarrier();
+	const barrierRef = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const sentPayloads: string[] = [];
 	let scrollbackActive = true;
 
 	const externalCleanup = cleanupBlock.promise.then(() => true);
 	scrollbackActive = false;
-	void registerTmuxScrollbackLiveInputCleanup(barrierRef, externalCleanup);
+	void registerWorkmuxScrollbackLiveInputCleanup(barrierRef, externalCleanup);
 
 	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive,
@@ -1087,7 +1087,7 @@ void test('live input runner starts cleanup for exit-key-only payload without se
 		scrollbackExitDelayMs: 10,
 	});
 
-	const result = runTmuxScrollbackLiveInputSendPlan({
+	const result = runWorkmuxScrollbackLiveInputSendPlan({
 		plan,
 		currentCleanup: null,
 		startCleanup: () => {
@@ -1116,7 +1116,7 @@ void test('live input runner sends non-empty payload after successful cleanup', 
 		scrollbackExitDelayMs: 10,
 	});
 
-	const result = runTmuxScrollbackLiveInputSendPlan({
+	const result = runWorkmuxScrollbackLiveInputSendPlan({
 		plan,
 		currentCleanup: cleanup.promise,
 		startCleanup: () => {
@@ -1145,7 +1145,7 @@ void test('live input runner blocks non-empty payload after failed cleanup', asy
 		scrollbackExitDelayMs: 10,
 	});
 
-	const result = runTmuxScrollbackLiveInputSendPlan({
+	const result = runWorkmuxScrollbackLiveInputSendPlan({
 		plan,
 		currentCleanup: cleanup,
 		startCleanup: () => null,
@@ -1169,7 +1169,7 @@ void test('live input runner blocks non-empty payload while remote copy mode is 
 		scrollbackExitDelayMs: 10,
 	});
 
-	const result = runTmuxScrollbackLiveInputSendPlan({
+	const result = runWorkmuxScrollbackLiveInputSendPlan({
 		plan,
 		currentCleanup: null,
 		startCleanup: () => null,

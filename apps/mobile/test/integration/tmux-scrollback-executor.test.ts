@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-	createTmuxScrollbackLiveInputCleanupBarrier,
+	createWorkmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	registerTmuxScrollbackRemoteCopyModeExitCleanup,
@@ -674,7 +674,7 @@ void test('workmux scrollback executor routes dispose rollback failures to dispo
 void test('dispose rollback exit failure can mark remote copy mode active for caller cleanup state', async () => {
 	const commandBlock = deferred<void>();
 	const commands: string[] = [];
-	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const remoteCopyModeActiveRef = { current: false };
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
@@ -711,7 +711,7 @@ void test('dispose rollback exit failure can mark remote copy mode active for ca
 
 void test('stale remote copy mode cleanup cannot clear a newer scrollback generation', async () => {
 	const cleanupBlock = deferred<boolean>();
-	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const remoteCopyModeActiveRef = { current: true };
 	const cleanupGeneration = { current: 1 };
 	const cleanup = registerTmuxScrollbackRemoteCopyModeExitCleanup({
@@ -732,7 +732,7 @@ void test('stale remote copy mode cleanup cannot clear a newer scrollback genera
 
 void test('successful current remote copy mode cleanup clears active state', async () => {
 	const cleanupBlock = deferred<boolean>();
-	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const remoteCopyModeActiveRef = { current: true };
 	const cleanupGeneration = { current: 1 };
 	const cleanup = registerTmuxScrollbackRemoteCopyModeExitCleanup({
@@ -751,7 +751,7 @@ void test('successful current remote copy mode cleanup clears active state', asy
 
 void test('stale failed remote copy mode cleanup cannot mark a newer generation active', async () => {
 	const cleanupBlock = deferred<boolean>();
-	const cleanupBarrier = createTmuxScrollbackLiveInputCleanupBarrier();
+	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();
 	const remoteCopyModeActiveRef = { current: false };
 	const cleanupGeneration = { current: 1 };
 	const cleanup = registerTmuxScrollbackRemoteCopyModeExitCleanup({

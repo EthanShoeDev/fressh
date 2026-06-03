@@ -98,7 +98,7 @@ import {
 } from '@/lib/terminal-input-payloads';
 import { useTheme } from '@/lib/theme';
 import {
-	createTmuxScrollbackLiveInputCleanupBarrier,
+	createWorkmuxScrollbackLiveInputCleanupBarrier,
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
@@ -107,7 +107,7 @@ import {
 	handleTmuxScrollbackEnterRequested,
 	registerTmuxScrollbackLocalExitRequest,
 	resetTmuxScrollbackLocalExitRequests,
-	runTmuxScrollbackLiveInputSendPlan,
+	runWorkmuxScrollbackLiveInputSendPlan,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 	type WorkmuxScrollbackCommandExecutor,
@@ -661,7 +661,7 @@ function ShellDetail() {
 	const scrollbackEnterRequestGenerationRef = useRef(0);
 	const localScrollbackExitRequestIdsRef = useRef(new Set<number>());
 	const scrollbackCleanupBarrierRef = useRef(
-		createTmuxScrollbackLiveInputCleanupBarrier(),
+		createWorkmuxScrollbackLiveInputCleanupBarrier(),
 	);
 	const tmuxRemoteScrollbackCopyModeActiveRef = useRef(false);
 	const tmuxRemoteScrollbackCopyModeGenerationRef = useRef(0);
@@ -932,7 +932,7 @@ function ShellDetail() {
 				scrollbackExitDelayMs,
 			});
 
-			void runTmuxScrollbackLiveInputSendPlan({
+			void runWorkmuxScrollbackLiveInputSendPlan({
 				plan,
 				currentCleanup: scrollbackCleanupBarrierRef.current.current(),
 				startCleanup: clearScrollbackState,

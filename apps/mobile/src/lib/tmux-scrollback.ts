@@ -546,18 +546,18 @@ function isValidScrollbackBatchEvent(event: {
 	);
 }
 
-export type TmuxScrollbackLiveInputSendPlan = {
+export type WorkmuxScrollbackLiveInputSendPlan = {
 	segments: Uint8Array<ArrayBuffer>[];
 	interSegmentDelayMs?: number;
 	clearScrollback: boolean;
 };
 
-export type TmuxScrollbackLiveInputCleanupBarrier = {
+export type WorkmuxScrollbackLiveInputCleanupBarrier = {
 	current: () => Promise<boolean> | null;
 	track: (cleanup?: Promise<boolean> | null) => Promise<boolean> | null;
 };
 
-export function createTmuxScrollbackLiveInputCleanupBarrier(): TmuxScrollbackLiveInputCleanupBarrier {
+export function createWorkmuxScrollbackLiveInputCleanupBarrier(): WorkmuxScrollbackLiveInputCleanupBarrier {
 	let pendingCleanup: Promise<boolean> | null = null;
 
 	return {
@@ -575,14 +575,14 @@ export function createTmuxScrollbackLiveInputCleanupBarrier(): TmuxScrollbackLiv
 	};
 }
 
-export function registerTmuxScrollbackLiveInputCleanup(
-	barrier: TmuxScrollbackLiveInputCleanupBarrier,
+export function registerWorkmuxScrollbackLiveInputCleanup(
+	barrier: WorkmuxScrollbackLiveInputCleanupBarrier,
 	cleanup?: Promise<boolean> | null,
 ): Promise<boolean> | null {
 	return barrier.track(cleanup);
 }
 
-export function resolveTmuxScrollbackLiveInputCleanup({
+export function resolveWorkmuxScrollbackLiveInputCleanup({
 	clearScrollback,
 	currentCleanup,
 	startCleanup,
@@ -595,14 +595,14 @@ export function resolveTmuxScrollbackLiveInputCleanup({
 	return clearScrollback ? startCleanup() : null;
 }
 
-export function runTmuxScrollbackLiveInputSendPlan({
+export function runWorkmuxScrollbackLiveInputSendPlan({
 	plan,
 	currentCleanup,
 	startCleanup,
 	remoteCopyModeActive,
 	sendSegments,
 }: {
-	plan: TmuxScrollbackLiveInputSendPlan;
+	plan: WorkmuxScrollbackLiveInputSendPlan;
 	currentCleanup?: Promise<boolean> | null;
 	startCleanup: () => Promise<boolean> | null;
 	remoteCopyModeActive: boolean;
@@ -611,7 +611,7 @@ export function runTmuxScrollbackLiveInputSendPlan({
 		options?: { interSegmentDelayMs?: number },
 	) => void | Promise<unknown> | undefined;
 }): Promise<boolean> | null {
-	const cleanupBarrier = resolveTmuxScrollbackLiveInputCleanup({
+	const cleanupBarrier = resolveWorkmuxScrollbackLiveInputCleanup({
 		clearScrollback: plan.clearScrollback,
 		currentCleanup,
 		startCleanup,
@@ -645,7 +645,7 @@ export function registerTmuxScrollbackRemoteCopyModeExitCleanup({
 	markRemoteCopyModeActiveOnFailedCleanup = false,
 	cleanupGeneration,
 }: {
-	barrier: TmuxScrollbackLiveInputCleanupBarrier;
+	barrier: WorkmuxScrollbackLiveInputCleanupBarrier;
 	cleanup?: Promise<boolean> | null;
 	remoteCopyModeActiveRef: { current: boolean };
 	remoteCopyModeWasActive?: boolean;
@@ -653,7 +653,7 @@ export function registerTmuxScrollbackRemoteCopyModeExitCleanup({
 	cleanupGeneration?: { current: number };
 }): Promise<boolean> | null {
 	const generation = cleanupGeneration?.current;
-	const trackedCleanup = registerTmuxScrollbackLiveInputCleanup(
+	const trackedCleanup = registerWorkmuxScrollbackLiveInputCleanup(
 		barrier,
 		cleanup,
 	);
@@ -689,7 +689,7 @@ function runTmuxScrollbackRemoteCopyModeCleanupForUiReset({
 }: {
 	lineAccumulator: TmuxScrollbackLineAccumulator;
 	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
-	cleanupBarrier: TmuxScrollbackLiveInputCleanupBarrier;
+	cleanupBarrier: WorkmuxScrollbackLiveInputCleanupBarrier;
 	remoteCopyModeActiveRef: { current: boolean };
 	cleanupGeneration?: { current: number };
 	targetName: string;
@@ -733,7 +733,7 @@ export function resetTmuxScrollbackRuntimeStateForUiReset({
 }: {
 	lineAccumulator: TmuxScrollbackLineAccumulator;
 	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
-	cleanupBarrier: TmuxScrollbackLiveInputCleanupBarrier;
+	cleanupBarrier: WorkmuxScrollbackLiveInputCleanupBarrier;
 	remoteCopyModeActiveRef: { current: boolean };
 	cleanupGeneration?: { current: number };
 	targetName: string;
@@ -767,7 +767,7 @@ export function disposeTmuxScrollbackRuntimeStateForUiReset({
 }: {
 	lineAccumulator: TmuxScrollbackLineAccumulator;
 	commandExecutor?: WorkmuxScrollbackCommandExecutor | null;
-	cleanupBarrier: TmuxScrollbackLiveInputCleanupBarrier;
+	cleanupBarrier: WorkmuxScrollbackLiveInputCleanupBarrier;
 	remoteCopyModeActiveRef: { current: boolean };
 	cleanupGeneration?: { current: number };
 	targetName: string;
@@ -952,7 +952,7 @@ export function buildWorkmuxScrollbackLiveInputSendPlan({
 	scrollbackExitKeyPayload?: Uint8Array<ArrayBuffer>;
 	interSegmentDelayMs?: number;
 	scrollbackExitDelayMs: number;
-}): TmuxScrollbackLiveInputSendPlan {
+}): WorkmuxScrollbackLiveInputSendPlan {
 	const nonEmptyPayloadSegments = payloadSegments.filter(
 		(segment) => segment.length > 0,
 	);

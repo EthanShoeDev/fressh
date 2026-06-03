@@ -336,6 +336,7 @@ void test('direct tmux command strings are absent outside the app boundary', () 
 });
 
 void test('host browser actions do not export legacy tmux context helpers', () => {
+	// Keep these assembled so the final stale-reference scan stays meaningful.
 	const removedExportNames = [
 		['build', 'HostBrowser', 'Pane', 'Context', 'Command'],
 		['build', 'HostBrowser', 'Pane', 'Path', 'Command'],
