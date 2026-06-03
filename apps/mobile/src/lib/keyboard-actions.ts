@@ -112,7 +112,13 @@ export function createWorkmuxKeyboardCommandRunner({
 	showFailure: (message: string) => void;
 	getErrorMessage: (error: unknown) => string;
 }): WorkmuxKeyboardCommandRunner {
-	let tail: Promise<unknown> = Promise.resolve();
+	let running = false;
+	let pending:
+		| {
+				command: WorkmuxKeyboardCommand;
+				resolves: (() => void)[];
+			}
+		| null = null;
 
 	const execute = async (command: WorkmuxKeyboardCommand): Promise<void> => {
 		try {
@@ -138,11 +144,40 @@ export function createWorkmuxKeyboardCommandRunner({
 		}
 	};
 
+	const drain = async (queued: {
+		command: WorkmuxKeyboardCommand;
+		resolves: (() => void)[];
+	}): Promise<void> => {
+		running = true;
+		try {
+			let current: typeof queued | null = queued;
+			while (current) {
+				await execute(current.command);
+				for (const resolve of current.resolves) resolve();
+				current = pending;
+				pending = null;
+			}
+		} finally {
+			running = false;
+			const next = pending;
+			pending = null;
+			if (next) {
+				void drain(next);
+			}
+		}
+	};
+
 	return {
 		run: (command) => {
-			const next = tail.then(() => execute(command), () => execute(command));
-			tail = next.catch(() => {});
-			return next;
+			return new Promise<void>((resolve) => {
+				const queued = { command, resolves: [resolve] };
+				if (!running) {
+					void drain(queued);
+					return;
+				}
+				for (const resolve of pending?.resolves ?? []) resolve();
+				pending = queued;
+			});
 		},
 	};
 }

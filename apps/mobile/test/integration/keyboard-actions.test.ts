@@ -320,6 +320,39 @@ void test('Workmux keyboard command runner builds app commands and serializes ex
 	]);
 });
 
+void test('Workmux keyboard command runner bounds pending repeated commands to the latest command', async () => {
+	const firstBlock = deferred<void>();
+	const calls: string[] = [];
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => true,
+		getSessionName: () => 'main',
+		runHostCommand: async (command) => {
+			calls.push(command);
+			if (calls.length === 1) await firstBlock.promise;
+		},
+		showFailure: () => {},
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	const first = runner.run({ type: 'nav', action: 'prev' });
+	const queued: Promise<void>[] = [];
+	for (let index = 0; index < 1_000; index += 1) {
+		queued.push(runner.run({ type: 'nav', action: 'next' }));
+	}
+
+	await Promise.resolve();
+	assert.deepEqual(calls, ["mdev tmux app nav 'prev' --session 'main'"]);
+
+	firstBlock.resolve(undefined);
+	await Promise.all([first, ...queued]);
+
+	assert.deepEqual(calls, [
+		"mdev tmux app nav 'prev' --session 'main'",
+		"mdev tmux app nav 'next' --session 'main'",
+	]);
+});
+
 void test('Workmux keyboard command runner preserves local failures and maps remote failures', async () => {
 	const failures: string[] = [];
 	let tmuxEnabled = false;
