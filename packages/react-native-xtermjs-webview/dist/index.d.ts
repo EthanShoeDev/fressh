@@ -1,8 +1,9 @@
 import { default as React, RefObject } from 'react';
 import { WebView } from 'react-native-webview';
 import { binaryToBStr, bStrToBinary, BridgeInboundDraftMessage, ScrollbackBatchEvent, TouchScrollConfig, TmuxScrollBatchEvent } from './bridge';
+import { XtermWebViewHandle } from './xterm-webview-handle';
 export { bStrToBinary, binaryToBStr };
-export type { ScrollbackBatchEvent, TmuxScrollBatchEvent, TouchScrollConfig };
+export type { ScrollbackBatchEvent, TmuxScrollBatchEvent, TouchScrollConfig, XtermWebViewHandle, };
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type WebViewOptions = React.ComponentProps<typeof WebView>;
@@ -22,28 +23,6 @@ type LegacyXtermInbound = {
     enabled: boolean;
 };
 export type XtermInbound = BridgeInboundDraftMessage | LegacyXtermInbound;
-export type XtermWebViewHandle = {
-    write: (data: Uint8Array) => void;
-    writeMany: (chunks: Uint8Array[]) => void;
-    flush: () => void;
-    clear: () => void;
-    focus: () => void;
-    setSystemKeyboardEnabled: (enabled: boolean) => void;
-    setSelectionModeEnabled: (enabled: boolean) => void;
-    getSelection: () => Promise<string>;
-    resize: (size: {
-        cols: number;
-        rows: number;
-    }) => void;
-    fit: () => void;
-    exitScrollback: (opts?: {
-        requestId?: number;
-        instanceId?: string;
-        emitExit?: boolean;
-    }) => void;
-    sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
-    sendTmuxEnterCopyModeAck: (requestId: number, instanceId: string) => void;
-};
 type UserControllableWebViewProps = StrictOmit<WebViewOptions, 'source' | 'style' | 'injectedJavaScriptBeforeContentLoaded'>;
 export type XtermJsWebViewProps = {
     ref: RefObject<XtermWebViewHandle | null>;

@@ -176,6 +176,8 @@ void test('live input freshness requires the same terminal instance and writer',
 			currentWriter: requestWriter,
 			isFocused: true,
 			isAppActive: true,
+			requestGeneration: 1,
+			currentGeneration: 1,
 		}),
 		true,
 	);
@@ -184,21 +186,29 @@ void test('live input freshness requires the same terminal instance and writer',
 		{ currentInstanceId: 'terminal-2', currentWriter: requestWriter },
 		{ currentInstanceId: 'terminal-1', currentWriter: {} },
 		{ currentInstanceId: 'terminal-1', currentWriter: requestWriter, isFocused: false },
-		{ currentInstanceId: 'terminal-1', currentWriter: requestWriter, isAppActive: false },
-		{ currentInstanceId: null, currentWriter: requestWriter },
-		{ currentInstanceId: 'terminal-1', currentWriter: null },
-	]) {
+			{ currentInstanceId: 'terminal-1', currentWriter: requestWriter, isAppActive: false },
+			{
+				currentInstanceId: 'terminal-1',
+				currentWriter: requestWriter,
+				requestGeneration: 1,
+				currentGeneration: 2,
+			},
+			{ currentInstanceId: null, currentWriter: requestWriter },
+			{ currentInstanceId: 'terminal-1', currentWriter: null },
+		]) {
 		assert.equal(
 			isWorkmuxScrollbackLiveInputRequestCurrent({
 				requestInstanceId: 'terminal-1',
 				requestWriter,
 				currentInstanceId: stale.currentInstanceId,
-				currentWriter: stale.currentWriter,
-				isFocused: stale.isFocused ?? true,
-				isAppActive: stale.isAppActive ?? true,
-			}),
-			false,
-		);
+					currentWriter: stale.currentWriter,
+					isFocused: stale.isFocused ?? true,
+					isAppActive: stale.isAppActive ?? true,
+					requestGeneration: stale.requestGeneration,
+					currentGeneration: stale.currentGeneration,
+				}),
+				false,
+			);
 	}
 });
 

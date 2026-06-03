@@ -88,9 +88,8 @@ export type ScrollbackBatchEvent = {
     seq?: number;
     ts?: number;
 };
-export type TmuxScrollBatchEvent = Omit<Extract<BridgeInboundMessage, {
-    type: 'tmuxScrollBatch';
-}>, 'type'>;
+/** @deprecated Use ScrollbackBatchEvent. Legacy tmux batches are normalized to the scrollback event shape. */
+export type TmuxScrollBatchEvent = ScrollbackBatchEvent;
 export declare function mapScrollbackBatchMessage(msg: ScrollbackBatchBridgeMessage): ScrollbackBatchEvent;
 export declare function handleScrollbackBatchBridgeMessage(msg: BridgeInboundDraftMessage, onScrollbackBatch?: (event: ScrollbackBatchEvent) => void): msg is ScrollbackBatchBridgeMessage;
 export type TouchScrollConfig = {

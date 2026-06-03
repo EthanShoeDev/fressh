@@ -2,6 +2,7 @@ import { BridgeInboundDraftMessage, BridgeOutboundMessage, ScrollbackBatchEvent 
 type PendingSelectionRef = {
     current: Map<number, {
         resolve: (value: string) => void;
+        timeoutId?: ReturnType<typeof setTimeout>;
     }>;
 };
 type XtermMessageLogger = {

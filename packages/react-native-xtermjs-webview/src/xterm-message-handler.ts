@@ -6,7 +6,10 @@ import {
 } from './bridge';
 
 type PendingSelectionRef = {
-	current: Map<number, { resolve: (value: string) => void }>;
+	current: Map<
+		number,
+		{ resolve: (value: string) => void; timeoutId?: ReturnType<typeof setTimeout> }
+	>;
 };
 
 type XtermMessageLogger = {
@@ -36,6 +39,29 @@ function reportScrollbackEnterRequestFailure({
 	} catch {
 		// Failure fallback is best-effort; never rethrow into WebView message flow.
 	}
+}
+
+function resolvePendingSelections(
+	pendingSelectionRef: PendingSelectionRef,
+	value: string,
+): void {
+	for (const pending of pendingSelectionRef.current.values()) {
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
+		pending.resolve(value);
+	}
+	pendingSelectionRef.current.clear();
+}
+
+function resolvePendingSelection(
+	pendingSelectionRef: PendingSelectionRef,
+	requestId: number,
+	value: string,
+): void {
+	const pending = pendingSelectionRef.current.get(requestId);
+	if (!pending) return;
+	pendingSelectionRef.current.delete(requestId);
+	if (pending.timeoutId) clearTimeout(pending.timeoutId);
+	pending.resolve(value);
 }
 
 export function createScrollbackEnterRequestFailureHandler({
@@ -152,12 +178,9 @@ export function handleXtermBridgeInboundMessage(
 		awaitingBridgeDocumentStartRef &&
 			(awaitingBridgeDocumentStartRef.current = false);
 		currentInstanceIdRef.current = null;
-		for (const pending of pendingSelectionRef.current.values()) {
-			pending.resolve('');
+			resolvePendingSelections(pendingSelectionRef, '');
+			return true;
 		}
-		pendingSelectionRef.current.clear();
-		return true;
-	}
 	if ('instanceId' in msg) {
 		if (
 				(awaitingBridgeDocumentStartRef?.current ||
@@ -235,12 +258,12 @@ export function handleXtermBridgeInboundMessage(
 		}
 	}
 	if (msg.type === 'initialized') {
-		currentInstanceIdRef.current = msg.instanceId;
-		invalidatedInstanceIdsRef?.current.clear();
-		pendingSelectionRef.current.clear();
-		onInitialized?.(msg.instanceId);
-		autoFitFn();
-		setInitialized(true);
+			currentInstanceIdRef.current = msg.instanceId;
+			invalidatedInstanceIdsRef?.current.clear();
+			resolvePendingSelections(pendingSelectionRef, '');
+			onInitialized?.(msg.instanceId);
+			autoFitFn();
+			setInitialized(true);
 		return true;
 	}
 	if (msg.type === 'input') {
@@ -262,14 +285,10 @@ export function handleXtermBridgeInboundMessage(
 		onResize?.(msg.cols, msg.rows);
 		return true;
 	}
-	if (msg.type === 'selection') {
-		const pending = pendingSelectionRef.current.get(msg.requestId);
-		if (pending) {
-			pendingSelectionRef.current.delete(msg.requestId);
-			pending.resolve(msg.text);
+		if (msg.type === 'selection') {
+			resolvePendingSelection(pendingSelectionRef, msg.requestId, msg.text);
+			return true;
 		}
-		return true;
-	}
 	if (msg.type === 'selectionChanged') {
 		onSelection?.(msg.text);
 		return true;

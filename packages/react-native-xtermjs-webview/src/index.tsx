@@ -27,9 +27,19 @@ import {
 	createScrollbackEnterRequestFailureHandler,
 	handleXtermBridgeInboundMessage,
 } from './xterm-message-handler';
+import {
+	createXtermWebViewAckSenders,
+	createXtermWebViewHandle,
+	type XtermWebViewHandle,
+} from './xterm-webview-handle';
 
 export { bStrToBinary, binaryToBStr };
-export type { ScrollbackBatchEvent, TmuxScrollBatchEvent, TouchScrollConfig };
+export type {
+	ScrollbackBatchEvent,
+	TmuxScrollBatchEvent,
+	TouchScrollConfig,
+	XtermWebViewHandle,
+};
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
@@ -56,27 +66,9 @@ type LegacyXtermInbound =
 
 export type XtermInbound = BridgeInboundDraftMessage | LegacyXtermInbound;
 
-type PendingSelection = { resolve: (value: string) => void };
-
-export type XtermWebViewHandle = {
-	write: (data: Uint8Array) => void; // bytes in (batched)
-	// Efficiently write many chunks in one postMessage (for initial replay)
-	writeMany: (chunks: Uint8Array[]) => void;
-	flush: () => void; // force-flush outgoing writes
-	clear: () => void;
-	focus: () => void;
-	setSystemKeyboardEnabled: (enabled: boolean) => void;
-	setSelectionModeEnabled: (enabled: boolean) => void;
-	getSelection: () => Promise<string>;
-	resize: (size: { cols: number; rows: number }) => void;
-	fit: () => void;
-	exitScrollback: (opts?: {
-		requestId?: number;
-		instanceId?: string;
-		emitExit?: boolean;
-	}) => void;
-	sendScrollbackEnterAck: (requestId: number, instanceId: string) => void;
-	sendTmuxEnterCopyModeAck: (requestId: number, instanceId: string) => void;
+type PendingSelection = {
+	resolve: (value: string) => void;
+	timeoutId?: ReturnType<typeof setTimeout>;
 };
 
 const defaultWebViewProps: WebViewOptions = {
@@ -195,9 +187,22 @@ function resolvePendingSelections(
 	pendingSelectionMap: Map<number, PendingSelection>,
 ): void {
 	for (const pending of pendingSelectionMap.values()) {
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
 		pending.resolve('');
 	}
 	pendingSelectionMap.clear();
+}
+
+function resolvePendingSelection(
+	pendingSelectionMap: Map<number, PendingSelection>,
+	requestId: number,
+	value: string,
+): void {
+	const pending = pendingSelectionMap.get(requestId);
+	if (!pending) return;
+	pendingSelectionMap.delete(requestId);
+	if (pending.timeoutId) clearTimeout(pending.timeoutId);
+	pending.resolve(value);
 }
 
 export function XtermJsWebView({
@@ -348,15 +353,11 @@ export function XtermJsWebView({
 		const requestId = selectionRequestIdRef.current + 1;
 		selectionRequestIdRef.current = requestId;
 		return new Promise((resolve) => {
-			pendingSelectionRef.current.set(requestId, { resolve });
-			sendToWebView({ type: 'getSelection', requestId });
-			// Timeout after 5s to prevent hanging if WebView is unresponsive
-			setTimeout(() => {
-				if (pendingSelectionRef.current.has(requestId)) {
-					pendingSelectionRef.current.delete(requestId);
-					resolve('');
-				}
+			const timeoutId = setTimeout(() => {
+				resolvePendingSelection(pendingSelectionRef.current, requestId, '');
 			}, 5000);
+			pendingSelectionRef.current.set(requestId, { resolve, timeoutId });
+			sendToWebView({ type: 'getSelection', requestId });
 		});
 	}, [initialized, sendToWebView]);
 
@@ -388,41 +389,27 @@ export function XtermJsWebView({
 		appliedSizeRef.current = size;
 	}, [size, sendToWebView, logger, autoFitFn, initialized]);
 
-	const sendScrollbackEnterAck = useCallback(
-		(requestId: number, instanceId: string) => {
-			sendToWebView({
-				type: 'scrollbackEnterAck',
-				requestId,
-				instanceId,
-			});
-		},
+	const ackSenders = useMemo(
+		() => createXtermWebViewAckSenders(sendToWebView),
 		[sendToWebView],
 	);
 
-	useImperativeHandle(ref, () => ({
-		write,
-		writeMany,
-		flush,
-		clear: () => sendToWebView({ type: 'clear' }),
-		focus: () => {
-			sendToWebView({ type: 'focus' });
-			webRef.current?.requestFocus();
-		},
-		setSystemKeyboardEnabled,
-		setSelectionModeEnabled,
-		getSelection,
-		resize: (size: { cols: number; rows: number }) => {
-			sendToWebView({ type: 'resize', cols: size.cols, rows: size.rows });
-			autoFitFn();
-			appliedSizeRef.current = size;
-		},
-		fit,
-		exitScrollback: (opts) => {
-			sendToWebView({ type: 'exitScrollback', ...opts });
-		},
-		sendScrollbackEnterAck,
-		sendTmuxEnterCopyModeAck: sendScrollbackEnterAck,
-	}));
+	useImperativeHandle(ref, () =>
+		createXtermWebViewHandle({
+			write,
+			writeMany,
+			flush,
+			sendToWebView,
+			webRef,
+			setSystemKeyboardEnabled,
+			setSelectionModeEnabled,
+			getSelection,
+			autoFitFn,
+			appliedSizeRef,
+			fit,
+			...ackSenders,
+		}),
+	);
 
 	const mergedXTermOptions = useMemo(
 		() => ({

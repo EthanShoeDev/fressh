@@ -188,3 +188,83 @@ void test('browser action cleanup suppresses pending Diffity completion', async 
 	assert.deepEqual(errors, []);
 	assert.equal(inFlightRef.current, false);
 });
+
+void test('current Diffity request reports missing HTTPS URL output', async () => {
+	let currentId = 0;
+	const requestId: RequestIdHandle = {
+		next: () => {
+			currentId += 1;
+			return currentId;
+		},
+		isCurrent: (id) => id === currentId,
+		invalidate: () => {
+			currentId += 1;
+		},
+	};
+	const inFlightRef = { current: false };
+	const errors: { title: string; message: string }[] = [];
+
+	assert.equal(
+		runHostDiffityOpenRequest({
+			hostDiffityInFlightRef: inFlightRef,
+			hostDiffityRequestId: requestId,
+			runDiffityShare: async () => 'no url here',
+			openAndroidUrl: async () => {
+				throw new Error('should not open');
+			},
+			showError: (title, message) => {
+				errors.push({ title, message });
+			},
+			getErrorMessage: (error) =>
+				error instanceof Error ? error.message : String(error),
+		}),
+		true,
+	);
+
+	await Promise.resolve();
+	await Promise.resolve();
+	assert.equal(inFlightRef.current, false);
+	assert.deepEqual(errors, [
+		{ title: 'Diffity failed', message: 'no url here' },
+	]);
+});
+
+void test('current Diffity request reports Android URL open failures', async () => {
+	let currentId = 0;
+	const requestId: RequestIdHandle = {
+		next: () => {
+			currentId += 1;
+			return currentId;
+		},
+		isCurrent: (id) => id === currentId,
+		invalidate: () => {
+			currentId += 1;
+		},
+	};
+	const inFlightRef = { current: false };
+	const errors: { title: string; message: string }[] = [];
+
+	assert.equal(
+		runHostDiffityOpenRequest({
+			hostDiffityInFlightRef: inFlightRef,
+			hostDiffityRequestId: requestId,
+			runDiffityShare: async () => 'created https://diffity.example/current',
+			openAndroidUrl: async () => {
+				throw new Error('cannot open URL');
+			},
+			showError: (title, message) => {
+				errors.push({ title, message });
+			},
+			getErrorMessage: (error) =>
+				error instanceof Error ? error.message : String(error),
+		}),
+		true,
+	);
+
+	await Promise.resolve();
+	await Promise.resolve();
+	assert.equal(inFlightRef.current, false);
+	assert.deepEqual(errors, [
+		{ title: 'Diffity failed', message: 'cannot open URL' },
+	]);
+});

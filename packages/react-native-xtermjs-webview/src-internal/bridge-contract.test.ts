@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
+	type BridgeOutboundMessage,
 	handleScrollbackBatchBridgeMessage,
 	mapScrollbackBatchMessage,
 } from '../src/bridge';
@@ -11,7 +12,26 @@ import {
 	createScrollbackEnterRequestFailureHandler,
 	handleXtermBridgeInboundMessage,
 } from '../src/xterm-message-handler';
+import {
+	createXtermWebViewAckSenders,
+	createXtermWebViewHandle,
+} from '../src/xterm-webview-handle';
 import { createXtermWebViewMessageHandler } from './webview-message-handler';
+
+function withTrackedClearTimeouts(run: (cleared: unknown[]) => void): unknown[] {
+	const clearTimeoutOriginal = globalThis.clearTimeout;
+	const cleared: unknown[] = [];
+	globalThis.clearTimeout = ((id: Parameters<typeof clearTimeout>[0]) => {
+		cleared.push(id);
+		clearTimeoutOriginal(id);
+	}) as typeof clearTimeout;
+	try {
+		run(cleared);
+	} finally {
+		globalThis.clearTimeout = clearTimeoutOriginal;
+	}
+	return cleared;
+}
 
 void test('scrollback batch mapper strips only bridge message type', () => {
 	assert.deepEqual(
@@ -24,6 +44,9 @@ void test('scrollback batch mapper strips only bridge message type', () => {
 			instanceId: 'instance-1',
 			seq: 7,
 			ts: 123,
+			bridgeLoadId: 5,
+			bridgeLoadToken: 'token-1',
+			bridgeStartedAt: 123456,
 		}),
 		{
 			direction: 'up',
@@ -304,6 +327,54 @@ void test('XtermJsWebView message handler routes current instance events and dro
 	]);
 });
 
+void test('XtermJsWebView message handler clears pending selection timeout on response', () => {
+	const events: unknown[] = [];
+	const timeoutId = setTimeout(() => {}, 10_000);
+	const clearTimeoutOriginal = globalThis.clearTimeout;
+	const cleared: unknown[] = [];
+	const pendingSelectionRef = {
+		current: new Map([
+			[
+				11,
+				{
+					resolve: (value: string) => events.push(`selection:${value}`),
+					timeoutId,
+				},
+			],
+		]),
+	};
+
+	globalThis.clearTimeout = ((id: Parameters<typeof clearTimeout>[0]) => {
+		cleared.push(id);
+		clearTimeoutOriginal(id);
+	}) as typeof clearTimeout;
+	try {
+		assert.equal(
+			handleXtermBridgeInboundMessage(
+				{
+					type: 'selection',
+					requestId: 11,
+					text: 'selected',
+					instanceId: 'instance-1',
+				},
+				{
+					currentInstanceIdRef: { current: 'instance-1' },
+					pendingSelectionRef,
+					autoFitFn: () => {},
+					setInitialized: () => {},
+				},
+			),
+			true,
+		);
+	} finally {
+		globalThis.clearTimeout = clearTimeoutOriginal;
+	}
+
+	assert.equal(pendingSelectionRef.current.size, 0);
+	assert.deepEqual(events, ['selection:selected']);
+	assert.deepEqual(cleared, [timeoutId]);
+});
+
 void test('XtermJsWebView message handler drops stale size changes', () => {
 	const events: unknown[] = [];
 
@@ -450,36 +521,49 @@ void test('XtermJsWebView message handler records the active bridge document tok
 	const currentInstanceIdRef = { current: 'old-instance' as string | null };
 	const currentBridgeLoadTokenRef = { current: null as string | null };
 	const awaitingBridgeDocumentStartRef = { current: true };
+	const timeoutId = setTimeout(() => {}, 10_000);
 	const pendingSelectionRef = {
-		current: new Map<number, { resolve: (value: string) => void }>([
-			[1, { resolve: (value) => events.push(`selection:${value}`) }],
+		current: new Map<
+			number,
+			{ resolve: (value: string) => void; timeoutId?: ReturnType<typeof setTimeout> }
+		>([
+			[
+				1,
+				{
+					resolve: (value) => events.push(`selection:${value}`),
+					timeoutId,
+				},
+			],
 		]),
 	};
 
-	assert.equal(
-		handleXtermBridgeInboundMessage(
-			{
-				type: 'documentStarted',
-				bridgeLoadId: 2,
-				bridgeLoadToken: 'new-token',
-			},
-			{
-				currentInstanceIdRef,
-				expectedBridgeLoadIdRef: { current: 2 },
-				currentBridgeLoadTokenRef,
-				awaitingBridgeDocumentStartRef,
-				pendingSelectionRef,
-				autoFitFn: () => {},
-				setInitialized: () => {},
-			},
-		),
-		true,
-	);
+	const cleared = withTrackedClearTimeouts(() => {
+		assert.equal(
+			handleXtermBridgeInboundMessage(
+				{
+					type: 'documentStarted',
+					bridgeLoadId: 2,
+					bridgeLoadToken: 'new-token',
+				},
+				{
+					currentInstanceIdRef,
+					expectedBridgeLoadIdRef: { current: 2 },
+					currentBridgeLoadTokenRef,
+					awaitingBridgeDocumentStartRef,
+					pendingSelectionRef,
+					autoFitFn: () => {},
+					setInitialized: () => {},
+				},
+			),
+			true,
+		);
+	});
 
 	assert.equal(currentInstanceIdRef.current, null);
 	assert.equal(currentBridgeLoadTokenRef.current, 'new-token');
 	assert.equal(awaitingBridgeDocumentStartRef.current, false);
 	assert.equal(pendingSelectionRef.current.size, 0);
+	assert.deepEqual(cleared, [timeoutId]);
 	assert.deepEqual(events, ['selection:']);
 });
 
@@ -750,35 +834,52 @@ void test('XtermJsWebView message handler accepts initialized after load reset',
 	const invalidatedInstanceIdsRef = {
 		current: new Set<string>(['old-instance']),
 	};
+	const timeoutId = setTimeout(() => {}, 10_000);
 	const pendingSelectionRef = {
-		current: new Map<number, { resolve: (value: string) => void }>(),
+		current: new Map<
+			number,
+			{ resolve: (value: string) => void; timeoutId?: ReturnType<typeof setTimeout> }
+		>([
+			[
+				1,
+				{
+					resolve: (value) => events.push(`selection:${value}`),
+					timeoutId,
+				},
+			],
+		]),
 	};
 
-	assert.equal(
-		handleXtermBridgeInboundMessage(
-			{
-				type: 'initialized',
-				instanceId: 'new-instance',
-				bridgeLoadId: 2,
-				bridgeLoadToken: 'new-token',
-			},
-			{
-				currentInstanceIdRef,
-				invalidatedInstanceIdsRef,
-				expectedBridgeLoadIdRef: { current: 2 },
-				currentBridgeLoadTokenRef: { current: 'new-token' },
-				pendingSelectionRef,
-				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
-				autoFitFn: () => events.push('fit'),
-				setInitialized: (initialized) => events.push(`state:${initialized}`),
-			},
-		),
-		true,
-	);
+	const cleared = withTrackedClearTimeouts(() => {
+		assert.equal(
+			handleXtermBridgeInboundMessage(
+				{
+					type: 'initialized',
+					instanceId: 'new-instance',
+					bridgeLoadId: 2,
+					bridgeLoadToken: 'new-token',
+				},
+				{
+					currentInstanceIdRef,
+					invalidatedInstanceIdsRef,
+					expectedBridgeLoadIdRef: { current: 2 },
+					currentBridgeLoadTokenRef: { current: 'new-token' },
+					pendingSelectionRef,
+					onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
+					autoFitFn: () => events.push('fit'),
+					setInitialized: (initialized) => events.push(`state:${initialized}`),
+				},
+			),
+			true,
+		);
+	});
 
 	assert.equal(currentInstanceIdRef.current, 'new-instance');
 	assert.equal(invalidatedInstanceIdsRef.current.size, 0);
+	assert.equal(pendingSelectionRef.current.size, 0);
+	assert.deepEqual(cleared, [timeoutId]);
 	assert.deepEqual(events, [
+		'selection:',
 		'initialized:new-instance',
 		'fit',
 		'state:true',
@@ -880,6 +981,35 @@ void test('WebView outbound handler ignores stale scrollback instance messages',
 	} as MessageEvent);
 
 	assert.deepEqual(events, [['exit', { requestId: 3 }], ['ack', 4], ['ack', 5]]);
+});
+
+void test('public tmux ack handle sends the legacy tmux ack type', () => {
+	const messages: unknown[] = [];
+	const sendToWebView = (message: BridgeOutboundMessage) => messages.push(message);
+	const handle = createXtermWebViewHandle({
+		write: () => {},
+		writeMany: () => {},
+		flush: () => {},
+		sendToWebView,
+		webRef: { current: null },
+		setSystemKeyboardEnabled: () => {},
+		setSelectionModeEnabled: () => {},
+		getSelection: () => Promise.resolve(''),
+		autoFitFn: () => {},
+		appliedSizeRef: { current: null },
+		fit: () => {},
+		...createXtermWebViewAckSenders(sendToWebView),
+	});
+
+	handle.sendTmuxEnterCopyModeAck(5, 'current-instance');
+
+	assert.deepEqual(messages, [
+		{
+			type: 'tmuxEnterCopyModeAck',
+			requestId: 5,
+			instanceId: 'current-instance',
+		},
+	]);
 });
 
 void test('XtermJsWebView message handler reports rejected scrollback enter callbacks', async () => {
@@ -1117,12 +1247,13 @@ void test('XtermJsWebView scrollback enter failure fallback exits pending reques
 
 void test('public dist artifacts keep the published touch scroll bridge contract', () => {
 	const packageRoot = process.cwd();
-	const artifacts = [
-		'dist/index.js',
-		'dist/index.d.ts',
-		'dist/bridge.d.ts',
-		'dist-internal/index.html',
-	].map((path) => ({
+		const artifacts = [
+			'dist/index.js',
+			'dist/index.d.ts',
+			'dist/bridge.d.ts',
+			'dist/xterm-webview-handle.d.ts',
+			'dist-internal/index.html',
+		].map((path) => ({
 			path,
 			content: readFileSync(join(packageRoot, path), 'utf8'),
 		}));
@@ -1136,33 +1267,27 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 	];
 
 	for (const { path, content } of artifacts) {
-		if (path === 'dist/index.d.ts') {
-			assert.match(content, /onScrollbackBatch\?: \(event: ScrollbackBatchEvent\)/);
+			if (path === 'dist/index.d.ts') {
+				assert.match(content, /onScrollbackBatch\?: \(event: ScrollbackBatchEvent\)/);
 			assert.match(
 				content,
 				/onScrollbackEnterRequested\?: \(event: \{\s+instanceId: string;\s+requestId: number;\s+\}\) => void;/,
 			);
-			assert.match(
-				content,
-				/sendScrollbackEnterAck: \(requestId: number, instanceId: string\) => void;/,
-			);
-			assert.match(
-				content,
-				/sendTmuxEnterCopyModeAck: \(requestId: number, instanceId: string\) => void;/,
-			);
-			assert.match(content, /onTmuxScrollBatch\?: \(event: ScrollbackBatchEvent\)/);
+				assert.match(content, /onTmuxScrollBatch\?: \(event: ScrollbackBatchEvent\)/);
 			assert.match(
 				content,
 				/onTmuxEnterCopyMode\?: \(event: \{\s+instanceId: string;\s+requestId: number;\s+\}\) => void;/,
 			);
-			assert.match(content, /emitExit\?: boolean;/);
-			assert.match(content, /type: 'data';\s+data: Uint8Array;/);
-			assert.match(content, /export type XtermInbound = BridgeInboundDraftMessage \| LegacyXtermInbound;/);
-			assert.match(
-				content,
-				/export type \{\s*ScrollbackBatchEvent,\s*TmuxScrollBatchEvent,\s*TouchScrollConfig\s*\}/,
-			);
-		} else if (path === 'dist/bridge.d.ts') {
+				assert.match(content, /type: 'data';\s+data: Uint8Array;/);
+				assert.match(
+					content,
+					/export type XtermInbound = BridgeInboundDraftMessage \| LegacyXtermInbound;/,
+				);
+				assert.match(
+					content,
+					/export type \{\s*ScrollbackBatchEvent,\s*TmuxScrollBatchEvent,\s*TouchScrollConfig,\s*XtermWebViewHandle,\s*\}/,
+				);
+			} else if (path === 'dist/bridge.d.ts') {
 			assert.match(content, /scrollbackEnterRequested/);
 			assert.match(content, /scrollbackEnterAck/);
 			assert.match(content, /tmuxEnterCopyMode/);
@@ -1173,12 +1298,31 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 				content,
 				/type: 'sizeChanged';\s+cols: number;\s+rows: number;\s+instanceId: string;/,
 			);
-			assert.match(content, /bridgeLoadId: number/);
-			assert.match(content, /bridgeLoadToken: string/);
-		} else {
+				assert.match(content, /bridgeLoadId: number/);
+				assert.match(content, /bridgeLoadToken: string/);
+				assert.match(
+					content,
+					/type TmuxScrollBatchEvent = ScrollbackBatchEvent;/,
+				);
+			} else if (path === 'dist/xterm-webview-handle.d.ts') {
+				assert.match(
+					content,
+					/sendScrollbackEnterAck: \(requestId: number, instanceId: string\) => void;/,
+				);
+				assert.match(
+					content,
+					/sendTmuxEnterCopyModeAck: \(requestId: number, instanceId: string\) => void;/,
+				);
+				assert.match(content, /emitExit\?: boolean;/);
+			} else {
 			assert.match(content, /pageStep/);
 			assert.match(content, /scrollbackEnterRequested/);
 			assert.match(content, /scrollbackEnterAck/);
+			assert.match(content, /tmuxEnterCopyModeAck/);
+			assert.doesNotMatch(
+				content,
+				/sendTmuxEnterCopyModeAck:\s*sendScrollbackEnterAck/,
+			);
 		}
 		for (const removedContract of removedContracts) {
 			assert.doesNotMatch(content, removedContract);

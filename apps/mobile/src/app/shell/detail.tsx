@@ -510,6 +510,7 @@ function ShellDetail() {
 	useEffect(() => {
 		const xterm = xtermRef.current;
 		return () => {
+			liveInputGenerationRef.current += 1;
 			if (listenerIdRef.current != null)
 				detachTerminalShellListener({
 					shell,
@@ -524,6 +525,7 @@ function ShellDetail() {
 
 	useEffect(() => {
 		return () => {
+			liveInputGenerationRef.current += 1;
 			commandTimeoutsRef.current.forEach((timeout) => {
 				clearTimeout(timeout);
 			});
@@ -656,6 +658,7 @@ function ShellDetail() {
 	const selectedKeyboardIdRef = useRef(selectedKeyboardId);
 	const currentInstanceIdRef = useRef<string | null>(null);
 	const writerRef = useRef<OrderedWriter | null>(null);
+	const liveInputGenerationRef = useRef(0);
 	const commandTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 	const wisprAutomationStateRef = useRef<WisprAutomationState>({
 		phase: 'idle',
@@ -915,6 +918,7 @@ function ShellDetail() {
 			});
 			const requestInstanceId = currentInstanceIdRef.current;
 			const requestWriter = writerRef.current;
+			const requestLiveInputGeneration = liveInputGenerationRef.current;
 			const isLiveInputRequestCurrent = () =>
 				isWorkmuxScrollbackLiveInputRequestCurrent({
 					requestInstanceId,
@@ -923,6 +927,8 @@ function ShellDetail() {
 					currentWriter: writerRef.current,
 					isFocused: isFocusedRef.current,
 					isAppActive: isAppActiveRef.current,
+					requestGeneration: requestLiveInputGeneration,
+					currentGeneration: liveInputGenerationRef.current,
 				});
 
 			void runWorkmuxScrollbackLiveInputSendPlan({
@@ -2149,19 +2155,22 @@ function ShellDetail() {
 		if (isFocused) {
 			void acknowledgeVisibleAgentNotification();
 		} else {
-			runtimeShellConfigReloadRequestIdRef.current += 1;
-			browserActions.invalidateAll();
-			browserActions.close();
-			scrollbackEnterRequestGenerationRef.current += 1;
-			void clearScrollbackState({ failurePolicy: 'suppress' });
-		}
+				runtimeShellConfigReloadRequestIdRef.current += 1;
+				browserActions.invalidateAll();
+				browserActions.close();
+				liveInputGenerationRef.current += 1;
+				clearCommandTimeouts();
+				scrollbackEnterRequestGenerationRef.current += 1;
+				void clearScrollbackState({ failurePolicy: 'suppress' });
+			}
 	}, [
 		acknowledgeVisibleAgentNotification,
 		browserActions,
 		channelId,
-		clearScrollbackState,
-		connectionStoredConnectionId,
-		isFocused,
+			clearScrollbackState,
+			clearCommandTimeouts,
+			connectionStoredConnectionId,
+			isFocused,
 		tmuxTarget,
 	]);
 
@@ -2174,8 +2183,10 @@ function ShellDetail() {
 			visibleConnectionIdRef.current = null;
 			visibleChannelIdRef.current = null;
 			visibleTmuxTargetRef.current = 'main';
+			liveInputGenerationRef.current += 1;
+			clearCommandTimeouts();
 		};
-	}, []);
+	}, [clearCommandTimeouts]);
 
 	useLayoutEffect(() => {
 		if (Platform.OS !== 'android') return undefined;
@@ -2486,12 +2497,14 @@ function ShellDetail() {
 				warn: (message, error) => logger.warn(message, error),
 			});
 			if (previousState === 'active') {
-				agentNotificationAckRequestIdRef.current += 1;
-				runtimeShellConfigReloadRequestIdRef.current += 1;
-				browserActions.invalidateAll();
-				workmuxKeyboardCommandRunner.invalidate();
-				if (isAndroid) {
-					lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
+					agentNotificationAckRequestIdRef.current += 1;
+					runtimeShellConfigReloadRequestIdRef.current += 1;
+					browserActions.invalidateAll();
+					workmuxKeyboardCommandRunner.invalidate();
+					liveInputGenerationRef.current += 1;
+					clearCommandTimeouts();
+					if (isAndroid) {
+						lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
 				}
 			}
 		});
@@ -2499,8 +2512,9 @@ function ShellDetail() {
 			subscription.remove();
 		};
 	}, [
-		browserActions,
-		clearScrollbackState,
+			browserActions,
+			clearCommandTimeouts,
+			clearScrollbackState,
 		systemKeyboardEnabled,
 		workmuxKeyboardCommandRunner,
 	]);
@@ -2677,11 +2691,13 @@ function ShellDetail() {
 	}, [shell]);
 
 	const handleTerminalLoadStart = useCallback(() => {
+		liveInputGenerationRef.current += 1;
+		clearCommandTimeouts();
 		detachShellListener();
 		currentInstanceIdRef.current = null;
 		hasAttachedOnceRef.current = false;
 		setTerminalReady(false);
-	}, [detachShellListener]);
+	}, [clearCommandTimeouts, detachShellListener]);
 
 	const attachShellToTerminal = useCallback(() => {
 		if (!terminalReady) return;

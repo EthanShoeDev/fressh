@@ -16,6 +16,8 @@ export function isWorkmuxScrollbackLiveInputRequestCurrent<TWriter>({
 	currentWriter,
 	isFocused,
 	isAppActive,
+	requestGeneration,
+	currentGeneration,
 }: {
 	requestInstanceId?: string | null;
 	requestWriter?: TWriter | null;
@@ -23,10 +25,14 @@ export function isWorkmuxScrollbackLiveInputRequestCurrent<TWriter>({
 	currentWriter?: TWriter | null;
 	isFocused: boolean;
 	isAppActive: boolean;
+	requestGeneration?: number;
+	currentGeneration?: number;
 }): boolean {
 	return (
 		isFocused &&
 		isAppActive &&
+		(requestGeneration === undefined ||
+			requestGeneration === currentGeneration) &&
 		requestInstanceId != null &&
 		requestInstanceId === currentInstanceId &&
 		requestWriter != null &&
