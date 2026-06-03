@@ -13,7 +13,7 @@ test('callback object converter writes plain JS callback handles', () => {
 		pointer: jest.fn(),
 		clonePointer: jest.fn(),
 		freePointer: jest.fn(),
-		isConcreteType: () => false,
+		isConcreteType: (_obj: unknown): _obj is typeof callback => false,
 	});
 	const buffer = RustBuffer.withCapacity(8);
 

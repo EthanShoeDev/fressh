@@ -2,12 +2,14 @@ import { type UniffiByteArray, type UniffiGcObject, type UniffiHandle, FfiConver
 export declare function connect(options: ConnectOptions, asyncOpts_?: {
     signal: AbortSignal;
 }): Promise<SshConnectionLike>;
+export declare function defaultRunCommandMaxOutputBytes(): bigint;
 /**
  * Extract the public key from a private key in OpenSSH format.
  * Returns the public key in the standard "ssh-xxx AAAA... comment" format.
  */
 export declare function extractPublicKey(privateKeyContent: string): string;
 export declare function generateKeyPair(keyType: KeyType): string;
+export declare function maxRunCommandMaxOutputBytes(): bigint;
 export declare function validatePrivateKey(privateKeyContent: string): string;
 export declare enum StreamKind {
     Stdout = 0,
@@ -67,6 +69,33 @@ export declare const BufferStats: Readonly<{
     create: (partial: Partial<BufferStats> & Required<Omit<BufferStats, never>>) => BufferStats;
     new: (partial: Partial<BufferStats> & Required<Omit<BufferStats, never>>) => BufferStats;
     defaults: () => Partial<BufferStats>;
+}>;
+export type CommandOutput = {
+    stdout: ArrayBuffer;
+    stderr: ArrayBuffer;
+    exitStatus?: number;
+    exitSignal?: string;
+};
+/**
+ * Generated factory for {@link CommandOutput} record objects.
+ */
+export declare const CommandOutput: Readonly<{
+    create: (partial: Partial<CommandOutput> & Required<Omit<CommandOutput, "exitStatus" | "exitSignal">>) => CommandOutput;
+    new: (partial: Partial<CommandOutput> & Required<Omit<CommandOutput, "exitStatus" | "exitSignal">>) => CommandOutput;
+    defaults: () => Partial<CommandOutput>;
+}>;
+export type CommandStreamInfo = {
+    channelId: number;
+    createdAtMs: number;
+    connectionId: string;
+};
+/**
+ * Generated factory for {@link CommandStreamInfo} record objects.
+ */
+export declare const CommandStreamInfo: Readonly<{
+    create: (partial: Partial<CommandStreamInfo> & Required<Omit<CommandStreamInfo, never>>) => CommandStreamInfo;
+    new: (partial: Partial<CommandStreamInfo> & Required<Omit<CommandStreamInfo, never>>) => CommandStreamInfo;
+    defaults: () => Partial<CommandStreamInfo>;
 }>;
 export declare enum Security_Tags {
     Password = "Password",
@@ -434,6 +463,18 @@ export declare const ListenerOptions: Readonly<{
     new: (partial: Partial<ListenerOptions> & Required<Omit<ListenerOptions, "coalesceMs">>) => ListenerOptions;
     defaults: () => Partial<ListenerOptions>;
 }>;
+export type RunCommandOptions = {
+    command: string;
+    maxOutputBytes?: bigint;
+};
+/**
+ * Generated factory for {@link RunCommandOptions} record objects.
+ */
+export declare const RunCommandOptions: Readonly<{
+    create: (partial: Partial<RunCommandOptions> & Required<Omit<RunCommandOptions, "maxOutputBytes">>) => RunCommandOptions;
+    new: (partial: Partial<RunCommandOptions> & Required<Omit<RunCommandOptions, "maxOutputBytes">>) => RunCommandOptions;
+    defaults: () => Partial<RunCommandOptions>;
+}>;
 export declare enum TerminalType {
     Vanilla = 0,
     Vt100 = 1,
@@ -487,6 +528,223 @@ export declare const SshConnectionInfo: Readonly<{
     create: (partial: Partial<SshConnectionInfo> & Required<Omit<SshConnectionInfo, never>>) => SshConnectionInfo;
     new: (partial: Partial<SshConnectionInfo> & Required<Omit<SshConnectionInfo, never>>) => SshConnectionInfo;
     defaults: () => Partial<SshConnectionInfo>;
+}>;
+export declare enum CommandStreamEvent_Tags {
+    Stdout = "Stdout",
+    Stderr = "Stderr",
+    ExitStatus = "ExitStatus",
+    ExitSignal = "ExitSignal",
+    Closed = "Closed"
+}
+export declare const CommandStreamEvent: Readonly<{
+    instanceOf: (obj: any) => obj is CommandStreamEvent;
+    Stdout: {
+        new (inner: {
+            bytes: ArrayBuffer;
+        }): {
+            readonly tag: CommandStreamEvent_Tags.Stdout;
+            readonly inner: Readonly<{
+                bytes: ArrayBuffer;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+        "new"(inner: {
+            bytes: ArrayBuffer;
+        }): {
+            readonly tag: CommandStreamEvent_Tags.Stdout;
+            readonly inner: Readonly<{
+                bytes: ArrayBuffer;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+        instanceOf(obj: any): obj is {
+            readonly tag: CommandStreamEvent_Tags.Stdout;
+            readonly inner: Readonly<{
+                bytes: ArrayBuffer;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+    };
+    Stderr: {
+        new (inner: {
+            bytes: ArrayBuffer;
+        }): {
+            readonly tag: CommandStreamEvent_Tags.Stderr;
+            readonly inner: Readonly<{
+                bytes: ArrayBuffer;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+        "new"(inner: {
+            bytes: ArrayBuffer;
+        }): {
+            readonly tag: CommandStreamEvent_Tags.Stderr;
+            readonly inner: Readonly<{
+                bytes: ArrayBuffer;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+        instanceOf(obj: any): obj is {
+            readonly tag: CommandStreamEvent_Tags.Stderr;
+            readonly inner: Readonly<{
+                bytes: ArrayBuffer;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+    };
+    ExitStatus: {
+        new (inner: {
+            exitStatus: number;
+        }): {
+            readonly tag: CommandStreamEvent_Tags.ExitStatus;
+            readonly inner: Readonly<{
+                exitStatus: number;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+        "new"(inner: {
+            exitStatus: number;
+        }): {
+            readonly tag: CommandStreamEvent_Tags.ExitStatus;
+            readonly inner: Readonly<{
+                exitStatus: number;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+        instanceOf(obj: any): obj is {
+            readonly tag: CommandStreamEvent_Tags.ExitStatus;
+            readonly inner: Readonly<{
+                exitStatus: number;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+    };
+    ExitSignal: {
+        new (inner: {
+            signalName: string;
+        }): {
+            readonly tag: CommandStreamEvent_Tags.ExitSignal;
+            readonly inner: Readonly<{
+                signalName: string;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+        "new"(inner: {
+            signalName: string;
+        }): {
+            readonly tag: CommandStreamEvent_Tags.ExitSignal;
+            readonly inner: Readonly<{
+                signalName: string;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+        instanceOf(obj: any): obj is {
+            readonly tag: CommandStreamEvent_Tags.ExitSignal;
+            readonly inner: Readonly<{
+                signalName: string;
+            }>;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+    };
+    Closed: {
+        new (): {
+            readonly tag: CommandStreamEvent_Tags.Closed;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+        "new"(): {
+            readonly tag: CommandStreamEvent_Tags.Closed;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+        instanceOf(obj: any): obj is {
+            readonly tag: CommandStreamEvent_Tags.Closed;
+            /**
+             * @private
+             * This field is private and should not be used, use `tag` instead.
+             */
+            readonly [uniffiTypeNameSymbol]: "CommandStreamEvent";
+        };
+    };
+}>;
+export type CommandStreamEvent = InstanceType<(typeof CommandStreamEvent)['Stdout' | 'Stderr' | 'ExitStatus' | 'ExitSignal' | 'Closed']>;
+export interface CommandStreamCallback {
+    onEvent(event: CommandStreamEvent): void;
+}
+export declare class CommandStreamCallbackImpl extends UniffiAbstractObject implements CommandStreamCallback {
+    readonly [uniffiTypeNameSymbol] = "CommandStreamCallbackImpl";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    private constructor();
+    onEvent(event: CommandStreamEvent): void;
+    uniffiDestroy(): void;
+    static instanceOf(obj_: any): obj_ is CommandStreamCallbackImpl;
+}
+export type StartCommandStreamOptions = {
+    command: string;
+    onEventCallback: CommandStreamCallback;
+};
+/**
+ * Generated factory for {@link StartCommandStreamOptions} record objects.
+ */
+export declare const StartCommandStreamOptions: Readonly<{
+    create: (partial: Partial<StartCommandStreamOptions> & Required<Omit<StartCommandStreamOptions, never>>) => StartCommandStreamOptions;
+    new: (partial: Partial<StartCommandStreamOptions> & Required<Omit<StartCommandStreamOptions, never>>) => StartCommandStreamOptions;
+    defaults: () => Partial<StartCommandStreamOptions>;
 }>;
 export type TerminalMode = {
     opcode: number;
@@ -1099,6 +1357,28 @@ export declare const SshError: Readonly<{
     };
 }>;
 export type SshError = InstanceType<(typeof SshError)['Disconnected' | 'UnsupportedKeyType' | 'Auth' | 'ShellAlreadyRunning' | 'TmuxAttachFailed' | 'Russh' | 'RusshKeys']>;
+export interface CommandStreamSessionLike {
+    close(asyncOpts_?: {
+        signal: AbortSignal;
+    }): Promise<void>;
+    getInfo(): CommandStreamInfo;
+}
+/**
+ * @deprecated Use `CommandStreamSessionLike` instead.
+ */
+export type CommandStreamSessionInterface = CommandStreamSessionLike;
+export declare class CommandStreamSession extends UniffiAbstractObject implements CommandStreamSessionLike {
+    readonly [uniffiTypeNameSymbol] = "CommandStreamSession";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    private constructor();
+    close(asyncOpts_?: {
+        signal: AbortSignal;
+    }): Promise<void>;
+    getInfo(): CommandStreamInfo;
+    uniffiDestroy(): void;
+    static instanceOf(obj_: any): obj_ is CommandStreamSession;
+}
 export interface ShellListener {
     onEvent(ev: ShellEvent): void;
 }
@@ -1209,6 +1489,12 @@ export interface SshConnectionLike {
      * Convenience snapshot for property-like access in TS.
      */
     getInfo(): SshConnectionInfo;
+    runCommand(opts: RunCommandOptions, asyncOpts_?: {
+        signal: AbortSignal;
+    }): Promise<CommandOutput>;
+    startCommandStream(opts: StartCommandStreamOptions, asyncOpts_?: {
+        signal: AbortSignal;
+    }): Promise<CommandStreamSessionLike>;
     startShell(opts: StartShellOptions, asyncOpts_?: {
         signal: AbortSignal;
     }): Promise<ShellSessionLike>;
@@ -1229,6 +1515,12 @@ export declare class SshConnection extends UniffiAbstractObject implements SshCo
      * Convenience snapshot for property-like access in TS.
      */
     getInfo(): SshConnectionInfo;
+    runCommand(opts: RunCommandOptions, asyncOpts_?: {
+        signal: AbortSignal;
+    }): Promise<CommandOutput>;
+    startCommandStream(opts: StartCommandStreamOptions, asyncOpts_?: {
+        signal: AbortSignal;
+    }): Promise<CommandStreamSessionLike>;
     startShell(opts: StartShellOptions, asyncOpts_?: {
         signal: AbortSignal;
     }): Promise<ShellSessionLike>;
@@ -1263,6 +1555,29 @@ declare const _default: Readonly<{
             lift(value: UniffiByteArray): BufferStats;
             lower(value: BufferStats, alloc: import("@ubjs/core").RustBufferAllocator): UniffiByteArray;
         };
+        FfiConverterTypeCommandOutput: {
+            read(from: RustBuffer): CommandOutput;
+            write(value: CommandOutput, into: RustBuffer): void;
+            allocationSize(value: CommandOutput): number;
+            lift(value: UniffiByteArray): CommandOutput;
+            lower(value: CommandOutput, alloc: import("@ubjs/core").RustBufferAllocator): UniffiByteArray;
+        };
+        FfiConverterTypeCommandStreamCallback: FfiConverterObjectWithCallbacks<CommandStreamCallback>;
+        FfiConverterTypeCommandStreamEvent: {
+            read(from: RustBuffer): CommandStreamEvent;
+            write(value: CommandStreamEvent, into: RustBuffer): void;
+            allocationSize(value: CommandStreamEvent): number;
+            lift(value: UniffiByteArray): CommandStreamEvent;
+            lower(value: CommandStreamEvent, alloc: import("@ubjs/core").RustBufferAllocator): UniffiByteArray;
+        };
+        FfiConverterTypeCommandStreamInfo: {
+            read(from: RustBuffer): CommandStreamInfo;
+            write(value: CommandStreamInfo, into: RustBuffer): void;
+            allocationSize(value: CommandStreamInfo): number;
+            lift(value: UniffiByteArray): CommandStreamInfo;
+            lower(value: CommandStreamInfo, alloc: import("@ubjs/core").RustBufferAllocator): UniffiByteArray;
+        };
+        FfiConverterTypeCommandStreamSession: FfiConverterObject<CommandStreamSessionLike>;
         FfiConverterTypeConnectOptions: {
             read(from: RustBuffer): ConnectOptions;
             write(value: ConnectOptions, into: RustBuffer): void;
@@ -1306,6 +1621,13 @@ declare const _default: Readonly<{
             allocationSize(value: ListenerOptions): number;
             lift(value: UniffiByteArray): ListenerOptions;
             lower(value: ListenerOptions, alloc: import("@ubjs/core").RustBufferAllocator): UniffiByteArray;
+        };
+        FfiConverterTypeRunCommandOptions: {
+            read(from: RustBuffer): RunCommandOptions;
+            write(value: RunCommandOptions, into: RustBuffer): void;
+            allocationSize(value: RunCommandOptions): number;
+            lift(value: UniffiByteArray): RunCommandOptions;
+            lower(value: RunCommandOptions, alloc: import("@ubjs/core").RustBufferAllocator): UniffiByteArray;
         };
         FfiConverterTypeSecurity: {
             read(from: RustBuffer): Security;
@@ -1367,6 +1689,13 @@ declare const _default: Readonly<{
             allocationSize(value: SshError): number;
             lift(value: UniffiByteArray): SshError;
             lower(value: SshError, alloc: import("@ubjs/core").RustBufferAllocator): UniffiByteArray;
+        };
+        FfiConverterTypeStartCommandStreamOptions: {
+            read(from: RustBuffer): StartCommandStreamOptions;
+            write(value: StartCommandStreamOptions, into: RustBuffer): void;
+            allocationSize(value: StartCommandStreamOptions): number;
+            lift(value: UniffiByteArray): StartCommandStreamOptions;
+            lower(value: StartCommandStreamOptions, alloc: import("@ubjs/core").RustBufferAllocator): UniffiByteArray;
         };
         FfiConverterTypeStartShellOptions: {
             read(from: RustBuffer): StartShellOptions;

@@ -501,7 +501,7 @@ git commit -m "Add noninteractive SSH command primitives"
 - Modify: generated files under `packages/react-native-uniffi-russh/src/generated`, `packages/react-native-uniffi-russh/cpp/generated`, `packages/react-native-uniffi-russh/android`, and `packages/react-native-uniffi-russh/ios`
 - Modify: `packages/react-native-uniffi-russh/src/api.ts`
 
-- [ ] **Step 1: Regenerate UniFFI bindings**
+- [x] **Step 1: Regenerate UniFFI bindings**
 
 Run:
 
@@ -513,7 +513,7 @@ Expected: generated TypeScript/Kotlin/C++ binding files include `RunCommandOptio
 `CommandOutput`, `StartCommandStreamOptions`, `CommandStreamEvent`,
 `CommandStreamCallback`, and `CommandStreamSessionInterface`.
 
-- [ ] **Step 2: Add failing TypeScript wrapper usage**
+- [x] **Step 2: Add failing TypeScript wrapper usage**
 
 Modify `packages/react-native-uniffi-russh/src/api.ts` by adding these ideal API
 types near the shell types:
@@ -578,7 +578,7 @@ call shape by passing `null`/`undefined` for the native `max_output_bytes`
 option. The wrapper should expose the generated cap constants and only pass a
 native override when `maxOutputBytes` is provided.
 
-- [ ] **Step 3: Implement TypeScript wrappers**
+- [x] **Step 3: Implement TypeScript wrappers**
 
 Add these helpers in `packages/react-native-uniffi-russh/src/api.ts` after
 `wrapShellSession`:
@@ -645,7 +645,7 @@ startCommandStream: async ({ command, onEvent, abortSignal }) => {
 },
 ```
 
-- [ ] **Step 4: Run TypeScript checks**
+- [x] **Step 4: Run TypeScript checks**
 
 Run:
 
@@ -655,7 +655,7 @@ pnpm --filter @fressh/react-native-uniffi-russh typecheck
 
 Expected: PASS with the public `CommandStreamEvent` union above unchanged.
 
-- [ ] **Step 5: Commit bindings and wrapper**
+- [x] **Step 5: Commit bindings and wrapper**
 
 Run:
 

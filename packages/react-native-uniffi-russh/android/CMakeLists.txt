@@ -7,8 +7,8 @@ set (CMAKE_CXX_STANDARD 17)
 
 # Resolve the path to the uniffi-bindgen-react-native package
 execute_process(
-    COMMAND node -e "const path = require('path'); const entry = require.resolve('uniffi-bindgen-react-native'); console.log(path.resolve(path.dirname(entry), '../../..'));"
-    OUTPUT_VARIABLE UBRN_ROOT
+    COMMAND node -p "const path=require('path');let p=require.resolve('uniffi-bindgen-react-native');while(path.basename(p)!=='uniffi-bindgen-react-native')p=path.dirname(p);p"
+    OUTPUT_VARIABLE UNIFFI_BINDGEN_PATH
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
@@ -17,7 +17,7 @@ include_directories(
     ../cpp
     ../cpp/generated
 
-    ${UBRN_ROOT}/cpp/includes
+    ${UNIFFI_BINDGEN_PATH}/cpp/includes
 )
 
 add_library(fressh-react-native-uniffi-russh            SHARED

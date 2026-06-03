@@ -68,6 +68,26 @@ export type StartShellOptions = {
 	abortSignal?: AbortSignal;
 };
 
+export type CommandOutput = {
+	stdout: ArrayBuffer;
+	stderr: ArrayBuffer;
+	exitStatus: number | null;
+	exitSignal: string | null;
+};
+
+export type CommandStreamEvent =
+	| { type: 'stdout'; bytes: ArrayBuffer }
+	| { type: 'stderr'; bytes: ArrayBuffer }
+	| { type: 'exitStatus'; exitStatus: number }
+	| { type: 'exitSignal'; signalName: string }
+	| { type: 'closed' };
+
+export type StartCommandStreamOptions = {
+	command: string;
+	onEvent: (event: CommandStreamEvent) => void;
+	abortSignal?: AbortSignal;
+};
+
 export type StreamKind = 'stdout' | 'stderr';
 
 export type TerminalChunk = {
@@ -117,6 +137,13 @@ export type SshConnection = {
 	readonly progressTimings: ProgressTimings;
 
 	startShell: (opts: StartShellOptions) => Promise<SshShell>;
+	runCommand: (
+		opts: { command: string; maxOutputBytes?: number },
+		asyncOpts?: { signal?: AbortSignal },
+	) => Promise<CommandOutput>;
+	startCommandStream: (
+		opts: StartCommandStreamOptions,
+	) => Promise<SshCommandStream>;
 	disconnect: (opts?: { signal?: AbortSignal }) => Promise<void>;
 };
 
@@ -159,6 +186,38 @@ export type SshShell = {
 	) => bigint;
 	removeListener: (id: bigint) => void;
 };
+
+export type SshCommandStream = {
+	readonly channelId: number;
+	readonly createdAtMs: number;
+	readonly connectionId: string;
+	close: (opts?: { signal?: AbortSignal }) => Promise<void>;
+};
+
+export const DEFAULT_RUN_COMMAND_MAX_OUTPUT_BYTES = Number(
+	GeneratedRussh.defaultRunCommandMaxOutputBytes(),
+);
+export const MAX_RUN_COMMAND_MAX_OUTPUT_BYTES = Number(
+	GeneratedRussh.maxRunCommandMaxOutputBytes(),
+);
+
+function maxOutputBytesToGenerated(maxOutputBytes: number | undefined) {
+	if (maxOutputBytes === undefined) {
+		return undefined;
+	}
+	if (!Number.isSafeInteger(maxOutputBytes)) {
+		throw new Error('maxOutputBytes must be a safe integer');
+	}
+	if (maxOutputBytes <= 0) {
+		throw new Error('maxOutputBytes must be greater than 0');
+	}
+	if (maxOutputBytes > MAX_RUN_COMMAND_MAX_OUTPUT_BYTES) {
+		throw new Error(
+			`maxOutputBytes must be at most ${MAX_RUN_COMMAND_MAX_OUTPUT_BYTES}`,
+		);
+	}
+	return BigInt(maxOutputBytes);
+}
 
 type RusshApi = {
 	uniffiInitAsync: () => Promise<void>;
@@ -333,6 +392,41 @@ function wrapShellSession(
 	};
 }
 
+function toCommandStreamEvent(
+	event: GeneratedRussh.CommandStreamEvent,
+): CommandStreamEvent {
+	if (event instanceof GeneratedRussh.CommandStreamEvent.Stdout) {
+		return { type: 'stdout', bytes: event.inner.bytes };
+	}
+	if (event instanceof GeneratedRussh.CommandStreamEvent.Stderr) {
+		return { type: 'stderr', bytes: event.inner.bytes };
+	}
+	if (event instanceof GeneratedRussh.CommandStreamEvent.ExitStatus) {
+		return { type: 'exitStatus', exitStatus: event.inner.exitStatus };
+	}
+	if (event instanceof GeneratedRussh.CommandStreamEvent.ExitSignal) {
+		return { type: 'exitSignal', signalName: event.inner.signalName };
+	}
+	if (event instanceof GeneratedRussh.CommandStreamEvent.Closed) {
+		return { type: 'closed' };
+	}
+	const exhaustive: never = event;
+	throw new Error(`Unsupported command stream event: ${String(exhaustive)}`);
+}
+
+function wrapCommandStream(
+	stream: GeneratedRussh.CommandStreamSessionInterface,
+): SshCommandStream {
+	const info = stream.getInfo();
+	return {
+		channelId: info.channelId,
+		createdAtMs: info.createdAtMs,
+		connectionId: info.connectionId,
+		close: (opts) =>
+			stream.close(opts?.signal ? { signal: opts.signal } : undefined),
+	};
+}
+
 function wrapConnection(
 	conn: GeneratedRussh.SshConnectionInterface,
 ): SshConnection {
@@ -364,6 +458,33 @@ function wrapConnection(
 				params.abortSignal ? { signal: params.abortSignal } : undefined,
 			);
 			return wrapShellSession(shell);
+		},
+		runCommand: async ({ command, maxOutputBytes }, asyncOpts) => {
+			const result = await conn.runCommand(
+				{
+					command,
+					maxOutputBytes: maxOutputBytesToGenerated(maxOutputBytes),
+				},
+				asyncOpts?.signal ? { signal: asyncOpts.signal } : undefined,
+			);
+			return {
+				stdout: result.stdout,
+				stderr: result.stderr,
+				exitStatus: result.exitStatus ?? null,
+				exitSignal: result.exitSignal ?? null,
+			};
+		},
+		startCommandStream: async ({ command, onEvent, abortSignal }) => {
+			const stream = await conn.startCommandStream(
+				{
+					command,
+					onEventCallback: {
+						onEvent: (event) => onEvent(toCommandStreamEvent(event)),
+					},
+				},
+				abortSignal ? { signal: abortSignal } : undefined,
+			);
+			return wrapCommandStream(stream);
 		},
 		disconnect: (opts) =>
 			conn.disconnect(opts?.signal ? { signal: opts.signal } : undefined),
