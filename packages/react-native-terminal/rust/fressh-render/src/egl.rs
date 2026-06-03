@@ -98,6 +98,11 @@ impl EglContext {
 		self.renderer.grid_size()
 	}
 
+	/// Cell metrics in physical px: `(cell_width, cell_height, padding_x, padding_y)`.
+	pub fn cell_metrics(&self) -> (f32, f32, f32, f32) {
+		self.renderer.cell_metrics()
+	}
+
 	/// Draw one frame from `term` and present it.
 	pub fn draw_term<T: EventListener>(&mut self, term: &Term<T>) {
 		self.renderer.draw(term);

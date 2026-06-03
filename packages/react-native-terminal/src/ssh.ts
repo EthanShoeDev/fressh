@@ -18,6 +18,11 @@ import {
 	generateKeyPair as _generateKeyPair,
 	resize as _resize,
 	respondToHostKey as _respondToHostKey,
+	scroll as _scroll,
+	selectionClear as _selectionClear,
+	selectionStart as _selectionStart,
+	selectionText as _selectionText,
+	selectionUpdate as _selectionUpdate,
 	sendData as _sendData,
 	setEventListener as _setEventListener,
 	startShell as _startShell,
@@ -27,6 +32,7 @@ import {
 	FresshEvent_Tags,
 	type FresshEventListener,
 	KeyType,
+	SelectionKind,
 	type ServerPublicKeyInfo,
 	Security,
 	type ShellOptions,
@@ -36,7 +42,7 @@ import {
 
 // Re-export the generated enums/factories (values) the app needs to construct
 // inputs and match events.
-export { FresshEvent_Tags, KeyType, Security, SshConnectionProgressEvent, TerminalType };
+export { FresshEvent_Tags, KeyType, Security, SelectionKind, SshConnectionProgressEvent, TerminalType };
 // Records + the event union are plain object types — re-export as types.
 export type { ConnectionDetails, FresshEvent, FresshEventListener, ServerPublicKeyInfo, ShellOptions };
 
@@ -106,6 +112,36 @@ export const closeShell = (shellId: ShellId): Promise<void> => _closeShell(shell
 export const generateKeyPair = (keyType: KeyType): string => _generateKeyPair(keyType);
 
 export const validatePrivateKey = (pem: string): string => _validatePrivateKey(pem);
+
+// ─────────────────────── touch interaction (scroll + selection) ──────────────
+// Touch gestures live in JS (cross-platform), but the terminal logic lives in
+// Rust keyed by `shellId` — these wrappers call it. Coordinates are PHYSICAL px
+// (surface-relative); the caller scales logical pt by the device pixel ratio,
+// matching how `<Terminal config>` already scales font/padding.
+
+/** Scroll by `deltaPx` physical px (positive = finger dragged down = older
+ *  content). Honors the app's mouse/alt-screen mode; else moves scrollback. */
+export const scroll = (shellId: ShellId, deltaPx: number): Promise<void> =>
+	_scroll(shellId, deltaPx);
+
+/** Begin a selection at a touch point (physical px). */
+export const selectionStart = (
+	shellId: ShellId,
+	x: number,
+	y: number,
+	kind: SelectionKind = SelectionKind.Word,
+): void => _selectionStart(shellId, x, y, kind);
+
+/** Extend the active selection to a touch point (physical px). */
+export const selectionUpdate = (shellId: ShellId, x: number, y: number): void =>
+	_selectionUpdate(shellId, x, y);
+
+/** Clear any active selection. */
+export const selectionClear = (shellId: ShellId): void => _selectionClear(shellId);
+
+/** The currently selected text, if any. */
+export const selectionText = (shellId: ShellId): string | undefined =>
+	_selectionText(shellId);
 
 // ─────────────────────────── event plane (one-way) ───────────────────────────
 

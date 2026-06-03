@@ -77,6 +77,18 @@ impl TerminalRenderer {
 		(self.size_info.columns(), self.size_info.screen_lines())
 	}
 
+	/// Current cell metrics in physical px: `(cell_width, cell_height, padding_x,
+	/// padding_y)`. The render plane publishes these to the control plane so it can
+	/// map touch pixels → grid cells for scroll/selection.
+	pub fn cell_metrics(&self) -> (f32, f32, f32, f32) {
+		(
+			self.size_info.cell_width(),
+			self.size_info.cell_height(),
+			self.size_info.padding_x(),
+			self.size_info.padding_y(),
+		)
+	}
+
 	/// Draw one frame from the terminal state. The caller swaps buffers after.
 	pub fn draw<T: EventListener>(&mut self, term: &Term<T>) {
 		let background = self.palette.color(term.colors(), NamedColor::Background as usize);

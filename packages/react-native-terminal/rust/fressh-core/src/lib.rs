@@ -23,8 +23,9 @@ pub mod session;
 
 // --- control plane (wrapped by the binding shim) --------------------------
 pub use control::{
-	close_shell, connect, disconnect, generate_key_pair, resize, respond_to_host_key, send_data,
-	start_shell, validate_private_key,
+	close_shell, connect, disconnect, generate_key_pair, resize, respond_to_host_key, scroll,
+	selection_clear, selection_start, selection_text, selection_update, send_data,
+	set_render_metrics, start_shell, validate_private_key, SelectionKind,
 };
 
 // --- event plane (the shim installs the concrete sink) --------------------

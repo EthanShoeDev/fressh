@@ -6,13 +6,19 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use alacritty_terminal::grid::{Dimensions, Scroll};
+use alacritty_terminal::index::{Column, Point, Side};
+use alacritty_terminal::selection::{Selection, SelectionType};
+use alacritty_terminal::term::{viewport_to_point, TermMode};
+use alacritty_terminal::Term;
+
 use fressh_ssh::{
 	ConnectOptions, ConnectionDetails, KeyType, ProgressCallback, StartShellOptions, SshError,
 };
 
 use crate::events::{self, CoreEvent};
 use crate::host_key::{self, ParkingVerifier};
-use crate::session::{ConnectionSession, ShellSession};
+use crate::session::{ConnectionSession, CoreListener, RenderMetrics, ShellSession};
 use crate::{registry, runtime};
 
 static CONN_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -100,6 +106,179 @@ pub async fn resize(shell_id: String, cols: usize, rows: usize) -> Result<(), Ss
 	let shell =
 		registry::shell(&shell_id).ok_or_else(|| SshError::NotFound(shell_id.clone()))?;
 	runtime::run(async move { shell.resize(cols, rows).await }).await
+}
+
+// ─────────────────────────── touch interaction (scroll + selection) ──────────
+//
+// Gestures live in JS and call these by `shellId` (like `send_data`). Coordinates
+// are NORMALIZED fractions of the on-screen terminal view (0..1), NOT pixels: JS
+// measures the live view size and divides. We map the fraction onto the grid's
+// columns/rows directly, so this is immune to the SurfaceView buffer / cell metrics
+// ever lagging the view size — whatever is visible IS the grid, and a fraction of
+// the view is the same fraction of the grid.
+
+/// Which kind of text selection to start. Mirrors alacritty's `SelectionType`.
+#[derive(Clone, Copy)]
+pub enum SelectionKind {
+	/// Track cells exactly as dragged.
+	Simple,
+	/// Expand to word boundaries (long-press default).
+	Word,
+	/// Select whole lines.
+	Line,
+}
+
+/// Record the renderer's current cell metrics for a shell. Still called by the
+/// render plane on resize; retained for diagnostics (the touch mapping works in
+/// grid fractions now and no longer reads these).
+pub fn set_render_metrics(
+	shell_id: &str,
+	cell_width: f32,
+	cell_height: f32,
+	padding_x: f32,
+	padding_y: f32,
+) {
+	if let Some(shell) = registry::shell(shell_id) {
+		*shell.metrics.lock().unwrap_or_else(|p| p.into_inner()) =
+			RenderMetrics { cell_width, cell_height, padding_x, padding_y };
+	}
+}
+
+/// Scroll by `dy_frac` = vertical drag distance as a fraction of the view height
+/// (positive = finger dragged down = reveal older content). Converted to whole grid
+/// rows (× screen_lines), carrying the sub-row remainder forward for smooth slow
+/// drags. Honors mouse-reporting / alt-screen modes; else moves scrollback.
+pub async fn scroll(shell_id: String, dy_frac: f32) -> Result<(), SshError> {
+	let shell =
+		registry::shell(&shell_id).ok_or_else(|| SshError::NotFound(shell_id.clone()))?;
+
+	let bytes = {
+		let mut term = shell.term.lock().unwrap_or_else(|p| p.into_inner());
+		let screen_lines = term.grid().screen_lines().max(1) as f32;
+		let lines = {
+			let mut rem = shell.scroll_remainder.lock().unwrap_or_else(|p| p.into_inner());
+			let total = *rem + dy_frac * screen_lines;
+			let whole = total.trunc();
+			*rem = total - whole;
+			whole as i32
+		};
+		if lines == 0 {
+			None
+		} else {
+			let mode = *term.mode();
+			if mode.intersects(TermMode::MOUSE_MODE) {
+				Some(wheel_report(mode, lines))
+			} else if mode.contains(TermMode::ALT_SCREEN) {
+				Some(arrow_keys(mode, lines))
+			} else {
+				term.scroll_display(Scroll::Delta(lines));
+				None
+			}
+		}
+	};
+
+	if let Some(bytes) = bytes {
+		runtime::run(async move { shell.send_data(&bytes).await }).await?;
+	}
+	Ok(())
+}
+
+/// Begin a selection at a normalized view point (`fx`, `fy` ∈ 0..1). Replaces any
+/// existing selection.
+pub fn selection_start(shell_id: &str, fx: f32, fy: f32, kind: SelectionKind) {
+	let Some(shell) = registry::shell(shell_id) else {
+		return;
+	};
+	let mut term = shell.term.lock().unwrap_or_else(|p| p.into_inner());
+	let (point, side) = frac_to_point(&term, fx, fy);
+	let ty = match kind {
+		SelectionKind::Simple => SelectionType::Simple,
+		SelectionKind::Word => SelectionType::Semantic,
+		SelectionKind::Line => SelectionType::Lines,
+	};
+	term.selection = Some(Selection::new(ty, point, side));
+	log::info!("selection_start: text={:?}", term.selection_to_string());
+	// A following drag extends the selection — don't let leftover scroll remainder
+	// bleed into it.
+	*shell.scroll_remainder.lock().unwrap_or_else(|p| p.into_inner()) = 0.0;
+}
+
+/// Extend the active selection to a normalized view point. No-op if none.
+pub fn selection_update(shell_id: &str, fx: f32, fy: f32) {
+	let Some(shell) = registry::shell(shell_id) else {
+		return;
+	};
+	let mut term = shell.term.lock().unwrap_or_else(|p| p.into_inner());
+	let (point, side) = frac_to_point(&term, fx, fy);
+	if let Some(selection) = term.selection.as_mut() {
+		selection.update(point, side);
+	}
+}
+
+/// Clear any active selection.
+pub fn selection_clear(shell_id: &str) {
+	if let Some(shell) = registry::shell(shell_id) {
+		shell.term.lock().unwrap_or_else(|p| p.into_inner()).selection = None;
+	}
+}
+
+/// The currently selected text, if any (empty selections return `None`).
+pub fn selection_text(shell_id: &str) -> Option<String> {
+	let shell = registry::shell(shell_id)?;
+	let term = shell.term.lock().unwrap_or_else(|p| p.into_inner());
+	term.selection_to_string().filter(|s| !s.is_empty())
+}
+
+/// Map a normalized view point (`fx`, `fy` ∈ 0..1) to a grid `Point` + cell side,
+/// accounting for the current scrollback offset. Grid-fraction based (no pixel
+/// metrics), so it cannot drift from the surface buffer size.
+fn frac_to_point(term: &Term<CoreListener>, fx: f32, fy: f32) -> (Point, Side) {
+	let columns = term.grid().columns().max(1);
+	let screen_lines = term.grid().screen_lines().max(1);
+	let display_offset = term.grid().display_offset();
+	let fx = fx.clamp(0.0, 1.0);
+	let fy = fy.clamp(0.0, 1.0);
+	let col_f = fx * columns as f32;
+	let col = (col_f as usize).min(columns - 1);
+	let viewport_line = ((fy * screen_lines as f32) as usize).min(screen_lines - 1);
+	let side = if (col_f - col as f32) < 0.5 { Side::Left } else { Side::Right };
+	let point = viewport_to_point(display_offset, Point::new(viewport_line, Column(col)));
+	log::info!(
+		"frac_to_point: fx={fx:.3} fy={fy:.3} cols={columns} lines={screen_lines} \
+		 disp={display_offset} -> col={col} vp_line={viewport_line}"
+	);
+	(point, side)
+}
+
+/// Encode mouse wheel reports for an app in mouse-reporting mode. Positive `lines`
+/// (finger dragged down) = wheel up (older content). Reported at the top-left cell
+/// — for scrolling, apps care about the wheel button, not the exact position.
+fn wheel_report(mode: TermMode, lines: i32) -> Vec<u8> {
+	let count = lines.unsigned_abs() as usize;
+	let button: i32 = if lines > 0 { 64 } else { 65 }; // 64 = wheel up, 65 = wheel down
+	let mut out = Vec::new();
+	for _ in 0..count {
+		if mode.contains(TermMode::SGR_MOUSE) {
+			out.extend_from_slice(format!("\x1b[<{button};1;1M").as_bytes());
+		} else {
+			out.extend_from_slice(&[0x1b, b'[', b'M', (32 + button) as u8, 33, 33]);
+		}
+	}
+	out
+}
+
+/// Encode cursor-key presses for an alt-screen app without its own scrollback.
+/// Positive `lines` (finger down) = scroll toward older content = Up arrow.
+fn arrow_keys(mode: TermMode, lines: i32) -> Vec<u8> {
+	let count = lines.unsigned_abs() as usize;
+	let app_cursor = mode.contains(TermMode::APP_CURSOR);
+	let seq: &[u8] = match (lines > 0, app_cursor) {
+		(true, false) => b"\x1b[A",
+		(true, true) => b"\x1bOA",
+		(false, false) => b"\x1b[B",
+		(false, true) => b"\x1bOB",
+	};
+	seq.repeat(count)
 }
 
 /// Close a shell channel and drop its `Term`.

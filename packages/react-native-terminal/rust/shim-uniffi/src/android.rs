@@ -14,7 +14,7 @@
 use std::ffi::{c_char, c_void, CStr};
 use std::slice;
 
-use fressh_core::{runtime, send_data, shell_term};
+use fressh_core::{runtime, send_data, set_render_metrics, shell_term};
 use fressh_render::{ColorScheme, CursorStyle, EglContext, TerminalConfig};
 use serde::Deserialize;
 
@@ -172,6 +172,8 @@ pub unsafe extern "C" fn fressh_terminal_set_config(
 	attached.last_state = None;
 	log::info!("fressh_terminal_set_config: grid={cols}x{rows}");
 	if let Some(id) = attached.shell_id.clone() {
+		let (cw, ch, px, py) = attached.egl.cell_metrics();
+		set_render_metrics(&id, cw, ch, px, py);
 		runtime::handle().spawn(async move {
 			let _ = fressh_core::resize(id, cols, rows).await;
 		});
@@ -195,8 +197,8 @@ pub unsafe extern "C" fn fressh_terminal_draw(ptr: *mut AttachedTerminal) {
 				attached.egl.draw_term(&term);
 				if attached.last_state != Some(DrawState::Drawn) {
 					log::info!(
-						"fressh_terminal_draw: DRAWN shell_id={id} grid={:?}",
-						attached.egl.grid_size()
+						"fressh_terminal_draw: DRAWN shell_id={id} surface_grid={:?}",
+						attached.egl.grid_size(),
 					);
 				}
 				DrawState::Drawn
@@ -232,8 +234,16 @@ pub unsafe extern "C" fn fressh_terminal_resize(ptr: *mut AttachedTerminal) {
 		return;
 	};
 	let (cols, rows) = attached.egl.resize();
-	log::info!("fressh_terminal_resize: grid={cols}x{rows} shell_id={:?}", attached.shell_id);
+	let (cw, ch, px, py) = attached.egl.cell_metrics();
+	log::info!(
+		"fressh_terminal_resize: grid={cols}x{rows} cell=({cw:.1},{ch:.1}) pad=({px:.1},{py:.1}) \
+		 surface~=({:.0}x{:.0}) shell_id={:?}",
+		cols as f32 * cw + 2.0 * px,
+		rows as f32 * ch + 2.0 * py,
+		attached.shell_id,
+	);
 	if let Some(id) = attached.shell_id.clone() {
+		set_render_metrics(&id, cw, ch, px, py);
 		runtime::handle().spawn(async move {
 			let _ = fressh_core::resize(id, cols, rows).await;
 		});

@@ -279,6 +279,57 @@ pub async fn resize(shell_id: String, cols: u32, rows: u32) -> Result<(), SshErr
 	fressh_core::resize(shell_id, cols as usize, rows as usize).await.map_err(Into::into)
 }
 
+// ─────────────────────── touch interaction (scroll + selection) ──────────────
+
+/// Which kind of selection a touch starts. Maps to `fressh_core::SelectionKind`.
+#[derive(uniffi::Enum)]
+pub enum SelectionKind {
+	Simple,
+	Word,
+	Line,
+}
+impl From<SelectionKind> for fressh_core::SelectionKind {
+	fn from(k: SelectionKind) -> Self {
+		match k {
+			SelectionKind::Simple => fressh_core::SelectionKind::Simple,
+			SelectionKind::Word => fressh_core::SelectionKind::Word,
+			SelectionKind::Line => fressh_core::SelectionKind::Line,
+		}
+	}
+}
+
+/// Scroll a shell by `delta_px` physical px (positive = finger dragged down =
+/// older content). Honors mouse-reporting / alt-screen modes; otherwise moves the
+/// scrollback viewport. Touch gestures live in JS and call this by `shellId`.
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn scroll(shell_id: String, delta_px: f32) -> Result<(), SshError> {
+	fressh_core::scroll(shell_id, delta_px).await.map_err(Into::into)
+}
+
+/// Begin a selection at a touch point (physical px, surface-relative).
+#[uniffi::export]
+pub fn selection_start(shell_id: String, x: f32, y: f32, kind: SelectionKind) {
+	fressh_core::selection_start(&shell_id, x, y, kind.into());
+}
+
+/// Extend the active selection to a touch point (physical px).
+#[uniffi::export]
+pub fn selection_update(shell_id: String, x: f32, y: f32) {
+	fressh_core::selection_update(&shell_id, x, y);
+}
+
+/// Clear any active selection.
+#[uniffi::export]
+pub fn selection_clear(shell_id: String) {
+	fressh_core::selection_clear(&shell_id);
+}
+
+/// The currently selected text, if any.
+#[uniffi::export]
+pub fn selection_text(shell_id: String) -> Option<String> {
+	fressh_core::selection_text(&shell_id)
+}
+
 /// Close a shell channel and drop its `Term`.
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn close_shell(shell_id: String) -> Result<(), SshError> {

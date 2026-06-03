@@ -22,6 +22,18 @@ use crate::{registry, runtime};
 /// — contention is a brief per-chunk write vs a per-frame read.
 pub type SharedTerm = Arc<Mutex<Term<CoreListener>>>;
 
+/// Renderer cell metrics in physical px, published by the render plane on each
+/// resize. The control plane uses them to map touch pixels → grid cells for
+/// touch-driven scroll and selection (the `Term` knows the grid + scroll offset,
+/// but not the on-screen pixel size of a cell — only the renderer does).
+#[derive(Clone, Copy, Default)]
+pub struct RenderMetrics {
+	pub cell_width: f32,
+	pub cell_height: f32,
+	pub padding_x: f32,
+	pub padding_y: f32,
+}
+
 /// `EventListener` for our `Term`. The only event we must act on is `PtyWrite`
 /// (terminal responses to queries like cursor-position reports): we forward those
 /// bytes back to the shell's stdin. Other events (title, bell, …) are ignored for
@@ -49,6 +61,11 @@ pub struct ShellSession {
 	pub term_type: TerminalType,
 	pub created_at_ms: f64,
 	pub term: SharedTerm,
+	/// Latest renderer cell metrics (physical px), set by the render plane on resize.
+	pub metrics: Mutex<RenderMetrics>,
+	/// Sub-cell scroll accumulator so slow drags still scroll smoothly (mirrors
+	/// termux's `mScrollRemainder`). Reset when a selection starts.
+	pub scroll_remainder: Mutex<f32>,
 	writer: ShellWriter,
 	reader_task: JoinHandle<()>,
 	pty_task: JoinHandle<()>,
@@ -107,6 +124,8 @@ impl ShellSession {
 			term_type,
 			created_at_ms,
 			term,
+			metrics: Mutex::new(RenderMetrics::default()),
+			scroll_remainder: Mutex::new(0.0),
 			writer,
 			reader_task,
 			pty_task,

@@ -43,6 +43,9 @@ pub fn renderable_cells<T: EventListener>(
 	let content = term.renderable_content();
 	let overrides = content.colors;
 	let display_offset = content.display_offset;
+	// Selection range (grid coords) is computed by alacritty from `term.selection`;
+	// we read it here to reverse-video the selected cells.
+	let selection = content.selection;
 	let cursor = content.cursor;
 	let cursor_visible = cursor.shape != CursorShape::Hidden;
 	let cursor_color = palette.color(overrides, NamedColor::Cursor as usize);
@@ -100,11 +103,17 @@ pub fn renderable_cells<T: EventListener>(
 		};
 
 		let is_cursor = cursor_visible && indexed.point == cursor.point;
+		let selected = selection.as_ref().is_some_and(|s| s.contains(indexed.point));
 		if is_cursor && cursor_style == CursorStyle::Block {
 			// Paint a block cursor: fill the cell with the cursor color and draw
 			// the glyph in the cell's background color.
 			cell.fg = bg;
 			cell.bg = cursor_color;
+			cell.bg_alpha = 1.0;
+			cells.push(cell);
+		} else if selected && !flags.contains(Flags::WIDE_CHAR_SPACER) {
+			// Reverse-video highlight for the selection (drawn even over blanks).
+			std::mem::swap(&mut cell.fg, &mut cell.bg);
 			cell.bg_alpha = 1.0;
 			cells.push(cell);
 		} else if !is_empty(&cell) && !flags.contains(Flags::WIDE_CHAR_SPACER) {

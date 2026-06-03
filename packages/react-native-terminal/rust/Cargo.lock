@@ -908,6 +908,7 @@ dependencies = [
  "fressh-render",
  "fressh-ssh",
  "futures",
+ "log",
  "once_cell",
  "thiserror 1.0.69",
  "tokio",

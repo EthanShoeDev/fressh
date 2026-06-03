@@ -41,7 +41,13 @@ const config: ExpoConfig = {
 			backgroundColor: '#151718',
 		},
 		predictiveBackGestureEnabled: false,
-		softwareKeyboardLayoutMode: 'pan',
+		// 'resize' (adjustResize): the window shrinks when the soft keyboard opens,
+		// so the terminal SurfaceView reflows to fewer rows ABOVE the keyboard
+		// (surfaceChanged -> nativeResize). This keeps on-screen pixels aligned with
+		// surface pixels, which touch scroll/selection gestures depend on. 'pan'
+		// (adjustPan) instead slides the full-height surface up behind the keyboard,
+		// offsetting every touch coordinate.
+		softwareKeyboardLayoutMode: 'resize',
 	},
 	plugins: [
 		'expo-router',
