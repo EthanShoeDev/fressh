@@ -96,9 +96,7 @@ void test('workmux scrollback executor formats thrown failures and stops a batch
 		false,
 	);
 	assert.deepEqual(commands, [[pageText(1), pageText(1, 'down')].join(' && ')]);
-	assert.deepEqual(failures, [
-		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
-	]);
+	assert.deepEqual(failures, ['Command timed out']);
 });
 
 void test('workmux scrollback executor invokes failure cleanup hooks', async () => {
@@ -118,7 +116,7 @@ void test('workmux scrollback executor invokes failure cleanup hooks', async () 
 
 	assert.equal(await executor.runEnterCommand('enter'), false);
 	assert.deepEqual(events, [
-		'failure:Update mdev on the remote machine; this action requires mdev tmux app commands.',
+		'failure:permission denied',
 		'cancel',
 		'clear',
 	]);
@@ -463,9 +461,7 @@ void test('workmux scrollback executor allows failure cleanup to re-enter with a
 	assert.notEqual(resetPromises[0], null);
 	assert.equal(await resetPromises[0], true);
 	assert.deepEqual(commands, [pageText(), 'exit']);
-	assert.deepEqual(failures, [
-		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
-	]);
+	assert.deepEqual(failures, ['copyable page failure']);
 });
 
 void test('resetTmuxScrollbackRuntimeState requests Workmux scroll exit for acknowledged remote copy mode', async () => {
@@ -528,9 +524,7 @@ void test('resetTmuxScrollbackRuntimeState reports active Workmux scroll exit fa
 	assert.equal(await scroll, false);
 	assert.equal(await exit, false);
 	assert.deepEqual(commands, [pageText(), 'exit']);
-	assert.deepEqual(failures, [
-		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
-	]);
+	assert.deepEqual(failures, ['exit failed']);
 	assert.deepEqual(disposeFailures, []);
 });
 
@@ -631,9 +625,7 @@ void test('workmux scrollback executor dispose exit failures do not invoke activ
 	assert.equal(await exit, false);
 	assert.deepEqual(commands, ['exit']);
 	assert.deepEqual(failures, []);
-	assert.deepEqual(disposeFailures, [
-		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
-	]);
+	assert.deepEqual(disposeFailures, ['dispose exit failed']);
 });
 
 void test('workmux scrollback executor routes dispose rollback failures to dispose cleanup callback', async () => {
@@ -666,9 +658,7 @@ void test('workmux scrollback executor routes dispose rollback failures to dispo
 	assert.equal(await cleanup, false);
 	assert.deepEqual(commands, ['enter', 'exit']);
 	assert.deepEqual(failures, []);
-	assert.deepEqual(disposeFailures, [
-		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
-	]);
+	assert.deepEqual(disposeFailures, ['rollback exit failed']);
 });
 
 void test('dispose rollback exit failure can mark remote copy mode active for caller cleanup state', async () => {

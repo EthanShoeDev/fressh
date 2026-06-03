@@ -51,8 +51,23 @@ export type WorkmuxNavAction =
 
 type JsonRecord = Record<string, unknown>;
 
-export function formatWorkmuxAppCommandFailureMessage(_message: string): string {
-	return WORKMUX_APP_COMMAND_UPDATE_MESSAGE;
+function isMissingWorkmuxAppCommandFailure(message: string): boolean {
+	return [
+		/\b(mdev|tmux): command not found\b/i,
+		/\bcommand not found: (mdev|tmux)\b/i,
+		/\b(mdev|tmux): not found\b/i,
+		/\bUnknown tmux app action\b/i,
+		/\bUnknown tmux command: app\b/i,
+		/\bunknown command\b.*\bapp\b/i,
+	].some((pattern) => pattern.test(message));
+}
+
+export function formatWorkmuxAppCommandFailureMessage(message: string): string {
+	const trimmed = message.trim();
+	if (!trimmed || isMissingWorkmuxAppCommandFailure(trimmed)) {
+		return WORKMUX_APP_COMMAND_UPDATE_MESSAGE;
+	}
+	return trimmed;
 }
 
 export function formatWorkmuxAppBoundaryFailureMessage(

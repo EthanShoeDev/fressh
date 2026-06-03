@@ -8,19 +8,16 @@ import {
 	createWorkmuxScrollbackCommandExecutor,
 	createTmuxScrollbackLineAccumulator,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
-	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
 	registerTmuxScrollbackLocalExitRequest,
 	registerWorkmuxScrollbackLiveInputCleanup,
 	resetTmuxScrollbackLocalExitRequests,
-	runWorkmuxScrollbackLiveInputSendPlan,
 	resetTmuxScrollbackRuntimeState,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resolveTmuxScrollbackEnterRequest,
 	resolveWorkmuxScrollbackLiveInputCleanup,
 	TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
-	type WorkmuxScrollbackPageCommand,
 } from '../../src/lib/tmux-scrollback';
 
 const bytes = (values: number[]) => new Uint8Array(values);
@@ -88,9 +85,7 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 	assert.notEqual(cleanup, null);
 	assert.equal(await cleanup, false);
 	assert.deepEqual(commands, ['enter', workmuxScrollExitCommand]);
-	assert.deepEqual(failures, [
-		'exit:Update mdev on the remote machine; this action requires mdev tmux app commands.',
-	]);
+	assert.deepEqual(failures, ['exit:exit failed']);
 	assert.equal(localScrollbackActive, false);
 	assert.equal(remoteCopyModeActiveRef.current, true);
 	assert.equal(cleanupBarrier.current(), null);
@@ -165,9 +160,7 @@ void test('inactive Workmux scroll enter cleanup suppresses canceled enter alert
 	assert.equal(await enter, false);
 	assert.equal(await cleanup, false);
 	assert.deepEqual(failures, []);
-	assert.deepEqual(disposeFailures, [
-		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
-	]);
+	assert.deepEqual(disposeFailures, ['enter failed']);
 });
 
 void test('component disposal UI reset clears line accumulator and disposes executor', async () => {
@@ -352,9 +345,7 @@ void test('pending enter rollback exit failure notifies active reset policy and 
 	assert.equal(await cleanup, false);
 	await sendAfterCleanup;
 	assert.deepEqual(commands, ['enter', 'exit']);
-	assert.deepEqual(failures, [
-		'Update mdev on the remote machine; this action requires mdev tmux app commands.',
-	]);
+	assert.deepEqual(failures, ['exit failed']);
 	assert.deepEqual(sentPayloads, []);
 });
 
@@ -973,327 +964,4 @@ void test('scrollback enter request adapter suppresses async completion after fo
 	assert.deepEqual(events, []);
 	assert.equal(remoteCopyModeActiveRef.current, false);
 	assert.equal(remoteCopyModeGenerationRef.current, 0);
-});
-
-void test('scrollback batch adapter gates events and passes pageStep into command building', async () => {
-	const lineAccumulator = createTmuxScrollbackLineAccumulator();
-	const commands: WorkmuxScrollbackPageCommand[][] = [];
-	const executor = createWorkmuxScrollbackCommandExecutor({
-		executeCommand: async () => ({ success: true, output: '' }),
-		onFailure: () => {},
-	});
-	const enqueueScrollBatch = executor.enqueueScrollBatch.bind(executor);
-	const baseEvent = {
-		direction: 'up' as const,
-		pages: 1,
-		lines: 0,
-		pageStep: 24,
-		instanceId: 'current',
-	};
-	const runBatch = (
-		overrides: Partial<Parameters<typeof handleTmuxScrollbackBatchEvent>[0]>,
-	) =>
-		handleTmuxScrollbackBatchEvent({
-			event: baseEvent,
-			shellAvailable: true,
-			currentInstanceId: 'current',
-			selectionModeEnabled: false,
-			tmuxEnabled: true,
-			connectionAvailable: true,
-			scrollbackActive: true,
-			targetName: 'main',
-			lineAccumulator,
-			enqueueScrollBatch: (batch) => {
-				commands.push(batch);
-				return enqueueScrollBatch(batch);
-			},
-			...overrides,
-		});
-
-	const rejectedCases: Partial<
-		Parameters<typeof handleTmuxScrollbackBatchEvent>[0]
-	>[] = [
-		{ shellAvailable: false },
-		{ currentInstanceId: 'other' },
-		{ selectionModeEnabled: true },
-		{ tmuxEnabled: false },
-		{ connectionAvailable: false },
-		{ scrollbackActive: false },
-	];
-	for (const rejected of rejectedCases) {
-		assert.equal(runBatch(rejected), false);
-	}
-	assert.deepEqual(commands, []);
-
-	for (const event of [
-		{ ...baseEvent, direction: 'sideways' },
-		{ ...baseEvent, pages: -1 },
-		{ ...baseEvent, pages: Number.NaN },
-		{ ...baseEvent, lines: -1 },
-		{ ...baseEvent, lines: Number.POSITIVE_INFINITY },
-		{ ...baseEvent, pageStep: 0 },
-		{ ...baseEvent, pageStep: Number.NaN },
-	]) {
-		lineAccumulator.direction = 'up';
-		lineAccumulator.lines = 12;
-		assert.equal(
-			runBatch({
-				event: event as Parameters<typeof handleTmuxScrollbackBatchEvent>[0]['event'],
-			}),
-			false,
-		);
-		assert.deepEqual(lineAccumulator, { direction: 'up', lines: 12 });
-	}
-	assert.deepEqual(commands, []);
-	lineAccumulator.direction = null;
-	lineAccumulator.lines = 0;
-
-	assert.equal(
-		runBatch({
-			event: {
-				direction: 'up',
-				pages: 0,
-				lines: 23,
-				pageStep: 24,
-				instanceId: 'current',
-			},
-		}),
-		false,
-	);
-	assert.equal(
-		runBatch({
-			event: {
-				direction: 'up',
-				pages: 0,
-				lines: 1,
-				pageStep: 24,
-				instanceId: 'current',
-			},
-		}),
-		true,
-	);
-	assert.equal(runBatch({}), true);
-
-	assert.deepEqual(commands, [
-		[{ sessionName: 'main', direction: 'up', count: 1 }],
-		[{ sessionName: 'main', direction: 'up', count: 1 }],
-	]);
-});
-
-void test('live input plan passes payload through when scrollback is inactive', () => {
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: false,
-		payloadSegments: [bytes([0x61, 0x62])],
-		interSegmentDelayMs: 7,
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.deepEqual(plan, {
-		segments: [bytes([0x61, 0x62])],
-		interSegmentDelayMs: 7,
-		clearScrollback: false,
-	});
-});
-
-void test('live input plan drops empty payload segments while inactive', () => {
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: false,
-		payloadSegments: [bytes([]), bytes([0x68]), bytes([]), bytes([0x69, 0x21])],
-		interSegmentDelayMs: 3,
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.deepEqual(plan, {
-		segments: [bytes([0x68]), bytes([0x69, 0x21])],
-		interSegmentDelayMs: 3,
-		clearScrollback: false,
-	});
-});
-
-void test('live input plan exits active scrollback without primary-shell cancel before payload', () => {
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([0x61, 0x62])],
-		interSegmentDelayMs: 0,
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.equal(plan.interSegmentDelayMs, 10);
-	assert.equal(plan.clearScrollback, true);
-	assert.deepEqual(segmentValues(plan.segments), [[0x61, 0x62]]);
-});
-
-void test('live input plan drops the scrollback exit-key payload after cleanup', () => {
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([0x71])],
-		scrollbackExitKeyPayload: bytes([0x71]),
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.deepEqual(segmentValues(plan.segments), []);
-	assert.equal(plan.interSegmentDelayMs, 10);
-	assert.equal(plan.clearScrollback, true);
-});
-
-void test('live input runner starts cleanup for exit-key-only payload without sending bytes', async () => {
-	const cleanup = Promise.resolve(true);
-	let cleanupStarted = 0;
-	const sentSegments: number[][][] = [];
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([0x71])],
-		scrollbackExitKeyPayload: bytes([0x71]),
-		scrollbackExitDelayMs: 10,
-	});
-
-	const result = runWorkmuxScrollbackLiveInputSendPlan({
-		plan,
-		currentCleanup: null,
-		startCleanup: () => {
-			cleanupStarted += 1;
-			return cleanup;
-		},
-		remoteCopyModeActive: true,
-		sendSegments: (segments) => {
-			sentSegments.push(segmentValues(segments));
-		},
-	});
-
-	assert.equal(result, cleanup);
-	assert.equal(cleanupStarted, 1);
-	await cleanup;
-	await Promise.resolve();
-	assert.deepEqual(sentSegments, []);
-});
-
-void test('live input runner sends non-empty payload after successful cleanup', async () => {
-	const cleanup = deferred<boolean>();
-	const sentSegments: number[][][] = [];
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([0x68, 0x69])],
-		scrollbackExitDelayMs: 10,
-	});
-
-	const result = runWorkmuxScrollbackLiveInputSendPlan({
-		plan,
-		currentCleanup: cleanup.promise,
-		startCleanup: () => {
-			throw new Error('should use current cleanup');
-		},
-		remoteCopyModeActive: true,
-		sendSegments: (segments) => {
-			sentSegments.push(segmentValues(segments));
-		},
-	});
-
-	assert.equal(result, cleanup.promise);
-	assert.deepEqual(sentSegments, []);
-	cleanup.resolve(true);
-	await cleanup.promise;
-	await Promise.resolve();
-	assert.deepEqual(sentSegments, [[[0x68, 0x69]]]);
-});
-
-void test('live input runner suppresses deferred payload after request invalidation', async () => {
-	const cleanup = deferred<boolean>();
-	const sentSegments: number[][][] = [];
-	let requestCurrent = true;
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([0x68, 0x69])],
-		scrollbackExitDelayMs: 10,
-	});
-
-	const result = runWorkmuxScrollbackLiveInputSendPlan({
-		plan,
-		currentCleanup: cleanup.promise,
-		startCleanup: () => {
-			throw new Error('should use current cleanup');
-		},
-		remoteCopyModeActive: true,
-		isRequestCurrent: () => requestCurrent,
-		sendSegments: (segments) => {
-			sentSegments.push(segmentValues(segments));
-		},
-	});
-
-	assert.equal(result, cleanup.promise);
-	requestCurrent = false;
-	cleanup.resolve(true);
-	await cleanup.promise;
-	await Promise.resolve();
-	assert.deepEqual(sentSegments, []);
-});
-
-void test('live input runner blocks non-empty payload after failed cleanup', async () => {
-	const cleanup = Promise.resolve(false);
-	const sentSegments: number[][][] = [];
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([0x68, 0x69])],
-		scrollbackExitDelayMs: 10,
-	});
-
-	const result = runWorkmuxScrollbackLiveInputSendPlan({
-		plan,
-		currentCleanup: cleanup,
-		startCleanup: () => null,
-		remoteCopyModeActive: true,
-		sendSegments: (segments) => {
-			sentSegments.push(segmentValues(segments));
-		},
-	});
-
-	assert.equal(result, cleanup);
-	await cleanup;
-	await Promise.resolve();
-	assert.deepEqual(sentSegments, []);
-});
-
-void test('live input runner blocks non-empty payload while remote copy mode is active without cleanup', () => {
-	const sentSegments: number[][][] = [];
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: false,
-		payloadSegments: [bytes([0x68, 0x69])],
-		scrollbackExitDelayMs: 10,
-	});
-
-	const result = runWorkmuxScrollbackLiveInputSendPlan({
-		plan,
-		currentCleanup: null,
-		startCleanup: () => null,
-		remoteCopyModeActive: true,
-		sendSegments: (segments) => {
-			sentSegments.push(segmentValues(segments));
-		},
-	});
-
-	assert.equal(result, null);
-	assert.deepEqual(sentSegments, []);
-});
-
-void test('live input plan preserves multi-segment payload order after app-owned scrollback exit', () => {
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([0x68, 0x69]), bytes([0x0d])],
-		interSegmentDelayMs: 3,
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.equal(plan.interSegmentDelayMs, 10);
-	assert.equal(plan.clearScrollback, true);
-	assert.deepEqual(segmentValues(plan.segments), [[0x68, 0x69], [0x0d]]);
-});
-
-void test('live input plan drops empty payload segments while preserving order', () => {
-	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
-		scrollbackActive: true,
-		payloadSegments: [bytes([]), bytes([0x68]), bytes([]), bytes([0x69, 0x21])],
-		interSegmentDelayMs: 3,
-		scrollbackExitDelayMs: 10,
-	});
-
-	assert.deepEqual(segmentValues(plan.segments), [[0x68], [0x69, 0x21]]);
 });

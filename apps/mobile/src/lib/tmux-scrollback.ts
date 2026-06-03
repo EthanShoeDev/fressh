@@ -1,20 +1,34 @@
 import {
-	WORKMUX_APP_SCROLL_MAX_COUNT,
 	buildWorkmuxAppScrollEnterCommand,
 	buildWorkmuxAppScrollExitCommand,
-	buildWorkmuxAppScrollPageCommand,
-	formatWorkmuxAppBoundaryFailureMessage,
 	type WorkmuxScrollDirection,
 } from './workmux-app-commands';
+import {
+	accumulateWorkmuxScrollbackBatchCommands,
+	clearTmuxScrollbackLineAccumulator,
+	isValidScrollbackBatchEvent,
+	type TmuxScrollbackLineAccumulator,
+	type WorkmuxScrollbackPageCommand,
+} from './workmux-scrollback-batch';
+import {
+	type WorkmuxScrollbackCommandExecutor,
+	type WorkmuxScrollbackFailurePolicy,
+} from './workmux-scrollback-executor';
 import {
 	registerWorkmuxScrollbackLiveInputCleanup,
 	type WorkmuxScrollbackLiveInputCleanupBarrier,
 } from './workmux-scrollback-live-input';
 
-// Bounds malformed bridge batches before splitting into remote commands.
-export const TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH = 100;
-export const TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES = 100;
-
+export {
+	accumulateWorkmuxScrollbackBatchCommands,
+	clearTmuxScrollbackLineAccumulator,
+	createTmuxScrollbackLineAccumulator,
+	mergeWorkmuxScrollbackPageCommands,
+	TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES,
+	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
+	type TmuxScrollbackLineAccumulator,
+	type WorkmuxScrollbackPageCommand,
+} from './workmux-scrollback-batch';
 export {
 	createTmuxScrollbackLocalExitRequest,
 	registerTmuxScrollbackLocalExitRequest,
@@ -30,390 +44,14 @@ export {
 	type WorkmuxScrollbackLiveInputCleanupBarrier,
 	type WorkmuxScrollbackLiveInputSendPlan,
 } from './workmux-scrollback-live-input';
-
-export type TmuxScrollbackLineAccumulator = {
-	direction: WorkmuxScrollDirection | null;
-	lines: number;
-};
-
-export type WorkmuxScrollbackPageCommand = {
-	sessionName: string;
-	direction: WorkmuxScrollDirection;
-	count: number;
-};
-
-export function mergeWorkmuxScrollbackPageCommands(
-	commands: WorkmuxScrollbackPageCommand[],
-): WorkmuxScrollbackPageCommand[] {
-	const merged: WorkmuxScrollbackPageCommand[] = [];
-	for (const command of commands) {
-		let remainingCount = command.count;
-		while (remainingCount > 0) {
-			const count = Math.min(remainingCount, WORKMUX_APP_SCROLL_MAX_COUNT);
-			const previous = merged[merged.length - 1];
-			if (
-				previous &&
-				previous.sessionName === command.sessionName &&
-				previous.direction === command.direction &&
-				previous.count < WORKMUX_APP_SCROLL_MAX_COUNT
-			) {
-				const available = WORKMUX_APP_SCROLL_MAX_COUNT - previous.count;
-				const appended = Math.min(available, count);
-				previous.count += appended;
-				remainingCount -= appended;
-				continue;
-			}
-			merged.push({
-				sessionName: command.sessionName,
-				direction: command.direction,
-				count,
-			});
-			remainingCount -= count;
-		}
-	}
-	return merged;
-}
-
-function coalesceWorkmuxScrollbackPendingPageCommands(
-	commands: WorkmuxScrollbackPageCommand[],
-): WorkmuxScrollbackPageCommand[] {
-	let sessionName: string | null = null;
-	let netPages = 0;
-	for (const command of commands) {
-		sessionName = command.sessionName;
-		netPages += command.direction === 'up' ? command.count : -command.count;
-		if (Math.abs(netPages) > TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES) {
-			netPages =
-				Math.sign(netPages) * TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES;
-		}
-	}
-	if (!sessionName || netPages === 0) return [];
-	return [
-		{
-			sessionName,
-			direction: netPages > 0 ? 'up' : 'down',
-			count: Math.abs(netPages),
-		},
-	];
-}
-
-export type WorkmuxScrollbackCommandResult = {
-	success: boolean;
-	output: string;
-	error?: string;
-};
-
-type WorkmuxScrollbackCommandKind = 'enter' | 'scroll';
-export type WorkmuxScrollbackFailurePolicy = 'notify' | 'suppress';
-
-export type WorkmuxScrollbackFailureContext = {
-	commandKind: 'enter' | 'scroll' | 'exit';
-};
-
-export type WorkmuxScrollbackCommandExecutor = {
-	runEnterCommand: (
-		command: string,
-		options?: { rollbackExitCommand?: string },
-	) => Promise<boolean>;
-	enqueueScrollBatch: (commands: WorkmuxScrollbackPageCommand[]) => Promise<boolean>;
-	reset: (options?: {
-		exitCommand?: string;
-		failurePolicy?: WorkmuxScrollbackFailurePolicy;
-	}) => Promise<boolean> | null;
-	dispose: (options?: { exitCommand?: string }) => Promise<boolean> | null;
-};
-
-export function createWorkmuxScrollbackCommandExecutor({
-	executeCommand,
-	onFailure,
-	onDisposeExitFailure,
-}: {
-	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>;
-	onFailure: (
-		message: string,
-		context: WorkmuxScrollbackFailureContext,
-	) => void;
-	onDisposeExitFailure?: (message: string) => void;
-}): WorkmuxScrollbackCommandExecutor {
-	let tail: Promise<unknown> = Promise.resolve();
-	let closed = false;
-	let disposed = false;
-	let workGeneration = 0;
-	let exitGeneration = 0;
-	let pendingEnterOperations = 0;
-	let pendingSerializedOperations = 0;
-	let canceledEnterRollbackSucceeded = true;
-	let canceledEnterRollbackFailurePolicy: WorkmuxScrollbackFailurePolicy =
-		'notify';
-	let scrollDrainQueued = false;
-	let pendingScrollBatch: {
-		commands: WorkmuxScrollbackPageCommand[];
-		generation: number;
-		resolvers: ((value: boolean) => void)[];
-	} | null = null;
-
-	const notifyFailure = (
-		message: string,
-		context: WorkmuxScrollbackFailureContext,
-	) => {
-		try {
-			onFailure(message, context);
-		} catch {
-			// Failure notification is best-effort; command promises must still settle.
-		}
-	};
-
-	const notifyDisposeExitFailure = (message: string) => {
-		try {
-			onDisposeExitFailure?.(message);
-		} catch {
-			// Failure notification is best-effort; command promises must still settle.
-		}
-	};
-
-	const clearPendingScrollBatches = () => {
-		for (const resolve of pendingScrollBatch?.resolvers ?? []) {
-			resolve(false);
-		}
-		pendingScrollBatch = null;
-	};
-
-	const enqueueSerialized = <T>(operation: () => Promise<T>) => {
-		pendingSerializedOperations += 1;
-		const next = tail.then(operation, operation).finally(() => {
-			pendingSerializedOperations -= 1;
-		});
-		tail = next.catch(() => {});
-		return next;
-	};
-
-	const isWorkActive = (operationGeneration: number) =>
-		!disposed && operationGeneration === workGeneration;
-	const isExitActive = (operationGeneration: number) =>
-		!disposed && operationGeneration === exitGeneration;
-
-	const runCommands = async ({
-		commands,
-		commandKind,
-		operationGeneration,
-		rollbackExitCommand,
-		durableExit = false,
-		failurePolicy = 'notify',
-	}: {
-		commands: string[];
-		commandKind: WorkmuxScrollbackCommandKind;
-		operationGeneration: number;
-		rollbackExitCommand?: string;
-		durableExit?: boolean;
-		failurePolicy?: WorkmuxScrollbackFailurePolicy;
-	}) => {
-		const isActive = durableExit ? isExitActive : isWorkActive;
-		if (disposed) return false;
-		for (const command of commands) {
-			if (!isActive(operationGeneration)) return false;
-			const result = await runSingleCommand(command, executeCommand);
-			if (!isActive(operationGeneration)) {
-				const failureMessage =
-					formatWorkmuxScrollbackCommandFailureMessage(result);
-				if (failureMessage && commandKind === 'enter' && !disposed) {
-					canceledEnterRollbackSucceeded = false;
-					if (canceledEnterRollbackFailurePolicy === 'notify') {
-						notifyFailure(failureMessage, { commandKind: 'enter' });
-					} else {
-						notifyDisposeExitFailure(failureMessage);
-					}
-				}
-				if (commandKind === 'enter' && result.success && rollbackExitCommand) {
-					const rollbackResult = await runSingleCommand(
-						rollbackExitCommand,
-						executeCommand,
-					);
-					const rollbackFailureMessage =
-						formatWorkmuxScrollbackCommandFailureMessage(rollbackResult);
-					canceledEnterRollbackSucceeded =
-						canceledEnterRollbackSucceeded && !rollbackFailureMessage;
-					if (rollbackFailureMessage) {
-						if (canceledEnterRollbackFailurePolicy === 'notify') {
-							notifyFailure(rollbackFailureMessage, { commandKind: 'exit' });
-						} else {
-							notifyDisposeExitFailure(rollbackFailureMessage);
-						}
-					}
-				}
-				return false;
-			}
-			const failureMessage =
-				formatWorkmuxScrollbackCommandFailureMessage(result);
-			if (!failureMessage) continue;
-			clearPendingScrollBatches();
-			if (failurePolicy === 'notify') {
-				notifyFailure(failureMessage, {
-					commandKind: durableExit ? 'exit' : commandKind,
-				});
-			} else {
-				notifyDisposeExitFailure(failureMessage);
-			}
-			return false;
-		}
-		return true;
-	};
-
-	const runScrollCommands = ({
-		commands,
-		operationGeneration,
-	}: {
-		commands: WorkmuxScrollbackPageCommand[];
-		operationGeneration: number;
-	}) => {
-		const shellCommands = mergeWorkmuxScrollbackPageCommands(commands).map(
-			(command) =>
-				buildWorkmuxAppScrollPageCommand(
-					command.sessionName,
-					command.direction,
-					command.count,
-				),
-		);
-		return runCommands({
-			commands: shellCommands.length ? [shellCommands.join(' && ')] : [],
-			commandKind: 'scroll',
-			operationGeneration,
-		});
-	};
-
-	const reset = (options?: {
-		exitCommand?: string;
-		failurePolicy?: WorkmuxScrollbackFailurePolicy;
-	}) => {
-		const hadPendingEnter = pendingEnterOperations > 0;
-		const hadSerializedWork = pendingSerializedOperations > 0;
-		canceledEnterRollbackSucceeded = true;
-		canceledEnterRollbackFailurePolicy = options?.failurePolicy ?? 'notify';
-		workGeneration += 1;
-		clearPendingScrollBatches();
-		const exitCommand = options?.exitCommand;
-		if (disposed) return null;
-		if (!exitCommand) {
-			if (!hadPendingEnter || !hadSerializedWork) return null;
-			return enqueueSerialized(async () => canceledEnterRollbackSucceeded);
-		}
-
-		exitGeneration += 1;
-		const operationGeneration = exitGeneration;
-		return enqueueSerialized(() =>
-			runCommands({
-				commands: [exitCommand],
-				commandKind: 'scroll',
-				operationGeneration,
-				durableExit: true,
-				failurePolicy: options?.failurePolicy,
-			}),
-		);
-	};
-
-	return {
-		runEnterCommand: (
-			command: string,
-			options?: { rollbackExitCommand?: string },
-		) =>
-			closed || disposed
-				? Promise.resolve(false)
-				: (() => {
-						pendingEnterOperations += 1;
-						const operationGeneration = workGeneration;
-						return enqueueSerialized(async () => {
-							try {
-								return await runCommands({
-									commands: [command],
-									commandKind: 'enter',
-									operationGeneration,
-									rollbackExitCommand: options?.rollbackExitCommand,
-								});
-							} finally {
-								pendingEnterOperations -= 1;
-							}
-						});
-					})(),
-		enqueueScrollBatch: (commands: WorkmuxScrollbackPageCommand[]) => {
-			if (closed || disposed) return Promise.resolve(false);
-			if (commands.length === 0) return Promise.resolve(true);
-			const promise = new Promise<boolean>((resolve) => {
-				if (pendingScrollBatch && pendingScrollBatch.generation === workGeneration) {
-					pendingScrollBatch.commands =
-						coalesceWorkmuxScrollbackPendingPageCommands([
-							...pendingScrollBatch.commands,
-							...commands,
-						]);
-					pendingScrollBatch.resolvers.push(resolve);
-					return;
-				}
-				clearPendingScrollBatches();
-				pendingScrollBatch = {
-					commands: mergeWorkmuxScrollbackPageCommands(commands),
-					generation: workGeneration,
-					resolvers: [resolve],
-				};
-			});
-
-			if (!scrollDrainQueued) {
-				scrollDrainQueued = true;
-				void enqueueSerialized(async () => {
-					scrollDrainQueued = false;
-					if (disposed) {
-						clearPendingScrollBatches();
-						return false;
-					}
-					const batch = pendingScrollBatch;
-					pendingScrollBatch = null;
-					if (!batch) return true;
-					let success = false;
-					try {
-						success = await runScrollCommands({
-							commands: batch.commands,
-							operationGeneration: batch.generation,
-						});
-					} finally {
-						for (const resolve of batch.resolvers) {
-							resolve(success);
-						}
-					}
-					return success;
-				});
-			}
-
-			return promise;
-		},
-		reset,
-		dispose: (options?: { exitCommand?: string }) => {
-			closed = true;
-			const exit = reset({
-				exitCommand: options?.exitCommand,
-				failurePolicy: 'suppress',
-			});
-			if (exit) {
-				void exit.finally(() => {
-					disposed = true;
-				});
-			} else {
-				disposed = true;
-			}
-			return exit;
-		},
-	};
-}
-
-export function createTmuxScrollbackLineAccumulator(): TmuxScrollbackLineAccumulator {
-	return {
-		direction: null,
-		lines: 0,
-	};
-}
-
-export function clearTmuxScrollbackLineAccumulator(
-	lineAccumulator: TmuxScrollbackLineAccumulator,
-): void {
-	lineAccumulator.direction = null;
-	lineAccumulator.lines = 0;
-}
+export {
+	createWorkmuxScrollbackCommandExecutor,
+	formatWorkmuxScrollbackCommandFailureMessage,
+	type WorkmuxScrollbackCommandExecutor,
+	type WorkmuxScrollbackCommandResult,
+	type WorkmuxScrollbackFailureContext,
+	type WorkmuxScrollbackFailurePolicy,
+} from './workmux-scrollback-executor';
 
 export function resetTmuxScrollbackRuntimeState({
 	lineAccumulator,
@@ -432,117 +70,6 @@ export function resetTmuxScrollbackRuntimeState({
 			exitCommand: remoteCopyModeExitCommand,
 			failurePolicy,
 		}) ?? null
-	);
-}
-
-export function accumulateWorkmuxScrollbackBatchCommands({
-	sessionName,
-	direction,
-	pages,
-	lines,
-	linesPerPage,
-	lineAccumulator,
-}: {
-	sessionName: string;
-	direction: WorkmuxScrollDirection;
-	pages: number;
-	lines: number;
-	linesPerPage: number;
-	lineAccumulator: TmuxScrollbackLineAccumulator;
-}): WorkmuxScrollbackPageCommand[] {
-	const explicitPageCount = truncateNonNegativeInteger(pages);
-	const lineCount = truncateNonNegativeInteger(lines);
-	const pageSize = Math.max(1, truncateNonNegativeInteger(linesPerPage));
-	const signedPreviousLines =
-		lineAccumulator.direction === 'up'
-			? lineAccumulator.lines
-			: -lineAccumulator.lines;
-	const signedBatchDirection = direction === 'up' ? 1 : -1;
-	const signedBatchLines =
-		signedBatchDirection * (explicitPageCount * pageSize + lineCount);
-	const signedTotalLines = signedPreviousLines + signedBatchLines;
-	const totalDirection =
-		signedTotalLines >= 0 ? 'up' : ('down' as WorkmuxScrollDirection);
-	const totalLines = Math.abs(signedTotalLines);
-	const pageCount = Math.min(
-		Math.trunc(totalLines / pageSize),
-		TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
-	);
-	const leftoverLines = totalLines % pageSize;
-
-	lineAccumulator.direction = leftoverLines === 0 ? null : totalDirection;
-	lineAccumulator.lines = leftoverLines;
-
-	if (pageCount === 0) return [];
-
-	const commands: WorkmuxScrollbackPageCommand[] = [];
-	for (
-		let remainingPages = pageCount;
-		remainingPages > 0;
-		remainingPages -= WORKMUX_APP_SCROLL_MAX_COUNT
-	) {
-		commands.push({
-			sessionName,
-			direction: totalDirection,
-			count: Math.min(remainingPages, WORKMUX_APP_SCROLL_MAX_COUNT),
-		});
-	}
-	return commands;
-}
-
-export function formatWorkmuxScrollbackCommandFailureMessage(result: {
-	success: boolean;
-	output: string;
-	error?: string;
-}): string | null {
-	if (result.success) return null;
-	return formatWorkmuxAppBoundaryFailureMessage(
-		result.error || result.output || '',
-	);
-}
-
-async function runSingleCommand(
-	command: string,
-	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>,
-): Promise<WorkmuxScrollbackCommandResult> {
-	try {
-		return await executeCommand(command);
-	} catch (error) {
-		return {
-			success: false,
-			output: '',
-			error: error instanceof Error ? error.message : String(error),
-		};
-	}
-}
-
-function truncateNonNegativeInteger(value: number): number {
-	if (!Number.isFinite(value)) return 0;
-	return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.trunc(value)));
-}
-
-function isValidScrollbackBatchEvent(event: {
-	direction: unknown;
-	pages: unknown;
-	lines: unknown;
-	pageStep: unknown;
-}): event is {
-	direction: WorkmuxScrollDirection;
-	pages: number;
-	lines: number;
-	pageStep: number;
-} {
-	return (
-		(event.direction === 'up' || event.direction === 'down') &&
-		typeof event.pages === 'number' &&
-		Number.isFinite(event.pages) &&
-		event.pages >= 0 &&
-		typeof event.lines === 'number' &&
-		Number.isFinite(event.lines) &&
-		event.lines >= 0 &&
-		typeof event.pageStep === 'number' &&
-		Number.isFinite(event.pageStep) &&
-		event.pageStep > 0
 	);
 }
 

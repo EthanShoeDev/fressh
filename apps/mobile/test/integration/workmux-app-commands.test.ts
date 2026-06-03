@@ -368,6 +368,10 @@ void test('workmux app update message is explicit', () => {
 	);
 	assert.equal(
 		formatWorkmuxAppCommandFailureMessage('permission denied'),
-		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+		'permission denied',
+	);
+	assert.equal(
+		formatWorkmuxAppCommandFailureMessage('  tmux session not found  '),
+		'tmux session not found',
 	);
 });
