@@ -15,7 +15,8 @@ use std::ffi::{c_char, c_void, CStr};
 use std::slice;
 
 use fressh_core::{runtime, send_data, shell_term};
-use fressh_render::{EglContext, TerminalConfig};
+use fressh_render::{ColorScheme, CursorStyle, EglContext, TerminalConfig};
+use serde::Deserialize;
 
 /// Per-frame draw outcome, tracked so we can log on *transitions* only (the draw
 /// loop runs at vsync — logging every frame would flood logcat). Purely diagnostic.
@@ -29,8 +30,57 @@ enum DrawState {
 /// Opaque handle returned to the native view. `shell_id == None` until bound.
 pub struct AttachedTerminal {
 	egl: EglContext,
+	/// Resolved bundled-font path, kept so live config updates can rebuild the
+	/// glyph cache without RN re-sending it.
+	font_path: String,
 	shell_id: Option<String>,
 	last_state: Option<DrawState>,
+}
+
+/// The render config as it crosses the C-ABI: a JSON blob assembled by the Kotlin
+/// view from the RN `<Terminal config={...}>` prop. All fields optional (missing →
+/// renderer default). Sizes are PHYSICAL px — the JS wrapper already scaled logical
+/// pt by device pixel density. This is the "assemble config in RN, pass it" seam.
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct WireConfig {
+	font_size_px: f32,
+	padding_x_px: f32,
+	padding_y_px: f32,
+	cursor_style: String,
+	color_scheme: String,
+	bold_is_bright: Option<bool>,
+}
+
+/// Parse a `WireConfig` JSON blob (null/empty/invalid → defaults) and fold it onto
+/// a [`TerminalConfig`] with the given resolved `font_path`.
+fn build_config(font_path: String, config_json: *const c_char) -> TerminalConfig {
+	let wire: WireConfig = cstr_opt(config_json)
+		.and_then(|s| match serde_json::from_str::<WireConfig>(&s) {
+			Ok(w) => Some(w),
+			Err(err) => {
+				log::warn!("fressh_terminal: config parse failed: {err}; using defaults");
+				None
+			}
+		})
+		.unwrap_or_default();
+
+	let mut config = TerminalConfig { font_path, ..TerminalConfig::default() };
+	if wire.font_size_px > 0.0 {
+		config.font_size_pt = wire.font_size_px;
+	}
+	config.padding_x = wire.padding_x_px.max(0.0);
+	config.padding_y = wire.padding_y_px.max(0.0);
+	if !wire.cursor_style.is_empty() {
+		config.cursor_style = CursorStyle::from_wire(&wire.cursor_style);
+	}
+	if !wire.color_scheme.is_empty() {
+		config.colors = ColorScheme::by_name(&wire.color_scheme);
+	}
+	if let Some(bold) = wire.bold_is_bright {
+		config.draw_bold_text_with_bright_colors = bold;
+	}
+	config
 }
 
 /// Read a C string, treating null/empty as `None`.
@@ -51,13 +101,13 @@ fn cstr_opt(ptr: *const c_char) -> Option<String> {
 /// bind it to `shell_id`. Returns null on failure (see logcat).
 ///
 /// # Safety
-/// `window` must be a valid `ANativeWindow*`. `font_path`/`shell_id` must each be
-/// a valid NUL-terminated C string or null.
+/// `window` must be a valid `ANativeWindow*`. `font_path`/`config_json`/`shell_id`
+/// must each be a valid NUL-terminated C string or null.
 #[no_mangle]
 pub unsafe extern "C" fn fressh_terminal_attach(
 	window: *mut c_void,
 	font_path: *const c_char,
-	font_size_px: f32,
+	config_json: *const c_char,
 	shell_id: *const c_char,
 ) -> *mut AttachedTerminal {
 	android_logger::init_once(
@@ -66,16 +116,13 @@ pub unsafe extern "C" fn fressh_terminal_attach(
 
 	let font_path = cstr_opt(font_path).unwrap_or_default();
 	let shell_id = cstr_opt(shell_id);
-	let mut config = TerminalConfig { font_path, ..TerminalConfig::default() };
-	if font_size_px > 0.0 {
-		config.font_size_pt = font_size_px;
-	}
+	let config = build_config(font_path.clone(), config_json);
 
-	log::info!("fressh_terminal_attach: shell_id={shell_id:?}");
+	log::info!("fressh_terminal_attach: shell_id={shell_id:?} config={config:?}");
 	match EglContext::create(window, config) {
 		Ok(egl) => {
 			log::info!("fressh_terminal_attach: created, grid={:?}", egl.grid_size());
-			Box::into_raw(Box::new(AttachedTerminal { egl, shell_id, last_state: None }))
+			Box::into_raw(Box::new(AttachedTerminal { egl, font_path, shell_id, last_state: None }))
 		}
 		Err(err) => {
 			log::error!("fressh_terminal_attach failed: {err}");
@@ -102,27 +149,28 @@ pub unsafe extern "C" fn fressh_terminal_set_shell(
 	}
 }
 
-/// Change the font size (physical px) at runtime: rebuilds the glyph cache,
-/// reflows to the surface, and resizes the bound shell's PTY/`Term` to the new
-/// grid. Used by the `fontSize` view prop / settings.
+/// Apply a new render config (JSON, physical px) at runtime: swaps the palette,
+/// rebuilds the glyph cache if the font changed, applies padding/cursor, reflows
+/// to the surface, and resizes the bound shell's PTY/`Term` to the new grid. Used
+/// by the `<Terminal config={...}>` prop / settings. Live config changes are a
+/// bonus over desktop alacritty's restart-to-apply.
 ///
 /// # Safety
-/// `ptr` must be a non-null handle from [`fressh_terminal_attach`].
+/// `ptr` must be a non-null handle from [`fressh_terminal_attach`]; `config_json`
+/// a valid C string or null.
 #[no_mangle]
-pub unsafe extern "C" fn fressh_terminal_set_font_size(
+pub unsafe extern "C" fn fressh_terminal_set_config(
 	ptr: *mut AttachedTerminal,
-	font_size_px: f32,
+	config_json: *const c_char,
 ) {
 	// SAFETY: caller guarantees `ptr` is a live handle from attach.
 	let Some(attached) = (unsafe { ptr.as_mut() }) else {
 		return;
 	};
-	if font_size_px <= 0.0 {
-		return;
-	}
-	let (cols, rows) = attached.egl.set_font_size(font_size_px);
+	let config = build_config(attached.font_path.clone(), config_json);
+	let (cols, rows) = attached.egl.set_config(config);
 	attached.last_state = None;
-	log::info!("fressh_terminal_set_font_size: {font_size_px}px grid={cols}x{rows}");
+	log::info!("fressh_terminal_set_config: grid={cols}x{rows}");
 	if let Some(id) = attached.shell_id.clone() {
 		runtime::handle().spawn(async move {
 			let _ = fressh_core::resize(id, cols, rows).await;

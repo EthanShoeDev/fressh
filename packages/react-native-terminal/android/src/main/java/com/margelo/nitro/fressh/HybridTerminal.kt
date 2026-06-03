@@ -32,14 +32,16 @@ class HybridTerminal(
   // Prop: bundled monospace font file path (no fontconfig on mobile, §6).
   override var fontPath: String = ""
 
-  // Prop: font size in logical points. We scale by device density to physical px
-  // for the renderer (which has no DPI awareness). Live changes rebuild the glyph
-  // cache + reflow the shell.
-  override var fontSize: Double? = null
+  // Prop: render config as a JSON blob (physical px), assembled by the JS
+  // <Terminal config={...}> wrapper. Carries color scheme, padding, cursor style,
+  // bold-is-bright, font size. Live changes reflow the shell — a bonus over
+  // desktop alacritty's restart-to-apply. We just forward the string; the renderer
+  // parses + diffs it.
+  override var configJson: String? = null
     set(value) {
       field = value
       if (nativeHandle != 0L) {
-        nativeSetFontSize(nativeHandle, physicalFontSizePx())
+        nativeSetConfig(nativeHandle, value)
       }
     }
 
@@ -53,17 +55,11 @@ class HybridTerminal(
       }
     }
 
-  /** logical points → physical px (the renderer works in physical px). */
-  private fun physicalFontSizePx(): Float {
-    val logical = fontSize?.takeIf { it > 0.0 } ?: DEFAULT_LOGICAL_FONT_SIZE
-    return (logical * context.resources.displayMetrics.density).toFloat()
-  }
-
   init {
     surfaceView.holder.addCallback(
       object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {
-          nativeHandle = nativeAttach(holder.surface, resolveFontPath(), physicalFontSizePx(), shellId)
+          nativeHandle = nativeAttach(holder.surface, resolveFontPath(), configJson, shellId)
           if (nativeHandle != 0L) startRenderLoop()
         }
 
@@ -119,13 +115,13 @@ class HybridTerminal(
   private external fun nativeAttach(
     surface: Surface,
     fontPath: String,
-    fontSize: Float,
+    configJson: String?,
     shellId: String?,
   ): Long
 
   private external fun nativeSetShell(handle: Long, shellId: String?)
 
-  private external fun nativeSetFontSize(handle: Long, fontSize: Float)
+  private external fun nativeSetConfig(handle: Long, configJson: String?)
 
   private external fun nativeDraw(handle: Long)
 
@@ -136,9 +132,6 @@ class HybridTerminal(
   private external fun nativeDestroy(handle: Long)
 
   companion object {
-    /** Default terminal font size (logical points) when the prop is unset. */
-    private const val DEFAULT_LOGICAL_FONT_SIZE = 16.0
-
     init {
       System.loadLibrary("ReactNativeTerminal")
     }

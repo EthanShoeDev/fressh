@@ -14,6 +14,7 @@ import {
 } from '@fressh/react-native-terminal';
 import { create } from 'zustand';
 import { rootLogger } from './logger';
+import { preferences } from './preferences';
 
 const logger = rootLogger.extend('SshStore');
 
@@ -56,7 +57,6 @@ export type ConnectArgs = {
 		| { type: 'key'; privateKey: string };
 };
 
-const DEFAULT_SCROLLBACK = 10_000;
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 
@@ -99,7 +99,9 @@ export const useSshStore = create<SshRegistryStore>((set) => {
 					term: TerminalType.Xterm256,
 					cols: opts?.cols ?? DEFAULT_COLS,
 					rows: opts?.rows ?? DEFAULT_ROWS,
-					scrollbackLines: DEFAULT_SCROLLBACK,
+					// Read at shell-creation time: scrollback is a control-plane,
+						// creation-only knob (ring buffer allocated in fressh-core).
+						scrollbackLines: preferences.terminalScrollback.get(),
 				});
 				const shell = makeShell(shellId, connectionId);
 				set((s) => ({ shells: { ...s.shells, [shellId]: shell } }));

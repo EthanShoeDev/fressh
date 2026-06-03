@@ -36,7 +36,7 @@ pub mod egl;
 #[cfg(target_os = "android")]
 pub use egl::EglContext;
 
-pub use config::{ColorScheme, Palette, TerminalConfig};
+pub use config::{ColorScheme, CursorStyle, Palette, TerminalConfig};
 pub use content::renderable_cells;
 pub use driver::{RenderError, TerminalRenderer};
 

@@ -24,10 +24,10 @@ namespace jni = facebook::jni;
 // ─────────────────────────── render plane (C-ABI) ───────────────────────────
 
 extern "C" {
-void *fressh_terminal_attach(void *window, const char *font_path, float font_size,
-                             const char *shell_id);
+void *fressh_terminal_attach(void *window, const char *font_path,
+                             const char *config_json, const char *shell_id);
 void fressh_terminal_set_shell(void *handle, const char *shell_id);
-void fressh_terminal_set_font_size(void *handle, float font_size);
+void fressh_terminal_set_config(void *handle, const char *config_json);
 void fressh_terminal_draw(void *handle);
 void fressh_terminal_resize(void *handle);
 void fressh_terminal_send_input(void *handle, const uint8_t *data, size_t len);
@@ -55,20 +55,23 @@ const char *orNull(JNIEnv *env, jstring s, const char **owned) {
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_margelo_nitro_fressh_HybridTerminal_nativeAttach(
     JNIEnv *env, jobject /* this */, jobject surface, jstring font_path,
-    jfloat font_size, jstring shell_id) {
+    jstring config_json, jstring shell_id) {
   ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
   if (window == nullptr) {
     return 0;
   }
 
   const char *fontOwned = nullptr;
+  const char *configOwned = nullptr;
   const char *shellOwned = nullptr;
   const char *font = orNull(env, font_path, &fontOwned);
+  const char *config = orNull(env, config_json, &configOwned);
   const char *shell = orNull(env, shell_id, &shellOwned);
 
-  void *rust = fressh_terminal_attach(window, font, font_size, shell);
+  void *rust = fressh_terminal_attach(window, font, config, shell);
 
   if (fontOwned) env->ReleaseStringUTFChars(font_path, fontOwned);
+  if (configOwned) env->ReleaseStringUTFChars(config_json, configOwned);
   if (shellOwned) env->ReleaseStringUTFChars(shell_id, shellOwned);
 
   if (rust == nullptr) {
@@ -91,10 +94,14 @@ Java_com_margelo_nitro_fressh_HybridTerminal_nativeSetShell(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_margelo_nitro_fressh_HybridTerminal_nativeSetFontSize(
-    JNIEnv * /* env */, jobject /* this */, jlong handle, jfloat font_size) {
+Java_com_margelo_nitro_fressh_HybridTerminal_nativeSetConfig(
+    JNIEnv *env, jobject /* this */, jlong handle, jstring config_json) {
   auto *h = reinterpret_cast<TerminalHandle *>(handle);
-  if (h != nullptr) fressh_terminal_set_font_size(h->rust, font_size);
+  if (h == nullptr) return;
+  const char *owned = nullptr;
+  const char *config = orNull(env, config_json, &owned);
+  fressh_terminal_set_config(h->rust, config);
+  if (owned) env->ReleaseStringUTFChars(config_json, owned);
 }
 
 extern "C" JNIEXPORT void JNICALL

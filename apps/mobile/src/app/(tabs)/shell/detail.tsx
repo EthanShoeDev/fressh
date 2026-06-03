@@ -26,7 +26,7 @@ import {
 	type ViewStyle,
 } from 'react-native';
 import { rootLogger } from '@/lib/logger';
-import { preferences } from '@/lib/preferences';
+import { useTerminalRenderConfig } from '@/lib/preferences';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
 import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
@@ -109,8 +109,7 @@ function ShellDetail() {
 		),
 	);
 	const connection = useSshStore((s) => s.connections[connectionId]);
-	const [terminalFontSize] =
-		preferences.terminalFontSize.useTerminalFontSizePref();
+	const terminalConfig = useTerminalRenderConfig();
 
 	useEffect(() => {
 		if (shell && connection) {
@@ -229,7 +228,7 @@ function ShellDetail() {
 									<Terminal
 										shellId={shell.shellId}
 										fontPath=''
-										fontSize={terminalFontSize}
+										config={terminalConfig}
 										style={{ flex: 1 }}
 									/>
 								</Pressable>

@@ -19,11 +19,14 @@ export interface TerminalProps extends HybridViewProps {
 	/** Path to a bundled monospace font file (no fontconfig on mobile, §6). */
 	fontPath: string;
 	/**
-	 * Font size in **logical points**. The Kotlin view scales this by the device
-	 * pixel density before handing physical px to the renderer. Omit (or 0) for
-	 * the default. Changing it live rebuilds the glyph cache and reflows the shell.
+	 * Render config as a JSON blob, **already in physical px** (the JS `<Terminal
+	 * config={...}>` wrapper scales logical pt by device pixel density and
+	 * serializes here). Carries `fontSizePx`, `paddingXPx`/`paddingYPx`,
+	 * `cursorStyle`, `colorScheme`, `boldIsBright`. Crossing the cxx seam as a
+	 * single string keeps prop delivery on the proven scalar path. Changing it live
+	 * reflows the shell — a bonus over desktop alacritty's restart-to-apply.
 	 */
-	fontSize?: number;
+	configJson?: string;
 	/**
 	 * The durable shell to render, from `startShell`. When unset, the view draws
 	 * a cleared (background-only) frame; set it once the shell id is known.

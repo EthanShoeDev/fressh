@@ -1,7 +1,13 @@
 // Public API for @fressh/react-native-terminal.
 // Replaces @fressh/react-native-uniffi-russh + @fressh/react-native-xtermjs-webview.
 
-export { Terminal, type TerminalRef } from './Terminal';
+export {
+	Terminal,
+	type CursorStyle,
+	type TerminalComponentProps,
+	type TerminalRef,
+	type TerminalRenderConfig,
+} from './Terminal';
 export type { TerminalMethods, TerminalProps } from '../nitro/Terminal.nitro';
 
 // Control plane (§10): connect/shell lifecycle + key helpers + the event stream.

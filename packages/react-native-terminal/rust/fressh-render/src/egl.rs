@@ -110,17 +110,13 @@ impl EglContext {
 		let _ = self.egl.swap_buffers(self.display, self.surface);
 	}
 
-	/// Replace the renderer config (palette/font) at runtime, e.g. from RN props.
-	pub fn set_config(&mut self, config: TerminalConfig) {
-		self.renderer.set_palette(config);
-	}
-
-	/// Change the font size (physical px) at runtime: rebuild the glyph cache and
-	/// reflow to the surface. Returns the resulting grid `(columns, rows)` so the
-	/// caller can resize the PTY/`Term`. On failure, keeps the current font.
-	pub fn set_font_size(&mut self, font_size_pt: f32) -> (usize, usize) {
-		if let Err(err) = self.renderer.rebuild_font(font_size_pt) {
-			log::error!("set_font_size: rebuild_font failed: {err}");
+	/// Replace the renderer config at runtime (palette/font/padding/cursor), e.g.
+	/// from RN props. Rebuilds the glyph cache if the font changed and reflows to
+	/// the surface. Returns the resulting grid `(columns, rows)` so the caller can
+	/// resize the PTY/`Term`. On font-rebuild failure, keeps the current font.
+	pub fn set_config(&mut self, config: TerminalConfig) -> (usize, usize) {
+		if let Err(err) = self.renderer.apply_config(config) {
+			log::error!("set_config: apply_config failed: {err}");
 			return self.grid_size();
 		}
 		self.resize()

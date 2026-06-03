@@ -16,22 +16,45 @@ use alacritty_terminal::term::point_to_viewport;
 use alacritty_terminal::vte::ansi::{Color, CursorShape, NamedColor};
 use alacritty_terminal::Term;
 
-use crate::config::{dim, Palette};
+use crate::config::{dim, CursorStyle, Palette};
 
-/// Build the renderable cells for the terminal's current viewport.
+/// A non-block cursor to draw as rect(s) (beam/underline/hollow) after the cells.
+/// Block cursors are baked into the cell list (color inversion) and don't appear
+/// here. The viewport `point` + `color` are turned into pixel rects by the driver.
+pub struct CursorRender {
+	pub style: CursorStyle,
+	pub point: alacritty_terminal::index::Point<usize>,
+	pub color: Rgb,
+}
+
+/// Build the renderable cells for the terminal's current viewport, plus an
+/// optional non-block cursor to overlay as rects.
 ///
 /// Returns an owned `Vec` (one allocation per frame for now; a reusable buffer
-/// is a later optimization). `draw_bold_bright` mirrors the config option.
+/// is a later optimization). `draw_bold_bright` mirrors the config option;
+/// `cursor_style` overrides the shape we render (matching the embedder config —
+/// program DECSCUSR shape is intentionally ignored for predictability).
 pub fn renderable_cells<T: EventListener>(
 	term: &Term<T>,
 	palette: &Palette,
 	draw_bold_bright: bool,
-) -> Vec<RenderableCell> {
+	cursor_style: CursorStyle,
+) -> (Vec<RenderableCell>, Option<CursorRender>) {
 	let content = term.renderable_content();
 	let overrides = content.colors;
 	let display_offset = content.display_offset;
 	let cursor = content.cursor;
 	let cursor_visible = cursor.shape != CursorShape::Hidden;
+	let cursor_color = palette.color(overrides, NamedColor::Cursor as usize);
+
+	// Non-block cursors are overlaid as rects after the cells are drawn. Resolve
+	// the cursor's viewport position once (None if scrolled out of view).
+	let cursor_render = if cursor_visible && cursor_style != CursorStyle::Block {
+		point_to_viewport(display_offset, cursor.point)
+			.map(|point| CursorRender { style: cursor_style, point, color: cursor_color })
+	} else {
+		None
+	};
 
 	let mut cells = Vec::new();
 
@@ -77,11 +100,11 @@ pub fn renderable_cells<T: EventListener>(
 		};
 
 		let is_cursor = cursor_visible && indexed.point == cursor.point;
-		if is_cursor && cursor.shape == CursorShape::Block {
+		if is_cursor && cursor_style == CursorStyle::Block {
 			// Paint a block cursor: fill the cell with the cursor color and draw
 			// the glyph in the cell's background color.
 			cell.fg = bg;
-			cell.bg = palette.color(overrides, NamedColor::Cursor as usize);
+			cell.bg = cursor_color;
 			cell.bg_alpha = 1.0;
 			cells.push(cell);
 		} else if !is_empty(&cell) && !flags.contains(Flags::WIDE_CHAR_SPACER) {
@@ -89,7 +112,7 @@ pub fn renderable_cells<T: EventListener>(
 		}
 	}
 
-	cells
+	(cells, cursor_render)
 }
 
 /// Resolve a cell's foreground color (with dim/bold→bright handling).
@@ -169,7 +192,7 @@ mod tests {
 	use alacritty_terminal::vte::ansi::Processor;
 
 	use super::renderable_cells;
-	use crate::config::{ColorScheme, Palette};
+	use crate::config::{ColorScheme, CursorStyle, Palette};
 
 	struct NoopListener;
 	impl EventListener for NoopListener {}
@@ -201,7 +224,7 @@ mod tests {
 		parser.advance(&mut term, b"hi\x1b[31mX");
 
 		let palette = Palette::new(&ColorScheme::default());
-		let cells = renderable_cells(&term, &palette, true);
+		let (cells, _cursor) = renderable_cells(&term, &palette, true, CursorStyle::Block);
 
 		let row0: String =
 			cells.iter().filter(|c| c.point.line == 0).map(|c| c.character).collect();
