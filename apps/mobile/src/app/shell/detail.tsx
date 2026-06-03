@@ -835,6 +835,15 @@ function ShellDetail() {
 
 	const handleWorkmuxScrollbackCommandFailure = useCallback(
 		(message: string, context: WorkmuxScrollbackFailureContext) => {
+			if (!isFocusedRef.current || !isAppActiveRef.current) {
+				logger.warn(message);
+				if (context.commandKind === 'exit') {
+					clearLocalScrollbackUiState();
+				} else {
+					void clearScrollbackState({ failurePolicy: 'suppress' });
+				}
+				return;
+			}
 			handleShellWorkmuxScrollbackCommandFailureActions({
 				message,
 				alert: (title, alertMessage, buttons) =>
@@ -2142,10 +2151,14 @@ function ShellDetail() {
 		agentNotificationAckRequestIdRef.current += 1;
 		if (isFocused) {
 			void acknowledgeVisibleAgentNotification();
+		} else {
+			scrollbackEnterRequestGenerationRef.current += 1;
+			void clearScrollbackState({ failurePolicy: 'suppress' });
 		}
 	}, [
 		acknowledgeVisibleAgentNotification,
 		channelId,
+		clearScrollbackState,
 		connectionStoredConnectionId,
 		isFocused,
 		tmuxTarget,
@@ -2536,6 +2549,8 @@ function ShellDetail() {
 			const requestGeneration = scrollbackEnterRequestGenerationRef.current;
 			const isRequestCurrent = () =>
 				scrollbackEnterRequestGenerationRef.current === requestGeneration &&
+				isFocusedRef.current &&
+				isAppActiveRef.current &&
 				currentInstanceIdRef.current === event.instanceId;
 			await handleTmuxScrollbackEnterRequested({
 				event,
