@@ -14,6 +14,8 @@ type DirectBoundaryOccurrence = {
 
 const scannedRoots = [
 	path.join(repoRoot, 'apps/mobile/src'),
+	path.join(repoRoot, 'packages/react-native-xtermjs-webview/src'),
+	path.join(repoRoot, 'packages/react-native-xtermjs-webview/src-internal'),
 	path.join(
 		repoRoot,
 		'packages/react-native-uniffi-russh/rust/uniffi-russh/src',
