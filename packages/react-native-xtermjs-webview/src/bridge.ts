@@ -39,7 +39,7 @@ export type BridgeInboundMessage =
 			direction: 'up' | 'down';
 			pages: number;
 			lines: number;
-			pageStep: number;
+			pageStep?: number;
 			instanceId: string;
 			seq?: number;
 			ts?: number;
@@ -50,13 +50,27 @@ export type ScrollbackBatchBridgeMessage = Extract<
 	{ type: 'scrollbackBatch' | 'tmuxScrollBatch' }
 >;
 
-export type ScrollbackBatchEvent = Omit<ScrollbackBatchBridgeMessage, 'type'>;
-export type TmuxScrollBatchEvent = ScrollbackBatchEvent;
+export type ScrollbackBatchEvent = {
+	direction: 'up' | 'down';
+	pages: number;
+	lines: number;
+	pageStep: number;
+	instanceId: string;
+	seq?: number;
+	ts?: number;
+};
+export type TmuxScrollBatchEvent = Omit<
+	Extract<BridgeInboundMessage, { type: 'tmuxScrollBatch' }>,
+	'type'
+>;
 
 export function mapScrollbackBatchMessage(
 	msg: ScrollbackBatchBridgeMessage,
 ): ScrollbackBatchEvent {
-	const event = { ...msg } as ScrollbackBatchEvent & {
+	const event = {
+		...msg,
+		pageStep: msg.pageStep ?? 1,
+	} as ScrollbackBatchEvent & {
 		type?: ScrollbackBatchBridgeMessage['type'];
 	};
 	delete event.type;

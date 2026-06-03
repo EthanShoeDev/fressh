@@ -57,7 +57,7 @@ export type BridgeInboundMessage = {
     direction: 'up' | 'down';
     pages: number;
     lines: number;
-    pageStep: number;
+    pageStep?: number;
     instanceId: string;
     seq?: number;
     ts?: number;
@@ -65,8 +65,18 @@ export type BridgeInboundMessage = {
 export type ScrollbackBatchBridgeMessage = Extract<BridgeInboundMessage, {
     type: 'scrollbackBatch' | 'tmuxScrollBatch';
 }>;
-export type ScrollbackBatchEvent = Omit<ScrollbackBatchBridgeMessage, 'type'>;
-export type TmuxScrollBatchEvent = ScrollbackBatchEvent;
+export type ScrollbackBatchEvent = {
+    direction: 'up' | 'down';
+    pages: number;
+    lines: number;
+    pageStep: number;
+    instanceId: string;
+    seq?: number;
+    ts?: number;
+};
+export type TmuxScrollBatchEvent = Omit<Extract<BridgeInboundMessage, {
+    type: 'tmuxScrollBatch';
+}>, 'type'>;
 export declare function mapScrollbackBatchMessage(msg: ScrollbackBatchBridgeMessage): ScrollbackBatchEvent;
 export declare function handleScrollbackBatchBridgeMessage(msg: BridgeInboundMessage, onScrollbackBatch?: (event: ScrollbackBatchEvent) => void): msg is ScrollbackBatchBridgeMessage;
 export type TouchScrollConfig = {

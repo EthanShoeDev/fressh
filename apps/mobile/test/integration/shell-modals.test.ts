@@ -133,3 +133,58 @@ void test('stale Diffity completion does not clear newer in-flight request', asy
 	assert.deepEqual(openedUrls, ['https://diffity.example/new']);
 	assert.deepEqual(errors, []);
 });
+
+void test('browser action cleanup suppresses pending Diffity completion', async () => {
+	let currentId = 0;
+	const requestId: RequestIdHandle = {
+		next: () => {
+			currentId += 1;
+			return currentId;
+		},
+		isCurrent: (id) => id === currentId,
+		invalidate: () => {
+			currentId += 1;
+		},
+	};
+	const inFlightRef = { current: false };
+	const share = deferred<string>();
+	const openedUrls: string[] = [];
+	const errors: string[] = [];
+
+	assert.equal(
+		runHostDiffityOpenRequest({
+			hostDiffityInFlightRef: inFlightRef,
+			hostDiffityRequestId: requestId,
+			runDiffityShare: () => share.promise,
+			openAndroidUrl: async (url) => {
+				openedUrls.push(url);
+			},
+			showError: (_title, message) => {
+				errors.push(message);
+			},
+			getErrorMessage: (error) =>
+				error instanceof Error ? error.message : String(error),
+		}),
+		true,
+	);
+	assert.equal(inFlightRef.current, true);
+
+	cleanupBrowserActionRequests({
+		hostUrlReadRequestId: requestId,
+		hostUrlSubmitRequestId: requestId,
+		hostUrlSubmitInFlightRef: { current: true },
+		browserGitHubTargetRequestId: requestId,
+		hostDiffityRequestId: requestId,
+		hostDiffityInFlightRef: inFlightRef,
+		hostDetectedOpenRequestId: requestId,
+		hostDetectedOpenInFlightRef: { current: true },
+	});
+	assert.equal(inFlightRef.current, false);
+
+	share.resolve('https://diffity.example/backgrounded');
+	await share.promise;
+	await Promise.resolve();
+	assert.deepEqual(openedUrls, []);
+	assert.deepEqual(errors, []);
+	assert.equal(inFlightRef.current, false);
+});

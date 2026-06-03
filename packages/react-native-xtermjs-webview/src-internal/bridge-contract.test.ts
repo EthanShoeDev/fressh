@@ -103,6 +103,34 @@ void test('legacy tmuxScrollBatch bridge helper aliases scrollback batches', () 
 	]);
 });
 
+void test('legacy tmuxScrollBatch without pageStep defaults to one line page', () => {
+	const events: unknown[] = [];
+
+	assert.equal(
+		handleScrollbackBatchBridgeMessage(
+			{
+				type: 'tmuxScrollBatch',
+				direction: 'down',
+				pages: 3,
+				lines: 0,
+				instanceId: 'instance-legacy',
+			},
+			(event) => events.push(event),
+		),
+		true,
+	);
+
+	assert.deepEqual(events, [
+		{
+			direction: 'down',
+			pages: 3,
+			lines: 0,
+			pageStep: 1,
+			instanceId: 'instance-legacy',
+		},
+	]);
+});
+
 void test('XtermJsWebView message handler routes current instance events and drops stale ones', () => {
 	const events: unknown[] = [];
 	const currentInstanceIdRef = { current: null as string | null };

@@ -2480,6 +2480,7 @@ function ShellDetail() {
 			if (previousState === 'active') {
 				agentNotificationAckRequestIdRef.current += 1;
 				runtimeShellConfigReloadRequestIdRef.current += 1;
+				browserActions.invalidateAll();
 				workmuxKeyboardCommandRunner.invalidate();
 				if (isAndroid) {
 					lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
@@ -2489,7 +2490,12 @@ function ShellDetail() {
 		return () => {
 			subscription.remove();
 		};
-	}, [clearScrollbackState, systemKeyboardEnabled, workmuxKeyboardCommandRunner]);
+	}, [
+		browserActions,
+		clearScrollbackState,
+		systemKeyboardEnabled,
+		workmuxKeyboardCommandRunner,
+	]);
 
 	const enableSystemKeyboard = useCallback(() => {
 		if (Platform.OS !== 'android') return;
