@@ -2544,6 +2544,10 @@ function ShellDetail() {
 
 	const handleScrollbackEnterRequested = useCallback(
 		async (event: { instanceId: string; requestId: number }) => {
+			if (!isFocusedRef.current || !isAppActiveRef.current) {
+				clearLocalScrollbackUiState();
+				return;
+			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
 			scrollbackEnterRequestGenerationRef.current += 1;
 			const requestGeneration = scrollbackEnterRequestGenerationRef.current;
