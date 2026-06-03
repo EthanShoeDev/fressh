@@ -107,6 +107,8 @@ impl CommandStreamSession {
 
 impl CommandStreamSession {
     async fn close_internal(&self) -> Result<(), SshError> {
+        // Explicit app-requested close is caller-observed by this method's
+        // result. The Closed callback is reserved for remote/channel closure.
         self.writer.lock().await.close().await.ok();
         self.reader_task.abort();
         if let Some(parent) = self.parent.upgrade() {
@@ -144,6 +146,57 @@ fn command_stream_message_finishes_reader(message: Option<&ChannelMsg>) -> bool 
 
 fn command_stream_should_remain_registered_after_insert(reader_has_closed: bool) -> bool {
     !reader_has_closed
+}
+
+struct PreSessionChannelCloseGuard {
+    channel: Option<russh::Channel<client::Msg>>,
+}
+
+impl PreSessionChannelCloseGuard {
+    fn new(channel: russh::Channel<client::Msg>) -> Self {
+        Self {
+            channel: Some(channel),
+        }
+    }
+
+    fn channel(&self) -> &russh::Channel<client::Msg> {
+        self.channel
+            .as_ref()
+            .expect("pre-session channel guard missing channel")
+    }
+
+    fn channel_mut(&mut self) -> &mut russh::Channel<client::Msg> {
+        self.channel
+            .as_mut()
+            .expect("pre-session channel guard missing channel")
+    }
+
+    fn into_inner(mut self) -> russh::Channel<client::Msg> {
+        self.channel
+            .take()
+            .expect("pre-session channel guard missing channel")
+    }
+
+    async fn close(mut self) {
+        if let Some(channel) = self.channel.take() {
+            channel.close().await.ok();
+        }
+    }
+}
+
+impl Drop for PreSessionChannelCloseGuard {
+    fn drop(&mut self) {
+        if let Some(channel) = self.channel.take() {
+            tokio::spawn(async move {
+                channel.close().await.ok();
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+fn pre_session_channel_guard_should_close_on_drop(is_disarmed: bool) -> bool {
+    !is_disarmed
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -239,12 +292,13 @@ pub(crate) async fn run_command(
     connection: &SshConnection,
     options: RunCommandOptions,
 ) -> Result<CommandOutput, SshError> {
-    let mut channel = {
+    let channel = {
         let client_handle = connection.client_handle.lock().await;
         client_handle.channel_open_session().await?
     };
-    channel.exec(true, options.command).await?;
-    let buffered_messages = wait_for_exec_request_success(&mut channel).await?;
+    let mut channel_guard = PreSessionChannelCloseGuard::new(channel);
+    channel_guard.channel().exec(true, options.command).await?;
+    let buffered_messages = wait_for_exec_request_success(channel_guard.channel_mut()).await?;
 
     let mut collector = CommandOutputCollector::default();
     let mut is_closed = false;
@@ -257,7 +311,7 @@ pub(crate) async fn run_command(
     }
 
     while !is_closed {
-        let Some(message) = channel.wait().await else {
+        let Some(message) = channel_guard.channel_mut().wait().await else {
             break;
         };
         if record_command_output_message(&mut collector, message) {
@@ -265,7 +319,7 @@ pub(crate) async fn run_command(
         }
     }
 
-    channel.close().await.ok();
+    channel_guard.close().await;
     Ok(collector.finish())
 }
 
@@ -274,13 +328,15 @@ pub(crate) async fn start_command_stream(
     options: StartCommandStreamOptions,
 ) -> Result<Arc<CommandStreamSession>, SshError> {
     let started_at_ms = now_ms();
-    let mut channel = {
+    let channel = {
         let client_handle = connection.client_handle.lock().await;
         client_handle.channel_open_session().await?
     };
-    let channel_id: u32 = channel.id().into();
-    channel.exec(true, options.command).await?;
-    let buffered_messages = wait_for_exec_request_success(&mut channel).await?;
+    let mut channel_guard = PreSessionChannelCloseGuard::new(channel);
+    let channel_id: u32 = channel_guard.channel().id().into();
+    channel_guard.channel().exec(true, options.command).await?;
+    let buffered_messages = wait_for_exec_request_success(channel_guard.channel_mut()).await?;
+    let channel = channel_guard.into_inner();
 
     let (mut reader, writer) = channel.split();
     let callback = options.on_event_callback.clone();
@@ -398,5 +454,11 @@ mod tests {
             Some(ExecRequestReply::Failure)
         );
         assert_eq!(classify_exec_request_reply(&ChannelMsg::Eof), None);
+    }
+
+    #[test]
+    fn pre_session_channel_guard_closes_until_disarmed() {
+        assert!(pre_session_channel_guard_should_close_on_drop(false));
+        assert!(!pre_session_channel_guard_should_close_on_drop(true));
     }
 }
