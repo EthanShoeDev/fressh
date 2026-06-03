@@ -16,7 +16,6 @@ import {
 } from '@/lib/browser-actions-controller-actions';
 import { cleanupBrowserActionRequests } from '@/lib/browser-actions-request-cleanup';
 import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
-import { createHostDiffityRequestController } from '@/lib/host-diffity-request-controller';
 import {
 	formatWorkmuxAppCommandFailureMessage,
 	isWorkmuxAppCommand,
@@ -792,12 +791,9 @@ export function useBrowserActionsController<TConnection>(
 	);
 
 	const handleOpenHostDiffity = useCallback(() => {
-		const controller = createHostDiffityRequestController({
-			requestId: hostDiffityRequestId,
-			inFlightRef: hostDiffityInFlightRef,
-		});
-		const id = controller.start();
-		if (id == null) return;
+		if (hostDiffityInFlightRef.current) return;
+		const id = hostDiffityRequestId.next();
+		hostDiffityInFlightRef.current = true;
 		void (async () => {
 			try {
 				const output = await runBrowserActionsDiffityShare({
@@ -812,13 +808,15 @@ export function useBrowserActionsController<TConnection>(
 						output || 'mdev diffity share did not return an HTTPS URL.',
 					);
 				}
-				if (!controller.isCurrent(id)) return;
+				if (!hostDiffityRequestId.isCurrent(id)) return;
 				await openAndroidUrl(url);
 			} catch (err) {
-				if (!controller.isCurrent(id)) return;
+				if (!hostDiffityRequestId.isCurrent(id)) return;
 				showError('Diffity failed', getErrorMessage(err));
 			} finally {
-				controller.finish(id);
+				if (hostDiffityRequestId.isCurrent(id)) {
+					hostDiffityInFlightRef.current = false;
+				}
 			}
 		})();
 	}, [

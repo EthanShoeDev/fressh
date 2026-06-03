@@ -2,23 +2,27 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-	buildWorkmuxScrollbackLiveInputSendPlan,
-	createTmuxScrollbackLocalExitRequest,
-	createWorkmuxScrollbackLiveInputCleanupBarrier,
-	createWorkmuxScrollbackCommandExecutor,
-	createTmuxScrollbackLineAccumulator,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
 	handleTmuxScrollbackEnterRequested,
-	registerTmuxScrollbackLocalExitRequest,
-	registerWorkmuxScrollbackLiveInputCleanup,
-	resetTmuxScrollbackLocalExitRequests,
 	resetTmuxScrollbackRuntimeState,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	resolveTmuxScrollbackEnterRequest,
-	resolveWorkmuxScrollbackLiveInputCleanup,
-	TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
 } from '../../src/lib/tmux-scrollback';
+import {
+	createTmuxScrollbackLocalExitRequest,
+	registerTmuxScrollbackLocalExitRequest,
+	resetTmuxScrollbackLocalExitRequests,
+	TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT,
+} from '../../src/lib/tmux-scrollback-local-exit';
+import { createTmuxScrollbackLineAccumulator } from '../../src/lib/workmux-scrollback-batch';
+import { createWorkmuxScrollbackCommandExecutor } from '../../src/lib/workmux-scrollback-executor';
+import {
+	buildWorkmuxScrollbackLiveInputSendPlan,
+	createWorkmuxScrollbackLiveInputCleanupBarrier,
+	registerWorkmuxScrollbackLiveInputCleanup,
+	resolveWorkmuxScrollbackLiveInputCleanup,
+} from '../../src/lib/workmux-scrollback-live-input';
 
 const bytes = (values: number[]) => new Uint8Array(values);
 const segmentValues = (segments: readonly Uint8Array<ArrayBuffer>[]) =>

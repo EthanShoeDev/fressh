@@ -2,13 +2,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-	createWorkmuxScrollbackLiveInputCleanupBarrier,
-	createWorkmuxScrollbackCommandExecutor,
-	createTmuxScrollbackLineAccumulator,
 	registerTmuxScrollbackRemoteCopyModeExitCleanup,
 	resetTmuxScrollbackRuntimeState,
-	type WorkmuxScrollbackPageCommand,
 } from '../../src/lib/tmux-scrollback';
+import {
+	createTmuxScrollbackLineAccumulator,
+	type WorkmuxScrollbackPageCommand,
+} from '../../src/lib/workmux-scrollback-batch';
+import {
+	createWorkmuxScrollbackCommandExecutor,
+} from '../../src/lib/workmux-scrollback-executor';
+import {
+	createWorkmuxScrollbackLiveInputCleanupBarrier,
+} from '../../src/lib/workmux-scrollback-live-input';
 
 const page = (
 	count = 1,

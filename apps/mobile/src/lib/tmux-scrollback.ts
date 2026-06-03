@@ -19,40 +19,6 @@ import {
 	type WorkmuxScrollbackLiveInputCleanupBarrier,
 } from './workmux-scrollback-live-input';
 
-export {
-	accumulateWorkmuxScrollbackBatchCommands,
-	clearTmuxScrollbackLineAccumulator,
-	createTmuxScrollbackLineAccumulator,
-	mergeWorkmuxScrollbackPageCommands,
-	TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES,
-	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
-	type TmuxScrollbackLineAccumulator,
-	type WorkmuxScrollbackPageCommand,
-} from './workmux-scrollback-batch';
-export {
-	createTmuxScrollbackLocalExitRequest,
-	registerTmuxScrollbackLocalExitRequest,
-	resetTmuxScrollbackLocalExitRequests,
-	TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT,
-} from './tmux-scrollback-local-exit';
-export {
-	buildWorkmuxScrollbackLiveInputSendPlan,
-	createWorkmuxScrollbackLiveInputCleanupBarrier,
-	registerWorkmuxScrollbackLiveInputCleanup,
-	resolveWorkmuxScrollbackLiveInputCleanup,
-	runWorkmuxScrollbackLiveInputSendPlan,
-	type WorkmuxScrollbackLiveInputCleanupBarrier,
-	type WorkmuxScrollbackLiveInputSendPlan,
-} from './workmux-scrollback-live-input';
-export {
-	createWorkmuxScrollbackCommandExecutor,
-	formatWorkmuxScrollbackCommandFailureMessage,
-	type WorkmuxScrollbackCommandExecutor,
-	type WorkmuxScrollbackCommandResult,
-	type WorkmuxScrollbackFailureContext,
-	type WorkmuxScrollbackFailurePolicy,
-} from './workmux-scrollback-executor';
-
 export function resetTmuxScrollbackRuntimeState({
 	lineAccumulator,
 	commandExecutor,

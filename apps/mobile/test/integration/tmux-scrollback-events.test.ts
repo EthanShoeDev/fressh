@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { handleTmuxScrollbackBatchEvent } from '../../src/lib/tmux-scrollback';
 import {
 	createTmuxScrollbackLineAccumulator,
-	createWorkmuxScrollbackCommandExecutor,
-	handleTmuxScrollbackBatchEvent,
 	type WorkmuxScrollbackPageCommand,
-} from '../../src/lib/tmux-scrollback';
+} from '../../src/lib/workmux-scrollback-batch';
+import { createWorkmuxScrollbackCommandExecutor } from '../../src/lib/workmux-scrollback-executor';
 
 void test('scrollback batch adapter gates events and passes pageStep into command building', async () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();

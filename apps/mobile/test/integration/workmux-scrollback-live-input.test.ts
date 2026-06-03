@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
 	buildWorkmuxScrollbackLiveInputSendPlan,
 	runWorkmuxScrollbackLiveInputSendPlan,
-} from '../../src/lib/tmux-scrollback';
+} from '../../src/lib/workmux-scrollback-live-input';
 
 const bytes = (values: number[]) => new Uint8Array(values);
 const segmentValues = (segments: readonly Uint8Array<ArrayBuffer>[]) =>

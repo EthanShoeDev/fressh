@@ -1,16 +1,16 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { resetTmuxScrollbackRuntimeState } from '../../src/lib/tmux-scrollback';
+import { WORKMUX_APP_SCROLL_MAX_COUNT } from '../../src/lib/workmux-app-commands';
 import {
 	accumulateWorkmuxScrollbackBatchCommands,
 	clearTmuxScrollbackLineAccumulator,
 	createTmuxScrollbackLineAccumulator,
-	formatWorkmuxScrollbackCommandFailureMessage,
 	mergeWorkmuxScrollbackPageCommands,
-	resetTmuxScrollbackRuntimeState,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
-} from '../../src/lib/tmux-scrollback';
-import { WORKMUX_APP_SCROLL_MAX_COUNT } from '../../src/lib/workmux-app-commands';
+} from '../../src/lib/workmux-scrollback-batch';
+import { formatWorkmuxScrollbackCommandFailureMessage } from '../../src/lib/workmux-scrollback-executor';
 
 void test('accumulateWorkmuxScrollbackBatchCommands builds page scroll commands', () => {
 	assert.deepEqual(

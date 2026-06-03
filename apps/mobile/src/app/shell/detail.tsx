@@ -102,21 +102,16 @@ import {
 } from '@/lib/terminal-input-payloads';
 import { useTheme } from '@/lib/theme';
 import {
-	createWorkmuxScrollbackLiveInputCleanupBarrier,
-	createWorkmuxScrollbackCommandExecutor,
-	createTmuxScrollbackLineAccumulator,
-	createTmuxScrollbackLocalExitRequest,
 	disposeTmuxScrollbackRuntimeStateForUiReset,
-	buildWorkmuxScrollbackLiveInputSendPlan,
 	handleTmuxScrollbackBatchEvent,
 	handleTmuxScrollbackEnterRequested,
-	resetTmuxScrollbackLocalExitRequests,
-	runWorkmuxScrollbackLiveInputSendPlan,
 	resetTmuxScrollbackRuntimeStateForUiReset,
 	shouldRunTmuxScrollbackRemoteResetForModeChange,
-	type WorkmuxScrollbackCommandExecutor,
-	type WorkmuxScrollbackFailureContext,
 } from '@/lib/tmux-scrollback';
+import {
+	createTmuxScrollbackLocalExitRequest,
+	resetTmuxScrollbackLocalExitRequests,
+} from '@/lib/tmux-scrollback-local-exit';
 import { queryClient } from '@/lib/utils';
 import {
 	canStartWisprTextEntryAutomation,
@@ -137,6 +132,17 @@ import {
 } from '@/lib/wispr-automation';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
 import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
+import { createTmuxScrollbackLineAccumulator } from '@/lib/workmux-scrollback-batch';
+import {
+	createWorkmuxScrollbackCommandExecutor,
+	type WorkmuxScrollbackCommandExecutor,
+	type WorkmuxScrollbackFailureContext,
+} from '@/lib/workmux-scrollback-executor';
+import {
+	buildWorkmuxScrollbackLiveInputSendPlan,
+	createWorkmuxScrollbackLiveInputCleanupBarrier,
+	runWorkmuxScrollbackLiveInputSendPlan,
+} from '@/lib/workmux-scrollback-live-input';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
