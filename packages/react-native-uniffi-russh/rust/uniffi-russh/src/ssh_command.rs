@@ -146,6 +146,95 @@ fn command_stream_should_remain_registered_after_insert(reader_has_closed: bool)
     !reader_has_closed
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExecRequestReply {
+    Success,
+    Failure,
+}
+
+fn classify_exec_request_reply(message: &ChannelMsg) -> Option<ExecRequestReply> {
+    match message {
+        ChannelMsg::Success => Some(ExecRequestReply::Success),
+        ChannelMsg::Failure => Some(ExecRequestReply::Failure),
+        _ => None,
+    }
+}
+
+async fn wait_for_exec_request_success(
+    channel: &mut russh::Channel<client::Msg>,
+) -> Result<Vec<ChannelMsg>, SshError> {
+    let mut buffered_messages = Vec::new();
+
+    loop {
+        let Some(message) = channel.wait().await else {
+            channel.close().await.ok();
+            return Err(SshError::Russh(
+                "SSH exec request closed before success".to_string(),
+            ));
+        };
+
+        match classify_exec_request_reply(&message) {
+            Some(ExecRequestReply::Success) => return Ok(buffered_messages),
+            Some(ExecRequestReply::Failure) => {
+                channel.close().await.ok();
+                return Err(SshError::Russh("SSH exec request failed".to_string()));
+            }
+            None if command_stream_message_finishes_reader(Some(&message)) => {
+                channel.close().await.ok();
+                return Err(SshError::Russh(
+                    "SSH exec request closed before success".to_string(),
+                ));
+            }
+            None => buffered_messages.push(message),
+        }
+    }
+}
+
+fn record_command_output_message(
+    collector: &mut CommandOutputCollector,
+    message: ChannelMsg,
+) -> bool {
+    match message {
+        ChannelMsg::Data { data } => collector.record_stdout(&data),
+        ChannelMsg::ExtendedData { data, .. } => collector.record_stderr(&data),
+        ChannelMsg::ExitStatus { exit_status } => {
+            collector.record_exit_status(exit_status);
+        }
+        ChannelMsg::ExitSignal { signal_name, .. } => {
+            collector.record_exit_signal(signal_name_to_string(signal_name));
+        }
+        ChannelMsg::Close => return true,
+        ChannelMsg::Eof => {}
+        _ => {}
+    }
+    false
+}
+
+fn dispatch_command_stream_message(callback: &Arc<dyn CommandStreamCallback>, message: ChannelMsg) {
+    match message {
+        ChannelMsg::Data { data } => {
+            callback.on_event(CommandStreamEvent::Stdout {
+                bytes: data.to_vec(),
+            });
+        }
+        ChannelMsg::ExtendedData { data, .. } => {
+            callback.on_event(CommandStreamEvent::Stderr {
+                bytes: data.to_vec(),
+            });
+        }
+        ChannelMsg::ExitStatus { exit_status } => {
+            callback.on_event(CommandStreamEvent::ExitStatus { exit_status });
+        }
+        ChannelMsg::ExitSignal { signal_name, .. } => {
+            callback.on_event(CommandStreamEvent::ExitSignal {
+                signal_name: signal_name_to_string(signal_name),
+            });
+        }
+        ChannelMsg::Eof => {}
+        _ => {}
+    }
+}
+
 pub(crate) async fn run_command(
     connection: &SshConnection,
     options: RunCommandOptions,
@@ -155,22 +244,24 @@ pub(crate) async fn run_command(
         client_handle.channel_open_session().await?
     };
     channel.exec(true, options.command).await?;
+    let buffered_messages = wait_for_exec_request_success(&mut channel).await?;
 
     let mut collector = CommandOutputCollector::default();
+    let mut is_closed = false;
 
-    while let Some(message) = channel.wait().await {
-        match message {
-            ChannelMsg::Data { data } => collector.record_stdout(&data),
-            ChannelMsg::ExtendedData { data, .. } => collector.record_stderr(&data),
-            ChannelMsg::ExitStatus { exit_status } => {
-                collector.record_exit_status(exit_status);
-            }
-            ChannelMsg::ExitSignal { signal_name, .. } => {
-                collector.record_exit_signal(signal_name_to_string(signal_name));
-            }
-            ChannelMsg::Close => break,
-            ChannelMsg::Eof => {}
-            _ => {}
+    for message in buffered_messages {
+        if record_command_output_message(&mut collector, message) {
+            is_closed = true;
+            break;
+        }
+    }
+
+    while !is_closed {
+        let Some(message) = channel.wait().await else {
+            break;
+        };
+        if record_command_output_message(&mut collector, message) {
+            is_closed = true;
         }
     }
 
@@ -183,12 +274,13 @@ pub(crate) async fn start_command_stream(
     options: StartCommandStreamOptions,
 ) -> Result<Arc<CommandStreamSession>, SshError> {
     let started_at_ms = now_ms();
-    let channel = {
+    let mut channel = {
         let client_handle = connection.client_handle.lock().await;
         client_handle.channel_open_session().await?
     };
     let channel_id: u32 = channel.id().into();
     channel.exec(true, options.command).await?;
+    let buffered_messages = wait_for_exec_request_success(&mut channel).await?;
 
     let (mut reader, writer) = channel.split();
     let callback = options.on_event_callback.clone();
@@ -198,6 +290,10 @@ pub(crate) async fn start_command_stream(
     let reader_has_closed_for_reader = reader_has_closed.clone();
 
     let reader_task = tokio::spawn(async move {
+        for message in buffered_messages {
+            dispatch_command_stream_message(&callback, message);
+        }
+
         loop {
             let message = reader.wait().await;
             if command_stream_message_finishes_reader(message.as_ref()) {
@@ -209,27 +305,8 @@ pub(crate) async fn start_command_stream(
                 break;
             }
 
-            match message {
-                Some(ChannelMsg::Data { data }) => {
-                    callback.on_event(CommandStreamEvent::Stdout {
-                        bytes: data.to_vec(),
-                    });
-                }
-                Some(ChannelMsg::ExtendedData { data, .. }) => {
-                    callback.on_event(CommandStreamEvent::Stderr {
-                        bytes: data.to_vec(),
-                    });
-                }
-                Some(ChannelMsg::ExitStatus { exit_status }) => {
-                    callback.on_event(CommandStreamEvent::ExitStatus { exit_status });
-                }
-                Some(ChannelMsg::ExitSignal { signal_name, .. }) => {
-                    callback.on_event(CommandStreamEvent::ExitSignal {
-                        signal_name: signal_name_to_string(signal_name),
-                    });
-                }
-                Some(ChannelMsg::Eof) => {}
-                _ => {}
+            if let Some(message) = message {
+                dispatch_command_stream_message(&callback, message);
             }
         }
     });
@@ -308,5 +385,18 @@ mod tests {
     fn command_stream_registration_cleans_up_if_reader_closed_before_insert() {
         assert!(!command_stream_should_remain_registered_after_insert(true));
         assert!(command_stream_should_remain_registered_after_insert(false));
+    }
+
+    #[test]
+    fn exec_request_reply_classifies_success_and_failure_only() {
+        assert_eq!(
+            classify_exec_request_reply(&ChannelMsg::Success),
+            Some(ExecRequestReply::Success)
+        );
+        assert_eq!(
+            classify_exec_request_reply(&ChannelMsg::Failure),
+            Some(ExecRequestReply::Failure)
+        );
+        assert_eq!(classify_exec_request_reply(&ChannelMsg::Eof), None);
     }
 }
