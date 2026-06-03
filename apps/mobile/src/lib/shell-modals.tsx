@@ -23,13 +23,13 @@ import {
 import {
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
-	extractLastHttpsUrl,
 	getHostBrowserUrlSlotLabel,
 	HOST_BROWSER_NO_CONNECTION_MESSAGE,
 	parseHostBrowserUrlInput,
 	type HostBrowserOpenMode,
 	type HostBrowserUrlSlot,
 } from './host-browser-actions';
+import { runHostDiffityOpenRequest } from './host-diffity-open-request';
 import {
 	buildCreateGitHubIssueCommand,
 	buildFeatureRequestSubmittedAlert,
@@ -791,34 +791,20 @@ export function useBrowserActionsController<TConnection>(
 	);
 
 	const handleOpenHostDiffity = useCallback(() => {
-		if (hostDiffityInFlightRef.current) return;
-		const id = hostDiffityRequestId.next();
-		hostDiffityInFlightRef.current = true;
-		void (async () => {
-			try {
-				const output = await runBrowserActionsDiffityShare({
+		runHostDiffityOpenRequest({
+			hostDiffityInFlightRef,
+			hostDiffityRequestId,
+			runDiffityShare: () =>
+				runBrowserActionsDiffityShare({
 					tmuxEnabled,
 					tmuxTarget,
 					runHostBrowserCommand,
 					getErrorMessage,
-				});
-				const url = extractLastHttpsUrl(output);
-				if (!url) {
-					throw new Error(
-						output || 'mdev diffity share did not return an HTTPS URL.',
-					);
-				}
-				if (!hostDiffityRequestId.isCurrent(id)) return;
-				await openAndroidUrl(url);
-			} catch (err) {
-				if (!hostDiffityRequestId.isCurrent(id)) return;
-				showError('Diffity failed', getErrorMessage(err));
-			} finally {
-				if (hostDiffityRequestId.isCurrent(id)) {
-					hostDiffityInFlightRef.current = false;
-				}
-			}
-		})();
+				}),
+			openAndroidUrl,
+			showError,
+			getErrorMessage,
+		});
 	}, [
 		getErrorMessage,
 		hostDiffityRequestId,

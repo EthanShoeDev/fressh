@@ -141,6 +141,7 @@ import {
 import {
 	buildWorkmuxScrollbackLiveInputSendPlan,
 	createWorkmuxScrollbackLiveInputCleanupBarrier,
+	isWorkmuxScrollbackLiveInputRequestCurrent,
 	runWorkmuxScrollbackLiveInputSendPlan,
 } from '@/lib/workmux-scrollback-live-input';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
@@ -788,18 +789,6 @@ function ShellDetail() {
 		writerRef.current = new OrderedWriter(writeToShell);
 	}, [shell, writeToShell]);
 
-	const sendBytesQueued = useCallback(
-		(
-			segments: Uint8Array<ArrayBuffer>[],
-			opts?: { interSegmentDelayMs?: number },
-		) => {
-			const send = writerRef.current?.sendBatch(segments, opts);
-			void send?.catch(() => {});
-			return send;
-		},
-		[],
-	);
-
 	const resetTmuxScrollbackForUiReset = useCallback(
 		(options?: { failurePolicy?: 'notify' | 'suppress' }) => {
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
@@ -952,6 +941,8 @@ function ShellDetail() {
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
 				scrollbackExitDelayMs,
 			});
+			const requestInstanceId = currentInstanceIdRef.current;
+			const requestWriter = writerRef.current;
 
 			void runWorkmuxScrollbackLiveInputSendPlan({
 				plan,
@@ -959,16 +950,21 @@ function ShellDetail() {
 				startCleanup: clearScrollbackState,
 				remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
 				isRequestCurrent: () =>
-					isFocusedRef.current &&
-					isAppActiveRef.current &&
-					currentInstanceIdRef.current != null,
+					isWorkmuxScrollbackLiveInputRequestCurrent({
+						requestInstanceId,
+						requestWriter,
+						currentInstanceId: currentInstanceIdRef.current,
+						currentWriter: writerRef.current,
+						isFocused: isFocusedRef.current,
+						isAppActive: isAppActiveRef.current,
+					}),
 				sendSegments: (segments, options) =>
-					sendBytesQueued(segments, {
+					requestWriter?.sendBatch(segments, {
 						interSegmentDelayMs: options?.interSegmentDelayMs,
 					}),
 			});
 		},
-		[clearScrollbackState, sendBytesQueued],
+		[clearScrollbackState],
 	);
 
 	const sendBytesRaw = useCallback(

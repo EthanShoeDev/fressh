@@ -26,7 +26,7 @@ export const KEYBOARD_TARGET_ACTION_IDS = [
 export type WorkmuxKeyboardCommand =
 	| { type: 'focus'; target: WorkmuxFocusTarget }
 	| { type: 'nav'; action: Exclude<WorkmuxNavAction, 'select'> };
-const WORKMUX_KEYBOARD_ACTION_ENTRIES = [
+const WORKMUX_KEYBOARD_PRIMARY_ACTION_ENTRIES = [
 	['WORKMUX_FOCUS_CLAUDE', { type: 'focus', target: 'claude' }],
 	['WORKMUX_FOCUS_GIT', { type: 'focus', target: 'git' }],
 	['WORKMUX_FOCUS_CODEX', { type: 'focus', target: 'codex' }],
@@ -42,11 +42,19 @@ const WORKMUX_KEYBOARD_ACTION_ENTRIES = [
 	['WORKMUX_NAV_PREV_ALL', { type: 'nav', action: 'prev-all' }],
 	['WORKMUX_NAV_NEXT_ALL', { type: 'nav', action: 'next-all' }],
 ] as const satisfies readonly (readonly [string, WorkmuxKeyboardCommand])[];
+const WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_ENTRIES = [
+	['CYCLE_WORKMUX_STATUS', { type: 'nav', action: 'next-all' }],
+] as const satisfies readonly (readonly [string, WorkmuxKeyboardCommand])[];
+const WORKMUX_KEYBOARD_ACTION_ENTRIES = [
+	...WORKMUX_KEYBOARD_PRIMARY_ACTION_ENTRIES,
+	...WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_ENTRIES,
+] as const satisfies readonly (readonly [string, WorkmuxKeyboardCommand])[];
 export type WorkmuxKeyboardActionId =
 	(typeof WORKMUX_KEYBOARD_ACTION_ENTRIES)[number][0];
-export const WORKMUX_KEYBOARD_ACTION_IDS = WORKMUX_KEYBOARD_ACTION_ENTRIES.map(
-	([actionId]) => actionId,
-);
+export const WORKMUX_KEYBOARD_ACTION_IDS =
+	WORKMUX_KEYBOARD_PRIMARY_ACTION_ENTRIES.map(([actionId]) => actionId);
+export const WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_IDS =
+	WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_ENTRIES.map(([actionId]) => actionId);
 export const WORKMUX_KEYBOARD_ACTION_COMMANDS = Object.fromEntries(
 	WORKMUX_KEYBOARD_ACTION_ENTRIES,
 ) as Record<WorkmuxKeyboardActionId, WorkmuxKeyboardCommand>;
@@ -75,6 +83,7 @@ export const KNOWN_ACTION_IDS = [
 	'EDIT_HOST_URL_STORYBOOK',
 	'EDIT_HOST_URL_APP',
 	...WORKMUX_KEYBOARD_ACTION_IDS,
+	...WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_IDS,
 ] as const;
 
 const INTERNAL_ACTION_IDS = new Set<string>(DETECTED_OPEN_ACTION_IDS);

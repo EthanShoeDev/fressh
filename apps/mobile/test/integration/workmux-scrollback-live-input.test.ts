@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	buildWorkmuxScrollbackLiveInputSendPlan,
+	isWorkmuxScrollbackLiveInputRequestCurrent,
 	runWorkmuxScrollbackLiveInputSendPlan,
 } from '../../src/lib/workmux-scrollback-live-input';
 
@@ -163,6 +164,42 @@ void test('live input runner suppresses deferred payload after request invalidat
 	await cleanup.promise;
 	await Promise.resolve();
 	assert.deepEqual(sentSegments, []);
+});
+
+void test('live input freshness requires the same terminal instance and writer', () => {
+	const requestWriter = {};
+	assert.equal(
+		isWorkmuxScrollbackLiveInputRequestCurrent({
+			requestInstanceId: 'terminal-1',
+			requestWriter,
+			currentInstanceId: 'terminal-1',
+			currentWriter: requestWriter,
+			isFocused: true,
+			isAppActive: true,
+		}),
+		true,
+	);
+
+	for (const stale of [
+		{ currentInstanceId: 'terminal-2', currentWriter: requestWriter },
+		{ currentInstanceId: 'terminal-1', currentWriter: {} },
+		{ currentInstanceId: 'terminal-1', currentWriter: requestWriter, isFocused: false },
+		{ currentInstanceId: 'terminal-1', currentWriter: requestWriter, isAppActive: false },
+		{ currentInstanceId: null, currentWriter: requestWriter },
+		{ currentInstanceId: 'terminal-1', currentWriter: null },
+	]) {
+		assert.equal(
+			isWorkmuxScrollbackLiveInputRequestCurrent({
+				requestInstanceId: 'terminal-1',
+				requestWriter,
+				currentInstanceId: stale.currentInstanceId,
+				currentWriter: stale.currentWriter,
+				isFocused: stale.isFocused ?? true,
+				isAppActive: stale.isAppActive ?? true,
+			}),
+			false,
+		);
+	}
 });
 
 void test('live input runner blocks non-empty payload after failed cleanup', async () => {

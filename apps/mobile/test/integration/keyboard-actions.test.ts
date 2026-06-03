@@ -4,6 +4,7 @@ import { HOST_BROWSER_NO_CONNECTION_MESSAGE } from '../../src/lib/host-browser-a
 import {
 	CONFIG_SUPPORTED_ACTION_IDS,
 	KNOWN_ACTION_IDS,
+	WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_IDS,
 	WORKMUX_KEYBOARD_ACTION_IDS,
 	WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
 	createWorkmuxKeyboardCommandRunner,
@@ -282,6 +283,47 @@ void test('Workmux keyboard actions delegate semantic commands without sending b
 			true,
 		);
 	}
+});
+
+void test('legacy Workmux status action remains a config compatibility alias', async () => {
+	const commands: WorkmuxKeyboardCommand[] = [];
+
+	await runAction('CYCLE_WORKMUX_STATUS', {
+		availableKeyboardIds: new Set(),
+		selectKeyboard: () => {},
+		rotateKeyboard: () => {},
+		openConfigurator: () => {},
+		sendBytes: () => {},
+		pasteClipboard: async () => {},
+		copySelection: () => {},
+		runWorkmuxKeyboardCommand: async (command: WorkmuxKeyboardCommand) => {
+			commands.push(command);
+			return { status: 'handled' };
+		},
+	} as Parameters<typeof runAction>[1]);
+
+	assert.deepEqual(commands, [{ type: 'nav', action: 'next-all' }]);
+	assert.deepEqual(WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_IDS, [
+		'CYCLE_WORKMUX_STATUS',
+	]);
+	assert.equal(
+		WORKMUX_KEYBOARD_ACTION_IDS.includes(
+			'CYCLE_WORKMUX_STATUS' as (typeof WORKMUX_KEYBOARD_ACTION_IDS)[number],
+		),
+		false,
+	);
+	assert.equal(
+		KNOWN_ACTION_IDS.includes(
+			'CYCLE_WORKMUX_STATUS' as (typeof KNOWN_ACTION_IDS)[number],
+		),
+		true,
+	);
+	assert.equal(
+		CONFIG_SUPPORTED_ACTION_IDS.includes(
+			'CYCLE_WORKMUX_STATUS' as (typeof CONFIG_SUPPORTED_ACTION_IDS)[number],
+		),
+		true,
+	);
 });
 
 void test('Workmux runAction waits for command handling and preserves Promise<void>', async () => {

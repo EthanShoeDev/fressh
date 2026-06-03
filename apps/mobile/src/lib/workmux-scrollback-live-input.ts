@@ -9,6 +9,31 @@ export type WorkmuxScrollbackLiveInputCleanupBarrier = {
 	track: (cleanup?: Promise<boolean> | null) => Promise<boolean> | null;
 };
 
+export function isWorkmuxScrollbackLiveInputRequestCurrent<TWriter>({
+	requestInstanceId,
+	requestWriter,
+	currentInstanceId,
+	currentWriter,
+	isFocused,
+	isAppActive,
+}: {
+	requestInstanceId?: string | null;
+	requestWriter?: TWriter | null;
+	currentInstanceId?: string | null;
+	currentWriter?: TWriter | null;
+	isFocused: boolean;
+	isAppActive: boolean;
+}): boolean {
+	return (
+		isFocused &&
+		isAppActive &&
+		requestInstanceId != null &&
+		requestInstanceId === currentInstanceId &&
+		requestWriter != null &&
+		requestWriter === currentWriter
+	);
+}
+
 export function createWorkmuxScrollbackLiveInputCleanupBarrier(): WorkmuxScrollbackLiveInputCleanupBarrier {
 	let pendingCleanup: Promise<boolean> | null = null;
 
