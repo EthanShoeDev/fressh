@@ -7,6 +7,7 @@ import {
 	buildWorkmuxAppFocusCommand,
 	buildWorkmuxAppNavCommand,
 	buildWorkmuxAppNotificationOpenCommand,
+	buildWorkmuxAppStatusCycleCommand,
 	buildWorkmuxAppScrollEnterCommand,
 	buildWorkmuxAppScrollExitCommand,
 	buildWorkmuxAppScrollPageCommand,
@@ -95,6 +96,10 @@ void test('workmux app command builders shell-quote app arguments', () => {
 	assert.equal(
 		buildWorkmuxAppNavCommand('main', 'prev-all'),
 		"mdev tmux app nav 'prev-all' --session 'main'",
+	);
+	assert.equal(
+		buildWorkmuxAppStatusCycleCommand("main'quoted"),
+		"mdev tmux app nav 'next-all' --session 'main'\\''quoted'",
 	);
 });
 

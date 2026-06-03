@@ -1,5 +1,8 @@
-import { buildHostBrowserStatusCycleCommand } from './host-browser-actions';
 import { type RequestIdHandle } from './request-id';
+import {
+	buildWorkmuxAppStatusCycleCommand,
+	formatWorkmuxAppBoundaryFailureMessage,
+} from './workmux-app-commands';
 
 export type WorkmuxStatusCycleHandle = {
 	start: () => number | null;
@@ -58,12 +61,15 @@ export function runWorkmuxStatusCycleRequest({
 			}
 			const sessionName = tmuxTarget.trim() || 'main';
 			await runHostBrowserCommand(
-				buildHostBrowserStatusCycleCommand(sessionName),
+				buildWorkmuxAppStatusCycleCommand(sessionName),
 				10_000,
 			);
 		} catch (err) {
 			if (!handle.isCurrent(id)) return;
-			showError('Status cycle failed', getErrorMessage(err));
+			showError(
+				'Status cycle failed',
+				formatWorkmuxAppBoundaryFailureMessage(getErrorMessage(err)),
+			);
 		} finally {
 			if (handle.isCurrent(id)) handle.invalidate();
 		}

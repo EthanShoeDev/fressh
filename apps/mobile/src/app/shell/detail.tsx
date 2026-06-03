@@ -55,6 +55,10 @@ import {
 	runDetectedOpenCallback,
 } from '@/lib/detected-open-actions';
 import {
+	isFocusedActiveRequestCurrent,
+	shouldShowFocusedActiveFeedback,
+} from '@/lib/focused-active-request';
+import {
 	HANDLE_DEV_SERVER_URL,
 	createWorkmuxKeyboardCommandRunner,
 	runAction,
@@ -700,6 +704,7 @@ function ShellDetail() {
 	const wisprAutoCloseAttemptIdRef = useRef(0);
 	const wisprAutomationRequestIdRef = useRef(0);
 	const agentNotificationAckRequestIdRef = useRef(0);
+	const runtimeShellConfigReloadRequestIdRef = useRef(0);
 	const handledAgentAlertRouteRef = useRef<string | null>(null);
 	const acknowledgeVisibleAgentNotificationRef = useRef<() => void>(() => {});
 	const isFocusedRef = useRef(false);
@@ -2036,14 +2041,25 @@ function ShellDetail() {
 
 	const handleReloadConfig = useCallback(async () => {
 		configureModal.onClose();
+		const requestId = ++runtimeShellConfigReloadRequestIdRef.current;
+		const isCurrentReloadRequest = () =>
+			isFocusedActiveRequestCurrent({
+				requestId,
+				isCurrentRequest: (id) =>
+					id === runtimeShellConfigReloadRequestIdRef.current,
+				isFocused: isFocusedRef.current,
+				isAppActive: isAppActiveRef.current,
+			});
 		try {
 			const nextState = await reloadRuntimeShellConfigFromRemote();
+			if (!isCurrentReloadRequest()) return;
 			setShellConfigState(nextState);
 			Alert.alert(
 				'Config reloaded',
 				`Loaded ${nextState.config.version} from GitHub.`,
 			);
 		} catch (error) {
+			if (!isCurrentReloadRequest()) return;
 			const message =
 				error instanceof Error ? error.message : 'Unable to reload config.';
 			setShellConfigState((current) => ({
@@ -2156,6 +2172,7 @@ function ShellDetail() {
 		if (isFocused) {
 			void acknowledgeVisibleAgentNotification();
 		} else {
+			runtimeShellConfigReloadRequestIdRef.current += 1;
 			browserActions.invalidateAll();
 			browserActions.close();
 			scrollbackEnterRequestGenerationRef.current += 1;
@@ -2176,6 +2193,7 @@ function ShellDetail() {
 			agentNotificationAckRequestIdRef.current += 1;
 			isFocusedRef.current = false;
 			isAppActiveRef.current = false;
+			runtimeShellConfigReloadRequestIdRef.current += 1;
 			visibleConnectionIdRef.current = null;
 			visibleChannelIdRef.current = null;
 			visibleTmuxTargetRef.current = 'main';
@@ -2196,8 +2214,17 @@ function ShellDetail() {
 				getSessionName: () => workmuxKeyboardTmuxTargetRef.current,
 				runHostCommand: (command, timeoutMs) =>
 					workmuxKeyboardRunHostCommandRef.current(command, timeoutMs),
-				showFailure: (message) =>
-					Alert.alert('Workmux action failed', message),
+				showFailure: (message) => {
+					if (
+						!shouldShowFocusedActiveFeedback({
+							isFocused: isFocusedRef.current,
+							isAppActive: isAppActiveRef.current,
+						})
+					) {
+						return;
+					}
+					Alert.alert('Workmux action failed', message);
+				},
 				getErrorMessage,
 			}),
 		[],
@@ -2270,7 +2297,6 @@ function ShellDetail() {
 			},
 			editHostUrlSlot: browserActions.browserActionsProps.onEditUrlSlot,
 			runWorkmuxKeyboardCommand,
-			cycleWorkmuxStatus: browserActions.cycleWorkmuxStatus,
 		}),
 		[
 			availableKeyboardIds,
@@ -2484,6 +2510,8 @@ function ShellDetail() {
 			});
 			if (previousState === 'active') {
 				agentNotificationAckRequestIdRef.current += 1;
+				runtimeShellConfigReloadRequestIdRef.current += 1;
+				workmuxKeyboardCommandRunner.invalidate();
 				if (isAndroid) {
 					lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
 				}
@@ -2492,7 +2520,7 @@ function ShellDetail() {
 		return () => {
 			subscription.remove();
 		};
-	}, [clearScrollbackState, systemKeyboardEnabled]);
+	}, [clearScrollbackState, systemKeyboardEnabled, workmuxKeyboardCommandRunner]);
 
 	const enableSystemKeyboard = useCallback(() => {
 		if (Platform.OS !== 'android') return;

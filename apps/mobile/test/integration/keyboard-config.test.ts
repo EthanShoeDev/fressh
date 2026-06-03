@@ -345,14 +345,14 @@ void test('phone base keyboard exposes explain, browser actions, and status acti
 	});
 	assert.deepEqual(phoneBaseKeyboard.grid[1]?.[2], {
 		type: 'action',
-		actionId: 'CYCLE_WORKMUX_STATUS',
+		actionId: 'WORKMUX_NAV_NEXT_ALL',
 		label: 'Status',
 		icon: 'Clock',
 		longPress: {
 			options: [
 				{
 					type: 'action',
-					actionId: 'CYCLE_WORKMUX_STATUS',
+					actionId: 'WORKMUX_NAV_NEXT_ALL',
 					label: 'Status',
 					icon: 'Clock',
 				},

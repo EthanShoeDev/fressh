@@ -131,7 +131,6 @@ void test('host browser actions delegate to action context callbacks', async () 
 	const editedSlots: string[] = [];
 	const detectedCalls: string[] = [];
 	let diffityOpened = 0;
-	let statusCycled = 0;
 
 	const context = {
 		availableKeyboardIds: new Set(),
@@ -153,9 +152,6 @@ void test('host browser actions delegate to action context callbacks', async () 
 		openHostDetected: (mode: string) => {
 			detectedCalls.push(mode);
 		},
-		cycleWorkmuxStatus: () => {
-			statusCycled += 1;
-		},
 	} as Parameters<typeof runAction>[1];
 
 	await runAction('OPEN_HOST_DIFFITY', context);
@@ -169,7 +165,6 @@ void test('host browser actions delegate to action context callbacks', async () 
 	await runAction('EDIT_HOST_URL_DEV_SERVER', context);
 	await runAction('EDIT_HOST_URL_STORYBOOK', context);
 	await runAction('EDIT_HOST_URL_APP', context);
-	await runAction('CYCLE_WORKMUX_STATUS', context);
 
 	assert.equal(diffityOpened, 1);
 	assert.deepEqual(openedSlots, [
@@ -185,7 +180,6 @@ void test('host browser actions delegate to action context callbacks', async () 
 		'storybook-url',
 		'app-url',
 	]);
-	assert.equal(statusCycled, 1);
 	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_HOST_DETECTED_AUTO'), true);
 	assert.equal(KNOWN_ACTION_IDS.includes('OPEN_HOST_DETECTED_PICK'), true);
 	assert.equal(

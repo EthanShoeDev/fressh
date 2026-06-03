@@ -78,7 +78,6 @@ export const KNOWN_ACTION_IDS = [
 	'EDIT_HOST_URL_STORYBOOK',
 	'EDIT_HOST_URL_APP',
 	...WORKMUX_KEYBOARD_ACTION_IDS,
-	'CYCLE_WORKMUX_STATUS',
 ] as const;
 
 const INTERNAL_ACTION_IDS = new Set<string>(DETECTED_OPEN_ACTION_IDS);
@@ -259,7 +258,6 @@ export type ActionContext = {
 	runWorkmuxKeyboardCommand?: (
 		command: WorkmuxKeyboardCommand,
 	) => Promise<WorkmuxKeyboardCommandRunResult>;
-	cycleWorkmuxStatus?: () => void;
 };
 
 const logger = rootLogger.extend('KeyboardActions');
@@ -378,10 +376,6 @@ export async function runAction(
 		}
 		case 'EDIT_HOST_URL_APP': {
 			context.editHostUrlSlot?.('app-url');
-			return;
-		}
-		case 'CYCLE_WORKMUX_STATUS': {
-			context.cycleWorkmuxStatus?.();
 			return;
 		}
 		case 'TOGGLE_COMMAND_PRESETS': {

@@ -101,9 +101,3 @@ export function buildMdevOpenCommand(
 		mode,
 	].join(' ');
 }
-
-export function buildHostBrowserStatusCycleCommand(
-	tmuxSessionName: string,
-): string {
-	return `mdev tmux nav cycle ${quoteShell(`${tmuxSessionName}:`)}`;
-}

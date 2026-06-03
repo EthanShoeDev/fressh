@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	buildDiffityShareCommand,
-	buildHostBrowserStatusCycleCommand,
 	buildMdevOpenCommand,
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
@@ -44,17 +43,6 @@ void test('host browser mdev command builders shell-quote dynamic values', () =>
 			'https://example.com/app?q=1',
 		),
 		"TMUX_PANE_PATH='/tmp/work repo' mdev tmux url set-value 'dev-web-server-url' 'https://example.com/app?q=1'",
-	);
-	assert.equal(
-		buildHostBrowserStatusCycleCommand("main'quoted"),
-		"mdev tmux nav cycle 'main'\\''quoted:'",
-	);
-});
-
-void test('status cycle command uses mdev tmux nav cycle for main session', () => {
-	assert.equal(
-		buildHostBrowserStatusCycleCommand('main'),
-		"mdev tmux nav cycle 'main:'",
 	);
 });
 

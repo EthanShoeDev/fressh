@@ -160,6 +160,12 @@ export function buildWorkmuxAppNavCommand(
 	return command.join(' ');
 }
 
+export function buildWorkmuxAppStatusCycleCommand(
+	sessionName: string,
+): string {
+	return buildWorkmuxAppNavCommand(sessionName, 'next-all');
+}
+
 export function parseWorkmuxAppContextOutput(
 	output: string,
 ): WorkmuxAppContext {
