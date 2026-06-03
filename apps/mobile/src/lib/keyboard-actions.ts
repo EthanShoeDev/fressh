@@ -76,6 +76,9 @@ export type ActionId = KnownActionId | (string & {});
 export type WorkmuxKeyboardCommand =
 	| { type: 'focus'; target: WorkmuxFocusTarget }
 	| { type: 'nav'; action: WorkmuxNavAction; index?: number };
+export type WorkmuxKeyboardCommandRunResult =
+	| { status: 'handled' }
+	| { status: 'superseded' };
 export const WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE =
 	'Workmux actions require a Workmux-enabled connection.';
 
@@ -96,7 +99,9 @@ export function formatWorkmuxKeyboardCommandFailureMessage({
 }
 
 export type WorkmuxKeyboardCommandRunner = {
-	run: (command: WorkmuxKeyboardCommand) => Promise<void>;
+	run: (
+		command: WorkmuxKeyboardCommand,
+	) => Promise<WorkmuxKeyboardCommandRunResult>;
 };
 
 export function createWorkmuxKeyboardCommandRunner({
@@ -116,7 +121,7 @@ export function createWorkmuxKeyboardCommandRunner({
 	let pending:
 		| {
 				command: WorkmuxKeyboardCommand;
-				resolves: (() => void)[];
+				resolves: ((result: WorkmuxKeyboardCommandRunResult) => void)[];
 			}
 		| null = null;
 
@@ -146,14 +151,16 @@ export function createWorkmuxKeyboardCommandRunner({
 
 	const drain = async (queued: {
 		command: WorkmuxKeyboardCommand;
-		resolves: (() => void)[];
+		resolves: ((result: WorkmuxKeyboardCommandRunResult) => void)[];
 	}): Promise<void> => {
 		running = true;
 		try {
 			let current: typeof queued | null = queued;
 			while (current) {
 				await execute(current.command);
-				for (const resolve of current.resolves) resolve();
+				for (const resolve of current.resolves) {
+					resolve({ status: 'handled' });
+				}
 				current = pending;
 				pending = null;
 			}
@@ -169,13 +176,15 @@ export function createWorkmuxKeyboardCommandRunner({
 
 	return {
 		run: (command) => {
-			return new Promise<void>((resolve) => {
+			return new Promise<WorkmuxKeyboardCommandRunResult>((resolve) => {
 				const queued = { command, resolves: [resolve] };
 				if (!running) {
 					void drain(queued);
 					return;
 				}
-				for (const resolve of pending?.resolves ?? []) resolve();
+				for (const resolve of pending?.resolves ?? []) {
+					resolve({ status: 'superseded' });
+				}
 				pending = queued;
 			});
 		},

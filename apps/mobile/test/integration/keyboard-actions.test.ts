@@ -306,7 +306,10 @@ void test('Workmux keyboard command runner builds app commands and serializes ex
 	]);
 
 	firstBlock.resolve(undefined);
-	await Promise.all([first, second]);
+	assert.deepEqual(await Promise.all([first, second]), [
+		{ status: 'handled' },
+		{ status: 'handled' },
+	]);
 
 	assert.deepEqual(calls, [
 		{
@@ -336,7 +339,7 @@ void test('Workmux keyboard command runner bounds pending repeated commands to t
 	});
 
 	const first = runner.run({ type: 'nav', action: 'prev' });
-	const queued: Promise<void>[] = [];
+	const queued: ReturnType<typeof runner.run>[] = [];
 	for (let index = 0; index < 1_000; index += 1) {
 		queued.push(runner.run({ type: 'nav', action: 'next' }));
 	}
@@ -345,25 +348,31 @@ void test('Workmux keyboard command runner bounds pending repeated commands to t
 	assert.deepEqual(calls, ["mdev tmux app nav 'prev' --session 'main'"]);
 
 	firstBlock.resolve(undefined);
-	await Promise.all([first, ...queued]);
+	const results = await Promise.all([first, ...queued]);
 
 	assert.deepEqual(calls, [
 		"mdev tmux app nav 'prev' --session 'main'",
 		"mdev tmux app nav 'next' --session 'main'",
 	]);
+	assert.deepEqual(results, [
+		{ status: 'handled' },
+		...Array.from({ length: 999 }, () => ({ status: 'superseded' })),
+		{ status: 'handled' },
+	]);
 });
 
 void test('Workmux keyboard command runner reads live dependencies for pending commands', async () => {
 	const firstBlock = deferred<void>();
-	const calls: string[] = [];
+	const calls: { source: string; command: string }[] = [];
 	let sessionName = 'old';
+	let runHostCommand = async (command: string) => {
+		calls.push({ source: 'old', command });
+		if (calls.length === 1) await firstBlock.promise;
+	};
 	const runner = createWorkmuxKeyboardCommandRunner({
 		isTmuxEnabled: () => true,
 		getSessionName: () => sessionName,
-		runHostCommand: async (command) => {
-			calls.push(command);
-			if (calls.length === 1) await firstBlock.promise;
-		},
+		runHostCommand: (command) => runHostCommand(command),
 		showFailure: () => {},
 		getErrorMessage: (error) =>
 			error instanceof Error ? error.message : String(error),
@@ -373,13 +382,56 @@ void test('Workmux keyboard command runner reads live dependencies for pending c
 	const second = runner.run({ type: 'focus', target: 'bash' });
 	await Promise.resolve();
 	sessionName = 'new';
+	runHostCommand = async (command: string) => {
+		calls.push({ source: 'new', command });
+	};
 	firstBlock.resolve(undefined);
-	await Promise.all([first, second]);
+	assert.deepEqual(await Promise.all([first, second]), [
+		{ status: 'handled' },
+		{ status: 'handled' },
+	]);
 
 	assert.deepEqual(calls, [
-		"mdev tmux app focus 'git' --session 'old'",
-		"mdev tmux app focus 'bash' --session 'new'",
+		{
+			source: 'old',
+			command: "mdev tmux app focus 'git' --session 'old'",
+		},
+		{
+			source: 'new',
+			command: "mdev tmux app focus 'bash' --session 'new'",
+		},
 	]);
+});
+
+void test('Workmux keyboard command runner reads live enabled state for pending commands', async () => {
+	const firstBlock = deferred<void>();
+	const calls: string[] = [];
+	const failures: string[] = [];
+	let tmuxEnabled = true;
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => tmuxEnabled,
+		getSessionName: () => 'main',
+		runHostCommand: async (command) => {
+			calls.push(command);
+			if (calls.length === 1) await firstBlock.promise;
+		},
+		showFailure: (message) => failures.push(message),
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	const first = runner.run({ type: 'focus', target: 'git' });
+	const second = runner.run({ type: 'focus', target: 'bash' });
+	await Promise.resolve();
+	tmuxEnabled = false;
+	firstBlock.resolve(undefined);
+
+	assert.deepEqual(await Promise.all([first, second]), [
+		{ status: 'handled' },
+		{ status: 'handled' },
+	]);
+	assert.deepEqual(calls, ["mdev tmux app focus 'git' --session 'main'"]);
+	assert.deepEqual(failures, [WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE]);
 });
 
 void test('Workmux keyboard command runner preserves local failures and maps remote failures', async () => {
