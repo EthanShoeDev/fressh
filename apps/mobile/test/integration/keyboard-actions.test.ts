@@ -4,7 +4,6 @@ import { HOST_BROWSER_NO_CONNECTION_MESSAGE } from '../../src/lib/host-browser-a
 import {
 	CONFIG_SUPPORTED_ACTION_IDS,
 	KNOWN_ACTION_IDS,
-	WORKMUX_KEYBOARD_ACTION_COMMANDS,
 	WORKMUX_KEYBOARD_ACTION_IDS,
 	WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE,
 	createWorkmuxKeyboardCommandRunner,
@@ -23,6 +22,23 @@ const deferred = <T>() => {
 	});
 	return { promise, resolve, reject };
 };
+
+const EXPECTED_WORKMUX_KEYBOARD_ACTIONS = [
+	['WORKMUX_FOCUS_CLAUDE', { type: 'focus', target: 'claude' }],
+	['WORKMUX_FOCUS_GIT', { type: 'focus', target: 'git' }],
+	['WORKMUX_FOCUS_CODEX', { type: 'focus', target: 'codex' }],
+	['WORKMUX_FOCUS_BASH', { type: 'focus', target: 'bash' }],
+	['WORKMUX_FOCUS_PREV', { type: 'focus', target: 'prev' }],
+	['WORKMUX_FOCUS_NEXT', { type: 'focus', target: 'next' }],
+	[
+		'WORKMUX_FOCUS_TOGGLE_GIT_BASH',
+		{ type: 'focus', target: 'toggle-git-bash' },
+	],
+	['WORKMUX_NAV_PREV', { type: 'nav', action: 'prev' }],
+	['WORKMUX_NAV_NEXT', { type: 'nav', action: 'next' }],
+	['WORKMUX_NAV_PREV_ALL', { type: 'nav', action: 'prev-all' }],
+	['WORKMUX_NAV_NEXT_ALL', { type: 'nav', action: 'next-all' }],
+] as const satisfies readonly (readonly [string, WorkmuxKeyboardCommand])[];
 
 void test('keyboard navigation actions use runtime-configured targets instead of hardcoded ids', async () => {
 	const selectedKeyboardIds: string[] = [];
@@ -226,23 +242,49 @@ void test('Workmux keyboard actions delegate semantic commands without sending b
 		},
 	} as Parameters<typeof runAction>[1];
 
-	for (const actionId of WORKMUX_KEYBOARD_ACTION_IDS) {
+	for (const [actionId] of EXPECTED_WORKMUX_KEYBOARD_ACTIONS) {
 		await runAction(actionId, context);
 	}
 
 	assert.deepEqual(
 		commands,
-		WORKMUX_KEYBOARD_ACTION_IDS.map(
-			(actionId) => WORKMUX_KEYBOARD_ACTION_COMMANDS[actionId],
-		),
+		EXPECTED_WORKMUX_KEYBOARD_ACTIONS.map(([, command]) => command),
 	);
 	assert.equal(sentBytes, 0);
-	for (const actionId of WORKMUX_KEYBOARD_ACTION_IDS) {
+	assert.deepEqual(
+		WORKMUX_KEYBOARD_ACTION_IDS,
+		EXPECTED_WORKMUX_KEYBOARD_ACTIONS.map(([actionId]) => actionId),
+	);
+	for (const [actionId] of EXPECTED_WORKMUX_KEYBOARD_ACTIONS) {
 		assert.equal(
 			KNOWN_ACTION_IDS.includes(actionId as (typeof KNOWN_ACTION_IDS)[number]),
 			true,
 		);
 	}
+});
+
+void test('Workmux runAction waits for command handling and preserves Promise<void>', async () => {
+	const commandBlock = deferred<{ status: 'handled' }>();
+	let settled = false;
+	const promise = runAction('WORKMUX_NAV_NEXT', {
+		availableKeyboardIds: new Set(),
+		selectKeyboard: () => {},
+		rotateKeyboard: () => {},
+		openConfigurator: () => {},
+		sendBytes: () => {},
+		pasteClipboard: async () => {},
+		copySelection: () => {},
+		runWorkmuxKeyboardCommand: async () => commandBlock.promise,
+	} as Parameters<typeof runAction>[1]).then((result) => {
+		settled = true;
+		return result;
+	});
+
+	await Promise.resolve();
+	assert.equal(settled, false);
+	commandBlock.resolve({ status: 'handled' });
+	assert.equal(await promise, undefined);
+	assert.equal(settled, true);
 });
 
 void test('Workmux keyboard failure copy preserves local precondition failures', () => {
