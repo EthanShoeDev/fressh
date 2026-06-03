@@ -57,6 +57,7 @@ fn cstr_opt(ptr: *const c_char) -> Option<String> {
 pub unsafe extern "C" fn fressh_terminal_attach(
 	window: *mut c_void,
 	font_path: *const c_char,
+	font_size_px: f32,
 	shell_id: *const c_char,
 ) -> *mut AttachedTerminal {
 	android_logger::init_once(
@@ -65,7 +66,10 @@ pub unsafe extern "C" fn fressh_terminal_attach(
 
 	let font_path = cstr_opt(font_path).unwrap_or_default();
 	let shell_id = cstr_opt(shell_id);
-	let config = TerminalConfig { font_path, ..TerminalConfig::default() };
+	let mut config = TerminalConfig { font_path, ..TerminalConfig::default() };
+	if font_size_px > 0.0 {
+		config.font_size_pt = font_size_px;
+	}
 
 	log::info!("fressh_terminal_attach: shell_id={shell_id:?}");
 	match EglContext::create(window, config) {
@@ -95,6 +99,34 @@ pub unsafe extern "C" fn fressh_terminal_set_shell(
 		attached.shell_id = cstr_opt(shell_id);
 		attached.last_state = None; // force a fresh transition log
 		log::info!("fressh_terminal_set_shell: shell_id={:?}", attached.shell_id);
+	}
+}
+
+/// Change the font size (physical px) at runtime: rebuilds the glyph cache,
+/// reflows to the surface, and resizes the bound shell's PTY/`Term` to the new
+/// grid. Used by the `fontSize` view prop / settings.
+///
+/// # Safety
+/// `ptr` must be a non-null handle from [`fressh_terminal_attach`].
+#[no_mangle]
+pub unsafe extern "C" fn fressh_terminal_set_font_size(
+	ptr: *mut AttachedTerminal,
+	font_size_px: f32,
+) {
+	// SAFETY: caller guarantees `ptr` is a live handle from attach.
+	let Some(attached) = (unsafe { ptr.as_mut() }) else {
+		return;
+	};
+	if font_size_px <= 0.0 {
+		return;
+	}
+	let (cols, rows) = attached.egl.set_font_size(font_size_px);
+	attached.last_state = None;
+	log::info!("fressh_terminal_set_font_size: {font_size_px}px grid={cols}x{rows}");
+	if let Some(id) = attached.shell_id.clone() {
+		runtime::handle().spawn(async move {
+			let _ = fressh_core::resize(id, cols, rows).await;
+		});
 	}
 }
 

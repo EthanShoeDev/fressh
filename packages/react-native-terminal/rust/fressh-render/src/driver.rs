@@ -101,6 +101,21 @@ impl TerminalRenderer {
 		self.palette = Palette::new(&config.colors);
 		self.config = config;
 	}
+
+	/// Rebuild the glyph cache at a new font size (physical px). The caller must
+	/// have the GL context current and should `resize` afterwards so the grid is
+	/// recomputed from the new cell metrics. No-op if the size is unchanged.
+	pub fn rebuild_font(&mut self, font_size_pt: f32) -> Result<(), RenderError> {
+		if (font_size_pt - self.config.font_size_pt).abs() < f32::EPSILON {
+			return Ok(());
+		}
+		let rasterizer = Rasterizer::new().map_err(|err| RenderError::Font(err.to_string()))?;
+		let font = Font::from_path(&self.config.font_path, font_size_pt);
+		self.glyph_cache =
+			GlyphCache::new(rasterizer, &font).map_err(|err| RenderError::Font(err.to_string()))?;
+		self.config.font_size_pt = font_size_pt;
+		Ok(())
+	}
 }
 
 /// Derive a `SizeInfo` from the surface size and the font's cell metrics.

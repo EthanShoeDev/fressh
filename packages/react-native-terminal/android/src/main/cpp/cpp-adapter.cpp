@@ -24,8 +24,10 @@ namespace jni = facebook::jni;
 // ─────────────────────────── render plane (C-ABI) ───────────────────────────
 
 extern "C" {
-void *fressh_terminal_attach(void *window, const char *font_path, const char *shell_id);
+void *fressh_terminal_attach(void *window, const char *font_path, float font_size,
+                             const char *shell_id);
 void fressh_terminal_set_shell(void *handle, const char *shell_id);
+void fressh_terminal_set_font_size(void *handle, float font_size);
 void fressh_terminal_draw(void *handle);
 void fressh_terminal_resize(void *handle);
 void fressh_terminal_send_input(void *handle, const uint8_t *data, size_t len);
@@ -53,7 +55,7 @@ const char *orNull(JNIEnv *env, jstring s, const char **owned) {
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_margelo_nitro_fressh_HybridTerminal_nativeAttach(
     JNIEnv *env, jobject /* this */, jobject surface, jstring font_path,
-    jstring shell_id) {
+    jfloat font_size, jstring shell_id) {
   ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
   if (window == nullptr) {
     return 0;
@@ -64,7 +66,7 @@ Java_com_margelo_nitro_fressh_HybridTerminal_nativeAttach(
   const char *font = orNull(env, font_path, &fontOwned);
   const char *shell = orNull(env, shell_id, &shellOwned);
 
-  void *rust = fressh_terminal_attach(window, font, shell);
+  void *rust = fressh_terminal_attach(window, font, font_size, shell);
 
   if (fontOwned) env->ReleaseStringUTFChars(font_path, fontOwned);
   if (shellOwned) env->ReleaseStringUTFChars(shell_id, shellOwned);
@@ -86,6 +88,13 @@ Java_com_margelo_nitro_fressh_HybridTerminal_nativeSetShell(
   const char *shell = orNull(env, shell_id, &owned);
   fressh_terminal_set_shell(h->rust, shell);
   if (owned) env->ReleaseStringUTFChars(shell_id, owned);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_margelo_nitro_fressh_HybridTerminal_nativeSetFontSize(
+    JNIEnv * /* env */, jobject /* this */, jlong handle, jfloat font_size) {
+  auto *h = reinterpret_cast<TerminalHandle *>(handle);
+  if (h != nullptr) fressh_terminal_set_font_size(h->rust, font_size);
 }
 
 extern "C" JNIEXPORT void JNICALL

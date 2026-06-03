@@ -114,6 +114,17 @@ impl EglContext {
 	pub fn set_config(&mut self, config: TerminalConfig) {
 		self.renderer.set_palette(config);
 	}
+
+	/// Change the font size (physical px) at runtime: rebuild the glyph cache and
+	/// reflow to the surface. Returns the resulting grid `(columns, rows)` so the
+	/// caller can resize the PTY/`Term`. On failure, keeps the current font.
+	pub fn set_font_size(&mut self, font_size_pt: f32) -> (usize, usize) {
+		if let Err(err) = self.renderer.rebuild_font(font_size_pt) {
+			log::error!("set_font_size: rebuild_font failed: {err}");
+			return self.grid_size();
+		}
+		self.resize()
+	}
 }
 
 impl Drop for EglContext {

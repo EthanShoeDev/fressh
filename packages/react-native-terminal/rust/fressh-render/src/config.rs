@@ -72,7 +72,9 @@ impl Default for TerminalConfig {
 		Self {
 			colors: ColorScheme::default(),
 			font_path: String::new(),
-			font_size_pt: 14.0,
+			// Physical px. The embedder normally overrides this (logical pt ×
+			// device density); this fallback assumes ~2× density.
+			font_size_pt: 32.0,
 			scrollback_lines: 10_000,
 			draw_bold_text_with_bright_colors: true,
 		}
