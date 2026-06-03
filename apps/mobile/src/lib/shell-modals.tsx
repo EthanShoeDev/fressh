@@ -17,10 +17,6 @@ import {
 import { cleanupBrowserActionRequests } from '@/lib/browser-actions-request-cleanup';
 import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
 import {
-	formatWorkmuxAppCommandFailureMessage,
-	isWorkmuxAppCommand,
-} from '@/lib/workmux-app-commands';
-import {
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
 	getHostBrowserUrlSlotLabel,
@@ -29,6 +25,7 @@ import {
 	type HostBrowserOpenMode,
 	type HostBrowserUrlSlot,
 } from './host-browser-actions';
+import { runHostCommandWithBoundary } from './host-command-router';
 import { runHostDiffityOpenRequest } from './host-diffity-open-request';
 import {
 	buildCreateGitHubIssueCommand,
@@ -617,6 +614,11 @@ export type BrowserActionsControllerDeps<TConnection> = {
 	connection: TConnection | null;
 	tmuxEnabled: boolean;
 	tmuxTarget: string;
+	executeRemoteTextCommand: (
+		connection: TConnection,
+		command: string,
+		timeoutMs: number,
+	) => Promise<string>;
 	executeSideChannelCommand: (
 		connection: TConnection,
 		command: string,
@@ -633,6 +635,7 @@ export function useBrowserActionsController<TConnection>(
 		connection,
 		tmuxEnabled,
 		tmuxTarget,
+		executeRemoteTextCommand,
 		executeSideChannelCommand,
 		getErrorMessage,
 		closeOtherModals,
@@ -661,26 +664,15 @@ export function useBrowserActionsController<TConnection>(
 
 	const runHostBrowserCommand = useCallback(
 		async (command: string, timeoutMs = 30_000) => {
-			if (!connection) {
-				throw new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
-			}
-			const result = await executeSideChannelCommand(
+			return runHostCommandWithBoundary({
 				connection,
 				command,
 				timeoutMs,
-			);
-			if (!result.success) {
-				const rawMessage =
-					result.error || result.output || 'Remote command failed.';
-				throw new Error(
-					isWorkmuxAppCommand(command)
-						? formatWorkmuxAppCommandFailureMessage(rawMessage)
-						: rawMessage,
-				);
-			}
-			return result.output.trim();
+				executeRemoteTextCommand,
+				executeSideChannelCommand,
+			});
 		},
-		[connection, executeSideChannelCommand],
+		[connection, executeRemoteTextCommand, executeSideChannelCommand],
 	);
 
 	const resolveHostBrowserPanePath = useCallback(async () => {

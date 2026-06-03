@@ -1341,7 +1341,7 @@ git commit -m "Move notification listener to SSH command stream"
 - Modify: `apps/mobile/src/lib/shell-modals.tsx`
 - Modify: `apps/mobile/src/app/shell/detail.tsx`
 
-- [ ] **Step 1: Write failing host command router tests**
+- [x] **Step 1: Write failing host command router tests**
 
 Create `apps/mobile/test/integration/host-command-router.test.ts`:
 
@@ -1408,7 +1408,7 @@ void test('runHostCommandWithBoundary throws side-channel failures', async () =>
 });
 ```
 
-- [ ] **Step 2: Run router test to verify it fails**
+- [x] **Step 2: Run router test to verify it fails**
 
 Run:
 
@@ -1418,7 +1418,7 @@ pnpm --filter @fressh/mobile test:integration -- host-command-router.test.ts
 
 Expected: FAIL because `host-command-router` does not exist.
 
-- [ ] **Step 3: Implement the host command router**
+- [x] **Step 3: Implement the host command router**
 
 Create `apps/mobile/src/lib/host-command-router.ts`:
 
@@ -1469,7 +1469,7 @@ export async function runHostCommandWithBoundary<TConnection>({
 }
 ```
 
-- [ ] **Step 4: Wire browser actions to the router**
+- [x] **Step 4: Wire browser actions to the router**
 
 In `apps/mobile/src/lib/shell-modals.tsx`, import:
 
@@ -1511,7 +1511,7 @@ executeRemoteTextCommand: (connection, command, timeoutMs) =>
 	runRemoteTextCommand({ connection, command, timeoutMs }),
 ```
 
-- [ ] **Step 5: Run router and Workmux feature tests**
+- [x] **Step 5: Run router and Workmux feature tests**
 
 Run:
 
@@ -1521,7 +1521,7 @@ pnpm --filter @fressh/mobile test:integration -- host-command-router.test.ts age
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit one-shot Workmux routing**
+- [x] **Step 6: Commit one-shot Workmux routing**
 
 Run:
 

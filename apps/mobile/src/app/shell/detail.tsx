@@ -70,6 +70,7 @@ import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { OrderedWriter } from '@/lib/ordered-writer';
+import { runRemoteTextCommand } from '@/lib/remote-command-runner';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -394,9 +395,9 @@ const scrollbackExitKeyPayload = encoder.encode('q');
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
 	const listenerIdRef = useRef<bigint | null>(null);
-	const listenerOwnerRef = useRef<{ removeListener: (id: bigint) => void } | null>(
-		null,
-	);
+	const listenerOwnerRef = useRef<{
+		removeListener: (id: bigint) => void;
+	} | null>(null);
 	const attachedShellKeyRef = useRef<string | null>(null);
 	const hasAttachedOnceRef = useRef(false);
 	const workmuxScrollbackCommandExecutorRef =
@@ -843,23 +844,22 @@ function ShellDetail() {
 		? tmuxTarget.trim()
 		: 'main';
 
-	const workmuxScrollbackCommandExecutor = useMemo(
-		() => {
-			// Target changes dispose the previous executor in the cleanup effect below.
-			const executorTargetName = normalizedTmuxTarget;
-			return createWorkmuxScrollbackCommandExecutor({
-				executeCommand: async (command) => {
-					if (!connection) {
-						return {
-							success: false,
-							output: '',
-							error: `No SSH connection available for ${executorTargetName}.`,
-						};
-					}
-					return executeSideChannelCommand(
-						connection,
-						command,
-						WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS,
+	const workmuxScrollbackCommandExecutor = useMemo(() => {
+		// Target changes dispose the previous executor in the cleanup effect below.
+		const executorTargetName = normalizedTmuxTarget;
+		return createWorkmuxScrollbackCommandExecutor({
+			executeCommand: async (command) => {
+				if (!connection) {
+					return {
+						success: false,
+						output: '',
+						error: `No SSH connection available for ${executorTargetName}.`,
+					};
+				}
+				return executeSideChannelCommand(
+					connection,
+					command,
+					WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS,
 				);
 			},
 			onFailure: handleWorkmuxScrollbackCommandFailure,
@@ -868,10 +868,8 @@ function ShellDetail() {
 					message,
 					warn: (warning) => logger.warn(warning),
 				}),
-			});
-		},
-		[connection, handleWorkmuxScrollbackCommandFailure, normalizedTmuxTarget],
-	);
+		});
+	}, [connection, handleWorkmuxScrollbackCommandFailure, normalizedTmuxTarget]);
 
 	useEffect(() => {
 		const lineAccumulator = tmuxScrollbackLineAccumulatorRef.current;
@@ -1785,6 +1783,12 @@ function ShellDetail() {
 		connection: connection ?? null,
 		tmuxEnabled,
 		tmuxTarget,
+		executeRemoteTextCommand: (activeConnection, command, timeoutMs) =>
+			runRemoteTextCommand({
+				connection: activeConnection,
+				command,
+				timeoutMs,
+			}),
 		executeSideChannelCommand,
 		getErrorMessage,
 		closeOtherModals: closeBrowserActionsOtherModals,
@@ -2155,22 +2159,22 @@ function ShellDetail() {
 		if (isFocused) {
 			void acknowledgeVisibleAgentNotification();
 		} else {
-				runtimeShellConfigReloadRequestIdRef.current += 1;
-				browserActions.invalidateAll();
-				browserActions.close();
-				liveInputGenerationRef.current += 1;
-				clearCommandTimeouts();
-				scrollbackEnterRequestGenerationRef.current += 1;
-				void clearScrollbackState({ failurePolicy: 'suppress' });
-			}
+			runtimeShellConfigReloadRequestIdRef.current += 1;
+			browserActions.invalidateAll();
+			browserActions.close();
+			liveInputGenerationRef.current += 1;
+			clearCommandTimeouts();
+			scrollbackEnterRequestGenerationRef.current += 1;
+			void clearScrollbackState({ failurePolicy: 'suppress' });
+		}
 	}, [
 		acknowledgeVisibleAgentNotification,
 		browserActions,
 		channelId,
-			clearScrollbackState,
-			clearCommandTimeouts,
-			connectionStoredConnectionId,
-			isFocused,
+		clearScrollbackState,
+		clearCommandTimeouts,
+		connectionStoredConnectionId,
+		isFocused,
 		tmuxTarget,
 	]);
 
@@ -2497,14 +2501,14 @@ function ShellDetail() {
 				warn: (message, error) => logger.warn(message, error),
 			});
 			if (previousState === 'active') {
-					agentNotificationAckRequestIdRef.current += 1;
-					runtimeShellConfigReloadRequestIdRef.current += 1;
-					browserActions.invalidateAll();
-					workmuxKeyboardCommandRunner.invalidate();
-					liveInputGenerationRef.current += 1;
-					clearCommandTimeouts();
-					if (isAndroid) {
-						lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
+				agentNotificationAckRequestIdRef.current += 1;
+				runtimeShellConfigReloadRequestIdRef.current += 1;
+				browserActions.invalidateAll();
+				workmuxKeyboardCommandRunner.invalidate();
+				liveInputGenerationRef.current += 1;
+				clearCommandTimeouts();
+				if (isAndroid) {
+					lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
 				}
 			}
 		});
@@ -2512,9 +2516,9 @@ function ShellDetail() {
 			subscription.remove();
 		};
 	}, [
-			browserActions,
-			clearCommandTimeouts,
-			clearScrollbackState,
+		browserActions,
+		clearCommandTimeouts,
+		clearScrollbackState,
 		systemKeyboardEnabled,
 		workmuxKeyboardCommandRunner,
 	]);
