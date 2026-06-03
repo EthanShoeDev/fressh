@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Review"
+  short_description: "Run a multi-angle code review"
+  default_prompt: "Use $code-review to review the current diff from multiple angles and produce a prioritized findings queue."
