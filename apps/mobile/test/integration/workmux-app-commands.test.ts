@@ -12,6 +12,7 @@ import {
 	buildWorkmuxAppScrollPageCommand,
 	buildWorkmuxAppWindowCommand,
 	formatWorkmuxAppCommandFailureMessage,
+	isWorkmuxAppCommand,
 	parseWorkmuxAppContextOutput,
 	parseWorkmuxAppWindowOutput,
 	type WorkmuxAppContext,
@@ -96,6 +97,14 @@ void test('workmux app command builders shell-quote app arguments', () => {
 		buildWorkmuxAppNavCommand('main', 'prev-all'),
 		"mdev tmux app nav 'prev-all' --session 'main'",
 	);
+});
+
+void test('workmux app command predicate recognizes app-boundary commands', () => {
+	assert.equal(isWorkmuxAppCommand('mdev tmux app context --session main'), true);
+	assert.equal(isWorkmuxAppCommand('mdev   tmux\tapp\ncontext'), true);
+	assert.equal(isWorkmuxAppCommand('mdev tmux attach main'), false);
+	assert.equal(isWorkmuxAppCommand('tmux app context'), false);
+	assert.equal(isWorkmuxAppCommand('mdev tmux application context'), false);
 });
 
 void test('workmux app builders normalize blank sessions to main', () => {

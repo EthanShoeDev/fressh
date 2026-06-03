@@ -110,7 +110,12 @@ void test('XtermJsWebView message handler routes current instance events and dro
 		true,
 	);
 	assert.equal(
-		handle({ type: 'sizeChanged', cols: 80, rows: 24 }),
+		handle({
+			type: 'sizeChanged',
+			cols: 80,
+			rows: 24,
+			instanceId: 'instance-1',
+		}),
 		true,
 	);
 	assert.equal(
@@ -220,6 +225,37 @@ void test('XtermJsWebView message handler routes current instance events and dro
 				pageStep: 32,
 				instanceId: 'instance-1',
 			},
+		],
+	]);
+});
+
+void test('XtermJsWebView message handler drops stale size changes', () => {
+	const events: unknown[] = [];
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'sizeChanged',
+				cols: 120,
+				rows: 40,
+				instanceId: 'stale-instance',
+			},
+			{
+				currentInstanceIdRef: { current: 'instance-1' },
+				pendingSelectionRef: { current: new Map() },
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				autoFitFn: () => {},
+				setInitialized: () => {},
+				onResize: (cols, rows) => events.push(`resize:${cols}x${rows}`),
+			},
+		),
+		true,
+	);
+
+	assert.deepEqual(events, [
+		[
+			'warn',
+			['dropping stale webview message', 'sizeChanged', 'stale-instance'],
 		],
 	]);
 });
@@ -579,6 +615,10 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 		} else if (path === 'dist/bridge.d.ts') {
 			assert.match(content, /scrollbackEnterRequested/);
 			assert.match(content, /scrollbackEnterAck/);
+			assert.match(
+				content,
+				/type: 'sizeChanged';\s+cols: number;\s+rows: number;\s+instanceId: string;/,
+			);
 		} else {
 			assert.match(content, /pageStep/);
 			assert.match(content, /scrollbackEnterRequested/);

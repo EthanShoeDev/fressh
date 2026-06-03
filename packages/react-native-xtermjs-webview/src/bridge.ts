@@ -11,7 +11,7 @@ export type BridgeInboundMessage =
 			kind?: 'typing';
 	  }
 	| { type: 'debug'; message: string }
-	| { type: 'sizeChanged'; cols: number; rows: number }
+	| { type: 'sizeChanged'; cols: number; rows: number; instanceId: string }
 	| { type: 'selection'; requestId: number; text: string; instanceId: string }
 	| { type: 'selectionChanged'; text: string; instanceId: string }
 	| { type: 'selectionModeChanged'; enabled: boolean; instanceId: string }

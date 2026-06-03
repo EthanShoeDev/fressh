@@ -134,7 +134,12 @@ window.onload = () => {
 
 		// Send initial size after first fit
 		if (term.cols >= 2 && term.rows >= 1) {
-			sendToRn({ type: 'sizeChanged', cols: term.cols, rows: term.rows });
+			sendToRn({
+				type: 'sizeChanged',
+				cols: term.cols,
+				rows: term.rows,
+				instanceId,
+			});
 		}
 
 		const applyFontFamily = (family?: string) => {
@@ -187,7 +192,7 @@ window.onload = () => {
 		// Report terminal size changes back to RN (for PTY resize)
 		term.onResize(({ cols, rows }) => {
 			if (cols >= 2 && rows >= 1) {
-				sendToRn({ type: 'sizeChanged', cols, rows });
+				sendToRn({ type: 'sizeChanged', cols, rows, instanceId });
 			}
 		});
 

@@ -51,6 +51,10 @@ export type WorkmuxNavAction =
 
 type JsonRecord = Record<string, unknown>;
 
+export function isWorkmuxAppCommand(command: string): boolean {
+	return /^mdev\s+tmux\s+app(?:\s|$)/.test(command);
+}
+
 function isMissingWorkmuxAppCommandFailure(message: string): boolean {
 	return [
 		/\b(mdev|tmux): command not found\b/i,

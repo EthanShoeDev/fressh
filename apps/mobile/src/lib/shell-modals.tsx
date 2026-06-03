@@ -17,7 +17,10 @@ import {
 import { cleanupBrowserActionRequests } from '@/lib/browser-actions-request-cleanup';
 import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
 import { createHostDiffityRequestController } from '@/lib/host-diffity-request-controller';
-import { formatWorkmuxAppCommandFailureMessage } from '@/lib/workmux-app-commands';
+import {
+	formatWorkmuxAppCommandFailureMessage,
+	isWorkmuxAppCommand,
+} from '@/lib/workmux-app-commands';
 import {
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
@@ -671,7 +674,7 @@ export function useBrowserActionsController<TConnection>(
 				const rawMessage =
 					result.error || result.output || 'Remote command failed.';
 				throw new Error(
-					command.startsWith('mdev tmux app ')
+					isWorkmuxAppCommand(command)
 						? formatWorkmuxAppCommandFailureMessage(rawMessage)
 						: rawMessage,
 				);

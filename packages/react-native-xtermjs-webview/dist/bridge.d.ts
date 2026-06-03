@@ -15,6 +15,7 @@ export type BridgeInboundMessage = {
     type: 'sizeChanged';
     cols: number;
     rows: number;
+    instanceId: string;
 } | {
     type: 'selection';
     requestId: number;

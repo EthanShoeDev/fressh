@@ -80,6 +80,7 @@ export function createXtermWebViewMessageHandler({
 							type: 'sizeChanged',
 							cols: term.cols,
 							rows: term.rows,
+							instanceId,
 						});
 					}
 					break;
