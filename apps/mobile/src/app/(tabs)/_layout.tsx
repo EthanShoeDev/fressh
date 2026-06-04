@@ -57,20 +57,6 @@ export default function TabsLayout() {
 					Shells
 				</NativeTabs.Trigger.Label>
 			</NativeTabs.Trigger>
-			<NativeTabs.Trigger name='terminal-test'>
-				<NativeTabs.Trigger.Icon
-					src={
-						<NativeTabs.Trigger.VectorIcon
-							family={MaterialCommunityIcons}
-							name='monitor'
-						/>
-					}
-					selectedColor={textPrimary}
-				/>
-				<NativeTabs.Trigger.Label selectedStyle={{ color: textPrimary }}>
-					Term
-				</NativeTabs.Trigger.Label>
-			</NativeTabs.Trigger>
 			<NativeTabs.Trigger name='settings'>
 				<NativeTabs.Trigger.Icon
 					src={
