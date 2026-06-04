@@ -1,4 +1,3 @@
-
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { resetTmuxScrollbackRuntimeState } from '../../src/lib/tmux-scrollback';
@@ -8,6 +7,7 @@ import {
 	clearTmuxScrollbackLineAccumulator,
 	createTmuxScrollbackLineAccumulator,
 	mergeWorkmuxScrollbackPageCommands,
+	TMUX_SCROLLBACK_RECEIVER_MAX_LINES_PER_BATCH,
 	TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
 } from '../../src/lib/workmux-scrollback-batch';
 import { formatWorkmuxScrollbackCommandFailureMessage } from '../../src/lib/workmux-scrollback-executor';
@@ -22,7 +22,7 @@ void test('accumulateWorkmuxScrollbackBatchCommands builds page scroll commands'
 			linesPerPage: 24,
 			lineAccumulator: createTmuxScrollbackLineAccumulator(),
 		}),
-		[{ sessionName: 'main', direction: 'up', count: 2 }],
+		[{ sessionName: 'main', direction: 'up', unit: 'page', count: 2 }],
 	);
 });
 
@@ -38,7 +38,7 @@ void test('accumulateWorkmuxScrollbackBatchCommands accumulates sub-page lines b
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		[],
+		[{ sessionName: 'main', direction: 'down', unit: 'line', count: 12 }],
 	);
 	assert.deepEqual(
 		accumulateWorkmuxScrollbackBatchCommands({
@@ -49,11 +49,28 @@ void test('accumulateWorkmuxScrollbackBatchCommands accumulates sub-page lines b
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		[{ sessionName: 'main', direction: 'down', count: 1 }],
+		[{ sessionName: 'main', direction: 'down', unit: 'line', count: 12 }],
 	);
 });
 
-void test('accumulateWorkmuxScrollbackBatchCommands accumulates rows-minus-one line batches into one receiver page', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands preserves page and line scroll intents', () => {
+	assert.deepEqual(
+		accumulateWorkmuxScrollbackBatchCommands({
+			sessionName: 'main',
+			direction: 'up',
+			pages: 2,
+			lines: 7,
+			linesPerPage: 24,
+			lineAccumulator: createTmuxScrollbackLineAccumulator(),
+		}),
+		[
+			{ sessionName: 'main', direction: 'up', unit: 'page', count: 2 },
+			{ sessionName: 'main', direction: 'up', unit: 'line', count: 7 },
+		],
+	);
+});
+
+void test('accumulateWorkmuxScrollbackBatchCommands emits sub-page lines immediately', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 	const pageStep = 24;
 
@@ -66,7 +83,7 @@ void test('accumulateWorkmuxScrollbackBatchCommands accumulates rows-minus-one l
 			linesPerPage: pageStep,
 			lineAccumulator,
 		}),
-		[],
+		[{ sessionName: 'main', direction: 'up', unit: 'line', count: 12 }],
 	);
 	assert.deepEqual(
 		accumulateWorkmuxScrollbackBatchCommands({
@@ -77,11 +94,11 @@ void test('accumulateWorkmuxScrollbackBatchCommands accumulates rows-minus-one l
 			linesPerPage: pageStep,
 			lineAccumulator,
 		}),
-		[{ sessionName: 'main', direction: 'up', count: 1 }],
+		[{ sessionName: 'main', direction: 'up', unit: 'line', count: 12 }],
 	);
 });
 
-void test('accumulateWorkmuxScrollbackBatchCommands nets line leftovers on direction change', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands preserves line direction changes', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
 	assert.deepEqual(
@@ -93,7 +110,7 @@ void test('accumulateWorkmuxScrollbackBatchCommands nets line leftovers on direc
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		[],
+		[{ sessionName: 'main', direction: 'up', unit: 'line', count: 12 }],
 	);
 	assert.deepEqual(
 		accumulateWorkmuxScrollbackBatchCommands({
@@ -104,33 +121,12 @@ void test('accumulateWorkmuxScrollbackBatchCommands nets line leftovers on direc
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		[],
+		[{ sessionName: 'main', direction: 'down', unit: 'line', count: 12 }],
 	);
-	assert.deepEqual(
-		accumulateWorkmuxScrollbackBatchCommands({
-			sessionName: 'main',
-			direction: 'down',
-			pages: 0,
-			lines: 12,
-			linesPerPage: 24,
-			lineAccumulator,
-		}),
-		[],
-	);
-	assert.deepEqual(
-		accumulateWorkmuxScrollbackBatchCommands({
-			sessionName: 'main',
-			direction: 'down',
-			pages: 0,
-			lines: 12,
-			linesPerPage: 24,
-			lineAccumulator,
-		}),
-		[{ sessionName: 'main', direction: 'down', count: 1 }],
-	);
+	assert.deepEqual(lineAccumulator, { direction: null, lines: 0 });
 });
 
-void test('accumulateWorkmuxScrollbackBatchCommands nets explicit pages and lines on reversal', () => {
+void test('accumulateWorkmuxScrollbackBatchCommands keeps page and line units separate on reversal', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
 	assert.deepEqual(
@@ -142,7 +138,7 @@ void test('accumulateWorkmuxScrollbackBatchCommands nets explicit pages and line
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		[],
+		[{ sessionName: 'main', direction: 'up', unit: 'line', count: 20 }],
 	);
 	assert.deepEqual(
 		accumulateWorkmuxScrollbackBatchCommands({
@@ -153,15 +149,18 @@ void test('accumulateWorkmuxScrollbackBatchCommands nets explicit pages and line
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		[],
+		[
+			{ sessionName: 'main', direction: 'down', unit: 'page', count: 1 },
+			{ sessionName: 'main', direction: 'down', unit: 'line', count: 6 },
+		],
 	);
 	assert.deepEqual(lineAccumulator, {
-		direction: 'down',
-		lines: 10,
+		direction: null,
+		lines: 0,
 	});
 });
 
-void test('clearTmuxScrollbackLineAccumulator drops line leftovers', () => {
+void test('clearTmuxScrollbackLineAccumulator is harmless after direct line commands', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
 	assert.deepEqual(
@@ -173,7 +172,7 @@ void test('clearTmuxScrollbackLineAccumulator drops line leftovers', () => {
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		[],
+		[{ sessionName: 'main', direction: 'down', unit: 'line', count: 12 }],
 	);
 	clearTmuxScrollbackLineAccumulator(lineAccumulator);
 	assert.deepEqual(
@@ -185,7 +184,7 @@ void test('clearTmuxScrollbackLineAccumulator drops line leftovers', () => {
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		[],
+		[{ sessionName: 'main', direction: 'down', unit: 'line', count: 12 }],
 	);
 });
 
@@ -200,8 +199,8 @@ void test('accumulateWorkmuxScrollbackBatchCommands splits page commands above W
 			lineAccumulator: createTmuxScrollbackLineAccumulator(),
 		}),
 		[
-			{ sessionName: 'main', direction: 'up', count: 20 },
-			{ sessionName: 'main', direction: 'up', count: 5 },
+			{ sessionName: 'main', direction: 'up', unit: 'page', count: 20 },
+			{ sessionName: 'main', direction: 'up', unit: 'page', count: 5 },
 		],
 	);
 });
@@ -209,15 +208,15 @@ void test('accumulateWorkmuxScrollbackBatchCommands splits page commands above W
 void test('mergeWorkmuxScrollbackPageCommands coalesces adjacent page intents', () => {
 	assert.deepEqual(
 		mergeWorkmuxScrollbackPageCommands([
-			{ sessionName: 'main', direction: 'up', count: 3 },
-			{ sessionName: 'main', direction: 'up', count: 4 },
-			{ sessionName: 'main', direction: 'down', count: 2 },
-			{ sessionName: 'main', direction: 'down', count: 19 },
+			{ sessionName: 'main', direction: 'up', unit: 'page', count: 3 },
+			{ sessionName: 'main', direction: 'up', unit: 'page', count: 4 },
+			{ sessionName: 'main', direction: 'down', unit: 'page', count: 2 },
+			{ sessionName: 'main', direction: 'down', unit: 'page', count: 19 },
 		]),
 		[
-			{ sessionName: 'main', direction: 'up', count: 7 },
-			{ sessionName: 'main', direction: 'down', count: 20 },
-			{ sessionName: 'main', direction: 'down', count: 1 },
+			{ sessionName: 'main', direction: 'up', unit: 'page', count: 7 },
+			{ sessionName: 'main', direction: 'down', unit: 'page', count: 20 },
+			{ sessionName: 'main', direction: 'down', unit: 'page', count: 1 },
 		],
 	);
 });
@@ -240,11 +239,37 @@ void test('accumulateWorkmuxScrollbackBatchCommands clamps malformed huge batche
 		),
 	);
 	assert.deepEqual(commands, [
-		{ sessionName: 'main', direction: 'down', count: 20 },
-		{ sessionName: 'main', direction: 'down', count: 20 },
-		{ sessionName: 'main', direction: 'down', count: 20 },
-		{ sessionName: 'main', direction: 'down', count: 20 },
-		{ sessionName: 'main', direction: 'down', count: 20 },
+		{ sessionName: 'main', direction: 'down', unit: 'page', count: 20 },
+		{ sessionName: 'main', direction: 'down', unit: 'page', count: 20 },
+		{ sessionName: 'main', direction: 'down', unit: 'page', count: 20 },
+		{ sessionName: 'main', direction: 'down', unit: 'page', count: 20 },
+		{ sessionName: 'main', direction: 'down', unit: 'page', count: 20 },
+	]);
+});
+
+void test('accumulateWorkmuxScrollbackBatchCommands clamps malformed huge line batches before splitting', () => {
+	const commands = accumulateWorkmuxScrollbackBatchCommands({
+		sessionName: 'main',
+		direction: 'up',
+		pages: 0,
+		lines: 1_000_000,
+		linesPerPage: 24,
+		lineAccumulator: createTmuxScrollbackLineAccumulator(),
+	});
+
+	assert.equal(
+		commands.length,
+		Math.ceil(
+			TMUX_SCROLLBACK_RECEIVER_MAX_LINES_PER_BATCH /
+				WORKMUX_APP_SCROLL_MAX_COUNT,
+		),
+	);
+	assert.deepEqual(commands, [
+		{ sessionName: 'main', direction: 'up', unit: 'line', count: 20 },
+		{ sessionName: 'main', direction: 'up', unit: 'line', count: 20 },
+		{ sessionName: 'main', direction: 'up', unit: 'line', count: 20 },
+		{ sessionName: 'main', direction: 'up', unit: 'line', count: 20 },
+		{ sessionName: 'main', direction: 'up', unit: 'line', count: 20 },
 	]);
 });
 
@@ -277,7 +302,7 @@ void test('formatWorkmuxScrollbackCommandFailureMessage preserves local no-conne
 	);
 });
 
-void test('resetTmuxScrollbackRuntimeState clears stale line leftovers', () => {
+void test('resetTmuxScrollbackRuntimeState leaves direct line commands usable', () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 
 	assert.deepEqual(
@@ -289,7 +314,7 @@ void test('resetTmuxScrollbackRuntimeState clears stale line leftovers', () => {
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		[],
+		[{ sessionName: 'main', direction: 'down', unit: 'line', count: 12 }],
 	);
 	void resetTmuxScrollbackRuntimeState({ lineAccumulator });
 	assert.deepEqual(
@@ -301,6 +326,6 @@ void test('resetTmuxScrollbackRuntimeState clears stale line leftovers', () => {
 			linesPerPage: 24,
 			lineAccumulator,
 		}),
-		[],
+		[{ sessionName: 'main', direction: 'down', unit: 'line', count: 12 }],
 	);
 });

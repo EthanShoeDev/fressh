@@ -5,6 +5,7 @@ import {
 
 // Bounds malformed bridge batches before splitting into remote commands.
 export const TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH = 100;
+export const TMUX_SCROLLBACK_RECEIVER_MAX_LINES_PER_BATCH = 100;
 export const TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES = 100;
 
 export type TmuxScrollbackLineAccumulator = {
@@ -15,6 +16,7 @@ export type TmuxScrollbackLineAccumulator = {
 export type WorkmuxScrollbackPageCommand = {
 	sessionName: string;
 	direction: WorkmuxScrollDirection;
+	unit: 'line' | 'page';
 	count: number;
 };
 
@@ -31,6 +33,7 @@ export function mergeWorkmuxScrollbackPageCommands(
 				previous &&
 				previous.sessionName === command.sessionName &&
 				previous.direction === command.direction &&
+				(previous.unit ?? 'page') === (command.unit ?? 'page') &&
 				previous.count < WORKMUX_APP_SCROLL_MAX_COUNT
 			) {
 				const available = WORKMUX_APP_SCROLL_MAX_COUNT - previous.count;
@@ -42,6 +45,7 @@ export function mergeWorkmuxScrollbackPageCommands(
 			merged.push({
 				sessionName: command.sessionName,
 				direction: command.direction,
+				unit: command.unit ?? 'page',
 				count,
 			});
 			remainingCount -= count;
@@ -55,22 +59,42 @@ export function coalesceWorkmuxScrollbackPendingPageCommands(
 ): WorkmuxScrollbackPageCommand[] {
 	let sessionName: string | null = null;
 	let netPages = 0;
+	let netLines = 0;
 	for (const command of commands) {
 		sessionName = command.sessionName;
-		netPages += command.direction === 'up' ? command.count : -command.count;
+		if ((command.unit ?? 'page') === 'line') {
+			netLines += command.direction === 'up' ? command.count : -command.count;
+		} else {
+			netPages += command.direction === 'up' ? command.count : -command.count;
+		}
 		if (Math.abs(netPages) > TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES) {
 			netPages =
 				Math.sign(netPages) * TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES;
 		}
+		if (Math.abs(netLines) > TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES) {
+			netLines =
+				Math.sign(netLines) * TMUX_SCROLLBACK_EXECUTOR_MAX_PENDING_PAGES;
+		}
 	}
-	if (!sessionName || netPages === 0) return [];
-	return [
-		{
+	if (!sessionName || (netPages === 0 && netLines === 0)) return [];
+	const next: WorkmuxScrollbackPageCommand[] = [];
+	if (netPages !== 0) {
+		next.push({
 			sessionName,
 			direction: netPages > 0 ? 'up' : 'down',
+			unit: 'page',
 			count: Math.abs(netPages),
-		},
-	];
+		});
+	}
+	if (netLines !== 0) {
+		next.push({
+			sessionName,
+			direction: netLines > 0 ? 'up' : 'down',
+			unit: 'line',
+			count: Math.abs(netLines),
+		});
+	}
+	return next;
 }
 
 export function createTmuxScrollbackLineAccumulator(): TmuxScrollbackLineAccumulator {
@@ -92,7 +116,6 @@ export function accumulateWorkmuxScrollbackBatchCommands({
 	direction,
 	pages,
 	lines,
-	linesPerPage,
 	lineAccumulator,
 }: {
 	sessionName: string;
@@ -104,39 +127,37 @@ export function accumulateWorkmuxScrollbackBatchCommands({
 }): WorkmuxScrollbackPageCommand[] {
 	const explicitPageCount = truncateNonNegativeInteger(pages);
 	const lineCount = truncateNonNegativeInteger(lines);
-	const pageSize = Math.max(1, truncateNonNegativeInteger(linesPerPage));
-	const signedPreviousLines =
-		lineAccumulator.direction === 'up'
-			? lineAccumulator.lines
-			: -lineAccumulator.lines;
-	const signedBatchDirection = direction === 'up' ? 1 : -1;
-	const signedBatchLines =
-		signedBatchDirection * (explicitPageCount * pageSize + lineCount);
-	const signedTotalLines = signedPreviousLines + signedBatchLines;
-	const totalDirection =
-		signedTotalLines >= 0 ? 'up' : ('down' as WorkmuxScrollDirection);
-	const totalLines = Math.abs(signedTotalLines);
-	const pageCount = Math.min(
-		Math.trunc(totalLines / pageSize),
-		TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
-	);
-	const leftoverLines = totalLines % pageSize;
-
-	lineAccumulator.direction = leftoverLines === 0 ? null : totalDirection;
-	lineAccumulator.lines = leftoverLines;
-
-	if (pageCount === 0) return [];
-
 	const commands: WorkmuxScrollbackPageCommand[] = [];
+	lineAccumulator.direction = null;
+	lineAccumulator.lines = 0;
 	for (
-		let remainingPages = pageCount;
+		let remainingPages = Math.min(
+			explicitPageCount,
+			TMUX_SCROLLBACK_RECEIVER_MAX_PAGES_PER_BATCH,
+		);
 		remainingPages > 0;
 		remainingPages -= WORKMUX_APP_SCROLL_MAX_COUNT
 	) {
 		commands.push({
 			sessionName,
-			direction: totalDirection,
+			direction,
+			unit: 'page',
 			count: Math.min(remainingPages, WORKMUX_APP_SCROLL_MAX_COUNT),
+		});
+	}
+	for (
+		let remainingLines = Math.min(
+			lineCount,
+			TMUX_SCROLLBACK_RECEIVER_MAX_LINES_PER_BATCH,
+		);
+		remainingLines > 0;
+		remainingLines -= WORKMUX_APP_SCROLL_MAX_COUNT
+	) {
+		commands.push({
+			sessionName,
+			direction,
+			unit: 'line',
+			count: Math.min(remainingLines, WORKMUX_APP_SCROLL_MAX_COUNT),
 		});
 	}
 	return commands;

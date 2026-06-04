@@ -1,3 +1,7 @@
+import { isWorkmuxScrollAlreadyInactiveFailureMessage } from '../../lib/workmux-app-commands';
+
+type ShellWorkmuxScrollbackFailureCommandKind = 'enter' | 'scroll' | 'exit';
+
 export function runShellScrollbackInactiveCleanup({
 	previousState,
 	nextState,
@@ -21,6 +25,19 @@ export function runShellScrollbackInactiveCleanup({
 		warn('Workmux inactive scrollback cleanup failed', error);
 	});
 	return cleanup;
+}
+
+export function shouldTreatShellWorkmuxScrollbackFailureAsAlreadyInactive({
+	message,
+	commandKind,
+}: {
+	message: string;
+	commandKind: ShellWorkmuxScrollbackFailureCommandKind;
+}): boolean {
+	return (
+		commandKind === 'scroll' &&
+		isWorkmuxScrollAlreadyInactiveFailureMessage(message)
+	);
 }
 
 export function handleShellWorkmuxScrollbackCommandFailureActions({
