@@ -105,7 +105,21 @@ export function formatWorkmuxAppBoundaryFailureMessage(
 }
 
 function buildMdevCommandFromArgv(argv: string[]): string {
-	return ['mdev', ...argv].map(quoteShellValue).join(' ');
+	return ['mdev', ...argv]
+		.map((value, index, tokens) =>
+			isMdevCommandToken(value, index, tokens) ? value : quoteShellValue(value),
+		)
+		.join(' ');
+}
+
+function isMdevCommandToken(
+	value: string,
+	index: number,
+	tokens: string[],
+): boolean {
+	if (index < 4) return true;
+	if (tokens[3] === 'notification' && index === 4) return true;
+	return value.startsWith('--');
 }
 
 export function buildWorkmuxAppContextArgv(sessionName: string): string[] {
@@ -332,7 +346,6 @@ function normalizeSessionName(sessionName: string): string {
 }
 
 function quoteShellValue(value: string): string {
-	if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
 	return quoteRequiredShellValue(value);
 }
 
