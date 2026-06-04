@@ -7,7 +7,7 @@ import { View } from 'react-native';
  */
 export default function TerminalTestScreen() {
 	return (
-		<View style={{ flex: 1, backgroundColor: 'black' }}>
+		<View className='flex-1 bg-black'>
 			<Terminal fontPath='' style={{ flex: 1 }} />
 		</View>
 	);

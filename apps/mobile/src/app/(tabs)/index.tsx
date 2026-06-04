@@ -12,6 +12,7 @@ import {
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCSSVariable } from 'uniwind';
 import { useAppForm, useFieldContext } from '@/components/form-components';
 import { KeyList } from '@/components/key-manager/KeyList';
 import { rootLogger } from '@/lib/logger';
@@ -24,7 +25,6 @@ import {
 	secretsManager,
 	type InputConnectionDetails,
 } from '@/lib/secrets-manager';
-import { useTheme } from '@/lib/theme';
 import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 
 const logger = rootLogger.extend('TabsIndex');
@@ -44,7 +44,8 @@ const defaultValues: InputConnectionDetails = {
 };
 
 function Host() {
-	const theme = useTheme();
+	const backgroundColor = useCSSVariable('--color-background') as string;
+	const shadowColor = useCSSVariable('--color-shadow') as string;
 	const [lastConnectionProgressEvent, setLastConnectionProgressEvent] =
 		React.useState<SshConnectionProgress | null>(null);
 
@@ -98,53 +99,29 @@ function Host() {
 	})();
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+		<SafeAreaView style={{ flex: 1, backgroundColor }}>
 			<ScrollView
 				contentContainerStyle={[{ marginBottom }]}
 				keyboardShouldPersistTaps='handled'
-				style={{ backgroundColor: theme.colors.background }}
+				className='bg-background'
 			>
-				<View
-					style={[
-						{
-							flex: 1,
-							padding: 24,
-							backgroundColor: theme.colors.background,
-							justifyContent: 'center',
-						},
-						{ backgroundColor: theme.colors.background },
-					]}
-				>
-					<View style={{ marginBottom: 16, alignItems: 'center' }}>
-						<Text
-							style={{
-								fontSize: 28,
-								fontWeight: '800',
-								color: theme.colors.textPrimary,
-								letterSpacing: 1,
-							}}
-						>
+				<View className='flex-1 justify-center bg-background p-6'>
+					<View className='mb-4 items-center'>
+						<Text className='text-[28px] font-extrabold tracking-[1px] text-text-primary'>
 							fressh
 						</Text>
-						<Text
-							style={{ marginTop: 4, fontSize: 13, color: theme.colors.muted }}
-						>
+						<Text className='mt-1 text-[13px] text-muted'>
 							A fast, friendly SSH client
 						</Text>
 					</View>
 					<View
+						className='mx-1 rounded-[20px] border border-border-strong bg-surface p-6'
 						style={{
-							backgroundColor: theme.colors.surface,
-							borderRadius: 20,
-							padding: 24,
-							marginHorizontal: 4,
-							shadowColor: theme.colors.shadow,
+							shadowColor,
 							shadowOpacity: 0.3,
 							shadowRadius: 16,
 							shadowOffset: { width: 0, height: 4 },
 							elevation: 8,
-							borderWidth: 1,
-							borderColor: theme.colors.borderStrong,
 						}}
 					>
 						{/* Status lives inside the Connect button via submittingTitle */}
@@ -183,7 +160,7 @@ function Host() {
 							</connectionForm.AppField>
 							<connectionForm.AppField name='security.type'>
 								{(field) => (
-									<View style={{ marginBottom: 12 }}>
+									<View className='mb-3'>
 										<SegmentedControl
 											values={['Password', 'Private Key']}
 											selectedIndex={field.state.value === 'password' ? 0 : 1}
@@ -215,7 +192,7 @@ function Host() {
 								</connectionForm.AppField>
 							)}
 
-							<View style={{ marginTop: 20 }}>
+							<View className='mt-5'>
 								<connectionForm.SubmitButton
 									title='Connect'
 									submittingTitle={buttonLabel}
@@ -230,7 +207,7 @@ function Host() {
 								/>
 							</View>
 							{sshConnMutation.isError ? (
-								<Text style={{ color: theme.colors.danger, marginTop: 8 }}>
+								<Text className='mt-2 text-danger'>
 									{sshConnMutation.error?.message ?? 'Failed to connect'}
 								</Text>
 							) : null}
@@ -263,7 +240,6 @@ function Host() {
 }
 
 function KeyIdPickerField() {
-	const theme = useTheme();
 	const field = useFieldContext<string>();
 	const [open, setOpen] = React.useState(false);
 
@@ -300,48 +276,27 @@ function KeyIdPickerField() {
 
 	return (
 		<>
-			<View style={{ marginBottom: 12 }}>
-				<Text
-					style={{
-						marginBottom: 6,
-						fontSize: 14,
-						color: theme.colors.textSecondary,
-						fontWeight: '600',
-					}}
-				>
+			<View className='mb-3'>
+				<Text className='mb-1.5 text-sm font-semibold text-text-secondary'>
 					Private Key
 				</Text>
 				<Pressable
-					style={[
-						{
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							backgroundColor: theme.colors.inputBackground,
-							borderRadius: 10,
-							paddingHorizontal: 12,
-							paddingVertical: 12,
-							justifyContent: 'center',
-						},
-					]}
+					className='justify-center rounded-[10px] border border-border bg-input-background px-3 py-3'
 					onPress={() => {
 						refreshKeys();
 						setOpen(true);
 					}}
 				>
-					<Text style={{ color: theme.colors.textPrimary }}>{display}</Text>
+					<Text className='text-text-primary'>{display}</Text>
 				</Pressable>
 				{!selected && (
-					<Text style={{ color: theme.colors.muted, fontSize: 14 }}>
+					<Text className='text-sm text-muted'>
 						Open Key Manager to add/select a key
 					</Text>
 				)}
 			</View>
 			{fieldError ? (
-				<Text
-					style={{ color: theme.colors.danger, fontSize: 12, marginTop: 6 }}
-				>
-					{fieldError}
-				</Text>
+				<Text className='mt-1.5 text-xs text-danger'>{fieldError}</Text>
 			) : null}
 			<Modal
 				visible={open}
@@ -351,61 +306,19 @@ function KeyIdPickerField() {
 					setOpen(false);
 				}}
 			>
-				<View
-					style={{
-						flex: 1,
-						backgroundColor: theme.colors.overlay,
-						justifyContent: 'flex-end',
-					}}
-				>
-					<View
-						style={{
-							backgroundColor: theme.colors.background,
-							borderTopLeftRadius: 16,
-							borderTopRightRadius: 16,
-							padding: 16,
-							borderColor: theme.colors.borderStrong,
-							borderWidth: 1,
-							maxHeight: '85%',
-						}}
-					>
-						<View
-							style={{
-								flexDirection: 'row',
-								justifyContent: 'space-between',
-								alignItems: 'center',
-								marginBottom: 8,
-							}}
-						>
-							<Text
-								style={{
-									color: theme.colors.textPrimary,
-									fontSize: 18,
-									fontWeight: '700',
-								}}
-							>
+				<View className='flex-1 justify-end bg-overlay'>
+					<View className='max-h-[85%] rounded-t-2xl border border-border-strong bg-background p-4'>
+						<View className='mb-2 flex-row items-center justify-between'>
+							<Text className='text-lg font-bold text-text-primary'>
 								Select Key
 							</Text>
 							<Pressable
-								style={{
-									paddingHorizontal: 8,
-									paddingVertical: 6,
-									borderRadius: 8,
-									borderWidth: 1,
-									borderColor: theme.colors.border,
-								}}
+								className='rounded-lg border border-border px-2 py-1.5'
 								onPress={() => {
 									setOpen(false);
 								}}
 							>
-								<Text
-									style={{
-										color: theme.colors.textSecondary,
-										fontWeight: '600',
-									}}
-								>
-									Close
-								</Text>
+								<Text className='font-semibold text-text-secondary'>Close</Text>
 							</Pressable>
 						</View>
 						<KeyList
@@ -425,30 +338,18 @@ function KeyIdPickerField() {
 function PreviousConnectionsSection(props: {
 	onFillForm: (connection: InputConnectionDetails) => void;
 }) {
-	const theme = useTheme();
 	const listResult = useAtomValue(secretsManager.connections.atoms.list);
 	const connections = AsyncResult.isSuccess(listResult) ? listResult.value : [];
 
 	return (
-		<View style={{ marginTop: 20 }}>
-			<Text
-				style={{
-					fontSize: 16,
-					fontWeight: '700',
-					color: theme.colors.textPrimary,
-					marginBottom: 8,
-				}}
-			>
+		<View className='mt-5'>
+			<Text className='mb-2 text-base font-bold text-text-primary'>
 				Previous Connections
 			</Text>
 			{AsyncResult.isInitial(listResult) ? (
-				<Text style={{ color: theme.colors.muted, fontSize: 14 }}>
-					Loading connections...
-				</Text>
+				<Text className='text-sm text-muted'>Loading connections...</Text>
 			) : AsyncResult.isFailure(listResult) ? (
-				<Text
-					style={{ marginTop: 6, color: theme.colors.danger, fontSize: 12 }}
-				>
+				<Text className='mt-1.5 text-xs text-danger'>
 					Error loading connections
 				</Text>
 			) : connections.length ? (
@@ -462,9 +363,7 @@ function PreviousConnectionsSection(props: {
 					))}
 				</View>
 			) : (
-				<Text style={{ color: theme.colors.muted, fontSize: 14 }}>
-					No saved connections yet
-				</Text>
+				<Text className='text-sm text-muted'>No saved connections yet</Text>
 			)}
 		</View>
 	);
@@ -474,7 +373,6 @@ function ConnectionRow(props: {
 	id: string;
 	onFillForm: (connection: InputConnectionDetails) => void;
 }) {
-	const theme = useTheme();
 	const detailsResult = useAtomValue(
 		secretsManager.connections.atoms.get(props.id),
 	);
@@ -491,18 +389,7 @@ function ConnectionRow(props: {
 
 	return (
 		<Pressable
-			style={{
-				flexDirection: 'row',
-				alignItems: 'center',
-				justifyContent: 'space-between',
-				backgroundColor: theme.colors.inputBackground,
-				borderWidth: 1,
-				borderColor: theme.colors.border,
-				borderRadius: 12,
-				paddingHorizontal: 12,
-				paddingVertical: 12,
-				marginBottom: 8,
-			}}
+			className='mb-2 flex-row items-center justify-between rounded-xl border border-border bg-input-background px-3 py-3'
 			onPress={() => {
 				if (details) {
 					props.onFillForm(details);
@@ -510,30 +397,16 @@ function ConnectionRow(props: {
 			}}
 			disabled={!details}
 		>
-			<View style={{ flex: 1, marginRight: 12 }}>
-				<Text
-					style={{
-						color: theme.colors.textPrimary,
-						fontSize: 15,
-						fontWeight: '600',
-					}}
-				>
+			<View className='mr-3 flex-1'>
+				<Text className='text-[15px] font-semibold text-text-primary'>
 					{details ? `${details.username}@${details.host}` : 'Loading...'}
 				</Text>
-				<Text style={{ color: theme.colors.muted, marginTop: 2, fontSize: 12 }}>
+				<Text className='mt-0.5 text-xs text-muted'>
 					{details ? `Port ${details.port} • ${details.security.type}` : ''}
 				</Text>
 			</View>
 			<Pressable onPress={() => setOpen(true)} hitSlop={8}>
-				<Text
-					style={{
-						color: theme.colors.muted,
-						fontSize: 22,
-						paddingHorizontal: 4,
-					}}
-				>
-					⋯
-				</Text>
+				<Text className='px-1 text-[22px] text-muted'>⋯</Text>
 			</Pressable>
 
 			{/* Actions Modal */}
@@ -543,32 +416,12 @@ function ConnectionRow(props: {
 				animationType='fade'
 				onRequestClose={() => setOpen(false)}
 			>
-				<Pressable
-					style={{ flex: 1, backgroundColor: theme.colors.overlay }}
-					onPress={() => setOpen(false)}
-				>
-					<View
-						style={{
-							marginTop: 'auto',
-							backgroundColor: theme.colors.background,
-							padding: 16,
-							borderTopLeftRadius: 16,
-							borderTopRightRadius: 16,
-							borderWidth: 1,
-							borderColor: theme.colors.borderStrong,
-						}}
-					>
-						<Text
-							style={{
-								color: theme.colors.textPrimary,
-								fontWeight: '700',
-								fontSize: 16,
-								marginBottom: 12,
-							}}
-						>
+				<Pressable className='flex-1 bg-overlay' onPress={() => setOpen(false)}>
+					<View className='mt-auto rounded-t-2xl border border-border-strong bg-background p-4'>
+						<Text className='mb-3 text-base font-bold text-text-primary'>
 							Connection Actions
 						</Text>
-						<View style={{ gap: 8 }}>
+						<View className='gap-2'>
 							{/* Keep only rename/delete/cancel. Tap row fills the form */}
 							<Pressable
 								onPress={() => {
@@ -576,21 +429,9 @@ function ConnectionRow(props: {
 									setRenameOpen(true);
 									setNewId(props.id);
 								}}
-								style={{
-									backgroundColor: theme.colors.transparent,
-									borderWidth: 1,
-									borderColor: theme.colors.border,
-									borderRadius: 10,
-									paddingVertical: 12,
-									alignItems: 'center',
-								}}
+								className='items-center rounded-[10px] border border-border bg-transparent py-3'
 							>
-								<Text
-									style={{
-										color: theme.colors.textSecondary,
-										fontWeight: '600',
-									}}
-								>
+								<Text className='font-semibold text-text-secondary'>
 									Rename
 								</Text>
 							</Pressable>
@@ -599,36 +440,15 @@ function ConnectionRow(props: {
 									setOpen(false);
 									deleteConnection();
 								}}
-								style={{
-									backgroundColor: theme.colors.transparent,
-									borderWidth: 1,
-									borderColor: theme.colors.danger,
-									borderRadius: 10,
-									paddingVertical: 12,
-									alignItems: 'center',
-								}}
+								className='items-center rounded-[10px] border border-danger bg-transparent py-3'
 							>
-								<Text style={{ color: theme.colors.danger, fontWeight: '700' }}>
-									Delete
-								</Text>
+								<Text className='font-bold text-danger'>Delete</Text>
 							</Pressable>
 							<Pressable
 								onPress={() => setOpen(false)}
-								style={{
-									backgroundColor: theme.colors.transparent,
-									borderWidth: 1,
-									borderColor: theme.colors.border,
-									borderRadius: 10,
-									paddingVertical: 12,
-									alignItems: 'center',
-								}}
+								className='items-center rounded-[10px] border border-border bg-transparent py-3'
 							>
-								<Text
-									style={{
-										color: theme.colors.textSecondary,
-										fontWeight: '600',
-									}}
-								>
+								<Text className='font-semibold text-text-secondary'>
 									Cancel
 								</Text>
 							</Pressable>
@@ -645,55 +465,23 @@ function ConnectionRow(props: {
 				onRequestClose={() => setRenameOpen(false)}
 			>
 				<Pressable
-					style={{ flex: 1, backgroundColor: theme.colors.overlay }}
+					className='flex-1 bg-overlay'
 					onPress={() => setRenameOpen(false)}
 				>
-					<View
-						style={{
-							marginTop: 'auto',
-							backgroundColor: theme.colors.background,
-							padding: 16,
-							borderTopLeftRadius: 16,
-							borderTopRightRadius: 16,
-							borderWidth: 1,
-							borderColor: theme.colors.borderStrong,
-						}}
-					>
-						<Text
-							style={{
-								color: theme.colors.textPrimary,
-								fontWeight: '700',
-								fontSize: 16,
-								marginBottom: 8,
-							}}
-						>
+					<View className='mt-auto rounded-t-2xl border border-border-strong bg-background p-4'>
+						<Text className='mb-2 text-base font-bold text-text-primary'>
 							Rename Connection
 						</Text>
-						<Text
-							style={{
-								color: theme.colors.muted,
-								fontSize: 12,
-								marginBottom: 8,
-							}}
-						>
+						<Text className='mb-2 text-xs text-muted'>
 							Enter a new identifier for this saved connection
 						</Text>
 						<TextInput
 							value={newId}
 							onChangeText={setNewId}
 							autoCapitalize='none'
-							style={{
-								backgroundColor: theme.colors.inputBackground,
-								color: theme.colors.textPrimary,
-								borderWidth: 1,
-								borderColor: theme.colors.border,
-								borderRadius: 10,
-								paddingHorizontal: 12,
-								paddingVertical: 10,
-								marginBottom: 12,
-							}}
+							className='mb-3 rounded-[10px] border border-border bg-input-background px-3 py-2.5 text-text-primary'
 						/>
-						<View style={{ flexDirection: 'row', gap: 8 }}>
+						<View className='flex-row gap-2'>
 							<Pressable
 								onPress={() => {
 									if (!details) {
@@ -711,45 +499,17 @@ function ConnectionRow(props: {
 									});
 									setRenameOpen(false);
 								}}
-								style={{
-									backgroundColor: theme.colors.primary,
-									borderRadius: 10,
-									paddingVertical: 12,
-									paddingHorizontal: 16,
-									alignItems: 'center',
-									flex: 1,
-								}}
+								className='flex-1 items-center rounded-[10px] bg-primary px-4 py-3'
 							>
-								<Text
-									style={{
-										color: theme.colors.buttonTextOnPrimary,
-										fontWeight: '700',
-										textAlign: 'center',
-									}}
-								>
+								<Text className='text-center font-bold text-button-text-on-primary'>
 									Save
 								</Text>
 							</Pressable>
 							<Pressable
 								onPress={() => setRenameOpen(false)}
-								style={{
-									backgroundColor: theme.colors.transparent,
-									borderWidth: 1,
-									borderColor: theme.colors.border,
-									borderRadius: 10,
-									paddingVertical: 12,
-									paddingHorizontal: 16,
-									alignItems: 'center',
-									flex: 1,
-								}}
+								className='flex-1 items-center rounded-[10px] border border-border bg-transparent px-4 py-3'
 							>
-								<Text
-									style={{
-										color: theme.colors.textSecondary,
-										fontWeight: '600',
-										textAlign: 'center',
-									}}
-								>
+								<Text className='text-center font-semibold text-text-secondary'>
 									Cancel
 								</Text>
 							</Pressable>

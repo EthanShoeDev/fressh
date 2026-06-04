@@ -4,14 +4,7 @@ import {
 	useStore,
 } from '@tanstack/react-form';
 import React from 'react';
-import {
-	Pressable,
-	Switch,
-	Text,
-	TextInput,
-	View,
-	StyleSheet,
-} from 'react-native';
+import { Pressable, Switch, Text, TextInput, View } from 'react-native';
 
 function FieldInfo() {
 	const field = useFieldContext();
@@ -33,13 +26,17 @@ function FieldInfo() {
 	}
 
 	return (
-		<View style={{ marginTop: 6 }}>
+		<View className='mt-1.5'>
 			{errorMessage ? (
-				<Text style={{ color: '#FCA5A5', fontSize: 12 }}>{errorMessage}</Text>
+				<Text className='text-xs text-danger'>{errorMessage}</Text>
 			) : null}
 		</View>
 	);
 }
+
+const FIELD_LABEL_CLASS = 'mb-1.5 text-sm font-semibold text-text-secondary';
+const TEXT_INPUT_CLASS =
+	'rounded-[10px] border border-border bg-input-background px-3 py-3 text-base text-text-primary';
 
 // https://tanstack.com/form/latest/docs/framework/react/quick-start
 export function TextField(
@@ -51,23 +48,12 @@ export function TextField(
 	const field = useFieldContext<string>();
 
 	return (
-		<View style={{ marginBottom: 16 }}>
-			{label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
+		<View className='mb-4'>
+			{label ? <Text className={FIELD_LABEL_CLASS}>{label}</Text> : null}
 			<TextInput
-				style={[
-					{
-						borderWidth: 1,
-						borderColor: '#2A3655',
-						backgroundColor: '#0E172B',
-						color: '#E5E7EB',
-						borderRadius: 10,
-						paddingHorizontal: 12,
-						paddingVertical: 12,
-						fontSize: 16,
-					},
-					style,
-				]}
-				placeholderTextColor='#9AA0A6'
+				className={TEXT_INPUT_CLASS}
+				style={style}
+				placeholderTextColorClassName='accent-muted'
 				value={field.state.value}
 				onChangeText={field.handleChange}
 				onBlur={field.handleBlur}
@@ -92,35 +78,13 @@ export function NumberField(
 	} = props;
 	const field = useFieldContext<number>();
 	return (
-		<View style={{ marginBottom: 16 }}>
-			{label ? (
-				<Text
-					style={{
-						marginBottom: 6,
-						fontSize: 14,
-						color: '#C6CBD3',
-						fontWeight: '600',
-					}}
-				>
-					{label}
-				</Text>
-			) : null}
+		<View className='mb-4'>
+			{label ? <Text className={FIELD_LABEL_CLASS}>{label}</Text> : null}
 			<TextInput
 				keyboardType={keyboardType ?? 'numeric'}
-				style={[
-					{
-						borderWidth: 1,
-						borderColor: '#2A3655',
-						backgroundColor: '#0E172B',
-						color: '#E5E7EB',
-						borderRadius: 10,
-						paddingHorizontal: 12,
-						paddingVertical: 12,
-						fontSize: 16,
-					},
-					style,
-				]}
-				placeholderTextColor='#9AA0A6'
+				className={TEXT_INPUT_CLASS}
+				style={style}
+				placeholderTextColorClassName='accent-muted'
 				value={field.state.value.toString()}
 				onChangeText={(text) => {
 					field.handleChange(Number(text));
@@ -133,38 +97,18 @@ export function NumberField(
 	);
 }
 
-const styles = StyleSheet.create({
-	fieldLabel: {
-		marginBottom: 6,
-		color: '#C6CBD3',
-		fontWeight: '600',
-		fontSize: 14,
-	},
-});
-
 export function SwitchField(
 	props: React.ComponentProps<typeof Switch> & {
 		label?: string;
 	},
 ) {
-	const { label, style, ...rest } = props;
+	const { label, ...rest } = props;
 	const field = useFieldContext<boolean>();
 
 	return (
-		<View style={{ marginBottom: 16 }}>
-			{label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
+		<View className='mb-4'>
+			{label ? <Text className={FIELD_LABEL_CLASS}>{label}</Text> : null}
 			<Switch
-				style={[
-					{
-						borderWidth: 1,
-						borderColor: '#2A3655',
-						backgroundColor: '#0E172B',
-						borderRadius: 10,
-						paddingHorizontal: 12,
-						paddingVertical: 12,
-					},
-					style,
-				]}
 				value={field.state.value}
 				onChange={(event) => {
 					field.handleChange(event.nativeEvent.value);
@@ -199,19 +143,15 @@ export function SubmitButton(
 	return (
 		<Pressable
 			{...rest}
-			style={[
-				{
-					backgroundColor: '#2563EB',
-					borderRadius: 10,
-					paddingVertical: 14,
-					alignItems: 'center',
-				},
-				disabled ? { backgroundColor: '#3B82F6', opacity: 0.6 } : undefined,
-			]}
+			className={
+				disabled
+					? 'items-center rounded-[10px] bg-primary-disabled py-3.5 opacity-60'
+					: 'items-center rounded-[10px] bg-primary py-3.5'
+			}
 			onPress={onPress}
 			disabled={disabled === true ? true : isSubmitting}
 		>
-			<Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>
+			<Text className='text-base font-bold text-button-text-on-primary'>
 				{isSubmitting ? (submittingTitle ?? 'Connecting...') : title}
 			</Text>
 		</Pressable>
@@ -235,5 +175,3 @@ export const { useAppForm, withForm, withFieldGroup } = createFormHook({
 	fieldContext,
 	formContext,
 });
-
-// Styles inlined per component

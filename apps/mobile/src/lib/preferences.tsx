@@ -5,9 +5,11 @@ import {
 	useMMKVNumber,
 	useMMKVString,
 } from 'react-native-mmkv';
-import type { ThemeName } from './theme';
+import type { AppThemeName } from './theme';
 
 const storage = createMMKV({ id: 'settings' });
+
+const APP_THEME_NAMES = ['system', 'light', 'dark', 'dracula'] as const;
 
 type ShellListViewMode = 'flat' | 'grouped';
 
@@ -59,18 +61,20 @@ function resolveBoundedNumber(
 export const preferences = {
 	theme: {
 		_key: 'theme',
-		_resolve: (rawTheme: string | undefined): ThemeName =>
-			rawTheme === 'light' ? 'light' : 'dark',
-		get: (): ThemeName =>
+		_resolve: (rawTheme: string | undefined): AppThemeName =>
+			APP_THEME_NAMES.includes(rawTheme as AppThemeName)
+				? (rawTheme as AppThemeName)
+				: 'dark',
+		get: (): AppThemeName =>
 			preferences.theme._resolve(storage.getString(preferences.theme._key)),
-		set: (name: ThemeName) => {
+		set: (name: AppThemeName) => {
 			storage.set(preferences.theme._key, name);
 		},
-		useThemePref: (): [ThemeName, (name: ThemeName) => void] => {
+		useThemePref: (): [AppThemeName, (name: AppThemeName) => void] => {
 			const [theme, setTheme] = useMMKVString(preferences.theme._key);
 			return [
 				preferences.theme._resolve(theme),
-				(name: ThemeName) => {
+				(name: AppThemeName) => {
 					setTheme(name);
 				},
 			] as const;

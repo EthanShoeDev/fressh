@@ -4,7 +4,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import React from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { secretsManager } from '@/lib/secrets-manager';
-import { useTheme } from '@/lib/theme';
 import { asyncResultErrorMessage } from '@/lib/utils';
 
 export type KeyListMode = 'manage' | 'select';
@@ -14,7 +13,6 @@ export function KeyList(props: {
 	onSelect?: (id: string) => void | Promise<void>;
 }) {
 	const listResult = useAtomValue(secretsManager.keys.atoms.list);
-	const theme = useTheme();
 
 	const generate = useAtomSet(secretsManager.keys.atoms.generate);
 	const generateResult = useAtomValue(secretsManager.keys.atoms.generate);
@@ -23,42 +21,31 @@ export function KeyList(props: {
 	const keys = AsyncResult.isSuccess(listResult) ? listResult.value : [];
 
 	return (
-		<ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+		<ScrollView contentContainerClassName='gap-4 p-4'>
 			<ImportKeyCard />
 
 			<Pressable
-				style={[
-					{
-						backgroundColor: theme.colors.primary,
-						borderRadius: 12,
-						paddingVertical: 14,
-						alignItems: 'center',
-					},
-					isGenerating && { opacity: 0.7 },
-				]}
+				className={
+					isGenerating
+						? 'items-center rounded-xl bg-primary py-3.5 opacity-70'
+						: 'items-center rounded-xl bg-primary py-3.5'
+				}
 				disabled={isGenerating}
 				onPress={() => {
 					generate();
 				}}
 			>
-				<Text
-					style={{
-						color: theme.colors.buttonTextOnPrimary,
-						fontWeight: '700',
-						fontSize: 14,
-						letterSpacing: 0.3,
-					}}
-				>
+				<Text className='text-sm font-bold tracking-[0.3px] text-button-text-on-primary'>
 					{isGenerating ? 'Generating…' : 'Generate New Key (ed25519)'}
 				</Text>
 			</Pressable>
 
 			{AsyncResult.isInitial(listResult) ? (
-				<Text style={{ color: theme.colors.muted }}>Loading keys…</Text>
+				<Text className='text-muted'>Loading keys…</Text>
 			) : AsyncResult.isFailure(listResult) ? (
-				<Text style={{ color: theme.colors.danger }}>Error loading keys</Text>
+				<Text className='text-danger'>Error loading keys</Text>
 			) : keys.length ? (
-				<View style={{ gap: 12 }}>
+				<View className='gap-3'>
 					{keys.map((k) => (
 						<KeyRow
 							key={k.id}
@@ -69,14 +56,13 @@ export function KeyList(props: {
 					))}
 				</View>
 			) : (
-				<Text style={{ color: theme.colors.muted }}>No keys yet</Text>
+				<Text className='text-muted'>No keys yet</Text>
 			)}
 		</ScrollView>
 	);
 }
 
 function ImportKeyCard() {
-	const theme = useTheme();
 	const [mode, setMode] = React.useState<'paste' | 'file'>('paste');
 	const [label, setLabel] = React.useState('Imported Key');
 	const [asDefault, setAsDefault] = React.useState(false);
@@ -133,56 +119,28 @@ function ImportKeyCard() {
 	}, [label]);
 
 	return (
-		<View
-			style={{
-				backgroundColor: theme.colors.surface,
-				borderRadius: 12,
-				borderWidth: 1,
-				borderColor: theme.colors.border,
-				padding: 12,
-				gap: 12,
-			}}
-		>
-			<Text
-				style={{
-					color: theme.colors.textPrimary,
-					fontWeight: '700',
-					fontSize: 16,
-				}}
-			>
+		<View className='gap-3 rounded-xl border border-border bg-surface p-3'>
+			<Text className='text-base font-bold text-text-primary'>
 				Import Private Key
 			</Text>
 
-			<View
-				style={{
-					flexDirection: 'row',
-					backgroundColor: theme.colors.inputBackground,
-					borderRadius: 10,
-					borderWidth: 1,
-					borderColor: theme.colors.border,
-					overflow: 'hidden',
-				}}
-			>
+			<View className='flex-row overflow-hidden rounded-[10px] border border-border bg-input-background'>
 				{(['paste', 'file'] as const).map((m) => (
 					<Pressable
 						key={m}
 						onPress={() => setMode(m)}
-						style={{
-							flex: 1,
-							paddingVertical: 10,
-							alignItems: 'center',
-							backgroundColor:
-								mode === m
-									? theme.colors.surface
-									: theme.colors.inputBackground,
-						}}
+						className={
+							mode === m
+								? 'flex-1 items-center bg-surface py-2.5'
+								: 'flex-1 items-center bg-input-background py-2.5'
+						}
 					>
 						<Text
-							style={{
-								color:
-									mode === m ? theme.colors.textPrimary : theme.colors.muted,
-								fontWeight: '600',
-							}}
+							className={
+								mode === m
+									? 'font-semibold text-text-primary'
+									: 'font-semibold text-muted'
+							}
 						>
 							{m === 'paste' ? 'Paste' : 'File'}
 						</Text>
@@ -194,105 +152,60 @@ function ImportKeyCard() {
 				<TextInput
 					multiline
 					placeholder='Paste your private key here'
-					placeholderTextColor={theme.colors.muted}
+					placeholderTextColorClassName='accent-muted'
 					value={content}
 					onChangeText={setContent}
-					style={{
-						minHeight: 120,
-						backgroundColor: theme.colors.inputBackground,
-						color: theme.colors.textPrimary,
-						borderWidth: 1,
-						borderColor: theme.colors.border,
-						borderRadius: 10,
-						padding: 12,
-						fontFamily: 'Menlo, ui-monospace, monospace',
-					}}
+					className='min-h-[120px] rounded-[10px] border border-border bg-input-background p-3 text-text-primary'
+					style={{ fontFamily: 'Menlo, ui-monospace, monospace' }}
 				/>
 			) : (
-				<View style={{ gap: 8 }}>
+				<View className='gap-2'>
 					<Pressable
 						onPress={pickFile}
-						style={{
-							backgroundColor: theme.colors.transparent,
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							borderRadius: 10,
-							paddingVertical: 12,
-							alignItems: 'center',
-						}}
+						className='items-center rounded-[10px] border border-border bg-transparent py-3'
 					>
-						<Text
-							style={{ color: theme.colors.textSecondary, fontWeight: '600' }}
-						>
+						<Text className='font-semibold text-text-secondary'>
 							{fileName ? 'Choose Different File' : 'Choose File'}
 						</Text>
 					</Pressable>
 					{fileName ? (
-						<Text style={{ color: theme.colors.muted }}>
-							Selected: {fileName}
-						</Text>
+						<Text className='text-muted'>Selected: {fileName}</Text>
 					) : null}
 					{content ? (
 						<TextInput
 							editable={false}
 							multiline
 							value={content.slice(0, 500)}
-							style={{
-								minHeight: 80,
-								backgroundColor: theme.colors.inputBackground,
-								color: theme.colors.textSecondary,
-								borderWidth: 1,
-								borderColor: theme.colors.border,
-								borderRadius: 10,
-								padding: 10,
-								fontFamily: 'Menlo, ui-monospace, monospace',
-							}}
+							className='min-h-[80px] rounded-[10px] border border-border bg-input-background p-2.5 text-text-secondary'
+							style={{ fontFamily: 'Menlo, ui-monospace, monospace' }}
 						/>
 					) : null}
 				</View>
 			)}
 
-			<View style={{ gap: 8 }}>
-				<Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-					Label
-				</Text>
+			<View className='gap-2'>
+				<Text className='text-xs text-text-secondary'>Label</Text>
 				<TextInput
 					placeholder='Display name'
-					placeholderTextColor={theme.colors.muted}
+					placeholderTextColorClassName='accent-muted'
 					value={label}
 					onChangeText={setLabel}
-					style={{
-						backgroundColor: theme.colors.inputBackground,
-						color: theme.colors.textPrimary,
-						borderWidth: 1,
-						borderColor: theme.colors.border,
-						borderRadius: 10,
-						paddingHorizontal: 12,
-						paddingVertical: 10,
-						fontSize: 16,
-					}}
+					className='rounded-[10px] border border-border bg-input-background px-3 py-2.5 text-base text-text-primary'
 				/>
 			</View>
 
 			<Pressable
 				onPress={() => setAsDefault((v) => !v)}
-				style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+				className='flex-row items-center gap-2.5'
 			>
 				<View
-					style={{
-						width: 22,
-						height: 22,
-						borderRadius: 6,
-						borderWidth: 2,
-						borderColor: theme.colors.border,
-						backgroundColor: asDefault
-							? theme.colors.primary
-							: theme.colors.transparent,
-					}}
+					className={
+						asDefault
+							? 'h-[22px] w-[22px] rounded-md border-2 border-border bg-primary'
+							: 'h-[22px] w-[22px] rounded-md border-2 border-border bg-transparent'
+					}
 				/>
-				<Text style={{ color: theme.colors.textSecondary }}>
-					Set as default
-				</Text>
+				<Text className='text-text-secondary'>Set as default</Text>
 			</Pressable>
 
 			<Pressable
@@ -300,26 +213,19 @@ function ImportKeyCard() {
 				onPress={() => {
 					void onImport();
 				}}
-				style={{
-					backgroundColor: theme.colors.primary,
-					borderRadius: 12,
-					paddingVertical: 12,
-					alignItems: 'center',
-					opacity: importPending ? 0.6 : 1,
-				}}
+				className={
+					importPending
+						? 'items-center rounded-xl bg-primary py-3 opacity-60'
+						: 'items-center rounded-xl bg-primary py-3'
+				}
 			>
-				<Text
-					style={{
-						color: theme.colors.buttonTextOnPrimary,
-						fontWeight: '700',
-					}}
-				>
+				<Text className='font-bold text-button-text-on-primary'>
 					{importPending ? 'Importing…' : 'Import Key'}
 				</Text>
 			</Pressable>
 
 			{importErrorMessage ? (
-				<Text style={{ color: theme.colors.danger }}>
+				<Text className='text-danger'>
 					{importErrorMessage || 'Import failed'}
 				</Text>
 			) : null}
@@ -332,8 +238,9 @@ function KeyRow(props: {
 	mode: KeyListMode;
 	onSelected?: (id: string) => void | Promise<void>;
 }) {
-	const theme = useTheme();
-	const entryResult = useAtomValue(secretsManager.keys.atoms.get(props.entryId));
+	const entryResult = useAtomValue(
+		secretsManager.keys.atoms.get(props.entryId),
+	);
 	const entry = AsyncResult.isSuccess(entryResult)
 		? entryResult.value
 		: undefined;
@@ -365,157 +272,72 @@ function KeyRow(props: {
 	}
 
 	return (
-		<View
-			style={{
-				flexDirection: 'row',
-				alignItems: 'flex-start',
-				justifyContent: 'space-between',
-				backgroundColor: theme.colors.inputBackground,
-				borderWidth: 1,
-				borderColor: theme.colors.border,
-				borderRadius: 12,
-				paddingHorizontal: 12,
-				paddingVertical: 12,
-			}}
-		>
-			<View style={{ flex: 1, marginRight: 8 }}>
-				<Text
-					style={{
-						color: theme.colors.textPrimary,
-						fontSize: 15,
-						fontWeight: '600',
-					}}
-				>
+		<View className='flex-row items-start justify-between rounded-xl border border-border bg-input-background px-3 py-3'>
+			<View className='mr-2 flex-1'>
+				<Text className='text-[15px] font-semibold text-text-primary'>
 					{entry.metadata.label ?? entry.id}
 					{entry.metadata.isDefault ? '  • Default' : ''}
 				</Text>
-				<Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 2 }}>
-					ID: {entry.id}
-				</Text>
+				<Text className='mt-0.5 text-xs text-muted'>ID: {entry.id}</Text>
 				{props.mode === 'manage' ? (
 					<TextInput
-						style={{
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							backgroundColor: theme.colors.inputBackground,
-							color: theme.colors.textPrimary,
-							borderRadius: 10,
-							paddingHorizontal: 12,
-							paddingVertical: 10,
-							fontSize: 16,
-							marginTop: 8,
-						}}
+						className='mt-2 rounded-[10px] border border-border bg-input-background px-3 py-2.5 text-base text-text-primary'
 						placeholder='Display name'
-						placeholderTextColor={theme.colors.muted}
+						placeholderTextColorClassName='accent-muted'
 						value={label}
 						onChangeText={setLabel}
 					/>
 				) : null}
 			</View>
-			<View style={{ gap: 6, alignItems: 'flex-end' }}>
+			<View className='items-end gap-1.5'>
 				{props.mode === 'select' ? (
 					<Pressable
 						onPress={() => {
 							void onSetDefault();
 						}}
-						style={{
-							backgroundColor: theme.colors.primary,
-							borderRadius: 10,
-							paddingVertical: 12,
-							paddingHorizontal: 10,
-							alignItems: 'center',
-						}}
+						className='items-center rounded-[10px] bg-primary px-2.5 py-3'
 					>
-						<Text
-							style={{
-								color: theme.colors.buttonTextOnPrimary,
-								fontWeight: '700',
-								fontSize: 12,
-							}}
-						>
+						<Text className='text-xs font-bold text-button-text-on-primary'>
 							Select
 						</Text>
 					</Pressable>
 				) : null}
 				{props.mode === 'manage' ? (
 					<Pressable
-						style={[
-							{
-								backgroundColor: theme.colors.transparent,
-								borderWidth: 1,
-								borderColor: theme.colors.border,
-								borderRadius: 10,
-								paddingVertical: 8,
-								paddingHorizontal: 10,
-								alignItems: 'center',
-							},
-							renamePending && { opacity: 0.6 },
-						]}
+						className={
+							renamePending
+								? 'items-center rounded-[10px] border border-border bg-transparent px-2.5 py-2 opacity-60'
+								: 'items-center rounded-[10px] border border-border bg-transparent px-2.5 py-2'
+						}
 						onPress={() => {
 							rename(label);
 						}}
 						disabled={renamePending}
 					>
-						<Text
-							style={{
-								color: theme.colors.textSecondary,
-								fontWeight: '600',
-								fontSize: 12,
-							}}
-						>
+						<Text className='text-xs font-semibold text-text-secondary'>
 							{renamePending ? 'Saving…' : 'Save'}
 						</Text>
 					</Pressable>
 				) : null}
 				{!entry.metadata.isDefault ? (
 					<Pressable
-						style={{
-							backgroundColor: theme.colors.transparent,
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							borderRadius: 10,
-							paddingVertical: 8,
-							paddingHorizontal: 10,
-							alignItems: 'center',
-						}}
+						className='items-center rounded-[10px] border border-border bg-transparent px-2.5 py-2'
 						onPress={() => {
 							void onSetDefault();
 						}}
 					>
-						<Text
-							style={{
-								color: theme.colors.textSecondary,
-								fontWeight: '600',
-								fontSize: 12,
-							}}
-						>
+						<Text className='text-xs font-semibold text-text-secondary'>
 							Set Default
 						</Text>
 					</Pressable>
 				) : null}
 				<Pressable
-					style={{
-						backgroundColor: theme.colors.transparent,
-						borderWidth: 1,
-						borderColor: theme.colors.danger,
-						borderRadius: 10,
-						paddingVertical: 8,
-						paddingHorizontal: 10,
-						alignItems: 'center',
-					}}
+					className='items-center rounded-[10px] border border-danger bg-transparent px-2.5 py-2'
 					onPress={() => {
 						deleteKey();
 					}}
 				>
-					<Text
-						style={{
-							color: theme.colors.danger,
-							fontWeight: '700',
-							fontSize: 12,
-						}}
-					>
-						Delete
-					</Text>
+					<Text className='text-xs font-bold text-danger'>Delete</Text>
 				</Pressable>
 			</View>
 		</View>

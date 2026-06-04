@@ -1,30 +1,36 @@
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useTheme } from '@/lib/theme';
+import { useCSSVariable } from 'uniwind';
 
 export default function TabsLayout() {
-	const theme = useTheme();
+	// NativeTabs is a third-party component taking plain color strings, so
+	// resolve the theme tokens out of uniwind instead of using classNames.
+	const [surface, muted, primary, shadow, textPrimary] = useCSSVariable([
+		'--color-surface',
+		'--color-muted',
+		'--color-primary',
+		'--color-shadow',
+		'--color-text-primary',
+	]) as [string, string, string, string, string];
 	return (
 		<NativeTabs
 			// common
-			backgroundColor={theme.colors.surface}
-			iconColor={theme.colors.muted}
-			labelStyle={{ color: theme.colors.muted }}
-			tintColor={theme.colors.primary}
-			shadowColor={theme.colors.shadow}
+			backgroundColor={surface}
+			iconColor={muted}
+			labelStyle={{ color: muted }}
+			tintColor={primary}
+			shadowColor={shadow}
 			// android
 			backBehavior='initialRoute'
-			indicatorColor={theme.colors.primary}
+			indicatorColor={primary}
 			// labelVisibilityMode="labeled"
-			// rippleColor={theme.colors.transparent}
+			// rippleColor='transparent'
 			// ios
 			// blurEffect="systemChromeMaterial"
 			// disableTransparentOnScrollEdge={true}
 		>
 			<NativeTabs.Trigger name='index'>
-				<NativeTabs.Trigger.Label
-					selectedStyle={{ color: theme.colors.textPrimary }}
-				>
+				<NativeTabs.Trigger.Label selectedStyle={{ color: textPrimary }}>
 					Hosts
 				</NativeTabs.Trigger.Label>
 				<NativeTabs.Trigger.Icon
@@ -34,7 +40,7 @@ export default function TabsLayout() {
 							name='server'
 						/>
 					}
-					selectedColor={theme.colors.textPrimary}
+					selectedColor={textPrimary}
 				/>
 			</NativeTabs.Trigger>
 			<NativeTabs.Trigger name='shell'>
@@ -45,11 +51,9 @@ export default function TabsLayout() {
 							name='console'
 						/>
 					}
-					selectedColor={theme.colors.textPrimary}
+					selectedColor={textPrimary}
 				/>
-				<NativeTabs.Trigger.Label
-					selectedStyle={{ color: theme.colors.textPrimary }}
-				>
+				<NativeTabs.Trigger.Label selectedStyle={{ color: textPrimary }}>
 					Shells
 				</NativeTabs.Trigger.Label>
 			</NativeTabs.Trigger>
@@ -61,11 +65,9 @@ export default function TabsLayout() {
 							name='monitor'
 						/>
 					}
-					selectedColor={theme.colors.textPrimary}
+					selectedColor={textPrimary}
 				/>
-				<NativeTabs.Trigger.Label
-					selectedStyle={{ color: theme.colors.textPrimary }}
-				>
+				<NativeTabs.Trigger.Label selectedStyle={{ color: textPrimary }}>
 					Term
 				</NativeTabs.Trigger.Label>
 			</NativeTabs.Trigger>
@@ -77,11 +79,9 @@ export default function TabsLayout() {
 							name='cog'
 						/>
 					}
-					selectedColor={theme.colors.textPrimary}
+					selectedColor={textPrimary}
 				/>
-				<NativeTabs.Trigger.Label
-					selectedStyle={{ color: theme.colors.textPrimary }}
-				>
+				<NativeTabs.Trigger.Label selectedStyle={{ color: textPrimary }}>
 					Settings
 				</NativeTabs.Trigger.Label>
 			</NativeTabs.Trigger>

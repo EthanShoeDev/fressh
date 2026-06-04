@@ -37,10 +37,10 @@ import {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { KeyboardEvents } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCSSVariable } from 'uniwind';
 import { rootLogger } from '@/lib/logger';
 import { useTerminalRenderConfig } from '@/lib/preferences';
 import { useSshStore } from '@/lib/ssh-store';
-import { useTheme } from '@/lib/theme';
 import { useContextSafe } from '@/lib/utils';
 
 type TerminalRenderConfig = ReturnType<typeof useTerminalRenderConfig>;
@@ -75,19 +75,9 @@ export default function TabsShellDetail() {
 }
 
 function RouteSkeleton() {
-	const theme = useTheme();
 	return (
-		<View
-			style={{
-				flex: 1,
-				justifyContent: 'center',
-				alignItems: 'center',
-				backgroundColor: theme.colors.background,
-			}}
-		>
-			<Text style={{ color: theme.colors.textPrimary, fontSize: 20 }}>
-				Loading
-			</Text>
+		<View className='flex-1 items-center justify-center bg-background'>
+			<Text className='text-[20px] text-text-primary'>Loading</Text>
 		</View>
 	);
 }
@@ -110,8 +100,8 @@ function ShellDetail() {
 	const channelId = Number.parseInt(searchParams.channelId, 10);
 
 	const router = useRouter();
-	const theme = useTheme();
 	const insets = useSafeAreaInsets();
+	const textPrimaryColor = useCSSVariable('--color-text-primary') as string;
 
 	// Settled keyboard height (dp), from KC's did-show/did-hide (NOT the per-frame
 	// animation). The window does NOT shrink for the IME on this edge-to-edge build,
@@ -220,17 +210,7 @@ function ShellDetail() {
 
 	return (
 		<>
-			<View
-				style={{
-					justifyContent: 'flex-start',
-					backgroundColor: theme.colors.background,
-					paddingTop: 2,
-					paddingLeft: 8,
-					paddingRight: 8,
-					paddingBottom: 0,
-					flex: 1,
-				}}
-			>
+			<View className='flex-1 justify-start bg-background px-2 pt-0.5 pb-0'>
 				<Stack.Screen
 					options={{
 						headerBackVisible: true,
@@ -250,16 +230,10 @@ function ShellDetail() {
 										logger.warn('Failed to close shell', error);
 									}
 								}}
-								style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+								className='flex-row items-center gap-1'
 							>
-								<Ionicons
-									name='close'
-									size={20}
-									color={theme.colors.textPrimary}
-								/>
-								<Text style={{ color: theme.colors.textPrimary }}>
-									Close Shell
-								</Text>
+								<Ionicons name='close' size={20} color={textPrimaryColor} />
+								<Text className='text-text-primary'>Close Shell</Text>
 							</Pressable>
 						),
 					}}
@@ -270,15 +244,9 @@ function ShellDetail() {
 						deterministic surface resize. (A KeyboardAvoidingView resized the surface
 						only inconsistently and clipped the 2nd toolbar row.) Paired with
 						softwareKeyboardLayoutMode='resize'. */}
-				<View ref={columnRef} onLayout={measureColumn} style={{ flex: 1, gap: 4 }}>
+				<View ref={columnRef} onLayout={measureColumn} className='flex-1 gap-1'>
 					<KeyboardToolBarContext value={toolbarContext}>
-						<View
-							style={{
-								flex: 1,
-								borderWidth: 2,
-								borderColor: theme.colors.border,
-							}}
-						>
+						<View className='flex-1 border-2 border-border'>
 							{shell ? (
 								<TerminalSurface
 									shellId={shell.shellId}
@@ -321,7 +289,7 @@ function ShellDetail() {
 								blurOnSubmit={false}
 								caretHidden
 								multiline
-								style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
+								className='absolute h-px w-px opacity-0'
 							/>
 						</View>
 						{/* marginBottom reserves space below the toolbar: the keyboard height
@@ -362,7 +330,7 @@ function TerminalSurface({
 	config: TerminalRenderConfig;
 	onTapEmpty: () => void;
 }) {
-	const theme = useTheme();
+	const textPrimaryColor = useCSSVariable('--color-text-primary') as string;
 	// Live size (logical px) of the gesture view, kept current via onLayout.
 	const sizeRef = useRef({ width: 1, height: 1 });
 	const fracX = (x: number) =>
@@ -389,9 +357,10 @@ function TerminalSurface({
 			.runOnJS(true)
 			.onStart(() => setPendingCopy(null))
 			.onChange((e) => {
-				void scroll(shellId, e.changeY / Math.max(1, sizeRef.current.height)).catch(
-					() => {},
-				);
+				void scroll(
+					shellId,
+					e.changeY / Math.max(1, sizeRef.current.height),
+				).catch(() => {});
 			});
 
 		// Hold-then-drag → select. Word-snap on start, extend on move, surface the
@@ -441,10 +410,10 @@ function TerminalSurface({
 	}, [pendingCopy, shellId]);
 
 	return (
-		<View style={{ flex: 1 }}>
+		<View className='flex-1'>
 			<GestureDetector gesture={gesture}>
 				<View
-					style={{ flex: 1 }}
+					className='flex-1'
 					onLayout={(e) => {
 						sizeRef.current = {
 							width: e.nativeEvent.layout.width,
@@ -464,25 +433,14 @@ function TerminalSurface({
 				<Pressable
 					accessibilityLabel='Copy selection'
 					onPress={onCopy}
+					className='absolute flex-row items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2'
 					style={{
-						position: 'absolute',
 						left: Math.max(4, pendingCopy.x - 32),
 						top: Math.max(4, pendingCopy.y - 48),
-						flexDirection: 'row',
-						alignItems: 'center',
-						gap: 6,
-						paddingHorizontal: 14,
-						paddingVertical: 8,
-						borderRadius: 8,
-						backgroundColor: theme.colors.primary,
 					}}
 				>
-					<Ionicons
-						name='copy-outline'
-						size={16}
-						color={theme.colors.textPrimary}
-					/>
-					<Text style={{ color: theme.colors.textPrimary }}>Copy</Text>
+					<Ionicons name='copy-outline' size={16} color={textPrimaryColor} />
+					<Text className='text-text-primary'>Copy</Text>
 				</Pressable>
 			) : null}
 		</View>
@@ -501,15 +459,8 @@ const KeyboardToolBarContext = createContext<KeyboardToolbarContextType | null>(
 );
 
 function KeyboardToolbar() {
-	const theme = useTheme();
 	return (
-		<View
-			style={{
-				height: 100,
-				borderWidth: 1,
-				borderColor: theme.colors.border,
-			}}
-		>
+		<View className='h-[100px] border border-border'>
 			<KeyboardToolbarRow>
 				<KeyboardToolbarButtonPreset preset='esc' />
 				<KeyboardToolbarButtonPreset preset='/' />
@@ -533,7 +484,7 @@ function KeyboardToolbar() {
 }
 
 function KeyboardToolbarRow({ children }: { children?: React.ReactNode }) {
-	return <View style={{ flexDirection: 'row', flex: 1 }}>{children}</View>;
+	return <View className='flex-1 flex-row'>{children}</View>;
 }
 
 type KeyboardToolbarButtonPresetType =
@@ -684,19 +635,15 @@ function KeyboardToolbarButton({
 	style,
 	...props
 }: KeyboardToolbarButtonProps & { style?: StyleProp<ViewStyle> }) {
-	const theme = useTheme();
+	const textPrimaryColor = useCSSVariable('--color-text-primary') as string;
 	const { sendBytes, modifierKeysActive, setModifierKeysActive } =
 		useContextSafe(KeyboardToolBarContext);
 
 	const isTextLabel = 'label' in props;
 	const children = isTextLabel ? (
-		<Text style={{ color: theme.colors.textPrimary }}>{props.label}</Text>
+		<Text className='text-text-primary'>{props.label}</Text>
 	) : (
-		<Ionicons
-			name={props.iconName}
-			size={20}
-			color={theme.colors.textPrimary}
-		/>
+		<Ionicons name={props.iconName} size={20} color={textPrimaryColor} />
 	);
 
 	const modifierActive =
@@ -705,17 +652,12 @@ function KeyboardToolbarButton({
 
 	return (
 		<Pressable
-			style={[
-				{
-					flex: 1,
-					alignItems: 'center',
-					justifyContent: 'center',
-					borderWidth: 1,
-					borderColor: theme.colors.border,
-				},
-				modifierActive && { backgroundColor: theme.colors.primary },
-				style,
-			]}
+			className={
+				modifierActive
+					? 'flex-1 items-center justify-center border border-border bg-primary'
+					: 'flex-1 items-center justify-center border border-border'
+			}
+			style={style}
 			onPress={() => {
 				if (props.type === 'modifier') {
 					setModifierKeysActive((modifierKeysActive) =>

@@ -1,18 +1,19 @@
 import { Stack } from 'expo-router';
-import { useTheme } from '@/lib/theme';
+import { useCSSVariable, useResolveClassNames } from 'uniwind';
 
 export default function TabsShellStack() {
-	const theme = useTheme();
+	const headerStyle = useResolveClassNames('bg-surface');
+	const headerTitleStyle = useResolveClassNames('text-text-primary');
+	const headerTintColor = useCSSVariable('--color-text-primary') as string;
+
 	return (
 		<Stack
 			screenOptions={{
 				headerBlurEffect: undefined,
 				headerTransparent: false,
-				headerStyle: { backgroundColor: theme.colors.surface },
-				headerTintColor: theme.colors.textPrimary,
-				headerTitleStyle: {
-					color: theme.colors.textPrimary,
-				},
+				headerStyle,
+				headerTintColor,
+				headerTitleStyle,
 			}}
 		>
 			<Stack.Screen name='index' options={{ title: 'Shells' }} />

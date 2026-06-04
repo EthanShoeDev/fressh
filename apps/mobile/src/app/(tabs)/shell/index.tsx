@@ -10,10 +10,9 @@ import {
 	Pressable,
 	Text,
 	View,
-	type StyleProp,
-	type TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCSSVariable } from 'uniwind';
 import { useShallow } from 'zustand/react/shallow';
 import { rootLogger } from '@/lib/logger';
 import { preferences } from '@/lib/preferences';
@@ -23,14 +22,13 @@ import {
 	type StoreConnection,
 	type StoreShell,
 } from '@/lib/ssh-store';
-import { useTheme } from '@/lib/theme';
 
 const logger = rootLogger.extend('TabsShellList');
 
 export default function TabsShellList() {
-	const theme = useTheme();
+	const background = useCSSVariable('--color-background') as string;
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+		<SafeAreaView style={{ flex: 1, backgroundColor: background }}>
 			<ShellContent />
 		</SafeAreaView>
 	);
@@ -43,7 +41,7 @@ function ShellContent() {
 	logger.debug('list view connections', connections.length);
 
 	return (
-		<View style={{ flex: 1 }}>
+		<View className='flex-1'>
 			<Stack.Screen
 				options={{
 					headerRight: () => <HeaderViewModeButton />,
@@ -72,7 +70,7 @@ function LoadedState() {
 	const router = useRouter();
 
 	return (
-		<View style={{ flex: 1 }}>
+		<View className='flex-1'>
 			{shellListViewMode === 'flat' ? (
 				<FlatView setActionTarget={setActionTarget} />
 			) : (
@@ -118,17 +116,15 @@ function LoadedState() {
 					if (!('connection' in actionTarget)) {
 						return;
 					}
-					void actionTarget.connection
-						.startShell()
-						.then((shellHandle) => {
-							router.push({
-								pathname: '/shell/detail',
-								params: {
-									connectionId: actionTarget.connection.connectionId,
-									channelId: shellHandle.channelId,
-								},
-							});
+					void actionTarget.connection.startShell().then((shellHandle) => {
+						router.push({
+							pathname: '/shell/detail',
+							params: {
+								connectionId: actionTarget.connection.connectionId,
+								channelId: shellHandle.channelId,
+							},
 						});
+					});
 					setActionTarget(null);
 				}}
 			/>
@@ -157,7 +153,7 @@ function FlatView({
 					}}
 				/>
 			)}
-			ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+			ItemSeparatorComponent={() => <View className='h-3' />}
 			contentContainerStyle={{
 				paddingVertical: 16,
 				paddingHorizontal: 16,
@@ -172,7 +168,6 @@ function GroupedView({
 }: {
 	setActionTarget: (target: ActionTarget) => void;
 }) {
-	const theme = useTheme();
 	const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
 	const connections = useSshStore(
 		useShallow((s) => Object.values(s.connections)),
@@ -188,19 +183,9 @@ function GroupedView({
 					(s) => s.connectionId === item.connectionId,
 				);
 				return (
-					<View style={{ gap: 12 }}>
+					<View className='gap-3'>
 						<Pressable
-							style={{
-								backgroundColor: theme.colors.surface,
-								borderWidth: 1,
-								borderColor: theme.colors.border,
-								borderRadius: 12,
-								paddingHorizontal: 12,
-								paddingVertical: 12,
-								flexDirection: 'row',
-								alignItems: 'center',
-								justifyContent: 'space-between',
-							}}
+							className='flex-row items-center justify-between rounded-xl border border-border bg-surface px-3 py-3'
 							onPress={() => {
 								setExpanded((prev) => ({
 									...prev,
@@ -214,34 +199,22 @@ function GroupedView({
 							}}
 						>
 							<View>
-								<Text
-									style={{
-										color: theme.colors.textPrimary,
-										fontSize: 16,
-										fontWeight: '700',
-									}}
-								>
+								<Text className='text-base font-bold text-text-primary'>
 									{item.connectionDetails.username}@
 									{item.connectionDetails.host}
 								</Text>
-								<Text
-									style={{
-										color: theme.colors.muted,
-										fontSize: 12,
-										marginTop: 2,
-									}}
-								>
+								<Text className='mt-0.5 text-xs text-muted'>
 									Port {item.connectionDetails.port} • {connectionShells.length}{' '}
 									shell
 									{connectionShells.length === 1 ? '' : 's'}
 								</Text>
 							</View>
-							<Text style={{ color: theme.colors.muted, fontSize: 18 }}>
+							<Text className='text-lg text-muted'>
 								{expanded[item.connectionId] ? '▾' : '▸'}
 							</Text>
 						</Pressable>
 						{expanded[item.connectionId] && (
-							<View style={{ gap: 12 }}>
+							<View className='gap-3'>
 								{connectionShells.map((sh) => {
 									const shellWithConnection = { ...sh, connection: item };
 									return (
@@ -261,7 +234,7 @@ function GroupedView({
 					</View>
 				);
 			}}
-			ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+			ItemSeparatorComponent={() => <View className='h-4' />}
 			contentContainerStyle={{ paddingVertical: 16, paddingHorizontal: 16 }}
 			style={{ flex: 1 }}
 		/>
@@ -269,20 +242,12 @@ function GroupedView({
 }
 
 function EmptyState() {
-	const theme = useTheme();
 	return (
-		<View
-			style={{
-				flex: 1,
-				alignItems: 'center',
-				justifyContent: 'center',
-				gap: 12,
-			}}
-		>
-			<Text style={{ color: theme.colors.muted }}>
+		<View className='flex-1 items-center justify-center gap-3'>
+			<Text className='text-muted'>
 				No active shells. Connect from Host tab.
 			</Text>
-			<Link href='/' style={{ color: theme.colors.primary, fontWeight: '600' }}>
+			<Link href='/' className='font-semibold text-primary'>
 				Go to Hosts
 			</Link>
 		</View>
@@ -296,7 +261,6 @@ function ShellCard({
 	shell: StoreShell;
 	onLongPress?: () => void;
 }) {
-	const theme = useTheme();
 	const router = useRouter();
 	const since = formatDistanceToNow(new Date(shell.createdAtMs), {
 		addSuffix: true,
@@ -307,17 +271,7 @@ function ShellCard({
 	}
 	return (
 		<Pressable
-			style={{
-				flexDirection: 'row',
-				alignItems: 'center',
-				justifyContent: 'space-between',
-				backgroundColor: theme.colors.inputBackground,
-				borderWidth: 1,
-				borderColor: theme.colors.border,
-				borderRadius: 12,
-				paddingHorizontal: 12,
-				paddingVertical: 12,
-			}}
+			className='flex-row items-center justify-between rounded-xl border border-border bg-input-background px-3 py-3'
 			onPress={() => {
 				router.push({
 					pathname: '/shell/detail',
@@ -329,41 +283,20 @@ function ShellCard({
 			}}
 			onLongPress={onLongPress}
 		>
-			<View style={{ flex: 1 }}>
+			<View className='flex-1'>
 				<Text
-					style={{
-						color: theme.colors.textPrimary,
-						fontSize: 15,
-						fontWeight: '600',
-					}}
+					className='text-[15px] font-semibold text-text-primary'
 					numberOfLines={1}
 				>
 					{connection.connectionDetails.username}@
 					{connection.connectionDetails.host}
 				</Text>
-				<Text
-					style={{
-						color: theme.colors.textSecondary,
-						fontSize: 12,
-						marginTop: 2,
-					}}
-					numberOfLines={1}
-				>
+				<Text className='mt-0.5 text-xs text-text-secondary' numberOfLines={1}>
 					Port {connection.connectionDetails.port} • {shell.pty}
 				</Text>
-				<Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 6 }}>
-					Started {since}
-				</Text>
+				<Text className='mt-1.5 text-xs text-muted'>Started {since}</Text>
 			</View>
-			<Text
-				style={{
-					color: theme.colors.muted,
-					fontSize: 22,
-					paddingHorizontal: 4,
-				}}
-			>
-				›
-			</Text>
+			<Text className='px-1 text-[22px] text-muted'>›</Text>
 		</Pressable>
 	);
 }
@@ -445,8 +378,6 @@ function ActionSheetModal({
 	actions: ActionSheetAction[];
 	extraFooterSpacing?: number;
 }) {
-	const theme = useTheme();
-
 	return (
 		<Modal
 			transparent
@@ -454,39 +385,14 @@ function ActionSheetModal({
 			animationType='slide'
 			onRequestClose={onClose}
 		>
-			<View
-				style={{
-					flex: 1,
-					backgroundColor: theme.colors.overlay,
-					justifyContent: 'flex-end',
-				}}
-			>
-				<View
-					style={{
-						backgroundColor: theme.colors.background,
-						borderTopLeftRadius: 16,
-						borderTopRightRadius: 16,
-						padding: 16,
-						borderColor: theme.colors.borderStrong,
-						borderWidth: 1,
-					}}
-				>
-					<Text
-						style={{
-							color: theme.colors.textPrimary,
-							fontSize: 18,
-							fontWeight: '700',
-						}}
-					>
-						{title}
-					</Text>
-					<View style={{ height: 12 }} />
+			<View className='flex-1 justify-end bg-overlay'>
+				<View className='rounded-t-2xl border border-border-strong bg-background p-4'>
+					<Text className='text-lg font-bold text-text-primary'>{title}</Text>
+					<View className='h-3' />
 					{actions.map((action, index) => (
 						<React.Fragment key={`${action.label}-${index.toString()}`}>
 							<ActionSheetButton {...action} />
-							{index < actions.length - 1 ? (
-								<View style={{ height: 8 }} />
-							) : null}
+							{index < actions.length - 1 ? <View className='h-2' /> : null}
 						</React.Fragment>
 					))}
 					{extraFooterSpacing > 0 ? (
@@ -503,49 +409,25 @@ function ActionSheetButton({
 	onPress,
 	variant = 'primary',
 }: ActionSheetAction) {
-	const theme = useTheme();
-	const baseButtonStyle = {
-		borderRadius: 12,
-		paddingVertical: 14,
-		alignItems: 'center',
-	} as const;
-
-	const pressableStyle =
+	const pressableClassName =
 		variant === 'outline'
-			? [
-					baseButtonStyle,
-					{
-						backgroundColor: theme.colors.transparent,
-						borderWidth: 1,
-						borderColor: theme.colors.border,
-					},
-				]
-			: [baseButtonStyle, { backgroundColor: theme.colors.primary }];
+			? 'items-center rounded-xl border border-border bg-transparent py-3.5'
+			: 'items-center rounded-xl bg-primary py-3.5';
 
-	const textStyle: StyleProp<TextStyle> =
+	const textClassName =
 		variant === 'outline'
-			? {
-					color: theme.colors.textSecondary,
-					fontWeight: '600',
-					fontSize: 14,
-					letterSpacing: 0.3,
-				}
-			: {
-					color: theme.colors.buttonTextOnPrimary,
-					fontWeight: '700',
-					fontSize: 14,
-					letterSpacing: 0.3,
-				};
+			? 'text-sm font-semibold tracking-[0.3px] text-text-secondary'
+			: 'text-sm font-bold tracking-[0.3px] text-button-text-on-primary';
 
 	return (
-		<Pressable style={pressableStyle} onPress={onPress}>
-			<Text style={textStyle}>{label}</Text>
+		<Pressable className={pressableClassName} onPress={onPress}>
+			<Text className={textClassName}>{label}</Text>
 		</Pressable>
 	);
 }
 
 function HeaderViewModeButton() {
-	const theme = useTheme();
+	const textPrimary = useCSSVariable('--color-text-primary') as string;
 	const [shellListViewMode, setShellListViewMode] =
 		preferences.shellListViewMode.useShellListViewModePref();
 
@@ -595,14 +477,10 @@ function HeaderViewModeButton() {
 				<MaterialCommunityIcons
 					name='file-tree-outline'
 					size={22}
-					color={theme.colors.textPrimary}
+					color={textPrimary}
 				/>
 			) : (
-				<Ionicons
-					name='list-outline'
-					size={22}
-					color={theme.colors.textPrimary}
-				/>
+				<Ionicons name='list-outline' size={22} color={textPrimary} />
 			)}
 		</Pressable>
 	);

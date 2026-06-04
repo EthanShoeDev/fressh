@@ -65,6 +65,8 @@
 		"react-native-web": "~0.21.2",
 		"react-native-webview": "catalog:",
 		"react-native-worklets": "~0.8.3",
+		"tailwindcss": "catalog:",
+		"uniwind": "catalog:",
 		"zustand": "^5.0.14"
 	},
 	"devDependencies": {

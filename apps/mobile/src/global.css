@@ -1,0 +1,70 @@
+@import 'tailwindcss';
+@import 'uniwind';
+
+/*
+ * App color themes. Each `@variant` must define the IDENTICAL set of
+ * `--color-*` tokens (uniwind errors at runtime otherwise). A token like
+ * `--color-text-primary` auto-generates utilities: `bg-text-primary`,
+ * `text-text-primary`, `border-text-primary`, etc.
+ *
+ * `light` and `dark` are seeded from the previous hand-rolled palettes;
+ * `dracula` is a placeholder — tune these hex values freely, then restart
+ * Metro to pick up new/changed themes.
+ */
+@layer theme {
+	:root {
+		@variant light {
+			--color-background: #f9fafb;
+			--color-surface: #ffffff;
+			--color-terminal-background: #f3f4f6;
+			--color-border: #e5e7eb;
+			--color-border-strong: #d1d5db;
+			--color-text-primary: #111827;
+			--color-text-secondary: #374151;
+			--color-muted: #6b7280;
+			--color-primary: #2563eb;
+			--color-button-text-on-primary: #ffffff;
+			--color-input-background: #ffffff;
+			--color-danger: #dc2626;
+			--color-overlay: rgba(0, 0, 0, 0.2);
+			--color-shadow: #000000;
+			--color-primary-disabled: #93c5fd;
+		}
+
+		@variant dark {
+			--color-background: #0b1324;
+			--color-surface: #111b34;
+			--color-terminal-background: #0e172b;
+			--color-border: #2a3655;
+			--color-border-strong: #1e293b;
+			--color-text-primary: #e5e7eb;
+			--color-text-secondary: #c6cbd3;
+			--color-muted: #9aa0a6;
+			--color-primary: #2563eb;
+			--color-button-text-on-primary: #ffffff;
+			--color-input-background: #0e172b;
+			--color-danger: #fca5a5;
+			--color-overlay: rgba(0, 0, 0, 0.4);
+			--color-shadow: #000000;
+			--color-primary-disabled: #3b82f6;
+		}
+
+		@variant dracula {
+			--color-background: #282a36;
+			--color-surface: #343746;
+			--color-terminal-background: #21222c;
+			--color-border: #44475a;
+			--color-border-strong: #6272a4;
+			--color-text-primary: #f8f8f2;
+			--color-text-secondary: #d8d8d2;
+			--color-muted: #6272a4;
+			--color-primary: #bd93f9;
+			--color-button-text-on-primary: #282a36;
+			--color-input-background: #21222c;
+			--color-danger: #ff5555;
+			--color-overlay: rgba(0, 0, 0, 0.5);
+			--color-shadow: #000000;
+			--color-primary-disabled: #6c5a8c;
+		}
+	}
+}

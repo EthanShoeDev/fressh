@@ -1,17 +1,17 @@
 import { Stack } from 'expo-router';
-import { useTheme } from '@/lib/theme';
+import { useCSSVariable, useResolveClassNames } from 'uniwind';
 
 export default function SettingsStackLayout() {
-	const theme = useTheme();
+	// expo-router header options need plain style/color values, so resolve the
+	// theme tokens out of uniwind rather than passing classNames.
+	const headerStyle = useResolveClassNames('bg-surface');
+	const headerTitleStyle = useResolveClassNames('text-text-primary');
+	const headerTintColor = useCSSVariable('--color-text-primary') as string;
+
 	return (
-		<Stack
-			screenOptions={{
-				headerStyle: { backgroundColor: theme.colors.surface },
-				headerTitleStyle: { color: theme.colors.textPrimary },
-				headerTintColor: theme.colors.textPrimary,
-			}}
-		>
+		<Stack screenOptions={{ headerStyle, headerTitleStyle, headerTintColor }}>
 			<Stack.Screen name='index' options={{ title: 'Settings' }} />
+			<Stack.Screen name='terminal' options={{ title: 'Terminal' }} />
 		</Stack>
 	);
 }
