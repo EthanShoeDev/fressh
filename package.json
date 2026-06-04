@@ -18,10 +18,9 @@
 			"release-it": "^20.2.0",
 			"@release-it/conventional-changelog": "^11.0.1",
 			"tsdown": "^0.22.1",
-			"effect": "https://pkg.pr.new/EthanShoeDev/effect/effect@c8b2ef4",
-			"@effect/platform": "https://pkg.pr.new/EthanShoeDev/effect/@effect/platform@c8b2ef4",
-			"@effect/platform-bun": "https://pkg.pr.new/EthanShoeDev/effect/@effect/platform-bun@c8b2ef4",
-			"@effect/cli": "https://pkg.pr.new/EthanShoeDev/effect/@effect/cli@c8b2ef4"
+			"effect": "4.0.0-beta.78",
+			"@effect/platform-bun": "4.0.0-beta.78",
+			"@effect/atom-react": "4.0.0-beta.78"
 		}
 	},
 	"type": "module",
@@ -42,8 +41,6 @@
 		"prepare": "effect-tsgo patch"
 	},
 	"devDependencies": {
-		"@effect/cli": "catalog:",
-		"@effect/platform": "catalog:",
 		"@effect/platform-bun": "catalog:",
 		"@effect/tsgo": "0.13.0",
 		"@types/semver": "^7.7.1",
@@ -63,13 +60,7 @@
 		"typescript": "catalog:"
 	},
 	"overrides": {
-		"react-native-nitro-modules": "0.35.9",
-		"@effect/cli": "https://pkg.pr.new/EthanShoeDev/effect/@effect/cli@c8b2ef4",
-		"@effect/platform": "https://pkg.pr.new/EthanShoeDev/effect/@effect/platform@c8b2ef4",
-		"@effect/platform-bun": "https://pkg.pr.new/EthanShoeDev/effect/@effect/platform-bun@c8b2ef4",
-		"@effect/printer": "https://pkg.pr.new/EthanShoeDev/effect/@effect/printer@c8b2ef4",
-		"@effect/printer-ansi": "https://pkg.pr.new/EthanShoeDev/effect/@effect/printer-ansi@c8b2ef4",
-		"effect": "https://pkg.pr.new/EthanShoeDev/effect/effect@c8b2ef4"
+		"react-native-nitro-modules": "0.35.9"
 	},
 	"engines": {
 		"node": ">=22"

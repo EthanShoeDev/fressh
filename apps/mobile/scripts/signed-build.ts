@@ -4,7 +4,7 @@
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import { boolean, command, flag, oneOf, option, run } from 'cmd-ts';
-import { z } from 'zod';
+import * as Schema from 'effect/Schema';
 import packageJson from '../package.json' with { type: 'json' };
 import { cmd } from './script-lib';
 
@@ -29,21 +29,21 @@ async function getSecrets(): Promise<{
 			stdio: 'pipe',
 		},
 	);
-	const bwItemSchema = z.looseObject({
-		login: z.looseObject({
-			username: z.string(),
-			password: z.string(),
+	const bwItemSchema = Schema.Struct({
+		login: Schema.Struct({
+			username: Schema.String,
+			password: Schema.String,
 		}),
-		fields: z.array(
-			z.looseObject({
-				name: z.string(),
-				value: z.string(),
+		fields: Schema.Array(
+			Schema.Struct({
+				name: Schema.String,
+				value: Schema.String,
 			}),
 		),
 	});
-	const bwItem = bwItemSchema.parse(JSON.parse(rawBwItemString) as unknown, {
-		reportInput: true,
-	});
+	const bwItem = Schema.decodeUnknownSync(bwItemSchema)(
+		JSON.parse(rawBwItemString),
+	);
 	const keystoreBase64 = bwItem.fields.find(
 		(field) => field.name === 'keystore',
 	)?.value;

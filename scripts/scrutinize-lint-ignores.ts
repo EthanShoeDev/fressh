@@ -5,12 +5,10 @@
  * @see docs/cloned-repos-as-docs/effect/packages/cli/README.md
  * @see docs/cloned-repos-as-docs/effect/packages/platform/src/Command.ts
  */
-import { Options } from '@effect/cli';
-import * as CliCommand from '@effect/cli/Command';
-import { BunContext, BunRuntime } from '@effect/platform-bun';
-import * as Command from '@effect/platform/Command';
-import { FileSystem } from '@effect/platform';
-import { Array as A, Effect, Option } from 'effect';
+import { BunRuntime, BunServices } from '@effect/platform-bun';
+import { Array as A, Effect, FileSystem, Option, Stream } from 'effect';
+import { Command as CliCommand, Flag } from 'effect/unstable/cli';
+import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process';
 
 const COMMAND_NAME = 'scrutinize-lint-ignores';
 
@@ -48,8 +46,15 @@ interface LintIgnoreMatch {
 }
 
 const getTrackedFiles = Effect.gen(function* () {
-	const command = Command.make('git', 'ls-files');
-	const output = yield* Command.string(command);
+	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+	const output = yield* Effect.scoped(
+		Effect.gen(function* () {
+			const handle = yield* spawner.spawn(
+				ChildProcess.make('git', ['ls-files']),
+			);
+			return yield* handle.stdout.pipe(Stream.decodeText(), Stream.mkString);
+		}),
+	);
 	return output
 		.split('\n')
 		.map((f) => f.trim())
@@ -209,7 +214,7 @@ const main = (contextLines: number, outputPath: Option.Option<string>) =>
 		const results = yield* Effect.all(
 			sourceFiles.map((f) =>
 				scanFile(f, contextLines).pipe(
-					Effect.catchAll((_e) => Effect.succeed([] as LintIgnoreMatch[])),
+					Effect.catch((_e) => Effect.succeed([] as LintIgnoreMatch[])),
 				),
 			),
 			{ concurrency: 10 },
@@ -233,25 +238,23 @@ const main = (contextLines: number, outputPath: Option.Option<string>) =>
 const command = CliCommand.make(
 	COMMAND_NAME,
 	{
-		context: Options.integer('context').pipe(
-			Options.withAlias('c'),
-			Options.withDefault(3),
-			Options.withDescription(
+		context: Flag.integer('context').pipe(
+			Flag.withAlias('c'),
+			Flag.withDefault(3),
+			Flag.withDescription(
 				'Number of context lines to show around each match',
 			),
 		),
-		output: Options.file('output').pipe(
-			Options.withAlias('o'),
-			Options.optional,
-			Options.withDescription('Output file path for the markdown report'),
+		output: Flag.file('output').pipe(
+			Flag.withAlias('o'),
+			Flag.optional,
+			Flag.withDescription('Output file path for the markdown report'),
 		),
 	},
 	({ context, output }) => main(context, output),
 );
 
-const run = CliCommand.run(command, {
-	name: COMMAND_NAME,
-	version: '0.0.1',
-});
-
-run(process.argv).pipe(Effect.provide(BunContext.layer), BunRuntime.runMain);
+CliCommand.run(command, { version: '0.0.1' }).pipe(
+	Effect.provide(BunServices.layer),
+	BunRuntime.runMain,
+);

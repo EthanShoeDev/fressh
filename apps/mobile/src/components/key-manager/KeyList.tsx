@@ -1,10 +1,11 @@
-import { generateKeyPair, KeyType } from '@fressh/react-native-terminal';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useAtomSet, useAtomValue } from '@effect/atom-react';
+import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
 import * as DocumentPicker from 'expo-document-picker';
 import React from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { secretsManager } from '@/lib/secrets-manager';
 import { useTheme } from '@/lib/theme';
+import { asyncResultErrorMessage } from '@/lib/utils';
 
 export type KeyListMode = 'manage' | 'select';
 
@@ -12,23 +13,18 @@ export function KeyList(props: {
 	mode: KeyListMode;
 	onSelect?: (id: string) => void | Promise<void>;
 }) {
-	const listKeysQuery = useQuery(secretsManager.keys.query.list);
+	const listResult = useAtomValue(secretsManager.keys.atoms.list);
 	const theme = useTheme();
 
-	const generateMutation = useMutation({
-		mutationFn: async () => {
-			const pair = generateKeyPair(KeyType.Ed25519);
-			await secretsManager.keys.utils.upsertPrivateKey({
-				metadata: { priority: 0, label: 'New Key', isDefault: false },
-				value: pair,
-			});
-		},
-		onSuccess: () => listKeysQuery.refetch(),
-	});
+	const generate = useAtomSet(secretsManager.keys.atoms.generate);
+	const generateResult = useAtomValue(secretsManager.keys.atoms.generate);
+	const isGenerating = generateResult.waiting;
+
+	const keys = AsyncResult.isSuccess(listResult) ? listResult.value : [];
 
 	return (
 		<ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-			<ImportKeyCard onImported={() => listKeysQuery.refetch()} />
+			<ImportKeyCard />
 
 			<Pressable
 				style={[
@@ -38,11 +34,11 @@ export function KeyList(props: {
 						paddingVertical: 14,
 						alignItems: 'center',
 					},
-					generateMutation.isPending && { opacity: 0.7 },
+					isGenerating && { opacity: 0.7 },
 				]}
-				disabled={generateMutation.isPending}
+				disabled={isGenerating}
 				onPress={() => {
-					generateMutation.mutate();
+					generate();
 				}}
 			>
 				<Text
@@ -53,19 +49,17 @@ export function KeyList(props: {
 						letterSpacing: 0.3,
 					}}
 				>
-					{generateMutation.isPending
-						? 'Generating…'
-						: 'Generate New Key (ed25519)'}
+					{isGenerating ? 'Generating…' : 'Generate New Key (ed25519)'}
 				</Text>
 			</Pressable>
 
-			{listKeysQuery.isLoading ? (
+			{AsyncResult.isInitial(listResult) ? (
 				<Text style={{ color: theme.colors.muted }}>Loading keys…</Text>
-			) : listKeysQuery.isError ? (
+			) : AsyncResult.isFailure(listResult) ? (
 				<Text style={{ color: theme.colors.danger }}>Error loading keys</Text>
-			) : listKeysQuery.data?.length ? (
+			) : keys.length ? (
 				<View style={{ gap: 12 }}>
-					{listKeysQuery.data.map((k) => (
+					{keys.map((k) => (
 						<KeyRow
 							key={k.id}
 							entryId={k.id}
@@ -81,7 +75,7 @@ export function KeyList(props: {
 	);
 }
 
-function ImportKeyCard({ onImported }: { onImported: () => void }) {
+function ImportKeyCard() {
 	const theme = useTheme();
 	const [mode, setMode] = React.useState<'paste' | 'file'>('paste');
 	const [label, setLabel] = React.useState('Imported Key');
@@ -89,27 +83,30 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 	const [content, setContent] = React.useState('');
 	const [fileName, setFileName] = React.useState<string | null>(null);
 
-	const importMutation = useMutation({
-		mutationFn: async () => {
-			const trimmed = content.trim();
-			if (!trimmed) {
-				throw new Error('No key content provided');
-			}
-			await secretsManager.keys.utils.upsertPrivateKey({
-				metadata: {
-					priority: 0,
-					label: label || 'Imported Key',
-					isDefault: asDefault,
-				},
-				value: trimmed,
-			});
-		},
-		onSuccess: () => {
+	const importKey = useAtomSet(secretsManager.keys.atoms.import, {
+		mode: 'promise',
+	});
+	const importResult = useAtomValue(secretsManager.keys.atoms.import);
+	const importPending = importResult.waiting;
+	const importErrorMessage = asyncResultErrorMessage(importResult);
+
+	const onImport = async () => {
+		const trimmed = content.trim();
+		if (!trimmed) {
+			return;
+		}
+		// On failure the error surfaces via `importResult`; reactivity refreshes
+		// the key list, so there's nothing to refetch here.
+		const success = await importKey({
+			value: trimmed,
+			label: label || 'Imported Key',
+			isDefault: asDefault,
+		}).catch(() => undefined);
+		if (success) {
 			setContent('');
 			setFileName(null);
-			onImported();
-		},
-	});
+		}
+	};
 
 	const pickFile = React.useCallback(async () => {
 		const res = await DocumentPicker.getDocumentAsync({
@@ -299,14 +296,16 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 			</Pressable>
 
 			<Pressable
-				disabled={importMutation.isPending}
-				onPress={() => importMutation.mutate()}
+				disabled={importPending}
+				onPress={() => {
+					void onImport();
+				}}
 				style={{
 					backgroundColor: theme.colors.primary,
 					borderRadius: 12,
 					paddingVertical: 12,
 					alignItems: 'center',
-					opacity: importMutation.isPending ? 0.6 : 1,
+					opacity: importPending ? 0.6 : 1,
 				}}
 			>
 				<Text
@@ -315,13 +314,13 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 						fontWeight: '700',
 					}}
 				>
-					{importMutation.isPending ? 'Importing…' : 'Import Key'}
+					{importPending ? 'Importing…' : 'Import Key'}
 				</Text>
 			</Pressable>
 
-			{importMutation.isError ? (
+			{importErrorMessage ? (
 				<Text style={{ color: theme.colors.danger }}>
-					{importMutation.error.message || 'Import failed'}
+					{importErrorMessage || 'Import failed'}
 				</Text>
 			) : null}
 		</View>
@@ -334,61 +333,32 @@ function KeyRow(props: {
 	onSelected?: (id: string) => void | Promise<void>;
 }) {
 	const theme = useTheme();
-	const entryQuery = useQuery(secretsManager.keys.query.get(props.entryId));
-	const entry = entryQuery.data;
-	const [label, setLabel] = React.useState(
-		entry?.metadata.label ?? '',
+	const entryResult = useAtomValue(secretsManager.keys.atoms.get(props.entryId));
+	const entry = AsyncResult.isSuccess(entryResult)
+		? entryResult.value
+		: undefined;
+	const [label, setLabel] = React.useState(entry?.metadata.label ?? '');
+
+	const rename = useAtomSet(secretsManager.keys.atoms.rename(props.entryId));
+	const renameResult = useAtomValue(
+		secretsManager.keys.atoms.rename(props.entryId),
+	);
+	const renamePending = renameResult.waiting;
+
+	const deleteKey = useAtomSet(secretsManager.keys.atoms.delete(props.entryId));
+
+	const setDefault = useAtomSet(
+		secretsManager.keys.atoms.setDefault(props.entryId),
+		{ mode: 'promise' },
 	);
 
-	const renameMutation = useMutation({
-		mutationFn: async (newLabel: string) => {
-			if (!entry) {
-				return;
-			}
-			await secretsManager.keys.utils.upsertPrivateKey({
-				keyId: entry.id,
-				value: entry.value,
-				metadata: {
-					priority: entry.metadata.priority,
-					label: newLabel,
-					isDefault: entry.metadata.isDefault,
-				},
-			});
-		},
-		onSuccess: () => entryQuery.refetch(),
-	});
-
-	const deleteMutation = useMutation({
-		mutationFn: async () => {
-			await secretsManager.keys.utils.deletePrivateKey(props.entryId);
-		},
-		onSuccess: () => entryQuery.refetch(),
-	});
-
-	const setDefaultMutation = useMutation({
-		mutationFn: async () => {
-			const entries = await secretsManager.keys.utils.listEntriesWithValues();
-			await Promise.all(
-				entries.map((e) =>
-					secretsManager.keys.utils.upsertPrivateKey({
-						keyId: e.id,
-						value: e.value,
-						metadata: {
-							priority: e.metadata.priority,
-							label: e.metadata.label,
-							isDefault: e.id === props.entryId,
-						},
-					}),
-				),
-			);
-		},
-		onSuccess: async () => {
-			await entryQuery.refetch();
-			if (props.mode === 'select' && props.onSelected) {
-				await props.onSelected(props.entryId);
-			}
-		},
-	});
+	const onSetDefault = async () => {
+		// Reactivity refreshes the list + this row after the mutation completes.
+		await setDefault().catch(() => undefined);
+		if (props.mode === 'select' && props.onSelected) {
+			await props.onSelected(props.entryId);
+		}
+	};
 
 	if (!entry) {
 		return null;
@@ -446,7 +416,7 @@ function KeyRow(props: {
 				{props.mode === 'select' ? (
 					<Pressable
 						onPress={() => {
-							setDefaultMutation.mutate();
+							void onSetDefault();
 						}}
 						style={{
 							backgroundColor: theme.colors.primary,
@@ -479,12 +449,12 @@ function KeyRow(props: {
 								paddingHorizontal: 10,
 								alignItems: 'center',
 							},
-							renameMutation.isPending && { opacity: 0.6 },
+							renamePending && { opacity: 0.6 },
 						]}
 						onPress={() => {
-							renameMutation.mutate(label);
+							rename(label);
 						}}
-						disabled={renameMutation.isPending}
+						disabled={renamePending}
 					>
 						<Text
 							style={{
@@ -493,7 +463,7 @@ function KeyRow(props: {
 								fontSize: 12,
 							}}
 						>
-							{renameMutation.isPending ? 'Saving…' : 'Save'}
+							{renamePending ? 'Saving…' : 'Save'}
 						</Text>
 					</Pressable>
 				) : null}
@@ -509,7 +479,7 @@ function KeyRow(props: {
 							alignItems: 'center',
 						}}
 						onPress={() => {
-							setDefaultMutation.mutate();
+							void onSetDefault();
 						}}
 					>
 						<Text
@@ -534,7 +504,7 @@ function KeyRow(props: {
 						alignItems: 'center',
 					}}
 					onPress={() => {
-						deleteMutation.mutate();
+						deleteKey();
 					}}
 				>
 					<Text

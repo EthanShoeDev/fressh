@@ -4,10 +4,9 @@
  * the version number of a dependency in the package.json file instead of using
  * the catalog: keyword.
  */
-import { Options } from '@effect/cli';
-import * as Command from '@effect/cli/Command';
-import { BunContext, BunRuntime } from '@effect/platform-bun';
+import { BunRuntime, BunServices } from '@effect/platform-bun';
 import { Array as A, Effect } from 'effect';
+import { Command, Flag } from 'effect/unstable/cli';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { coerce, gt } from 'semver';
@@ -227,7 +226,7 @@ const main = (fix: boolean) =>
 			packagePaths.map((p) =>
 				readPackageJson(p).pipe(
 					Effect.map((pkg) => pkg.name),
-					Effect.catchAll(() => Effect.succeed(null)),
+					Effect.catch(() => Effect.succeed(null)),
 				),
 			),
 		);
@@ -272,17 +271,15 @@ const main = (fix: boolean) =>
 const command = Command.make(
 	COMMAND_NAME,
 	{
-		fix: Options.boolean('fix').pipe(
-			Options.withDefault(false),
-			Options.withDescription('Automatically fix violations'),
+		fix: Flag.boolean('fix').pipe(
+			Flag.withDefault(false),
+			Flag.withDescription('Automatically fix violations'),
 		),
 	},
 	({ fix }) => main(fix),
 );
 
-const run = Command.run(command, {
-	name: COMMAND_NAME,
-	version: '0.0.1',
-});
-
-run(process.argv).pipe(Effect.provide(BunContext.layer), BunRuntime.runMain);
+Command.run(command, { version: '0.0.1' }).pipe(
+	Effect.provide(BunServices.layer),
+	BunRuntime.runMain,
+);

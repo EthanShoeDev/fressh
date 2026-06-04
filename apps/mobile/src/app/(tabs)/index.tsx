@@ -1,6 +1,7 @@
+import { useAtomRefresh, useAtomSet, useAtomValue } from '@effect/atom-react';
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
 import { useStore } from '@tanstack/react-form';
-import { useQuery } from '@tanstack/react-query';
+import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
 import React, { useEffect } from 'react';
 import {
 	Modal,
@@ -19,7 +20,7 @@ import {
 	type SshConnectionProgress,
 } from '@/lib/query-fns';
 import {
-	connectionDetailsSchema,
+	connectionDetailsStandardSchema,
 	secretsManager,
 	type InputConnectionDetails,
 } from '@/lib/secrets-manager';
@@ -55,7 +56,7 @@ function Host() {
 		// https://tanstack.com/form/latest/docs/framework/react/guides/async-initial-values
 		defaultValues,
 		validators: {
-			onChange: connectionDetailsSchema,
+			onChange: connectionDetailsStandardSchema,
 			onSubmitAsync: ({ value }) =>
 				sshConnMutation.mutateAsync(value).then(() => {
 					setLastConnectionProgressEvent(null);
@@ -266,13 +267,14 @@ function KeyIdPickerField() {
 	const field = useFieldContext<string>();
 	const [open, setOpen] = React.useState(false);
 
-	const listPrivateKeysQuery = useQuery(secretsManager.keys.query.list);
+	const listResult = useAtomValue(secretsManager.keys.atoms.list);
+	const refreshKeys = useAtomRefresh(secretsManager.keys.atoms.list);
+	const keys = AsyncResult.isSuccess(listResult) ? listResult.value : [];
 	const defaultPick = React.useMemo(() => {
-		const keys = listPrivateKeysQuery.data ?? [];
-		const def = keys.find((k) => k.metadata.isDefault);
-		return def ?? keys[0];
-	}, [listPrivateKeysQuery.data]);
-	const keys = listPrivateKeysQuery.data ?? [];
+		const ks = AsyncResult.isSuccess(listResult) ? listResult.value : [];
+		const def = ks.find((k) => k.metadata.isDefault);
+		return def ?? ks[0];
+	}, [listResult]);
 
 	const fieldValue = field.state.value;
 	const defaultPickId = defaultPick?.id;
@@ -322,7 +324,7 @@ function KeyIdPickerField() {
 						},
 					]}
 					onPress={() => {
-						void listPrivateKeysQuery.refetch();
+						refreshKeys();
 						setOpen(true);
 					}}
 				>
@@ -424,7 +426,8 @@ function PreviousConnectionsSection(props: {
 	onFillForm: (connection: InputConnectionDetails) => void;
 }) {
 	const theme = useTheme();
-	const listConnectionsQuery = useQuery(secretsManager.connections.query.list);
+	const listResult = useAtomValue(secretsManager.connections.atoms.list);
+	const connections = AsyncResult.isSuccess(listResult) ? listResult.value : [];
 
 	return (
 		<View style={{ marginTop: 20 }}>
@@ -438,19 +441,19 @@ function PreviousConnectionsSection(props: {
 			>
 				Previous Connections
 			</Text>
-			{listConnectionsQuery.isLoading ? (
+			{AsyncResult.isInitial(listResult) ? (
 				<Text style={{ color: theme.colors.muted, fontSize: 14 }}>
 					Loading connections...
 				</Text>
-			) : listConnectionsQuery.isError ? (
+			) : AsyncResult.isFailure(listResult) ? (
 				<Text
 					style={{ marginTop: 6, color: theme.colors.danger, fontSize: 12 }}
 				>
 					Error loading connections
 				</Text>
-			) : listConnectionsQuery.data?.length ? (
+			) : connections.length ? (
 				<View>
-					{listConnectionsQuery.data.map((conn) => (
+					{connections.map((conn) => (
 						<ConnectionRow
 							key={conn.id}
 							id={conn.id}
@@ -472,12 +475,19 @@ function ConnectionRow(props: {
 	onFillForm: (connection: InputConnectionDetails) => void;
 }) {
 	const theme = useTheme();
-	const detailsQuery = useQuery(secretsManager.connections.query.get(props.id));
-	const details = detailsQuery.data?.value;
+	const detailsResult = useAtomValue(
+		secretsManager.connections.atoms.get(props.id),
+	);
+	const details = AsyncResult.isSuccess(detailsResult)
+		? detailsResult.value.value
+		: undefined;
+	const deleteConnection = useAtomSet(
+		secretsManager.connections.atoms.delete(props.id),
+	);
+	const upsertConnection = useAtomSet(secretsManager.connections.atoms.upsert);
 	const [open, setOpen] = React.useState(false);
 	const [renameOpen, setRenameOpen] = React.useState(false);
 	const [newId, setNewId] = React.useState(props.id);
-	const listQuery = useQuery(secretsManager.connections.query.list);
 
 	return (
 		<Pressable
@@ -585,12 +595,9 @@ function ConnectionRow(props: {
 								</Text>
 							</Pressable>
 							<Pressable
-								onPress={async () => {
+								onPress={() => {
 									setOpen(false);
-									await secretsManager.connections.utils.deleteConnection(
-										props.id,
-									);
-									await listQuery.refetch();
+									deleteConnection();
 								}}
 								style={{
 									backgroundColor: theme.colors.transparent,
@@ -688,7 +695,7 @@ function ConnectionRow(props: {
 						/>
 						<View style={{ flexDirection: 'row', gap: 8 }}>
 							<Pressable
-								onPress={async () => {
+								onPress={() => {
 									if (!details) {
 										return;
 									}
@@ -697,12 +704,11 @@ function ConnectionRow(props: {
 										return;
 									}
 									// Recreate under new id then delete old
-									await secretsManager.connections.utils.upsertConnection({
+									upsertConnection({
 										details,
 										priority: 0,
 										label: newId,
 									});
-									await listQuery.refetch();
 									setRenameOpen(false);
 								}}
 								style={{

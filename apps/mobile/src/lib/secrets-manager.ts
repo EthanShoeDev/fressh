@@ -1,10 +1,16 @@
-import { validatePrivateKey } from '@fressh/react-native-terminal';
-import { queryOptions } from '@tanstack/react-query';
+import {
+	generateKeyPair,
+	KeyType,
+	validatePrivateKey,
+} from '@fressh/react-native-terminal';
 import * as Crypto from 'expo-crypto';
+import * as Effect from 'effect/Effect';
+import * as Layer from 'effect/Layer';
+import * as Schema from 'effect/Schema';
+import * as Atom from 'effect/unstable/reactivity/Atom';
 import * as Keychain from 'react-native-keychain';
-import * as z from 'zod';
 import { rootLogger } from './logger';
-import { queryClient, type StrictOmit } from './utils';
+import type { StrictOmit } from './utils';
 
 const logger = rootLogger.extend('SecretsManager');
 
@@ -31,9 +37,9 @@ const logger = rootLogger.extend('SecretsManager');
 // - deleteEntry removes both services; getEntry then throws
 // - half-finished write/delete (only one service present) can't surface a
 //   listed-but-valueless entry
-function makeKeychainStore<Metadata extends object, Value = string>(params: {
+function makeKeychainStore<Metadata, Value = string>(params: {
 	prefix: string;
-	metadataSchema: z.ZodType<Metadata>;
+	decodeMetadata: (raw: unknown) => Metadata;
 	parseValue: (raw: string) => Value;
 }) {
 	const metaPrefix = `${params.prefix}.meta.`;
@@ -45,7 +51,7 @@ function makeKeychainStore<Metadata extends object, Value = string>(params: {
 	function parseMetadata(creds: Keychain.UserCredentials) {
 		return {
 			id: creds.username,
-			metadata: params.metadataSchema.parse(JSON.parse(creds.password)),
+			metadata: params.decodeMetadata(JSON.parse(creds.password)),
 		} satisfies Entry;
 	}
 
@@ -118,19 +124,19 @@ function makeKeychainStore<Metadata extends object, Value = string>(params: {
 	};
 }
 
-const keyMetadataSchema = z.object({
-	priority: z.number(),
-	createdAtMs: z.int(),
+const keyMetadataSchema = Schema.Struct({
+	priority: Schema.Number,
+	createdAtMs: Schema.Int,
 	// Optional display name for the key
-	label: z.string().optional(),
+	label: Schema.optional(Schema.String),
 	// Optional default flag
-	isDefault: z.boolean().optional(),
+	isDefault: Schema.optional(Schema.Boolean),
 });
-export type KeyMetadata = z.infer<typeof keyMetadataSchema>;
+export type KeyMetadata = Schema.Schema.Type<typeof keyMetadataSchema>;
 
 const keyStore = makeKeychainStore({
 	prefix: 'fressh.key',
-	metadataSchema: keyMetadataSchema,
+	decodeMetadata: Schema.decodeUnknownSync(keyMetadataSchema),
 	parseValue: (value) => value,
 });
 
@@ -157,59 +163,50 @@ async function upsertPrivateKey(params: {
 		metadata: { ...params.metadata, createdAtMs },
 		value: params.value,
 	});
-	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
 async function deletePrivateKey(keyId: string) {
 	await keyStore.deleteEntry(keyId);
-	await queryClient.invalidateQueries({ queryKey: [keyQueryKey] });
 }
 
-const keyQueryKey = 'keys';
-
-const listKeysQueryOptions = queryOptions({
-	queryKey: [keyQueryKey],
-	queryFn: async () => {
-		const results = await keyStore.listEntries();
-		logger.info(`Listed ${results.length} private keys`);
-		return results;
-	},
-});
-
-const getKeyQueryOptions = (keyId: string) =>
-	queryOptions({
-		queryKey: [keyQueryKey, keyId],
-		queryFn: () => keyStore.getEntry(keyId),
-	});
-
-export const connectionDetailsSchema = z.object({
-	host: z.string().min(1),
-	port: z.number().min(1),
-	username: z.string().min(1),
-	security: z.discriminatedUnion('type', [
-		z.object({
-			type: z.literal('password'),
-			password: z.string().min(1),
+export const connectionDetailsSchema = Schema.Struct({
+	host: Schema.NonEmptyString,
+	port: Schema.Number.check(Schema.isGreaterThanOrEqualTo(1)),
+	username: Schema.NonEmptyString,
+	security: Schema.Union([
+		Schema.Struct({
+			type: Schema.Literal('password'),
+			password: Schema.NonEmptyString,
 		}),
-		z.object({
-			type: z.literal('key'),
-			keyId: z.string().min(1),
+		Schema.Struct({
+			type: Schema.Literal('key'),
+			keyId: Schema.NonEmptyString,
 		}),
 	]),
 });
 
+/** Standard Schema bridge so TanStack Form can validate with the Effect schema. */
+export const connectionDetailsStandardSchema = Schema.toStandardSchemaV1(
+	connectionDetailsSchema,
+);
+
 const connectionStore = makeKeychainStore({
 	prefix: 'fressh.connection',
-	metadataSchema: z.object({
-		priority: z.number(),
-		createdAtMs: z.int(),
-		modifiedAtMs: z.int(),
-		label: z.string().optional(),
-	}),
-	parseValue: (value) => connectionDetailsSchema.parse(JSON.parse(value)),
+	decodeMetadata: Schema.decodeUnknownSync(
+		Schema.Struct({
+			priority: Schema.Number,
+			createdAtMs: Schema.Int,
+			modifiedAtMs: Schema.Int,
+			label: Schema.optional(Schema.String),
+		}),
+	),
+	parseValue: (value) =>
+		Schema.decodeUnknownSync(connectionDetailsSchema)(JSON.parse(value)),
 });
 
-export type InputConnectionDetails = z.infer<typeof connectionDetailsSchema>;
+export type InputConnectionDetails = Schema.Schema.Type<
+	typeof connectionDetailsSchema
+>;
 
 async function upsertConnection(params: {
 	details: InputConnectionDetails;
@@ -231,49 +228,194 @@ async function upsertConnection(params: {
 		},
 		value: JSON.stringify(params.details),
 	});
-	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
 	return params.details;
 }
 
 async function deleteConnection(id: string) {
 	await connectionStore.deleteEntry(id);
-	await queryClient.invalidateQueries({ queryKey: [connectionQueryKey] });
 }
 
-const connectionQueryKey = 'connections';
+// ---------------------------------------------------------------------------
+// effect-atom layer
+//
+// One shared runtime drives reactivity-based invalidation (the effect-atom
+// analogue of TanStack Query's `queryClient.invalidateQueries`). Query atoms tag
+// themselves with `Atom.withReactivity([...])`; firing a mutation atom created
+// with the matching `reactivityKeys` auto-refreshes them.
+// ---------------------------------------------------------------------------
 
-const listConnectionsQueryOptions = queryOptions({
-	queryKey: [connectionQueryKey],
-	queryFn: () => connectionStore.listEntries(),
-});
+/**
+ * Shared atom runtime. Exported so other modules (e.g. the SSH connect flow in
+ * `query-fns`) can build atoms whose `reactivityKeys` invalidate the query atoms
+ * defined here — reactivity is scoped to a single runtime's Reactivity service.
+ */
+export const atomRuntime = Atom.runtime(Layer.empty);
+const runtime = atomRuntime;
 
-const getConnectionQueryOptions = (id: string) =>
-	queryOptions({
-		queryKey: [connectionQueryKey, id],
-		queryFn: () => connectionStore.getEntry(id),
-	});
+const KEYS = ['keys'] as const;
+const CONNECTIONS = ['connections'] as const;
+
+const listKeysAtom = runtime
+	.atom(
+		Effect.gen(function* () {
+			const results = yield* Effect.tryPromise(() => keyStore.listEntries());
+			logger.info(`Listed ${results.length} private keys`);
+			return results;
+		}),
+	)
+	.pipe(Atom.withReactivity(KEYS));
+
+const getKeyAtom = Atom.family((keyId: string) =>
+	runtime
+		.atom(Effect.tryPromise(() => keyStore.getEntry(keyId)))
+		.pipe(Atom.withReactivity(KEYS)),
+);
+
+const generateKeyAtom = runtime.fn(
+	Effect.fnUntraced(function* () {
+		const pair = generateKeyPair(KeyType.Ed25519);
+		yield* Effect.tryPromise(() =>
+			upsertPrivateKey({
+				metadata: { priority: 0, label: 'New Key', isDefault: false },
+				value: pair,
+			}),
+		);
+	}),
+	{ reactivityKeys: KEYS },
+);
+
+const importKeyAtom = runtime.fn(
+	Effect.fnUntraced(function* (input: {
+		value: string;
+		label: string;
+		isDefault: boolean;
+	}) {
+		yield* Effect.tryPromise(() =>
+			upsertPrivateKey({
+				metadata: {
+					priority: 0,
+					label: input.label,
+					isDefault: input.isDefault,
+				},
+				value: input.value,
+			}),
+		);
+	}),
+	{ reactivityKeys: KEYS },
+);
+
+const renameKeyAtom = Atom.family((entryId: string) =>
+	runtime.fn(
+		Effect.fnUntraced(function* (newLabel: string) {
+			const entry = yield* Effect.tryPromise(() => keyStore.getEntry(entryId));
+			yield* Effect.tryPromise(() =>
+				upsertPrivateKey({
+					keyId: entry.id,
+					value: entry.value,
+					metadata: {
+						priority: entry.metadata.priority,
+						label: newLabel,
+						isDefault: entry.metadata.isDefault,
+					},
+				}),
+			);
+		}),
+		{ reactivityKeys: KEYS },
+	),
+);
+
+const deleteKeyAtom = Atom.family((entryId: string) =>
+	runtime.fn(
+		Effect.fnUntraced(function* () {
+			yield* Effect.tryPromise(() => deletePrivateKey(entryId));
+		}),
+		{ reactivityKeys: KEYS },
+	),
+);
+
+const setDefaultKeyAtom = Atom.family((entryId: string) =>
+	runtime.fn(
+		Effect.fnUntraced(function* () {
+			const entries = yield* Effect.tryPromise(() =>
+				keyStore.listEntriesWithValues(),
+			);
+			yield* Effect.tryPromise(() =>
+				Promise.all(
+					entries.map((e) =>
+						upsertPrivateKey({
+							keyId: e.id,
+							value: e.value,
+							metadata: {
+								priority: e.metadata.priority,
+								label: e.metadata.label,
+								isDefault: e.id === entryId,
+							},
+						}),
+					),
+				),
+			);
+		}),
+		{ reactivityKeys: KEYS },
+	),
+);
+
+const listConnectionsAtom = runtime
+	.atom(Effect.tryPromise(() => connectionStore.listEntries()))
+	.pipe(Atom.withReactivity(CONNECTIONS));
+
+const getConnectionAtom = Atom.family((id: string) =>
+	runtime
+		.atom(Effect.tryPromise(() => connectionStore.getEntry(id)))
+		.pipe(Atom.withReactivity(CONNECTIONS)),
+);
+
+const deleteConnectionAtom = Atom.family((id: string) =>
+	runtime.fn(
+		Effect.fnUntraced(function* () {
+			yield* Effect.tryPromise(() => deleteConnection(id));
+		}),
+		{ reactivityKeys: CONNECTIONS },
+	),
+);
+
+const upsertConnectionAtom = runtime.fn(
+	Effect.fnUntraced(function* (params: {
+		details: InputConnectionDetails;
+		priority: number;
+		label?: string;
+	}) {
+		yield* Effect.tryPromise(() => upsertConnection(params));
+	}),
+	{ reactivityKeys: CONNECTIONS },
+);
 
 export const secretsManager = {
+	/** Invalidate query atoms after a non-atom mutation (e.g. the connect flow). */
+	reactivityKeys: { keys: KEYS, connections: CONNECTIONS },
 	keys: {
 		utils: {
-			upsertPrivateKey,
-			deletePrivateKey,
-			listEntriesWithValues: keyStore.listEntriesWithValues,
 			getPrivateKey: (keyId: string) => keyStore.getEntry(keyId),
+			listEntriesWithValues: keyStore.listEntriesWithValues,
 		},
-		query: {
-			list: listKeysQueryOptions,
-			get: getKeyQueryOptions,
+		atoms: {
+			list: listKeysAtom,
+			get: getKeyAtom,
+			generate: generateKeyAtom,
+			import: importKeyAtom,
+			rename: renameKeyAtom,
+			delete: deleteKeyAtom,
+			setDefault: setDefaultKeyAtom,
 		},
 	},
 	connections: {
 		utils: {
 			upsertConnection,
-			deleteConnection,
 		},
-		query: {
-			list: listConnectionsQueryOptions,
-			get: getConnectionQueryOptions,
+		atoms: {
+			list: listConnectionsAtom,
+			get: getConnectionAtom,
+			delete: deleteConnectionAtom,
+			upsert: upsertConnectionAtom,
 		},
 	},
 };
