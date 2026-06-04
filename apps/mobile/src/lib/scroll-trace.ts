@@ -27,6 +27,7 @@ export type ScrollTraceSummary = {
 	failedCommandCount: number;
 	firstFailureAt: number | null;
 	firstFailureAfterStartMs: number | null;
+	notInModeCount: number;
 	maxQueueDepth: number;
 	maxPendingResolvers: number;
 	commandDurationMs: {
@@ -36,8 +37,30 @@ export type ScrollTraceSummary = {
 	};
 };
 
+export type ScrollTraceSummaryLike = Pick<
+	ScrollTraceSummary,
+	| 'eventCount'
+	| 'acceptedBatchCount'
+	| 'droppedBatchCount'
+	| 'failedCommandCount'
+	| 'notInModeCount'
+	| 'commandDurationMs'
+>;
+
+export type ScrollTraceHealthOptions = {
+	minAcceptedBatches?: number;
+	maxAverageCommandDurationMs?: number;
+};
+
 function asNumber(value: unknown): number | null {
 	return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function isNotInModeValue(value: unknown): boolean {
+	return (
+		typeof value === 'string' &&
+		(value.includes('not in a mode') || value.includes('not in the mode'))
+	);
 }
 
 export function isScrollTraceEnabled(): boolean {
@@ -99,6 +122,7 @@ export function summarizeScrollTraceEvents(
 	let commandCount = 0;
 	let failedCommandCount = 0;
 	let firstFailureAt: number | null = null;
+	let notInModeCount = 0;
 	let maxQueueDepth = 0;
 	let maxPendingResolvers = 0;
 
@@ -109,6 +133,13 @@ export function summarizeScrollTraceEvents(
 			if (typeof event.reason === 'string') {
 				dropReasons[event.reason] = (dropReasons[event.reason] ?? 0) + 1;
 			}
+		}
+		if (
+			event.reason === 'not-in-mode' ||
+			isNotInModeValue(event.error) ||
+			isNotInModeValue(event.message)
+		) {
+			notInModeCount += 1;
 		}
 
 		const queueDepth = asNumber(event.queueDepth);
@@ -162,6 +193,7 @@ export function summarizeScrollTraceEvents(
 			firstFailureAt === null || startAt === null
 				? null
 				: firstFailureAt - startAt,
+		notInModeCount,
 		maxQueueDepth,
 		maxPendingResolvers,
 		commandDurationMs: {
@@ -170,4 +202,25 @@ export function summarizeScrollTraceEvents(
 			max: commandDurations.length ? Math.max(...commandDurations) : null,
 		},
 	};
+}
+
+export function isScrollTraceSummaryHealthy(
+	summary: ScrollTraceSummaryLike,
+	options: ScrollTraceHealthOptions = {},
+): boolean {
+	const minAcceptedBatches = options.minAcceptedBatches ?? 0;
+	if (summary.eventCount <= 0) return false;
+	if (summary.acceptedBatchCount < minAcceptedBatches) return false;
+	if (summary.droppedBatchCount !== 0) return false;
+	if (summary.failedCommandCount !== 0) return false;
+	if (summary.notInModeCount !== 0) return false;
+
+	const maxAverageCommandDurationMs = options.maxAverageCommandDurationMs;
+	if (maxAverageCommandDurationMs !== undefined) {
+		const avg = summary.commandDurationMs.avg;
+		if (typeof avg !== 'number' || !Number.isFinite(avg)) return false;
+		if (avg > maxAverageCommandDurationMs) return false;
+	}
+
+	return true;
 }
