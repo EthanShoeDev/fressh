@@ -67,7 +67,7 @@ void test('DirectMux command builders escape targets and counts', () => {
 	);
 });
 
-void test('DirectMux scroll move rejects invalid direction and unit', () => {
+void test('DirectMux scroll move rejects invalid direction, unit, and count', () => {
 	assert.throws(
 		() =>
 			buildDirectTmuxScrollMoveCommand({
@@ -88,15 +88,29 @@ void test('DirectMux scroll move rejects invalid direction and unit', () => {
 			}),
 		/Invalid DirectMux unit: chunk/,
 	);
+	for (const count of [0, -1, 1.5]) {
+		assert.throws(
+			() =>
+				buildDirectTmuxScrollMoveCommand({
+					sessionName: 'main',
+					direction: 'up',
+					unit: 'line',
+					count,
+				}),
+			new RegExp(`Invalid DirectMux count: ${count}`),
+		);
+	}
 });
 
 void test('DirectMux transport reuses one hidden shell and closes it', async () => {
 	const created = fakeShell();
+	const startOptions: unknown[] = [];
 	let startCount = 0;
 	const transport = createDirectTmuxControlTransport({
 		connection: {
-			startShell: async () => {
+			startShell: async (options) => {
 				startCount += 1;
+				startOptions.push(options);
 				return created.shell;
 			},
 		},
@@ -107,6 +121,14 @@ void test('DirectMux transport reuses one hidden shell and closes it', async () 
 	await transport.dispose();
 
 	assert.equal(startCount, 1);
+	assert.deepEqual(startOptions, [
+		{
+			term: 'Xterm',
+			useTmux: false,
+			tmuxSessionName: '',
+			registerInStore: false,
+		},
+	]);
 	assert.deepEqual(created.writes, [
 		'tmux display-message first\n',
 		'tmux display-message second\n',
