@@ -1,4 +1,4 @@
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import {
 	FieldLabel,
 	Section,
@@ -7,6 +7,7 @@ import {
 	StepperRow,
 	ToggleRow,
 } from '@/components/settings-controls';
+import { ThemedText } from '@/components/themed/ThemedText';
 import {
 	COLOR_SCHEMES,
 	CURSOR_STYLES,
@@ -107,9 +108,9 @@ export default function TerminalSettings() {
 							setScrollback(scrollback + TERMINAL_SCROLLBACK.step);
 						}}
 					/>
-					<Text className='text-xs text-muted'>
+					<ThemedText className='text-xs text-muted'>
 						Scrollback applies to new shells.
-					</Text>
+					</ThemedText>
 				</View>
 			</Section>
 		</ScrollView>

@@ -12,7 +12,10 @@
 		"allowJs": true,
 		"strictNullChecks": true,
 		"paths": {
-			"@/*": ["./src/*"]
+			"@/*": ["./src/*"],
+			"react-native-animated-glow": [
+				"../../node_modules/react-native-animated-glow/lib/typescript/index"
+			]
 		}
 	},
 	"include": [

@@ -1,17 +1,12 @@
 import { Stack } from 'expo-router';
 import { useThemedHeader } from '@/components/themed/useThemedHeader';
 
-export default function SettingsStackLayout() {
+export default function KeysStackLayout() {
 	const header = useThemedHeader();
 	return (
 		<Stack screenOptions={header.screenOptions}>
-			{/* Settings root renders its own inline themed header; the Terminal
-			    sub-screen keeps the native bar (it's a deeper form route). */}
+			{/* Inline themed header rendered on the gradient canvas. */}
 			<Stack.Screen name='index' options={{ headerShown: false }} />
-			<Stack.Screen
-				name='terminal'
-				options={{ title: header.title('Terminal') }}
-			/>
 		</Stack>
 	);
 }

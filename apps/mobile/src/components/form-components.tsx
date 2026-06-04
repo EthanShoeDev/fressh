@@ -4,7 +4,9 @@ import {
 	useStore,
 } from '@tanstack/react-form';
 import React from 'react';
-import { Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { Switch, TextInput, View } from 'react-native';
+import { Button } from '@/components/themed/Button';
+import { ThemedText } from '@/components/themed/ThemedText';
 
 function FieldInfo() {
 	const field = useFieldContext();
@@ -28,7 +30,7 @@ function FieldInfo() {
 	return (
 		<View className='mt-1.5'>
 			{errorMessage ? (
-				<Text className='text-xs text-danger'>{errorMessage}</Text>
+				<ThemedText className='text-xs text-danger'>{errorMessage}</ThemedText>
 			) : null}
 		</View>
 	);
@@ -49,7 +51,7 @@ export function TextField(
 
 	return (
 		<View className='mb-4'>
-			{label ? <Text className={FIELD_LABEL_CLASS}>{label}</Text> : null}
+			{label ? <ThemedText className={FIELD_LABEL_CLASS}>{label}</ThemedText> : null}
 			<TextInput
 				className={TEXT_INPUT_CLASS}
 				style={style}
@@ -79,7 +81,7 @@ export function NumberField(
 	const field = useFieldContext<number>();
 	return (
 		<View className='mb-4'>
-			{label ? <Text className={FIELD_LABEL_CLASS}>{label}</Text> : null}
+			{label ? <ThemedText className={FIELD_LABEL_CLASS}>{label}</ThemedText> : null}
 			<TextInput
 				keyboardType={keyboardType ?? 'numeric'}
 				className={TEXT_INPUT_CLASS}
@@ -107,7 +109,7 @@ export function SwitchField(
 
 	return (
 		<View className='mb-4'>
-			{label ? <Text className={FIELD_LABEL_CLASS}>{label}</Text> : null}
+			{label ? <ThemedText className={FIELD_LABEL_CLASS}>{label}</ThemedText> : null}
 			<Switch
 				value={field.state.value}
 				onChange={(event) => {
@@ -120,41 +122,29 @@ export function SwitchField(
 	);
 }
 
-export function SubmitButton(
-	props: {
-		onPress?: () => void;
-		title?: string;
-		submittingTitle?: string;
-		disabled?: boolean;
-	} & React.ComponentProps<typeof Pressable>,
-) {
-	const {
-		onPress,
-		title = 'Connect',
-		submittingTitle,
-		disabled,
-		...rest
-	} = props;
+export function SubmitButton(props: {
+	onPress?: () => void;
+	title?: string;
+	submittingTitle?: string;
+	disabled?: boolean;
+	testID?: string;
+}) {
+	const { onPress, title = 'Connect', submittingTitle, disabled, testID } =
+		props;
 	const formContext = useFormContext();
 	const isSubmitting = useStore(
 		formContext.store,
 		(state) => state.isSubmitting,
 	);
 	return (
-		<Pressable
-			{...rest}
-			className={
-				disabled
-					? 'items-center rounded-[10px] bg-primary-disabled py-3.5 opacity-60'
-					: 'items-center rounded-[10px] bg-primary py-3.5'
-			}
+		<Button
+			testID={testID}
+			title={title}
+			loading={isSubmitting}
+			loadingTitle={submittingTitle ?? 'Connecting...'}
+			disabled={disabled}
 			onPress={onPress}
-			disabled={disabled === true ? true : isSubmitting}
-		>
-			<Text className='text-base font-bold text-button-text-on-primary'>
-				{isSubmitting ? (submittingTitle ?? 'Connecting...') : title}
-			</Text>
-		</Pressable>
+		/>
 	);
 }
 

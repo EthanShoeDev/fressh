@@ -1,5 +1,6 @@
 import { type Href, Link } from 'expo-router';
-import { Pressable, Switch, Text, View } from 'react-native';
+import { Pressable, Switch, View } from 'react-native';
+import { ThemedText } from '@/components/themed/ThemedText';
 
 /** Section wrapper with a muted heading. */
 export function Section({
@@ -11,7 +12,7 @@ export function Section({
 }) {
 	return (
 		<View className='mb-6'>
-			<Text className='mb-2 text-sm text-text-secondary'>{title}</Text>
+			<ThemedText className='mb-2 text-sm text-text-secondary'>{title}</ThemedText>
 			{children}
 		</View>
 	);
@@ -19,7 +20,7 @@ export function Section({
 
 export function FieldLabel({ children }: { children: React.ReactNode }) {
 	return (
-		<Text className='mt-2 text-[13px] text-text-secondary'>{children}</Text>
+		<ThemedText className='mt-2 text-[13px] text-text-secondary'>{children}</ThemedText>
 	);
 }
 
@@ -49,7 +50,7 @@ export function StepperRow({
 }) {
 	return (
 		<Card>
-			<Text className='text-base font-semibold text-text-primary'>{label}</Text>
+			<ThemedText className='text-base font-semibold text-text-primary'>{label}</ThemedText>
 			<View className='flex-row items-center gap-4'>
 				<StepperButton
 					label='−'
@@ -57,9 +58,9 @@ export function StepperRow({
 					disabled={decDisabled}
 					onPress={onDec}
 				/>
-				<Text className='min-w-[56px] text-center text-base font-bold text-text-primary'>
+				<ThemedText className='min-w-[56px] text-center text-base font-bold text-text-primary'>
 					{value.toLocaleString()}
-				</Text>
+				</ThemedText>
 				<StepperButton
 					label='+'
 					accessibilityLabel={`Increase ${label}`}
@@ -82,7 +83,7 @@ export function ToggleRow({
 }) {
 	return (
 		<Card>
-			<Text className='text-base font-semibold text-text-primary'>{label}</Text>
+			<ThemedText className='text-base font-semibold text-text-primary'>{label}</ThemedText>
 			<Switch
 				value={value}
 				onValueChange={onChange}
@@ -119,7 +120,7 @@ export function Segmented<T extends string>({
 								: 'flex-1 items-center justify-center rounded-lg bg-transparent py-2'
 						}
 					>
-						<Text
+						<ThemedText
 							className={
 								selected
 									? 'text-sm font-semibold text-background'
@@ -127,7 +128,7 @@ export function Segmented<T extends string>({
 							}
 						>
 							{option.label}
-						</Text>
+						</ThemedText>
 					</Pressable>
 				);
 			})}
@@ -154,7 +155,7 @@ export function StepperButton({
 			accessibilityLabel={accessibilityLabel}
 			className='h-10 w-10 items-center justify-center rounded-[10px] border border-border bg-background disabled:opacity-40'
 		>
-			<Text className='text-[22px] font-bold text-text-primary'>{label}</Text>
+			<ThemedText className='text-[22px] font-bold text-text-primary'>{label}</ThemedText>
 		</Pressable>
 	);
 }
@@ -179,10 +180,10 @@ export function SelectRow({
 			accessibilityRole='button'
 			accessibilityState={{ selected }}
 		>
-			<Text className='text-base font-semibold text-text-primary'>{label}</Text>
-			<Text className='text-base font-extrabold text-primary'>
+			<ThemedText className='text-base font-semibold text-text-primary'>{label}</ThemedText>
+			<ThemedText className='text-base font-extrabold text-primary'>
 				{selected ? '✔' : ''}
-			</Text>
+			</ThemedText>
 		</Pressable>
 	);
 }
@@ -195,10 +196,10 @@ export function LinkRow({ href, label }: { href: Href; label: string }) {
 				accessibilityRole='button'
 				className='flex-row items-center justify-between rounded-xl border border-border bg-surface px-3 py-3.5'
 			>
-				<Text className='text-base font-semibold text-text-primary'>
+				<ThemedText className='text-base font-semibold text-text-primary'>
 					{label}
-				</Text>
-				<Text className='px-1 text-[22px] text-muted'>›</Text>
+				</ThemedText>
+				<ThemedText className='px-1 text-[22px] text-muted'>›</ThemedText>
 			</Pressable>
 		</Link>
 	);

@@ -8,7 +8,6 @@ import * as Cause from 'effect/Cause';
 import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
-import { useRouter } from 'expo-router';
 import { rootLogger } from './logger';
 import {
 	atomRuntime,
@@ -107,21 +106,15 @@ const connectAtom = atomRuntime.fn(
 export const useSshConnMutation = (opts?: {
 	onConnectionProgress?: (progressEvent: SshConnectionProgress) => void;
 }) => {
-	const router = useRouter();
 	const trigger = useAtomSet(connectAtom, { mode: 'promise' });
 	const result = useAtomValue(connectAtom);
 
+	// Connects (and auto-opens a first shell). Navigation is the caller's job —
+	// the connect form replaces itself with the resulting terminal.
 	const mutateAsync = async (connectionDetails: InputConnectionDetails) => {
 		const success = await trigger({
 			connectionDetails,
 			onProgress: opts?.onConnectionProgress,
-		});
-		router.push({
-			pathname: '/shell/detail',
-			params: {
-				connectionId: success.connectionId,
-				channelId: success.channelId,
-			},
 		});
 		return success;
 	};

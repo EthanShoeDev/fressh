@@ -1,6 +1,7 @@
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useCSSVariable } from 'uniwind';
+import { useCSSVariable, useUniwind } from 'uniwind';
+import { NATIVE_TAB_STYLES, type AppThemeName } from '@/lib/theme';
 
 export default function TabsLayout() {
 	// NativeTabs is a third-party component taking plain color strings, so
@@ -12,26 +13,36 @@ export default function TabsLayout() {
 		'--color-shadow',
 		'--color-text-primary',
 	]) as [string, string, string, string, string];
+
+	// We can't fully reproduce each theme's bespoke stylized bar with the native
+	// (liquid-glass / Material) tab bar, but we push every native lever we have:
+	// color tokens above + label typography + iOS blur below. See
+	// `NATIVE_TAB_STYLES` for the per-theme intent.
+	const { theme } = useUniwind();
+	const tabStyle = NATIVE_TAB_STYLES[theme as AppThemeName];
+
 	return (
 		<NativeTabs
 			// common
 			backgroundColor={surface}
 			iconColor={muted}
-			labelStyle={{ color: muted }}
+			labelStyle={{
+				color: muted,
+				fontFamily: tabStyle?.labelFontFamily,
+				fontWeight: tabStyle?.labelFontWeight,
+			}}
 			tintColor={primary}
 			shadowColor={shadow}
 			// android
 			backBehavior='initialRoute'
 			indicatorColor={primary}
-			// labelVisibilityMode="labeled"
-			// rippleColor='transparent'
-			// ios
-			// blurEffect="systemChromeMaterial"
-			// disableTransparentOnScrollEdge={true}
+			// ios — theme-driven blur (frosted glass for Aurora, chrome for the
+			// terminal-flavored themes); falls back to the system default.
+			blurEffect={tabStyle?.blurEffect}
 		>
-			<NativeTabs.Trigger name='index'>
+			<NativeTabs.Trigger name='servers'>
 				<NativeTabs.Trigger.Label selectedStyle={{ color: textPrimary }}>
-					Hosts
+					Servers
 				</NativeTabs.Trigger.Label>
 				<NativeTabs.Trigger.Icon
 					src={
@@ -43,18 +54,18 @@ export default function TabsLayout() {
 					selectedColor={textPrimary}
 				/>
 			</NativeTabs.Trigger>
-			<NativeTabs.Trigger name='shell'>
+			<NativeTabs.Trigger name='keys'>
 				<NativeTabs.Trigger.Icon
 					src={
 						<NativeTabs.Trigger.VectorIcon
 							family={MaterialCommunityIcons}
-							name='console'
+							name='key-variant'
 						/>
 					}
 					selectedColor={textPrimary}
 				/>
 				<NativeTabs.Trigger.Label selectedStyle={{ color: textPrimary }}>
-					Shells
+					Keys
 				</NativeTabs.Trigger.Label>
 			</NativeTabs.Trigger>
 			<NativeTabs.Trigger name='settings'>

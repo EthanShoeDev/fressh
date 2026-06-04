@@ -9,7 +9,15 @@ import type { AppThemeName } from './theme';
 
 const storage = createMMKV({ id: 'settings' });
 
-const APP_THEME_NAMES = ['system', 'light', 'dark', 'dracula'] as const;
+const APP_THEME_NAMES = [
+	'phosphor',
+	'graphite',
+	'aurora',
+	'monolith',
+] as const;
+
+/** Default theme when none is stored (or a stale/removed one was). */
+const DEFAULT_THEME: AppThemeName = 'graphite';
 
 type ShellListViewMode = 'flat' | 'grouped';
 
@@ -64,7 +72,7 @@ export const preferences = {
 		_resolve: (rawTheme: string | undefined): AppThemeName =>
 			APP_THEME_NAMES.includes(rawTheme as AppThemeName)
 				? (rawTheme as AppThemeName)
-				: 'dark',
+				: DEFAULT_THEME,
 		get: (): AppThemeName =>
 			preferences.theme._resolve(storage.getString(preferences.theme._key)),
 		set: (name: AppThemeName) => {

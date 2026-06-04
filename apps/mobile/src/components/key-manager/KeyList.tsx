@@ -2,8 +2,10 @@ import { useAtomSet, useAtomValue } from '@effect/atom-react';
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
 import * as DocumentPicker from 'expo-document-picker';
 import React from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { Button } from '@/components/themed/Button';
+import { ThemedText } from '@/components/themed/ThemedText';
 import { secretsManager } from '@/lib/secrets-manager';
 import { asyncResultErrorMessage } from '@/lib/utils';
 
@@ -29,26 +31,19 @@ export function KeyList(props: {
 		>
 			<ImportKeyCard />
 
-			<Pressable
-				className={
-					isGenerating
-						? 'items-center rounded-xl bg-primary py-3.5 opacity-70'
-						: 'items-center rounded-xl bg-primary py-3.5'
-				}
-				disabled={isGenerating}
+			<Button
+				title='Generate New Key (ed25519)'
+				loading={isGenerating}
+				loadingTitle='Generating…'
 				onPress={() => {
 					generate();
 				}}
-			>
-				<Text className='text-sm font-bold tracking-[0.3px] text-button-text-on-primary'>
-					{isGenerating ? 'Generating…' : 'Generate New Key (ed25519)'}
-				</Text>
-			</Pressable>
+			/>
 
 			{AsyncResult.isInitial(listResult) ? (
-				<Text className='text-muted'>Loading keys…</Text>
+				<ThemedText className='text-muted'>Loading keys…</ThemedText>
 			) : AsyncResult.isFailure(listResult) ? (
-				<Text className='text-danger'>Error loading keys</Text>
+				<ThemedText className='text-danger'>Error loading keys</ThemedText>
 			) : keys.length ? (
 				<View className='gap-3'>
 					{keys.map((k) => (
@@ -61,7 +56,7 @@ export function KeyList(props: {
 					))}
 				</View>
 			) : (
-				<Text className='text-muted'>No keys yet</Text>
+				<ThemedText className='text-muted'>No keys yet</ThemedText>
 			)}
 		</KeyboardAwareScrollView>
 	);
@@ -125,9 +120,9 @@ function ImportKeyCard() {
 
 	return (
 		<View className='gap-3 rounded-xl border border-border bg-surface p-3'>
-			<Text className='text-base font-bold text-text-primary'>
+			<ThemedText className='text-base font-bold text-text-primary'>
 				Import Private Key
-			</Text>
+			</ThemedText>
 
 			<View className='flex-row overflow-hidden rounded-[10px] border border-border bg-input-background'>
 				{(['paste', 'file'] as const).map((m) => (
@@ -140,7 +135,7 @@ function ImportKeyCard() {
 								: 'flex-1 items-center bg-input-background py-2.5'
 						}
 					>
-						<Text
+						<ThemedText
 							className={
 								mode === m
 									? 'font-semibold text-text-primary'
@@ -148,7 +143,7 @@ function ImportKeyCard() {
 							}
 						>
 							{m === 'paste' ? 'Paste' : 'File'}
-						</Text>
+						</ThemedText>
 					</Pressable>
 				))}
 			</View>
@@ -165,16 +160,13 @@ function ImportKeyCard() {
 				/>
 			) : (
 				<View className='gap-2'>
-					<Pressable
+					<Button
+						variant='outline'
+						title={fileName ? 'Choose Different File' : 'Choose File'}
 						onPress={pickFile}
-						className='items-center rounded-[10px] border border-border bg-transparent py-3'
-					>
-						<Text className='font-semibold text-text-secondary'>
-							{fileName ? 'Choose Different File' : 'Choose File'}
-						</Text>
-					</Pressable>
+					/>
 					{fileName ? (
-						<Text className='text-muted'>Selected: {fileName}</Text>
+						<ThemedText className='text-muted'>Selected: {fileName}</ThemedText>
 					) : null}
 					{content ? (
 						<TextInput
@@ -189,7 +181,7 @@ function ImportKeyCard() {
 			)}
 
 			<View className='gap-2'>
-				<Text className='text-xs text-text-secondary'>Label</Text>
+				<ThemedText className='text-xs text-text-secondary'>Label</ThemedText>
 				<TextInput
 					placeholder='Display name'
 					placeholderTextColorClassName='accent-muted'
@@ -210,29 +202,22 @@ function ImportKeyCard() {
 							: 'h-[22px] w-[22px] rounded-md border-2 border-border bg-transparent'
 					}
 				/>
-				<Text className='text-text-secondary'>Set as default</Text>
+				<ThemedText className='text-text-secondary'>Set as default</ThemedText>
 			</Pressable>
 
-			<Pressable
-				disabled={importPending}
+			<Button
+				title='Import Key'
+				loading={importPending}
+				loadingTitle='Importing…'
 				onPress={() => {
 					void onImport();
 				}}
-				className={
-					importPending
-						? 'items-center rounded-xl bg-primary py-3 opacity-60'
-						: 'items-center rounded-xl bg-primary py-3'
-				}
-			>
-				<Text className='font-bold text-button-text-on-primary'>
-					{importPending ? 'Importing…' : 'Import Key'}
-				</Text>
-			</Pressable>
+			/>
 
 			{importErrorMessage ? (
-				<Text className='text-danger'>
+				<ThemedText className='text-danger'>
 					{importErrorMessage || 'Import failed'}
-				</Text>
+				</ThemedText>
 			) : null}
 		</View>
 	);
@@ -279,11 +264,11 @@ function KeyRow(props: {
 	return (
 		<View className='flex-row items-start justify-between rounded-xl border border-border bg-input-background px-3 py-3'>
 			<View className='mr-2 flex-1'>
-				<Text className='text-[15px] font-semibold text-text-primary'>
+				<ThemedText className='text-[15px] font-semibold text-text-primary'>
 					{entry.metadata.label ?? entry.id}
 					{entry.metadata.isDefault ? '  • Default' : ''}
-				</Text>
-				<Text className='mt-0.5 text-xs text-muted'>ID: {entry.id}</Text>
+				</ThemedText>
+				<ThemedText className='mt-0.5 text-xs text-muted'>ID: {entry.id}</ThemedText>
 				{props.mode === 'manage' ? (
 					<TextInput
 						className='mt-2 rounded-[10px] border border-border bg-input-background px-3 py-2.5 text-base text-text-primary'
@@ -296,54 +281,44 @@ function KeyRow(props: {
 			</View>
 			<View className='items-end gap-1.5'>
 				{props.mode === 'select' ? (
-					<Pressable
+					<Button
+						size='sm'
+						title='Select'
 						onPress={() => {
 							void onSetDefault();
 						}}
-						className='items-center rounded-[10px] bg-primary px-2.5 py-3'
-					>
-						<Text className='text-xs font-bold text-button-text-on-primary'>
-							Select
-						</Text>
-					</Pressable>
+					/>
 				) : null}
 				{props.mode === 'manage' ? (
-					<Pressable
-						className={
-							renamePending
-								? 'items-center rounded-[10px] border border-border bg-transparent px-2.5 py-2 opacity-60'
-								: 'items-center rounded-[10px] border border-border bg-transparent px-2.5 py-2'
-						}
+					<Button
+						variant='outline'
+						size='sm'
+						title='Save'
+						loading={renamePending}
+						loadingTitle='Saving…'
 						onPress={() => {
 							rename(label);
 						}}
-						disabled={renamePending}
-					>
-						<Text className='text-xs font-semibold text-text-secondary'>
-							{renamePending ? 'Saving…' : 'Save'}
-						</Text>
-					</Pressable>
+					/>
 				) : null}
 				{!entry.metadata.isDefault ? (
-					<Pressable
-						className='items-center rounded-[10px] border border-border bg-transparent px-2.5 py-2'
+					<Button
+						variant='outline'
+						size='sm'
+						title='Set Default'
 						onPress={() => {
 							void onSetDefault();
 						}}
-					>
-						<Text className='text-xs font-semibold text-text-secondary'>
-							Set Default
-						</Text>
-					</Pressable>
+					/>
 				) : null}
-				<Pressable
-					className='items-center rounded-[10px] border border-danger bg-transparent px-2.5 py-2'
+				<Button
+					variant='danger'
+					size='sm'
+					title='Delete'
 					onPress={() => {
 						deleteKey();
 					}}
-				>
-					<Text className='text-xs font-bold text-danger'>Delete</Text>
-				</Pressable>
+				/>
 			</View>
 		</View>
 	);

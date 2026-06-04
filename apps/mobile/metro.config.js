@@ -25,5 +25,5 @@ config.resolver.unstable_enablePackageExports = true;
 module.exports = withUniwindConfig(config, {
 	cssEntryFile: './src/global.css',
 	dtsFile: './src/uniwind-types.d.ts',
-	extraThemes: ['dracula'],
+	extraThemes: ['phosphor', 'graphite', 'aurora', 'monolith'],
 });

@@ -1,38 +1,117 @@
-import { ScrollView, View } from 'react-native';
-import { LinkRow, Section, SelectRow } from '@/components/settings-controls';
-import { APP_THEMES, useAppTheme } from '@/lib/theme';
+import { Pressable, ScrollView, View } from 'react-native';
+import { ScreenHeader } from '@/components/themed/ScreenHeader';
+import { ThemedScreen } from '@/components/themed/ThemedScreen';
+import { ThemedText } from '@/components/themed/ThemedText';
+import { LinkRow, Section } from '@/components/settings-controls';
+import { APP_THEMES, useAppTheme, type ThemeSwatch } from '@/lib/theme';
+import { applyCase, useThemeSkin } from '@/lib/theme-skin';
 
 export default function Tab() {
 	const { themeName, setThemeName } = useAppTheme();
 
 	return (
-		<ScrollView
-			className='flex-1 bg-background'
-			contentContainerClassName='p-4'
-			contentInsetAdjustmentBehavior='automatic'
+		<ThemedScreen edges={['top']}>
+			<ScreenHeader title='Settings' />
+			<ScrollView
+				className='flex-1'
+				contentContainerClassName='px-4 pb-4 pt-2'
+			>
+				<Section title='Theme'>
+					<View className='flex-row flex-wrap justify-between gap-y-3'>
+						{APP_THEMES.map((appTheme) => (
+							<ThemeCard
+								key={appTheme.id}
+								label={appTheme.label}
+								swatch={appTheme.swatch}
+								selected={themeName === appTheme.id}
+								onPress={() => {
+									setThemeName(appTheme.id);
+								}}
+							/>
+						))}
+					</View>
+				</Section>
+
+				{/* Manage Keys moved to its own bottom-nav tab; Security section dropped. */}
+				<Section title='Terminal'>
+					<LinkRow href='/(tabs)/settings/terminal' label='Terminal settings' />
+				</Section>
+			</ScrollView>
+		</ThemedScreen>
+	);
+}
+
+function ThemeCard({
+	label,
+	swatch,
+	selected,
+	onPress,
+}: {
+	label: string;
+	swatch: ThemeSwatch;
+	selected: boolean;
+	onPress: () => void;
+}) {
+	const skin = useThemeSkin();
+	return (
+		<Pressable
+			onPress={onPress}
+			accessibilityRole='button'
+			accessibilityState={{ selected }}
+			style={{ width: '48%', borderRadius: skin.radius }}
+			className={
+				selected
+					? 'border-2 border-primary bg-surface p-2.5'
+					: 'border border-border bg-surface p-2.5'
+			}
 		>
-			<Section title='Theme'>
-				<View className='gap-2'>
-					{APP_THEMES.map((appTheme) => (
-						<SelectRow
-							key={appTheme.id}
-							label={appTheme.label}
-							selected={themeName === appTheme.id}
-							onPress={() => {
-								setThemeName(appTheme.id);
-							}}
-						/>
-					))}
-				</View>
-			</Section>
+			<ThemeSwatchPreview swatch={swatch} radius={skin.controlRadius} />
+			<View className='mt-2 flex-row items-center justify-between'>
+				<ThemedText
+					className='text-[13px] font-semibold text-text-primary'
+					style={skin.mono ? { fontFamily: skin.monoFamily } : undefined}
+				>
+					{applyCase(skin, label)}
+				</ThemedText>
+				{selected ? (
+					<ThemedText className='text-sm font-extrabold text-primary'>✓</ThemedText>
+				) : null}
+			</View>
+		</Pressable>
+	);
+}
 
-			<Section title='Terminal'>
-				<LinkRow href='/(tabs)/settings/terminal' label='Terminal settings' />
-			</Section>
-
-			<Section title='Security'>
-				<LinkRow href='/(tabs)/settings/key-manager' label='Manage Keys' />
-			</Section>
-		</ScrollView>
+/** A tiny palette preview using the theme's *literal* colors (not tokens). */
+function ThemeSwatchPreview({
+	swatch,
+	radius,
+}: {
+	swatch: ThemeSwatch;
+	radius: number;
+}) {
+	return (
+		<View
+			className='h-10 flex-row items-center gap-2 overflow-hidden px-2.5'
+			style={{
+				backgroundColor: swatch.bg,
+				borderWidth: 1,
+				borderColor: 'rgba(255,255,255,0.10)',
+				borderRadius: radius,
+			}}
+		>
+			<ThemedText className='text-[13px] font-bold' style={{ color: swatch.accent }}>
+				{'>_'}
+			</ThemedText>
+			<View className='flex-1 gap-1'>
+				<View
+					className='h-1 rounded-full'
+					style={{ width: '70%', backgroundColor: swatch.accent, opacity: 0.9 }}
+				/>
+				<View
+					className='h-1 rounded-full'
+					style={{ width: '45%', backgroundColor: swatch.accent2, opacity: 0.6 }}
+				/>
+			</View>
+		</View>
 	);
 }
