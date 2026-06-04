@@ -4,13 +4,13 @@ import {
 	type SshConnection,
 	type SshConnectionProgress,
 	type SshShell,
-	SshError_Tags,
 } from '@fressh/react-native-uniffi-russh';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { rootLogger } from './logger';
 import { secretsManager, type InputConnectionDetails } from './secrets-manager';
 import { connectAndRememberConnection } from './ssh-connect-flow';
+import { extractTmuxAttachFailureReason } from './ssh-error-details';
 import { useSshStore } from './ssh-store';
 import { AbortSignalTimeout } from './utils';
 
@@ -28,6 +28,7 @@ export type ConnectAndOpenShellResult =
 	| {
 			status: 'tmux_attach_failed';
 			connectionId: string;
+			tmuxAttachFailureReason: string | null;
 			tmuxSessionName: string;
 			storedConnectionId: string;
 	  };
@@ -52,6 +53,7 @@ export async function connectAndOpenShell(args: {
 	navigate: (params: { connectionId: string; channelId: number }) => void;
 	navigateWithError?: (params: {
 		connectionId: string;
+		tmuxAttachFailureReason: string | null;
 		tmuxSessionName: string;
 		storedConnectionId: string;
 	}) => void;
@@ -92,16 +94,18 @@ export async function connectAndOpenShell(args: {
 			abortSignal: AbortSignalTimeout(abortSignalTimeoutMs),
 		});
 	} catch (error) {
-		const err = error as { tag?: string };
-		if (err?.tag === SshError_Tags.TmuxAttachFailed) {
+		const tmuxAttachFailureReason = extractTmuxAttachFailureReason(error);
+		if (tmuxAttachFailureReason !== null) {
 			args.navigateWithError?.({
 				connectionId: sshConnection.connectionId,
+				tmuxAttachFailureReason,
 				tmuxSessionName: connectionDetails.tmuxSessionName,
 				storedConnectionId,
 			});
 			return {
 				status: 'tmux_attach_failed',
 				connectionId: sshConnection.connectionId,
+				tmuxAttachFailureReason,
 				tmuxSessionName: connectionDetails.tmuxSessionName,
 				storedConnectionId,
 			};
@@ -155,6 +159,7 @@ export const useSshConnMutation = (opts?: {
 					},
 					navigateWithError: ({
 						connectionId,
+						tmuxAttachFailureReason,
 						tmuxSessionName,
 						storedConnectionId,
 					}) => {
@@ -164,6 +169,7 @@ export const useSshConnMutation = (opts?: {
 								connectionId,
 								channelId: '0',
 								tmuxError: 'attach-failed',
+								tmuxAttachFailureReason,
 								tmuxSessionName,
 								storedConnectionId,
 							},

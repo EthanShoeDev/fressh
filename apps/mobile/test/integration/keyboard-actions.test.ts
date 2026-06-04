@@ -285,8 +285,19 @@ void test('Workmux keyboard actions delegate semantic commands without sending b
 	}
 });
 
-void test('legacy Workmux status action remains a config compatibility alias', async () => {
-	const commands: WorkmuxKeyboardCommand[] = [];
+void test('Workmux status keyboard action keeps mdev-backed next-all operation', async () => {
+	const calls: string[] = [];
+	const failures: string[] = [];
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => true,
+		getSessionName: () => 'main',
+		runHostCommand: async (command) => {
+			calls.push(command);
+		},
+		showFailure: (message) => failures.push(message),
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
 
 	await runAction('CYCLE_WORKMUX_STATUS', {
 		availableKeyboardIds: new Set(),
@@ -296,13 +307,12 @@ void test('legacy Workmux status action remains a config compatibility alias', a
 		sendBytes: () => {},
 		pasteClipboard: async () => {},
 		copySelection: () => {},
-		runWorkmuxKeyboardCommand: async (command: WorkmuxKeyboardCommand) => {
-			commands.push(command);
-			return { status: 'handled' };
-		},
+		runWorkmuxKeyboardCommand: (command: WorkmuxKeyboardCommand) =>
+			runner.run(command),
 	} as Parameters<typeof runAction>[1]);
 
-	assert.deepEqual(commands, [{ type: 'nav', action: 'next-all' }]);
+	assert.deepEqual(calls, ["mdev tmux app nav 'next-all' --session 'main'"]);
+	assert.deepEqual(failures, []);
 	assert.deepEqual(WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_IDS, [
 		'CYCLE_WORKMUX_STATUS',
 	]);

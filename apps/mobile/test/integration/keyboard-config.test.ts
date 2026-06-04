@@ -349,7 +349,7 @@ void test('bundled Workmux all-window nav keys use semantic actions', () => {
 	}
 });
 
-void test('phone base keyboard exposes explain, browser actions, and work navigation actions', () => {
+void test('phone base keyboard exposes explain, browser actions, and status action layout', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -371,16 +371,16 @@ void test('phone base keyboard exposes explain, browser actions, and work naviga
 	});
 	assert.deepEqual(phoneBaseKeyboard.grid[1]?.[2], {
 		type: 'action',
-		actionId: 'WORKMUX_NAV_NEXT_ALL',
-		label: 'Next all',
-		icon: null,
+		actionId: 'CYCLE_WORKMUX_STATUS',
+		label: 'Status',
+		icon: 'Clock',
 		longPress: {
 			options: [
 				{
 					type: 'action',
-					actionId: 'WORKMUX_NAV_NEXT_ALL',
-					label: 'Next all',
-					icon: null,
+					actionId: 'CYCLE_WORKMUX_STATUS',
+					label: 'Status',
+					icon: 'Clock',
 				},
 				{
 					type: 'bytes',

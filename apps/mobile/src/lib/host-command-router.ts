@@ -2,6 +2,7 @@ import { HOST_BROWSER_NO_CONNECTION_MESSAGE } from './host-browser-actions';
 import {
 	formatWorkmuxAppCommandFailureMessage,
 	isWorkmuxAppCommand,
+	prepareWorkmuxAppCommandForRemoteShell,
 } from './workmux-app-commands';
 
 export type HostCommandSideChannelResult = {
@@ -37,7 +38,11 @@ export async function runHostCommandWithBoundary<TConnection>({
 
 	if (isWorkmuxAppCommand(command)) {
 		try {
-			return await executeRemoteTextCommand(connection, command, timeoutMs);
+			return await executeRemoteTextCommand(
+				connection,
+				prepareWorkmuxAppCommandForRemoteShell(command),
+				timeoutMs,
+			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			throw new Error(formatWorkmuxAppCommandFailureMessage(message));

@@ -255,16 +255,18 @@ function RouteSkeleton() {
 }
 
 type TmuxAttachErrorScreenProps = {
+	failureReason?: string;
 	sessionName: string;
 	onEdit: () => void;
 };
 
 function TmuxAttachErrorScreen({
+	failureReason,
 	sessionName,
 	onEdit,
 }: TmuxAttachErrorScreenProps) {
 	const theme = useTheme();
-	const copy = getWorkmuxAttachErrorCopy(sessionName);
+	const copy = getWorkmuxAttachErrorCopy(sessionName, failureReason);
 	return (
 		<View
 			style={{
@@ -417,6 +419,7 @@ function ShellDetail() {
 		agentEventId?: string;
 		agentTapToken?: string;
 		tmuxError?: string;
+		tmuxAttachFailureReason?: string;
 		tmuxSessionName?: string;
 		storedConnectionId?: string;
 	}>();
@@ -433,6 +436,8 @@ function ShellDetail() {
 	const agentEventId = searchParams.agentEventId?.trim() || null;
 	const agentTapToken = searchParams.agentTapToken?.trim() || null;
 	const tmuxSessionName = searchParams.tmuxSessionName;
+	const tmuxAttachFailureReason =
+		searchParams.tmuxAttachFailureReason?.trim() || undefined;
 
 	const router = useRouter();
 	const isFocused = useIsFocused();
@@ -2827,6 +2832,7 @@ function ShellDetail() {
 	if (hasTmuxAttachError) {
 		return (
 			<TmuxAttachErrorScreen
+				failureReason={tmuxAttachFailureReason}
 				sessionName={tmuxSessionName ?? 'main'}
 				onEdit={() => {
 					router.replace({

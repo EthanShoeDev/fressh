@@ -200,16 +200,16 @@
 					},
 					{
 						"type": "action",
-						"actionId": "WORKMUX_NAV_NEXT_ALL",
-						"label": "Next all",
-						"icon": null,
+						"actionId": "CYCLE_WORKMUX_STATUS",
+						"label": "Status",
+						"icon": "Clock",
 						"longPress": {
 							"options": [
 								{
 									"type": "action",
-									"actionId": "WORKMUX_NAV_NEXT_ALL",
-									"label": "Next all",
-									"icon": null
+									"actionId": "CYCLE_WORKMUX_STATUS",
+									"label": "Status",
+									"icon": "Clock"
 								},
 								{
 									"type": "bytes",

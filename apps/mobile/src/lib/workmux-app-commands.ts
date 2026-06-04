@@ -1,6 +1,9 @@
 export const WORKMUX_APP_COMMAND_UPDATE_MESSAGE =
 	'Update mdev on the remote machine; this action requires mdev tmux app commands.';
 
+export const WORKMUX_REMOTE_COMMAND_ENV_PREFIX =
+	'env PATH="$PATH:$HOME/bin"';
+
 export const WORKMUX_APP_SCROLL_MAX_COUNT = 20;
 
 export type WorkmuxAppContext = {
@@ -52,7 +55,19 @@ export type WorkmuxNavAction =
 type JsonRecord = Record<string, unknown>;
 
 export function isWorkmuxAppCommand(command: string): boolean {
-	return /^mdev\s+tmux\s+app(?:\s|$)/.test(command);
+	return new RegExp(
+		`^(?:${escapeRegExp(WORKMUX_REMOTE_COMMAND_ENV_PREFIX)}\\s+)?mdev\\s+tmux\\s+app(?:\\s|$)`,
+	).test(command);
+}
+
+export function prepareWorkmuxAppCommandForRemoteShell(
+	command: string,
+): string {
+	if (!isWorkmuxAppCommand(command)) return command;
+	if (command.startsWith(`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} `)) {
+		return command;
+	}
+	return `${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} ${command}`;
 }
 
 function isMissingWorkmuxAppCommandFailure(message: string): boolean {
@@ -60,6 +75,7 @@ function isMissingWorkmuxAppCommandFailure(message: string): boolean {
 		/\b(mdev|tmux): command not found\b/i,
 		/\bcommand not found: (mdev|tmux)\b/i,
 		/\b(mdev|tmux): not found\b/i,
+		/\benv:\s+['"‘’]?(mdev|tmux)['"‘’]?:\s+(?:No such file or directory|not found)\b/i,
 		/\bUnknown tmux app action\b/i,
 		/\bUnknown tmux app \w+ action\b/i,
 		/\bUnknown tmux command: app\b/i,
@@ -256,6 +272,10 @@ function normalizeSessionName(sessionName: string): string {
 
 function quoteShellValue(value: string): string {
 	return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function isSafePositiveInteger(value: number): boolean {

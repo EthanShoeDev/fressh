@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runHostCommandWithBoundary } from '../../src/lib/host-command-router';
-import { WORKMUX_APP_COMMAND_UPDATE_MESSAGE } from '../../src/lib/workmux-app-commands';
+import {
+	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	WORKMUX_REMOTE_COMMAND_ENV_PREFIX,
+} from '../../src/lib/workmux-app-commands';
 
 void test('runHostCommandWithBoundary sends Workmux app commands to remote exec', async () => {
 	const calls: string[] = [];
@@ -20,7 +23,7 @@ void test('runHostCommandWithBoundary sends Workmux app commands to remote exec'
 
 	assert.equal(output, '{"windowId":"@12"}');
 	assert.deepEqual(calls, [
-		"remote:mdev tmux app window --session 'main':10000",
+		`remote:${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app window --session 'main':10000`,
 	]);
 });
 

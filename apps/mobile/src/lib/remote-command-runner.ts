@@ -1,6 +1,7 @@
 import {
 	formatWorkmuxAppCommandFailureMessage,
 	isWorkmuxAppCommand,
+	prepareWorkmuxAppCommandForRemoteShell,
 } from './workmux-app-commands';
 
 export const DEFAULT_REMOTE_COMMAND_TIMEOUT_MS = 30_000;
@@ -144,10 +145,11 @@ export async function executeRemoteCommand({
 	timeoutMs?: number;
 }): Promise<RemoteCommandResult> {
 	const abortController = new AbortController();
+	const remoteShellCommand = prepareWorkmuxAppCommandForRemoteShell(command);
 	try {
 		const result = await withRemoteCommandTimeout(
 			connection.runCommand(
-				{ command },
+				{ command: remoteShellCommand },
 				{
 					signal: abortController.signal,
 				},

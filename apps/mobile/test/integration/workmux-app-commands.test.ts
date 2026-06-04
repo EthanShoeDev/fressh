@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	WORKMUX_APP_SCROLL_MAX_COUNT,
+	WORKMUX_REMOTE_COMMAND_ENV_PREFIX,
 	buildWorkmuxAppContextCommand,
 	buildWorkmuxAppFocusCommand,
 	buildWorkmuxAppNavCommand,
@@ -15,6 +16,7 @@ import {
 	isWorkmuxAppCommand,
 	parseWorkmuxAppContextOutput,
 	parseWorkmuxAppWindowOutput,
+	prepareWorkmuxAppCommandForRemoteShell,
 	type WorkmuxAppContext,
 	type WorkmuxAppWindow,
 } from '../../src/lib/workmux-app-commands';
@@ -100,11 +102,39 @@ void test('workmux app command builders shell-quote app arguments', () => {
 });
 
 void test('workmux app command predicate recognizes app-boundary commands', () => {
-	assert.equal(isWorkmuxAppCommand('mdev tmux app context --session main'), true);
+	assert.equal(
+		isWorkmuxAppCommand('mdev tmux app context --session main'),
+		true,
+	);
+	assert.equal(
+		isWorkmuxAppCommand(
+			`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session main`,
+		),
+		true,
+	);
 	assert.equal(isWorkmuxAppCommand('mdev   tmux\tapp\ncontext'), true);
 	assert.equal(isWorkmuxAppCommand('mdev tmux attach main'), false);
 	assert.equal(isWorkmuxAppCommand('tmux app context'), false);
 	assert.equal(isWorkmuxAppCommand('mdev tmux application context'), false);
+});
+
+void test('workmux app remote shell command preparation adds non-login PATH once', () => {
+	assert.equal(
+		prepareWorkmuxAppCommandForRemoteShell(
+			"mdev tmux app context --session 'main'",
+		),
+		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session 'main'`,
+	);
+	assert.equal(
+		prepareWorkmuxAppCommandForRemoteShell(
+			`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session 'main'`,
+		),
+		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session 'main'`,
+	);
+	assert.equal(
+		prepareWorkmuxAppCommandForRemoteShell('git status'),
+		'git status',
+	);
 });
 
 void test('workmux app builders normalize blank sessions to main', () => {
@@ -368,6 +398,18 @@ void test('workmux app update message is explicit', () => {
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
 	assert.equal(
+		formatWorkmuxAppCommandFailureMessage(
+			"env: 'mdev': No such file or directory",
+		),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
+		formatWorkmuxAppCommandFailureMessage(
+			'env: ‘mdev’: No such file or directory',
+		),
+		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	);
+	assert.equal(
 		formatWorkmuxAppCommandFailureMessage('Unknown tmux app action: context'),
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
@@ -392,11 +434,15 @@ void test('workmux app update message is explicit', () => {
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
 	assert.equal(
-		formatWorkmuxAppCommandFailureMessage("error: unrecognized subcommand 'tmux'"),
+		formatWorkmuxAppCommandFailureMessage(
+			"error: unrecognized subcommand 'tmux'",
+		),
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
 	assert.equal(
-		formatWorkmuxAppCommandFailureMessage('error: unrecognized subcommand "app"'),
+		formatWorkmuxAppCommandFailureMessage(
+			'error: unrecognized subcommand "app"',
+		),
 		WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
 	assert.equal(

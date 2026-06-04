@@ -4,7 +4,10 @@ import {
 	executeRemoteCommand,
 	runRemoteTextCommand,
 } from '../../src/lib/remote-command-runner';
-import { WORKMUX_APP_COMMAND_UPDATE_MESSAGE } from '../../src/lib/workmux-app-commands';
+import {
+	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	WORKMUX_REMOTE_COMMAND_ENV_PREFIX,
+} from '../../src/lib/workmux-app-commands';
 
 function bytes(text: string): ArrayBuffer {
 	return new TextEncoder().encode(text).buffer as ArrayBuffer;
@@ -53,7 +56,7 @@ void test('executeRemoteCommand returns decoded stdout on zero exit', async () =
 
 	assert.deepEqual(fixture.calls, [
 		{
-			command: 'mdev tmux app window --session main',
+			command: `${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app window --session main`,
 			signal: fixture.calls[0]?.signal,
 		},
 	]);
