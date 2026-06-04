@@ -26,6 +26,7 @@
     "expo:dep:check": "expo install --fix",
     "expo:doctor": "pnpm dlx expo-doctor@latest || true",
     "validate:shell-config": "tsx scripts/validate-shell-config.ts",
+    "trace:scroll": "node scripts/collect-scroll-trace.mjs",
     "test:integration": "tsx --test test/integration/**/*.test.ts",
     "test:e2e": "maestro test test/e2e/",
     "adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s com.finalapp.vibe2); do sleep 1; done",
