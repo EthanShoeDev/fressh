@@ -492,6 +492,10 @@ function ShellDetail() {
 			}),
 		[connection, normalizedTmuxTarget],
 	);
+	const workmuxControlChannelRef = useRef(workmuxControlChannel);
+	useLayoutEffect(() => {
+		workmuxControlChannelRef.current = workmuxControlChannel;
+	}, [workmuxControlChannel]);
 
 	useEffect(() => {
 		if (hasTmuxAttachError) return;
@@ -2293,6 +2297,17 @@ function ShellDetail() {
 			createWorkmuxKeyboardCommandRunner({
 				isTmuxEnabled: () => workmuxKeyboardTmuxEnabledRef.current,
 				getSessionName: () => workmuxKeyboardTmuxTargetRef.current,
+				runWorkmuxCommand: async (argv, timeoutMs) => {
+					const result = await workmuxControlChannelRef.current.command(argv, {
+						timeoutMs,
+					});
+					if (!result.success) {
+						throw new Error(
+							result.error || result.output || 'Workmux command failed.',
+						);
+					}
+					return result.output;
+				},
 				runHostCommand: (command, timeoutMs) =>
 					workmuxKeyboardRunHostCommandRef.current(command, timeoutMs),
 				showFailure: (message) => {

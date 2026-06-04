@@ -5,7 +5,9 @@ import {
 import { rootLogger } from '@/lib/logger';
 import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	buildWorkmuxAppFocusArgv,
 	buildWorkmuxAppFocusCommand,
+	buildWorkmuxAppNavArgv,
 	buildWorkmuxAppNavCommand,
 	formatWorkmuxAppCommandFailureMessage,
 	type WorkmuxFocusTarget,
@@ -123,25 +125,25 @@ export type WorkmuxKeyboardCommandRunner = {
 export function createWorkmuxKeyboardCommandRunner({
 	isTmuxEnabled,
 	getSessionName,
+	runWorkmuxCommand,
 	runHostCommand,
 	showFailure,
 	getErrorMessage,
 }: {
 	isTmuxEnabled: () => boolean;
 	getSessionName: () => string;
+	runWorkmuxCommand?: (argv: string[], timeoutMs: number) => Promise<unknown>;
 	runHostCommand: (command: string, timeoutMs: number) => Promise<unknown>;
 	showFailure: (message: string) => void;
 	getErrorMessage: (error: unknown) => string;
 }): WorkmuxKeyboardCommandRunner {
 	let running = false;
 	let generation = 0;
-	let pending:
-		| {
-				command: WorkmuxKeyboardCommand;
-				generation: number;
-				resolve: (result: WorkmuxKeyboardCommandRunResult) => void;
-			}
-		| null = null;
+	let pending: {
+		command: WorkmuxKeyboardCommand;
+		generation: number;
+		resolve: (result: WorkmuxKeyboardCommandRunResult) => void;
+	} | null = null;
 
 	const supersedePending = (): void => {
 		pending?.resolve({ status: 'superseded' });
@@ -160,14 +162,19 @@ export function createWorkmuxKeyboardCommandRunner({
 				throw new Error(WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE);
 			}
 			const sessionName = getSessionName().trim() || 'main';
-			const remoteCommand =
+			const argv =
 				command.type === 'focus'
-					? buildWorkmuxAppFocusCommand(sessionName, command.target)
-					: buildWorkmuxAppNavCommand(
-							sessionName,
-							command.action,
-						);
-			await runHostCommand(remoteCommand, 10_000);
+					? buildWorkmuxAppFocusArgv(sessionName, command.target)
+					: buildWorkmuxAppNavArgv(sessionName, command.action);
+			if (runWorkmuxCommand) {
+				await runWorkmuxCommand(argv, 10_000);
+			} else {
+				const remoteCommand =
+					command.type === 'focus'
+						? buildWorkmuxAppFocusCommand(sessionName, command.target)
+						: buildWorkmuxAppNavCommand(sessionName, command.action);
+				await runHostCommand(remoteCommand, 10_000);
+			}
 			return commandGeneration === generation
 				? { status: 'handled' }
 				: { status: 'superseded' };
@@ -193,9 +200,7 @@ export function createWorkmuxKeyboardCommandRunner({
 		try {
 			let current: typeof queued | null = queued;
 			while (current) {
-				current.resolve(
-					await execute(current.command, current.generation),
-				);
+				current.resolve(await execute(current.command, current.generation));
 				current = pending;
 				pending = null;
 			}

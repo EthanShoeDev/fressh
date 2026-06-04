@@ -336,6 +336,59 @@ void test('Workmux status keyboard action keeps mdev-backed next-all operation',
 	);
 });
 
+void test('Workmux keyboard runner prefers argv command transport', async () => {
+	const argvCalls: { argv: string[]; timeoutMs: number }[] = [];
+	const hostCalls: string[] = [];
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => true,
+		getSessionName: () => 'main',
+		runWorkmuxCommand: async (argv, timeoutMs) => {
+			argvCalls.push({ argv, timeoutMs });
+		},
+		runHostCommand: async (command) => {
+			hostCalls.push(command);
+		},
+		showFailure: () => {},
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	assert.deepEqual(await runner.run({ type: 'nav', action: 'next-all' }), {
+		status: 'handled',
+	});
+	assert.deepEqual(argvCalls, [
+		{
+			argv: ['tmux', 'app', 'nav', 'next-all', '--session', 'main'],
+			timeoutMs: 10_000,
+		},
+	]);
+	assert.deepEqual(hostCalls, []);
+});
+
+void test('Workmux keyboard runner keeps host command fallback', async () => {
+	const hostCalls: { command: string; timeoutMs: number }[] = [];
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => true,
+		getSessionName: () => 'main',
+		runHostCommand: async (command, timeoutMs) => {
+			hostCalls.push({ command, timeoutMs });
+		},
+		showFailure: () => {},
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	assert.deepEqual(await runner.run({ type: 'focus', target: 'codex' }), {
+		status: 'handled',
+	});
+	assert.deepEqual(hostCalls, [
+		{
+			command: "mdev tmux app focus 'codex' --session 'main'",
+			timeoutMs: 10_000,
+		},
+	]);
+});
+
 void test('Workmux runAction waits for command handling and preserves Promise<void>', async () => {
 	const commandBlock = deferred<{ status: 'handled' }>();
 	let settled = false;
