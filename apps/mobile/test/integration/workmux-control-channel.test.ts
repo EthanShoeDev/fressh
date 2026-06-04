@@ -194,5 +194,18 @@ void test('WorkmuxControlChannel rejects scroll after dispose', async () => {
 		output: '',
 		error: 'Workmux control channel disposed.',
 	});
+	assert.deepEqual(
+		await channel.scroll.move({
+			sessionName: 'main',
+			direction: 'down',
+			unit: 'line',
+			count: 0,
+		}),
+		{
+			success: false,
+			output: '',
+			error: 'Workmux control channel disposed.',
+		},
+	);
 	assert.deepEqual(sent, []);
 });
