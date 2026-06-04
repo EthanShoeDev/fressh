@@ -58,7 +58,7 @@ const windowProjection: WorkmuxAppWindow = {
 function serializeExpectedMdevCommand(argv: string[]): string {
 	return ['mdev', ...argv]
 		.map((value, index, tokens) =>
-			isExpectedCommandToken(value, index, tokens)
+			isExpectedCommandToken(index, tokens)
 				? value
 				: quoteExpectedShellValue(value),
 		)
@@ -66,13 +66,23 @@ function serializeExpectedMdevCommand(argv: string[]): string {
 }
 
 function isExpectedCommandToken(
-	value: string,
 	index: number,
 	tokens: string[],
 ): boolean {
 	if (index < 4) return true;
-	if (tokens[3] === 'notification' && index === 4) return true;
-	return value.startsWith('--');
+	switch (tokens[3]) {
+		case 'context':
+		case 'window':
+			return index === 4;
+		case 'notification':
+			return index === 4 || index === 5 || index === 7;
+		case 'focus':
+			return index === 5;
+		case 'nav':
+			return tokens[4] === 'select' ? index === 6 : index === 5;
+		default:
+			return false;
+	}
 }
 
 function quoteExpectedShellValue(value: string): string {
@@ -127,6 +137,30 @@ void test('workmux app command builders shell-quote app arguments', () => {
 	assert.equal(
 		buildWorkmuxAppNavCommand('main', 'prev-all'),
 		"mdev tmux app nav 'prev-all' --session 'main'",
+	);
+});
+
+void test('workmux app command builders quote values that look like flags', () => {
+	const contextCommand = buildWorkmuxAppContextCommand(
+		'--x; echo injected',
+	);
+	assert.equal(
+		contextCommand,
+		"mdev tmux app context --session '--x; echo injected'",
+	);
+	assert.equal(contextCommand.includes('--session --x; echo injected'), false);
+
+	const notificationCommand = buildWorkmuxAppNotificationOpenCommand(
+		'main',
+		'--window; echo injected',
+	);
+	assert.equal(
+		notificationCommand,
+		"mdev tmux app notification open --session 'main' --window-id '--window; echo injected'",
+	);
+	assert.equal(
+		notificationCommand.includes('--window-id --window; echo injected'),
+		false,
 	);
 });
 
