@@ -104,37 +104,71 @@ export function formatWorkmuxAppBoundaryFailureMessage(
 	return formatWorkmuxAppCommandFailureMessage(message);
 }
 
-export function buildWorkmuxAppContextCommand(sessionName: string): string {
-	return `mdev tmux app context --session ${quoteShellValue(
+function buildMdevCommandFromArgv(argv: string[]): string {
+	return ['mdev', ...argv].map(quoteShellValue).join(' ');
+}
+
+export function buildWorkmuxAppContextArgv(sessionName: string): string[] {
+	return [
+		'tmux',
+		'app',
+		'context',
+		'--session',
 		normalizeSessionName(sessionName),
-	)}`;
+	];
+}
+
+export function buildWorkmuxAppContextCommand(sessionName: string): string {
+	return buildMdevCommandFromArgv(buildWorkmuxAppContextArgv(sessionName));
+}
+
+export function buildWorkmuxAppWindowArgv(sessionName: string): string[] {
+	return [
+		'tmux',
+		'app',
+		'window',
+		'--session',
+		normalizeSessionName(sessionName),
+	];
 }
 
 export function buildWorkmuxAppWindowCommand(sessionName: string): string {
-	return `mdev tmux app window --session ${quoteShellValue(
+	return buildMdevCommandFromArgv(buildWorkmuxAppWindowArgv(sessionName));
+}
+
+export function buildWorkmuxAppNotificationOpenArgv(
+	sessionName: string,
+	windowId: string,
+): string[] {
+	return [
+		'tmux',
+		'app',
+		'notification',
+		'open',
+		'--session',
 		normalizeSessionName(sessionName),
-	)}`;
+		'--window-id',
+		windowId,
+	];
 }
 
 export function buildWorkmuxAppNotificationOpenCommand(
 	sessionName: string,
 	windowId: string,
 ): string {
-	return [
-		'mdev tmux app notification open',
-		`--session ${quoteShellValue(normalizeSessionName(sessionName))}`,
-		`--window-id ${quoteShellValue(windowId)}`,
-	].join(' ');
+	return buildMdevCommandFromArgv(
+		buildWorkmuxAppNotificationOpenArgv(sessionName, windowId),
+	);
 }
 
 export function buildWorkmuxAppScrollEnterCommand(sessionName: string): string {
-	return `mdev tmux app scroll enter --session ${quoteShellValue(
+	return `mdev tmux app scroll enter --session ${quoteRequiredShellValue(
 		normalizeSessionName(sessionName),
 	)}`;
 }
 
 export function buildWorkmuxAppScrollExitCommand(sessionName: string): string {
-	return `mdev tmux app scroll exit --session ${quoteShellValue(
+	return `mdev tmux app scroll exit --session ${quoteRequiredShellValue(
 		normalizeSessionName(sessionName),
 	)}`;
 }
@@ -153,27 +187,39 @@ export function buildWorkmuxAppScrollPageCommand(
 
 	return [
 		`mdev tmux app scroll page-${direction}`,
-		`--count ${quoteShellValue(String(count))}`,
-		`--session ${quoteShellValue(normalizeSessionName(sessionName))}`,
+		`--count ${quoteRequiredShellValue(String(count))}`,
+		`--session ${quoteRequiredShellValue(normalizeSessionName(sessionName))}`,
 	].join(' ');
+}
+
+export function buildWorkmuxAppFocusArgv(
+	sessionName: string,
+	roleOrDirection: WorkmuxFocusTarget,
+): string[] {
+	return [
+		'tmux',
+		'app',
+		'focus',
+		roleOrDirection,
+		'--session',
+		normalizeSessionName(sessionName),
+	];
 }
 
 export function buildWorkmuxAppFocusCommand(
 	sessionName: string,
 	roleOrDirection: WorkmuxFocusTarget,
 ): string {
-	return [
-		'mdev tmux app focus',
-		quoteShellValue(roleOrDirection),
-		`--session ${quoteShellValue(normalizeSessionName(sessionName))}`,
-	].join(' ');
+	return buildMdevCommandFromArgv(
+		buildWorkmuxAppFocusArgv(sessionName, roleOrDirection),
+	);
 }
 
-export function buildWorkmuxAppNavCommand(
+export function buildWorkmuxAppNavArgv(
 	sessionName: string,
 	action: WorkmuxNavAction,
 	index?: number,
-): string {
+): string[] {
 	if (action === 'select') {
 		if (index === undefined) {
 			throw new Error('Missing Workmux nav select index');
@@ -182,23 +228,38 @@ export function buildWorkmuxAppNavCommand(
 			throw new Error(`Invalid Workmux nav select index: ${index}`);
 		}
 		return [
-			'mdev tmux app nav',
-			quoteShellValue(action),
-			quoteShellValue(String(index)),
-			`--session ${quoteShellValue(normalizeSessionName(sessionName))}`,
-		].join(' ');
+			'tmux',
+			'app',
+			'nav',
+			action,
+			String(index),
+			'--session',
+			normalizeSessionName(sessionName),
+		];
 	}
 
 	if (index !== undefined) {
 		throw new Error(`Unexpected Workmux nav index for action: ${action}`);
 	}
 
-	const command = ['mdev tmux app nav', quoteShellValue(action)];
-	command.push(
-		`--session ${quoteShellValue(normalizeSessionName(sessionName))}`,
-	);
+	return [
+		'tmux',
+		'app',
+		'nav',
+		action,
+		'--session',
+		normalizeSessionName(sessionName),
+	];
+}
 
-	return command.join(' ');
+export function buildWorkmuxAppNavCommand(
+	sessionName: string,
+	action: WorkmuxNavAction,
+	index?: number,
+): string {
+	return buildMdevCommandFromArgv(
+		buildWorkmuxAppNavArgv(sessionName, action, index),
+	);
 }
 
 export function parseWorkmuxAppContextOutput(
@@ -271,6 +332,11 @@ function normalizeSessionName(sessionName: string): string {
 }
 
 function quoteShellValue(value: string): string {
+	if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
+	return quoteRequiredShellValue(value);
+}
+
+function quoteRequiredShellValue(value: string): string {
 	return `'${value.replaceAll("'", "'\\''")}'`;
 }
 

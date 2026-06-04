@@ -4,13 +4,17 @@ import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	WORKMUX_APP_SCROLL_MAX_COUNT,
 	WORKMUX_REMOTE_COMMAND_ENV_PREFIX,
+	buildWorkmuxAppContextArgv,
 	buildWorkmuxAppContextCommand,
+	buildWorkmuxAppFocusArgv,
 	buildWorkmuxAppFocusCommand,
+	buildWorkmuxAppNavArgv,
 	buildWorkmuxAppNavCommand,
 	buildWorkmuxAppNotificationOpenCommand,
 	buildWorkmuxAppScrollEnterCommand,
 	buildWorkmuxAppScrollExitCommand,
 	buildWorkmuxAppScrollPageCommand,
+	buildWorkmuxAppWindowArgv,
 	buildWorkmuxAppWindowCommand,
 	formatWorkmuxAppCommandFailureMessage,
 	isWorkmuxAppCommand,
@@ -81,23 +85,76 @@ void test('workmux app command builders shell-quote app arguments', () => {
 	);
 	assert.equal(
 		buildWorkmuxAppFocusCommand('main', 'toggle-git-bash'),
-		"mdev tmux app focus 'toggle-git-bash' --session 'main'",
+		'mdev tmux app focus toggle-git-bash --session main',
 	);
 	assert.equal(
 		buildWorkmuxAppNavCommand('main', 'select', 7),
-		"mdev tmux app nav 'select' '7' --session 'main'",
+		'mdev tmux app nav select 7 --session main',
 	);
 	assert.equal(
 		buildWorkmuxAppNavCommand('main', 'select', 0),
-		"mdev tmux app nav 'select' '0' --session 'main'",
+		'mdev tmux app nav select 0 --session main',
 	);
 	assert.equal(
 		buildWorkmuxAppNavCommand('main', 'next'),
-		"mdev tmux app nav 'next' --session 'main'",
+		'mdev tmux app nav next --session main',
 	);
 	assert.equal(
 		buildWorkmuxAppNavCommand('main', 'prev-all'),
-		"mdev tmux app nav 'prev-all' --session 'main'",
+		'mdev tmux app nav prev-all --session main',
+	);
+});
+
+void test('Workmux app argv builders preserve existing command shapes', () => {
+	assert.deepEqual(buildWorkmuxAppContextArgv('main'), [
+		'tmux',
+		'app',
+		'context',
+		'--session',
+		'main',
+	]);
+	assert.deepEqual(buildWorkmuxAppWindowArgv("main'quoted"), [
+		'tmux',
+		'app',
+		'window',
+		'--session',
+		"main'quoted",
+	]);
+	assert.deepEqual(buildWorkmuxAppFocusArgv('main', 'codex'), [
+		'tmux',
+		'app',
+		'focus',
+		'codex',
+		'--session',
+		'main',
+	]);
+	assert.deepEqual(buildWorkmuxAppNavArgv('main', 'next-all'), [
+		'tmux',
+		'app',
+		'nav',
+		'next-all',
+		'--session',
+		'main',
+	]);
+	assert.deepEqual(buildWorkmuxAppNavArgv('main', 'select', 7), [
+		'tmux',
+		'app',
+		'nav',
+		'select',
+		'7',
+		'--session',
+		'main',
+	]);
+});
+
+void test('Workmux app command builders are derived from argv builders', () => {
+	assert.equal(
+		buildWorkmuxAppFocusCommand("main'quoted", 'git'),
+		"mdev tmux app focus git --session 'main'\\''quoted'",
+	);
+	assert.equal(
+		buildWorkmuxAppNavCommand('main', 'select', 3),
+		'mdev tmux app nav select 3 --session main',
 	);
 });
 
@@ -140,7 +197,7 @@ void test('workmux app remote shell command preparation adds non-login PATH once
 void test('workmux app builders normalize blank sessions to main', () => {
 	assert.equal(
 		buildWorkmuxAppContextCommand('   '),
-		"mdev tmux app context --session 'main'",
+		'mdev tmux app context --session main',
 	);
 });
 
