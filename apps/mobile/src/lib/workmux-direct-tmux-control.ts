@@ -48,12 +48,28 @@ function requirePositiveInteger(count: number): number {
 	return count;
 }
 
+function requireScrollDirection(
+	direction: WorkmuxScrollDirection,
+): WorkmuxScrollDirection {
+	if (direction !== 'down' && direction !== 'up') {
+		throw new Error(`Invalid DirectMux direction: ${direction}`);
+	}
+	return direction;
+}
+
+function requireScrollUnit(unit: DirectTmuxScrollMove['unit']) {
+	if (unit !== 'line' && unit !== 'page') {
+		throw new Error(`Invalid DirectMux unit: ${unit}`);
+	}
+	return unit;
+}
+
 export function buildDirectTmuxScrollEnterCommand(sessionName: string): string {
 	return `tmux copy-mode -t ${quoteTmuxTarget(sessionName)}`;
 }
 
 export function buildDirectTmuxScrollExitCommand(sessionName: string): string {
-	return `tmux send-keys -t ${quoteTmuxTarget(sessionName)} q`;
+	return `tmux send-keys -t ${quoteTmuxTarget(sessionName)} -X cancel`;
 }
 
 export function buildDirectTmuxScrollMoveCommand({
@@ -63,12 +79,14 @@ export function buildDirectTmuxScrollMoveCommand({
 	count,
 }: DirectTmuxScrollMove): string {
 	const safeCount = requirePositiveInteger(count);
+	const safeDirection = requireScrollDirection(direction);
+	const safeUnit = requireScrollUnit(unit);
 	const tmuxAction =
-		unit === 'page'
-			? direction === 'up'
+		safeUnit === 'page'
+			? safeDirection === 'up'
 				? 'page-up'
 				: 'page-down'
-			: direction === 'up'
+			: safeDirection === 'up'
 				? 'scroll-up'
 				: 'scroll-down';
 	return [
@@ -92,6 +110,8 @@ export function createDirectTmuxControlTransport({
 	connection: DirectTmuxConnectionLike | null;
 }): DirectTmuxControlTransport {
 	let shellPromise: Promise<DirectTmuxShellLike> | null = null;
+	let queue: Promise<void> = Promise.resolve();
+	let disposing = false;
 	let disposed = false;
 
 	const getShell = async () => {
@@ -106,22 +126,42 @@ export function createDirectTmuxControlTransport({
 		return shellPromise;
 	};
 
+	const closeCachedShell = async () => {
+		const cachedShellPromise = shellPromise;
+		const shell = await cachedShellPromise?.catch(() => null);
+		await shell?.close().catch(() => {});
+		if (shellPromise === cachedShellPromise) {
+			shellPromise = null;
+		}
+	};
+
+	const sendNow = async (command: string) => {
+		try {
+			const shell = await getShell();
+			await shell.sendData(encoder.encode(`${command}\n`).buffer as ArrayBuffer);
+			return true;
+		} catch {
+			await closeCachedShell();
+			return false;
+		}
+	};
+
 	return {
 		send: async (command) => {
-			try {
-				const shell = await getShell();
-				await shell.sendData(encoder.encode(`${command}\n`).buffer as ArrayBuffer);
-				return true;
-			} catch {
-				shellPromise = null;
-				return false;
-			}
+			if (disposed || disposing || /[\r\n]/.test(command)) return false;
+			const result = queue.then(() => sendNow(command));
+			queue = result.then(
+				() => {},
+				() => {},
+			);
+			return result;
 		},
 		dispose: async () => {
+			if (disposed) return;
+			disposing = true;
+			await queue.catch(() => {});
 			disposed = true;
-			const shell = await shellPromise?.catch(() => null);
-			shellPromise = null;
-			await shell?.close().catch(() => {});
+			await closeCachedShell();
 		},
 	};
 }
