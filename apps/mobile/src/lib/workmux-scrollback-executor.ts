@@ -1,11 +1,6 @@
 import { formatWorkmuxAppBoundaryFailureMessage } from './workmux-app-commands';
 import { type WorkmuxControlChannel } from './workmux-control-channel';
 import {
-	executeRemoteCommand,
-	type RemoteCommandConnection,
-	type RemoteCommandResult,
-} from './remote-command-runner';
-import {
 	coalesceWorkmuxScrollbackPendingPageCommands,
 	mergeWorkmuxScrollbackPageCommands,
 	type WorkmuxScrollbackPageCommand,
@@ -38,22 +33,6 @@ export type WorkmuxScrollbackCommandExecutor = {
 	}) => Promise<boolean> | null;
 	dispose: (options?: { targetName?: string }) => Promise<boolean> | null;
 };
-
-export function executeWorkmuxScrollbackRemoteCommand({
-	connection,
-	command,
-	timeoutMs,
-}: {
-	connection: RemoteCommandConnection;
-	command: string;
-	timeoutMs?: number;
-}): Promise<RemoteCommandResult> {
-	return executeRemoteCommand({
-		connection,
-		command,
-		timeoutMs,
-	});
-}
 
 export function formatWorkmuxScrollbackCommandFailureMessage(result: {
 	success: boolean;

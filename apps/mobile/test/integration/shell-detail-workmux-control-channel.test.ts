@@ -16,4 +16,18 @@ describe('shell detail Workmux control channel wiring', () => {
 		assert.doesNotMatch(source, /buildWorkmuxAppScrollLineCommand/);
 		assert.doesNotMatch(source, /buildWorkmuxAppScrollPageCommand/);
 	});
+
+	test('cleans up scrollback executor before disposing the control channel', () => {
+		const source = readFileSync(detailSourcePath, 'utf8');
+		const executorCleanupIndex = source.indexOf(
+			'const cleanup = disposeTmuxScrollbackRuntimeStateForUiReset',
+		);
+		const channelDisposeIndex = source.indexOf(
+			'void workmuxControlChannel.dispose()',
+		);
+
+		assert.notEqual(executorCleanupIndex, -1);
+		assert.notEqual(channelDisposeIndex, -1);
+		assert.ok(executorCleanupIndex < channelDisposeIndex);
+	});
 });

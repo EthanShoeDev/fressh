@@ -10,7 +10,6 @@ import {
 } from '../../src/lib/workmux-scrollback-batch';
 import {
 	createWorkmuxScrollbackCommandExecutor as createBaseWorkmuxScrollbackCommandExecutor,
-	executeWorkmuxScrollbackRemoteCommand,
 	type WorkmuxScrollbackCommandResult,
 } from '../../src/lib/workmux-scrollback-executor';
 import { createWorkmuxScrollbackLiveInputCleanupBarrier } from '../../src/lib/workmux-scrollback-live-input';
@@ -44,8 +43,6 @@ const lineText = (
 ) => `move:main:${direction}:line:${count}`;
 const enterText = (sessionName = 'main') => `enter:${sessionName}`;
 const exitText = (sessionName = 'main') => `exit:${sessionName}`;
-const bytes = (text: string): ArrayBuffer =>
-	new TextEncoder().encode(text).buffer as ArrayBuffer;
 
 function createRecordingScrollTransport(
 	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>,
@@ -142,39 +139,6 @@ void test('workmux scrollback executor serializes enter before scroll batches', 
 	assert.equal(await enter, true);
 	await batch;
 	assert.deepEqual(commands, [enterText(), pageText()]);
-});
-
-void test('workmux scrollback remote command uses noninteractive SSH exec output', async () => {
-	const calls: string[] = [];
-	const result = await executeWorkmuxScrollbackRemoteCommand({
-		connection: {
-			runCommand: async (opts) => {
-				calls.push(opts.command);
-				return {
-					stdout: bytes(''),
-					stderr: bytes('not in a mode\n'),
-					exitStatus: 1,
-					exitSignal: null,
-				};
-			},
-		},
-		command: "mdev tmux app scroll exit --session 'main'",
-		timeoutMs: 500,
-	});
-
-	assert.deepEqual(calls, [
-		`env PATH="$PATH:$HOME/bin" mdev tmux app scroll exit --session 'main'`,
-	]);
-	assert.deepEqual(result, {
-		success: false,
-		output: '',
-		error: 'not in a mode',
-		failureKind: 'exit-status',
-		rawError: 'not in a mode',
-		stderr: 'not in a mode\n',
-		exitStatus: 1,
-		exitSignal: null,
-	});
 });
 
 void test('workmux scrollback executor suppresses enter ack and clears pending scroll after failure', async () => {

@@ -490,14 +490,6 @@ function ShellDetail() {
 	);
 
 	useEffect(() => {
-		return () => {
-			void workmuxControlChannel.dispose().catch((error: unknown) => {
-				logger.warn('Workmux control channel dispose failed', error);
-			});
-		};
-	}, [workmuxControlChannel]);
-
-	useEffect(() => {
 		if (hasTmuxAttachError) return;
 		if (shell && connection) return;
 		const autoState = useAutoConnectStore.getState();
@@ -983,6 +975,14 @@ function ShellDetail() {
 			}
 		};
 	}, [normalizedTmuxTarget, workmuxScrollbackCommandExecutor]);
+
+	useEffect(() => {
+		return () => {
+			void workmuxControlChannel.dispose().catch((error: unknown) => {
+				logger.warn('Workmux control channel dispose failed', error);
+			});
+		};
+	}, [workmuxControlChannel]);
 
 	const sendLiveInputSegments = useCallback(
 		(
