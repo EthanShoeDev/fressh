@@ -70,7 +70,10 @@ import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { OrderedWriter } from '@/lib/ordered-writer';
-import { runRemoteTextCommand } from '@/lib/remote-command-runner';
+import {
+	executeRemoteCommand,
+	runRemoteTextCommand,
+} from '@/lib/remote-command-runner';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -137,15 +140,12 @@ import {
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
 import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
 import {
-	buildWorkmuxAppScrollEnterCommand,
-	buildWorkmuxAppScrollExitCommand,
-	buildWorkmuxAppScrollLineCommand,
-	buildWorkmuxAppScrollPageCommand,
-} from '@/lib/workmux-app-commands';
+	createWorkmuxControlChannel,
+	type WorkmuxControlChannel,
+} from '@/lib/workmux-control-channel';
 import { createTmuxScrollbackLineAccumulator } from '@/lib/workmux-scrollback-batch';
 import {
 	createWorkmuxScrollbackCommandExecutor,
-	executeWorkmuxScrollbackRemoteCommand,
 	type WorkmuxScrollbackCommandExecutor,
 	type WorkmuxScrollbackFailureContext,
 } from '@/lib/workmux-scrollback-executor';
@@ -186,7 +186,6 @@ const WISPR_TAP_RETRY_INTERVAL_MS = 200;
 const WISPR_TAP_ATTEMPT_TIMEOUT_MS = 750;
 const WISPR_PENDING_AUTO_CLOSE_EXPIRY_MS = 5_000;
 const WISPR_OPENING_FALLBACK_MS = 750;
-const WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS = 10_000;
 
 const getErrorMessage = (error: unknown) =>
 	error instanceof Error ? error.message : String(error);
@@ -468,6 +467,35 @@ function ShellDetail() {
 		tmuxSessionName?.trim().length ? tmuxSessionName.trim() : 'main',
 	);
 	const [tmuxEnabled, setTmuxEnabled] = useState(false);
+	const workmuxControlChannel = useMemo<WorkmuxControlChannel>(
+		() =>
+			createWorkmuxControlChannel({
+				connection: connection ?? null,
+				runRemoteCommand: (command, timeoutMs) => {
+					if (!connection) {
+						return Promise.resolve({
+							success: false,
+							output: '',
+							error: 'No SSH connection available.',
+						});
+					}
+					return executeRemoteCommand({
+						connection,
+						command,
+						timeoutMs,
+					});
+				},
+			}),
+		[connection],
+	);
+
+	useEffect(() => {
+		return () => {
+			void workmuxControlChannel.dispose().catch((error: unknown) => {
+				logger.warn('Workmux control channel dispose failed', error);
+			});
+		};
+	}, [workmuxControlChannel]);
 
 	useEffect(() => {
 		if (hasTmuxAttachError) return;
@@ -891,33 +919,28 @@ function ShellDetail() {
 	const workmuxScrollbackCommandExecutor = useMemo(() => {
 		// Target changes dispose the previous executor in the cleanup effect below.
 		const executorTargetName = normalizedTmuxTarget;
-		const runScrollCommand = (command: string) => {
-			if (!connection) {
-				return Promise.resolve({
-					success: false,
-					output: '',
-					error: `No SSH connection available for ${executorTargetName}.`,
-				});
-			}
-			return executeWorkmuxScrollbackRemoteCommand({
-				connection,
-				command,
-				timeoutMs: WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS,
+		const noConnectionFailure = () =>
+			Promise.resolve({
+				success: false,
+				output: '',
+				error: `No SSH connection available for ${executorTargetName}.`,
 			});
-		};
+		const scrollTransport = {
+			enter: (input) =>
+				connection
+					? workmuxControlChannel.scroll.enter(input)
+					: noConnectionFailure(),
+			move: (input) =>
+				connection
+					? workmuxControlChannel.scroll.move(input)
+					: noConnectionFailure(),
+			exit: (input) =>
+				connection
+					? workmuxControlChannel.scroll.exit(input)
+					: noConnectionFailure(),
+		} satisfies WorkmuxControlChannel['scroll'];
 		return createWorkmuxScrollbackCommandExecutor({
-			scrollTransport: {
-				enter: ({ sessionName }) =>
-					runScrollCommand(buildWorkmuxAppScrollEnterCommand(sessionName)),
-				move: ({ sessionName, direction, unit, count }) =>
-					runScrollCommand(
-						unit === 'line'
-							? buildWorkmuxAppScrollLineCommand(sessionName, direction, count)
-							: buildWorkmuxAppScrollPageCommand(sessionName, direction, count),
-					),
-				exit: ({ sessionName }) =>
-					runScrollCommand(buildWorkmuxAppScrollExitCommand(sessionName)),
-			},
+			scrollTransport,
 			onFailure: handleWorkmuxScrollbackCommandFailure,
 			onDisposeExitFailure: (message) =>
 				handleShellWorkmuxScrollbackDisposeExitFailureActions({
@@ -931,6 +954,7 @@ function ShellDetail() {
 		handleWorkmuxScrollbackCommandFailure,
 		normalizedTmuxTarget,
 		traceScroll,
+		workmuxControlChannel,
 	]);
 
 	useEffect(() => {
