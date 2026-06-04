@@ -22,12 +22,17 @@ describe('shell detail Workmux control channel wiring', () => {
 		const executorCleanupIndex = source.indexOf(
 			'const cleanup = disposeTmuxScrollbackRuntimeStateForUiReset',
 		);
-		const channelDisposeIndex = source.indexOf(
-			'void workmuxControlChannel.dispose()',
+		const sequencedDisposeIndex = source.indexOf(
+			'disposeWorkmuxControlChannelAfterCleanup',
+			executorCleanupIndex,
 		);
 
 		assert.notEqual(executorCleanupIndex, -1);
-		assert.notEqual(channelDisposeIndex, -1);
-		assert.ok(executorCleanupIndex < channelDisposeIndex);
+		assert.notEqual(sequencedDisposeIndex, -1);
+		assert.ok(executorCleanupIndex < sequencedDisposeIndex);
+		assert.doesNotMatch(
+			source,
+			/void workmuxControlChannel\.dispose\(\)\.catch/,
+		);
 	});
 });

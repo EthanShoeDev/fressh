@@ -41,6 +41,13 @@ export type WorkmuxControlChannel = {
 	dispose: () => Promise<void>;
 };
 
+export type WorkmuxControlChannelCleanupOptions = {
+	cleanup?: Promise<unknown> | null;
+	dispose: () => Promise<void>;
+	onCleanupError?: (error: unknown) => void;
+	onDisposeError?: (error: unknown) => void;
+};
+
 const DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS = 10_000;
 
 function quoteShellValue(value: string): string {
@@ -125,4 +132,28 @@ export function createWorkmuxControlChannel({
 			await directTmuxTransport.dispose();
 		},
 	};
+}
+
+export function disposeWorkmuxControlChannelAfterCleanup({
+	cleanup,
+	dispose,
+	onCleanupError,
+	onDisposeError,
+}: WorkmuxControlChannelCleanupOptions): void {
+	const disposeChannel = () => {
+		void dispose().catch((error: unknown) => {
+			onDisposeError?.(error);
+		});
+	};
+
+	if (!cleanup) {
+		disposeChannel();
+		return;
+	}
+
+	void cleanup
+		.catch((error: unknown) => {
+			onCleanupError?.(error);
+		})
+		.finally(disposeChannel);
 }

@@ -141,6 +141,7 @@ import { wisprAutomationNative } from '@/lib/wispr-automation-native';
 import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
 import {
 	createWorkmuxControlChannel,
+	disposeWorkmuxControlChannelAfterCleanup,
 	type WorkmuxControlChannel,
 } from '@/lib/workmux-control-channel';
 import { createTmuxScrollbackLineAccumulator } from '@/lib/workmux-scrollback-batch';
@@ -467,6 +468,9 @@ function ShellDetail() {
 		tmuxSessionName?.trim().length ? tmuxSessionName.trim() : 'main',
 	);
 	const [tmuxEnabled, setTmuxEnabled] = useState(false);
+	const normalizedTmuxTarget = tmuxTarget.trim().length
+		? tmuxTarget.trim()
+		: 'main';
 	const workmuxControlChannel = useMemo<WorkmuxControlChannel>(
 		() =>
 			createWorkmuxControlChannel({
@@ -486,7 +490,7 @@ function ShellDetail() {
 					});
 				},
 			}),
-		[connection],
+		[connection, normalizedTmuxTarget],
 	);
 
 	useEffect(() => {
@@ -846,10 +850,6 @@ function ShellDetail() {
 		[clearLocalScrollbackUiState, resetTmuxScrollbackForUiReset],
 	);
 
-	const normalizedTmuxTarget = tmuxTarget.trim().length
-		? tmuxTarget.trim()
-		: 'main';
-
 	const traceScroll = useCallback<ScrollTraceSink>(
 		(event) => {
 			emitScrollTrace({
@@ -964,8 +964,15 @@ function ShellDetail() {
 				cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
 				targetName: normalizedTmuxTarget,
 			});
-			void cleanup?.catch((error: unknown) => {
-				logger.warn('Workmux scrollback dispose exit failed', error);
+			disposeWorkmuxControlChannelAfterCleanup({
+				cleanup,
+				dispose: () => workmuxControlChannel.dispose(),
+				onCleanupError: (error) => {
+					logger.warn('Workmux scrollback dispose exit failed', error);
+				},
+				onDisposeError: (error) => {
+					logger.warn('Workmux control channel dispose failed', error);
+				},
 			});
 			if (
 				workmuxScrollbackCommandExecutorRef.current ===
@@ -974,15 +981,11 @@ function ShellDetail() {
 				workmuxScrollbackCommandExecutorRef.current = null;
 			}
 		};
-	}, [normalizedTmuxTarget, workmuxScrollbackCommandExecutor]);
-
-	useEffect(() => {
-		return () => {
-			void workmuxControlChannel.dispose().catch((error: unknown) => {
-				logger.warn('Workmux control channel dispose failed', error);
-			});
-		};
-	}, [workmuxControlChannel]);
+	}, [
+		normalizedTmuxTarget,
+		workmuxControlChannel,
+		workmuxScrollbackCommandExecutor,
+	]);
 
 	const sendLiveInputSegments = useCallback(
 		(

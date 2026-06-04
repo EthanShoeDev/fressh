@@ -2,9 +2,22 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	createWorkmuxControlChannel,
+	disposeWorkmuxControlChannelAfterCleanup,
 	formatMdevArgvCommand,
 	type WorkmuxControlCommandResult,
 } from '../../src/lib/workmux-control-channel';
+
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	let reject!: (reason?: unknown) => void;
+	const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+		resolve = resolvePromise;
+		reject = rejectPromise;
+	});
+	return { promise, resolve, reject };
+}
+
+const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 void test('formatMdevArgvCommand shell-quotes argv safely', () => {
 	assert.equal(
@@ -208,4 +221,46 @@ void test('WorkmuxControlChannel rejects scroll after dispose', async () => {
 		},
 	);
 	assert.deepEqual(sent, []);
+});
+
+void test('disposeWorkmuxControlChannelAfterCleanup waits for scrollback cleanup', async () => {
+	const cleanup = deferred<void>();
+	const events: string[] = [];
+
+	disposeWorkmuxControlChannelAfterCleanup({
+		cleanup: cleanup.promise,
+		dispose: async () => {
+			events.push('dispose');
+		},
+	});
+
+	await settle();
+	assert.deepEqual(events, []);
+
+	cleanup.resolve();
+	await cleanup.promise;
+	await settle();
+
+	assert.deepEqual(events, ['dispose']);
+});
+
+void test('disposeWorkmuxControlChannelAfterCleanup disposes after failed cleanup', async () => {
+	const cleanup = deferred<void>();
+	const events: string[] = [];
+
+	disposeWorkmuxControlChannelAfterCleanup({
+		cleanup: cleanup.promise,
+		dispose: async () => {
+			events.push('dispose');
+		},
+		onCleanupError: (error) => {
+			events.push(`cleanup:${String(error)}`);
+		},
+	});
+
+	cleanup.reject('exit failed');
+	await cleanup.promise.catch(() => {});
+	await settle();
+
+	assert.deepEqual(events, ['cleanup:exit failed', 'dispose']);
 });
