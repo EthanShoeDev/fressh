@@ -8,6 +8,30 @@ const DEFAULT_OUT = `/tmp/fressh-scroll-trace/${new Date()
 	.toISOString()
 	.replace(/[:.]/g, '-')}`;
 
+function parseFiniteNumber(value, name) {
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed)) {
+		throw new Error(`${name} must be a finite number`);
+	}
+	return parsed;
+}
+
+function parseNonNegativeInteger(value, name) {
+	const parsed = parseFiniteNumber(value, name);
+	if (!Number.isInteger(parsed) || parsed < 0) {
+		throw new Error(`${name} must be a non-negative integer`);
+	}
+	return parsed;
+}
+
+function parseNonNegativeNumber(value, name) {
+	const parsed = parseFiniteNumber(value, name);
+	if (parsed < 0) {
+		throw new Error(`${name} must be a non-negative number`);
+	}
+	return parsed;
+}
+
 function parseArgs(argv) {
 	const args = {
 		out: DEFAULT_OUT,
@@ -35,34 +59,40 @@ function parseArgs(argv) {
 				args.out = next();
 				break;
 			case '--swipes':
-				args.swipes = Number(next());
+				args.swipes = parseNonNegativeInteger(next(), '--swipes');
 				break;
 			case '--x1':
-				args.x1 = Number(next());
+				args.x1 = parseFiniteNumber(next(), '--x1');
 				break;
 			case '--y1':
-				args.y1 = Number(next());
+				args.y1 = parseFiniteNumber(next(), '--y1');
 				break;
 			case '--x2':
-				args.x2 = Number(next());
+				args.x2 = parseFiniteNumber(next(), '--x2');
 				break;
 			case '--y2':
-				args.y2 = Number(next());
+				args.y2 = parseFiniteNumber(next(), '--y2');
 				break;
 			case '--duration-ms':
-				args.durationMs = Number(next());
+				args.durationMs = parseNonNegativeNumber(next(), '--duration-ms');
 				break;
 			case '--settle-ms':
-				args.settleMs = Number(next());
+				args.settleMs = parseNonNegativeNumber(next(), '--settle-ms');
 				break;
 			case '--fail-on-scroll-errors':
 				args.failOnScrollErrors = true;
 				break;
 			case '--min-accepted-batches':
-				args.minAcceptedBatches = Number(next());
+				args.minAcceptedBatches = parseNonNegativeInteger(
+					next(),
+					'--min-accepted-batches',
+				);
 				break;
 			case '--max-average-command-duration-ms':
-				args.maxAverageCommandDurationMs = Number(next());
+				args.maxAverageCommandDurationMs = parseNonNegativeNumber(
+					next(),
+					'--max-average-command-duration-ms',
+				);
 				break;
 			default:
 				throw new Error(`Unknown argument: ${arg}`);

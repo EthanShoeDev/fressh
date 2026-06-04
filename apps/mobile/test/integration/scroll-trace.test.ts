@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import {
 	SCROLL_TRACE_LOG_PREFIX,
@@ -223,4 +224,32 @@ void test('scroll trace summary groups dropped batch reasons', () => {
 		empty: 2,
 		'remote-inactive': 1,
 	});
+});
+
+void test('scroll trace collector rejects invalid numeric thresholds before adb', () => {
+	const invalidThreshold = spawnSync(
+		process.execPath,
+		[
+			'scripts/collect-scroll-trace.mjs',
+			'--max-average-command-duration-ms',
+			'nope',
+		],
+		{ encoding: 'utf8' },
+	);
+	assert.notEqual(invalidThreshold.status, 0);
+	assert.match(
+		invalidThreshold.stderr,
+		/--max-average-command-duration-ms must be a finite number/,
+	);
+
+	const invalidMinBatches = spawnSync(
+		process.execPath,
+		['scripts/collect-scroll-trace.mjs', '--min-accepted-batches', '1.5'],
+		{ encoding: 'utf8' },
+	);
+	assert.notEqual(invalidMinBatches.status, 0);
+	assert.match(
+		invalidMinBatches.stderr,
+		/--min-accepted-batches must be a non-negative integer/,
+	);
 });
