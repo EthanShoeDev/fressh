@@ -128,11 +128,9 @@ export function createDirectTmuxControlTransport({
 
 	const closeCachedShell = async () => {
 		const cachedShellPromise = shellPromise;
+		shellPromise = null;
 		const shell = await cachedShellPromise?.catch(() => null);
 		await shell?.close().catch(() => {});
-		if (shellPromise === cachedShellPromise) {
-			shellPromise = null;
-		}
 	};
 
 	const sendNow = async (command: string) => {

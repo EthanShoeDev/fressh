@@ -221,3 +221,39 @@ void test('DirectMux transport serializes sends and dispose waits for queue', as
 		'__closed__',
 	]);
 });
+
+void test('DirectMux transport overlapping dispose closes hidden shell once', async () => {
+	const created = fakeShell();
+	const sendStarted = deferred();
+	const releaseSend = deferred();
+	let closeCount = 0;
+	created.shell.sendData = async (bytes: ArrayBuffer) => {
+		created.writes.push(new TextDecoder().decode(bytes));
+		sendStarted.resolve();
+		await releaseSend.promise;
+	};
+	created.shell.close = async () => {
+		closeCount += 1;
+		created.writes.push('__closed__');
+	};
+	const transport = createDirectTmuxControlTransport({
+		connection: {
+			startShell: async () => created.shell,
+		},
+	});
+
+	const send = transport.send('tmux display-message pending');
+	await sendStarted.promise;
+	const firstDispose = transport.dispose();
+	const secondDispose = transport.dispose();
+	releaseSend.resolve();
+
+	assert.equal(await send, true);
+	await Promise.all([firstDispose, secondDispose]);
+
+	assert.equal(closeCount, 1);
+	assert.deepEqual(created.writes, [
+		'tmux display-message pending\n',
+		'__closed__',
+	]);
+});
