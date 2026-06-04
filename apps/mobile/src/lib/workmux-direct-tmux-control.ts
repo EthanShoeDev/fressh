@@ -111,6 +111,7 @@ export function createDirectTmuxControlTransport({
 }): DirectTmuxControlTransport {
 	let shellPromise: Promise<DirectTmuxShellLike> | null = null;
 	let queue: Promise<void> = Promise.resolve();
+	let disposePromise: Promise<void> | null = null;
 	let disposing = false;
 	let disposed = false;
 
@@ -154,12 +155,14 @@ export function createDirectTmuxControlTransport({
 			);
 			return result;
 		},
-		dispose: async () => {
-			if (disposed) return;
-			disposing = true;
-			await queue.catch(() => {});
-			disposed = true;
-			await closeCachedShell();
+		dispose: () => {
+			disposePromise ??= (async () => {
+				disposing = true;
+				await queue.catch(() => {});
+				disposed = true;
+				await closeCachedShell();
+			})();
+			return disposePromise;
 		},
 	};
 }

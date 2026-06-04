@@ -248,6 +248,8 @@ void test('DirectMux transport overlapping dispose closes hidden shell once', as
 	const created = fakeShell();
 	const sendStarted = deferred();
 	const releaseSend = deferred();
+	const closeStarted = deferred();
+	const releaseClose = deferred();
 	let closeCount = 0;
 	created.shell.sendData = async (bytes: ArrayBuffer) => {
 		created.writes.push(new TextDecoder().decode(bytes));
@@ -257,6 +259,8 @@ void test('DirectMux transport overlapping dispose closes hidden shell once', as
 	created.shell.close = async () => {
 		closeCount += 1;
 		created.writes.push('__closed__');
+		closeStarted.resolve();
+		await releaseClose.promise;
 	};
 	const transport = createDirectTmuxControlTransport({
 		connection: {
@@ -271,6 +275,14 @@ void test('DirectMux transport overlapping dispose closes hidden shell once', as
 	releaseSend.resolve();
 
 	assert.equal(await send, true);
+	await closeStarted.promise;
+	let secondDisposeResolved = false;
+	secondDispose.then(() => {
+		secondDisposeResolved = true;
+	});
+	await new Promise((resolve) => setTimeout(resolve, 0));
+	assert.equal(secondDisposeResolved, false);
+	releaseClose.resolve();
 	await Promise.all([firstDispose, secondDispose]);
 
 	assert.equal(closeCount, 1);
