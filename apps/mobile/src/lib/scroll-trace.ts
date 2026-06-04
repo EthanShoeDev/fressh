@@ -44,8 +44,13 @@ export type ScrollTraceSummaryLike = Pick<
 	| 'droppedBatchCount'
 	| 'failedCommandCount'
 	| 'notInModeCount'
-	| 'commandDurationMs'
->;
+> & {
+	commandDurationMs?: {
+		avg?: number | null;
+		p95?: number | null;
+		max?: number | null;
+	};
+};
 
 export type ScrollTraceHealthOptions = {
 	minAcceptedBatches?: number;
@@ -217,7 +222,7 @@ export function isScrollTraceSummaryHealthy(
 
 	const maxAverageCommandDurationMs = options.maxAverageCommandDurationMs;
 	if (maxAverageCommandDurationMs !== undefined) {
-		const avg = summary.commandDurationMs.avg;
+		const avg = summary.commandDurationMs?.avg;
 		if (typeof avg !== 'number' || !Number.isFinite(avg)) return false;
 		if (avg > maxAverageCommandDurationMs) return false;
 	}

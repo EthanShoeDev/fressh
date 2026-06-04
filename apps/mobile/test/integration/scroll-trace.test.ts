@@ -161,6 +161,33 @@ void test('scroll trace health helper enforces acceptance and error thresholds',
 		}),
 		false,
 	);
+	assert.equal(
+		isScrollTraceSummaryHealthy(
+			{
+				eventCount: 10,
+				acceptedBatchCount: 3,
+				droppedBatchCount: 0,
+				failedCommandCount: 0,
+				notInModeCount: 0,
+				commandDurationMs: { avg: 12 },
+			},
+			{ minAcceptedBatches: 1, maxAverageCommandDurationMs: 50 },
+		),
+		true,
+	);
+	assert.equal(
+		isScrollTraceSummaryHealthy(
+			{
+				eventCount: 10,
+				acceptedBatchCount: 3,
+				droppedBatchCount: 0,
+				failedCommandCount: 0,
+				notInModeCount: 0,
+			},
+			{ minAcceptedBatches: 1, maxAverageCommandDurationMs: 50 },
+		),
+		false,
+	);
 
 	const unhealthySummary = summarizeScrollTraceEvents([
 		{ at: 1000, event: 'rn.batch.accepted' },
