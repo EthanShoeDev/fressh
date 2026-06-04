@@ -79,9 +79,12 @@ export function createWorkmuxControlChannel({
 	) => Promise<WorkmuxControlCommandResult>;
 	directTmuxTransport?: DirectTmuxControlTransport;
 }): WorkmuxControlChannel {
+	let disposed = false;
+
 	const runDirect = async (
 		command: string,
 	): Promise<WorkmuxControlCommandResult> => {
+		if (disposed) return failureResult('Workmux control channel disposed.');
 		const sent = await directTmuxTransport.send(command);
 		return sent
 			? successResult()
@@ -89,11 +92,17 @@ export function createWorkmuxControlChannel({
 	};
 
 	return {
-		command: (argv, options) =>
-			runRemoteCommand(
+		command: (argv, options) => {
+			if (disposed) {
+				return Promise.resolve(
+					failureResult('Workmux control channel disposed.'),
+				);
+			}
+			return runRemoteCommand(
 				formatMdevArgvCommand(argv),
 				options?.timeoutMs ?? DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS,
-			),
+			);
+		},
 		scroll: {
 			enter: (input) =>
 				runDirect(buildDirectTmuxScrollEnterCommand(input.sessionName)),
@@ -101,6 +110,9 @@ export function createWorkmuxControlChannel({
 			exit: (input) =>
 				runDirect(buildDirectTmuxScrollExitCommand(input.sessionName)),
 		},
-		dispose: () => directTmuxTransport.dispose(),
+		dispose: async () => {
+			disposed = true;
+			await directTmuxTransport.dispose();
+		},
 	};
 }

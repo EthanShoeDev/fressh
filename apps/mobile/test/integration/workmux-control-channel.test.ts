@@ -148,3 +148,51 @@ void test('WorkmuxControlChannel.dispose delegates to DirectMux transport', asyn
 
 	assert.equal(disposeCount, 1);
 });
+
+void test('WorkmuxControlChannel rejects commands after dispose', async () => {
+	const calls: string[] = [];
+	const channel = createWorkmuxControlChannel({
+		connection: null,
+		runRemoteCommand: async (command) => {
+			calls.push(command);
+			return { success: true, output: '' };
+		},
+		directTmuxTransport: {
+			send: async () => true,
+			dispose: async () => {},
+		},
+	});
+
+	await channel.dispose();
+
+	assert.deepEqual(await channel.command(['tmux', 'app', 'nav', 'next']), {
+		success: false,
+		output: '',
+		error: 'Workmux control channel disposed.',
+	});
+	assert.deepEqual(calls, []);
+});
+
+void test('WorkmuxControlChannel rejects scroll after dispose', async () => {
+	const sent: string[] = [];
+	const channel = createWorkmuxControlChannel({
+		connection: null,
+		runRemoteCommand: async () => ({ success: true, output: '' }),
+		directTmuxTransport: {
+			send: async (command) => {
+				sent.push(command);
+				return true;
+			},
+			dispose: async () => {},
+		},
+	});
+
+	await channel.dispose();
+
+	assert.deepEqual(await channel.scroll.enter({ sessionName: 'main' }), {
+		success: false,
+		output: '',
+		error: 'Workmux control channel disposed.',
+	});
+	assert.deepEqual(sent, []);
+});
