@@ -10,6 +10,7 @@ import {
 	buildWorkmuxAppFocusCommand,
 	buildWorkmuxAppNavArgv,
 	buildWorkmuxAppNavCommand,
+	buildWorkmuxAppNotificationOpenArgv,
 	buildWorkmuxAppNotificationOpenCommand,
 	buildWorkmuxAppScrollEnterCommand,
 	buildWorkmuxAppScrollExitCommand,
@@ -120,6 +121,16 @@ void test('Workmux app argv builders preserve existing command shapes', () => {
 		'--session',
 		"main'quoted",
 	]);
+	assert.deepEqual(buildWorkmuxAppNotificationOpenArgv('main', '@12'), [
+		'tmux',
+		'app',
+		'notification',
+		'open',
+		'--session',
+		'main',
+		'--window-id',
+		'@12',
+	]);
 	assert.deepEqual(buildWorkmuxAppFocusArgv('main', 'codex'), [
 		'tmux',
 		'app',
@@ -148,6 +159,18 @@ void test('Workmux app argv builders preserve existing command shapes', () => {
 });
 
 void test('Workmux app command builders are derived from argv builders', () => {
+	assert.equal(
+		buildWorkmuxAppContextCommand("main'quoted"),
+		"mdev tmux app context --session 'main'\\''quoted'",
+	);
+	assert.equal(
+		buildWorkmuxAppWindowCommand("main'quoted"),
+		"mdev tmux app window --session 'main'\\''quoted'",
+	);
+	assert.equal(
+		buildWorkmuxAppNotificationOpenCommand("main'quoted", "@12'bad"),
+		"mdev tmux app notification open --session 'main'\\''quoted' --window-id '@12'\\''bad'",
+	);
 	assert.equal(
 		buildWorkmuxAppFocusCommand("main'quoted", 'git'),
 		"mdev tmux app focus git --session 'main'\\''quoted'",
