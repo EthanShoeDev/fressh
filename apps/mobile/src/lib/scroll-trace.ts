@@ -41,7 +41,7 @@ function asNumber(value: unknown): number | null {
 }
 
 export function isScrollTraceEnabled(): boolean {
-	return true;
+	return process.env.EXPO_PUBLIC_FRESSH_ENABLE_SCROLL_TRACE === 'true';
 }
 
 export function buildScrollTraceLine(
