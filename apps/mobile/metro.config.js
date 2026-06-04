@@ -21,6 +21,15 @@ config.resolver.nodeModulesPaths = [
 // Owning metro.config means we must keep this on explicitly.
 config.resolver.unstable_enablePackageExports = true;
 
+// Don't watch Rust build output. `cargo`/`cargo-ndk` constantly create and delete
+// transient archives under `packages/*/rust/target`, and Metro's (watchman-less)
+// fallback file watcher crashes with ENOENT when those temp files vanish mid-walk
+// — which silently kills the dev server during native rebuilds. Exclude it.
+const rustTargetRE = /[\\/]rust[\\/]target[\\/].*/;
+config.resolver.blockList = config.resolver.blockList
+	? [].concat(config.resolver.blockList, rustTargetRE)
+	: [rustTargetRE];
+
 // `withUniwindConfig` must be the OUTERMOST wrapper.
 module.exports = withUniwindConfig(config, {
 	cssEntryFile: './src/global.css',
