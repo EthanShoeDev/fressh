@@ -3,14 +3,8 @@ import SegmentedControl from '@react-native-segmented-control/segmented-control'
 import { useStore } from '@tanstack/react-form';
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
 import React, { useEffect } from 'react';
-import {
-	Modal,
-	Pressable,
-	ScrollView,
-	Text,
-	TextInput,
-	View,
-} from 'react-native';
+import { Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { useAppForm, useFieldContext } from '@/components/form-components';
@@ -100,9 +94,10 @@ function Host() {
 
 	return (
 		<SafeAreaView style={{ flex: 1, backgroundColor }}>
-			<ScrollView
+			<KeyboardAwareScrollView
 				contentContainerStyle={[{ marginBottom }]}
 				keyboardShouldPersistTaps='handled'
+				bottomOffset={24}
 				className='bg-background'
 			>
 				<View className='flex-1 justify-center bg-background p-6'>
@@ -234,7 +229,7 @@ function Host() {
 						}}
 					/>
 				</View>
-			</ScrollView>
+			</KeyboardAwareScrollView>
 		</SafeAreaView>
 	);
 }

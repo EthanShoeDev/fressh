@@ -2,7 +2,8 @@ import { useAtomSet, useAtomValue } from '@effect/atom-react';
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
 import * as DocumentPicker from 'expo-document-picker';
 import React from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { secretsManager } from '@/lib/secrets-manager';
 import { asyncResultErrorMessage } from '@/lib/utils';
 
@@ -21,7 +22,11 @@ export function KeyList(props: {
 	const keys = AsyncResult.isSuccess(listResult) ? listResult.value : [];
 
 	return (
-		<ScrollView contentContainerClassName='gap-4 p-4'>
+		<KeyboardAwareScrollView
+			contentContainerClassName='gap-4 p-4'
+			keyboardShouldPersistTaps='handled'
+			bottomOffset={24}
+		>
 			<ImportKeyCard />
 
 			<Pressable
@@ -58,7 +63,7 @@ export function KeyList(props: {
 			) : (
 				<Text className='text-muted'>No keys yet</Text>
 			)}
-		</ScrollView>
+		</KeyboardAwareScrollView>
 	);
 }
 

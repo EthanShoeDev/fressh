@@ -1,4 +1,4 @@
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import {
 	FieldLabel,
 	Section,
@@ -31,7 +31,11 @@ export default function TerminalSettings() {
 		preferences.terminalBoldIsBright.useTerminalBoldIsBrightPref();
 
 	return (
-		<View className='flex-1 bg-background p-4'>
+		<ScrollView
+			className='flex-1 bg-background'
+			contentContainerClassName='p-4'
+			contentInsetAdjustmentBehavior='automatic'
+		>
 			<Section title='Theme'>
 				<View className='gap-2'>
 					{COLOR_SCHEMES.map((scheme) => (
@@ -108,6 +112,6 @@ export default function TerminalSettings() {
 					</Text>
 				</View>
 			</Section>
-		</View>
+		</ScrollView>
 	);
 }

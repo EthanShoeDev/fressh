@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { LinkRow, Section, SelectRow } from '@/components/settings-controls';
 import { APP_THEMES, useAppTheme } from '@/lib/theme';
 
@@ -6,7 +6,11 @@ export default function Tab() {
 	const { themeName, setThemeName } = useAppTheme();
 
 	return (
-		<View className='flex-1 bg-background p-4'>
+		<ScrollView
+			className='flex-1 bg-background'
+			contentContainerClassName='p-4'
+			contentInsetAdjustmentBehavior='automatic'
+		>
 			<Section title='Theme'>
 				<View className='gap-2'>
 					{APP_THEMES.map((appTheme) => (
@@ -29,6 +33,6 @@ export default function Tab() {
 			<Section title='Security'>
 				<LinkRow href='/(tabs)/settings/key-manager' label='Manage Keys' />
 			</Section>
-		</View>
+		</ScrollView>
 	);
 }
