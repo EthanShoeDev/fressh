@@ -169,7 +169,10 @@ const THEME_SKINS: Partial<Record<AppThemeName, ThemeSkin>> = {
 		animateBlobs: true,
 		scanlines: false,
 		glass: true,
-		glow: '0px 8px 30px rgba(45,230,198,0.35)',
+		// Soft, tight teal bloom. Kept modest (was 30px/0.35) so the drop
+		// shadow doesn't bleed onto adjacent cards/inputs — matches the design's
+		// gentle accent glow rather than a heavy halo.
+		glow: '0px 4px 16px rgba(45,230,198,0.22)',
 		glowColor: '#2de6c6',
 		textCase: 'none',
 		mono: false,

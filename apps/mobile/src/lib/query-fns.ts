@@ -27,6 +27,8 @@ class SshConnectError extends Data.TaggedError('SshConnectError')<{
 
 type ConnectInput = {
 	connectionDetails: InputConnectionDetails;
+	/** Persist the connection to the saved-servers list on success (default true). */
+	save?: boolean;
 	onProgress?: (progressEvent: SshConnectionProgress) => void;
 };
 
@@ -34,7 +36,7 @@ type ConnectInput = {
 // connections list once a connect succeeds (it upserts the connection).
 const connectAtom = atomRuntime.fn(
 	Effect.fnUntraced(function* (input: ConnectInput) {
-		const { connectionDetails, onProgress } = input;
+		const { connectionDetails, onProgress, save = true } = input;
 		return yield* Effect.tryPromise({
 			try: async () => {
 				// Progress events are global (the connectionId isn't known until connect
@@ -73,11 +75,13 @@ const connectAtom = atomRuntime.fn(
 						security,
 					});
 
-					await secretsManager.connections.utils.upsertConnection({
-						label: `${connectionDetails.username}@${connectionDetails.host}:${connectionDetails.port}`,
-						details: connectionDetails,
-						priority: 0,
-					});
+					if (save) {
+						await secretsManager.connections.utils.upsertConnection({
+							label: `${connectionDetails.username}@${connectionDetails.host}:${connectionDetails.port}`,
+							details: connectionDetails,
+							priority: 0,
+						});
+					}
 
 					const shellHandle = await sshConnection.startShell();
 
@@ -111,9 +115,13 @@ export const useSshConnMutation = (opts?: {
 
 	// Connects (and auto-opens a first shell). Navigation is the caller's job —
 	// the connect form replaces itself with the resulting terminal.
-	const mutateAsync = async (connectionDetails: InputConnectionDetails) => {
+	const mutateAsync = async (
+		connectionDetails: InputConnectionDetails,
+		options?: { save?: boolean },
+	) => {
 		const success = await trigger({
 			connectionDetails,
+			save: options?.save,
 			onProgress: opts?.onConnectionProgress,
 		});
 		return success;

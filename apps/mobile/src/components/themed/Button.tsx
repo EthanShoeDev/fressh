@@ -115,8 +115,12 @@ export function Button({
 									glowLayers: [
 										{
 											colors: [glowColor],
-											opacity: 0.5,
-											glowSize: 14,
+											// Tight, soft halo that hugs the button. The earlier
+											// large/strong glow bled past the button and overlapped
+											// neighbouring cards/inputs; the designs use only a
+											// gentle accent bloom, so keep it small + low-opacity.
+											opacity: 0.32,
+											glowSize: 6,
 											glowPlacement: 'behind',
 										},
 									],

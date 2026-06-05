@@ -2,16 +2,9 @@
 /// <reference types="uniwind/types" />
 
 declare module 'uniwind' {
-	export interface UniwindConfig {
-		themes: readonly [
-			'light',
-			'dark',
-			'phosphor',
-			'graphite',
-			'aurora',
-			'monolith',
-		];
-	}
+    export interface UniwindConfig {
+        themes: readonly ['light', 'dark', 'phosphor', 'graphite', 'aurora', 'monolith']
+    }
 }
 
-export {};
+export {}
