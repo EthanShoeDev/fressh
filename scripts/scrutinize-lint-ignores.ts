@@ -241,9 +241,7 @@ const command = CliCommand.make(
 		context: Flag.integer('context').pipe(
 			Flag.withAlias('c'),
 			Flag.withDefault(3),
-			Flag.withDescription(
-				'Number of context lines to show around each match',
-			),
+			Flag.withDescription('Number of context lines to show around each match'),
 		),
 		output: Flag.file('output').pipe(
 			Flag.withAlias('o'),

@@ -34,7 +34,7 @@ export interface TerminalProps extends HybridViewProps {
 	shellId?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- input goes via the control plane (sendData) for v1
+// Intentionally empty: input goes via the control plane (sendData) for v1.
 export interface TerminalMethods extends HybridViewMethods {}
 
 export type Terminal = HybridView<TerminalProps, TerminalMethods>;

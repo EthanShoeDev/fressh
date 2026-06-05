@@ -240,7 +240,9 @@ function KeyIdPickerField() {
 				)}
 			</View>
 			{fieldError ? (
-				<ThemedText className='mt-1.5 text-xs text-danger'>{fieldError}</ThemedText>
+				<ThemedText className='mt-1.5 text-xs text-danger'>
+					{fieldError}
+				</ThemedText>
 			) : null}
 			<Modal
 				visible={open}
@@ -262,7 +264,9 @@ function KeyIdPickerField() {
 									setOpen(false);
 								}}
 							>
-								<ThemedText className='font-semibold text-text-secondary'>Close</ThemedText>
+								<ThemedText className='font-semibold text-text-secondary'>
+									Close
+								</ThemedText>
 							</Pressable>
 						</View>
 						<KeyList

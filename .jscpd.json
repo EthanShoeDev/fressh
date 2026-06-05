@@ -13,6 +13,7 @@
 		"**/rust/target/**",
 		"**/eslint.config.js",
 		"**/docs/cloned-repos-as-docs/**",
+		"**/packages/react-native-terminal/rust/**",
 		"**/submodules/**/*",
 		"**/package.json",
 		"**/README.md",

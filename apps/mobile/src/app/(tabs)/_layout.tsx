@@ -9,6 +9,6 @@ import { preferences } from '@/lib/preferences';
  * stack history resets, which is fine for a try-it-out toggle.
  */
 export default function TabsLayout() {
-	const [impl] = preferences.tabBarImpl.useTabBarImplPref();
+	const [impl] = preferences.tabBarImpl.useValue();
 	return impl === 'js' ? <JsTabsLayout /> : <NativeTabsLayout />;
 }

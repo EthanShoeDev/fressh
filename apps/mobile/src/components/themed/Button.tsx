@@ -73,7 +73,9 @@ export function Button({
 			) : null}
 			<Text
 				className={`${textClass} ${textSize} tracking-[0.3px]`}
-				style={{ fontFamily: resolveFont(skin, { mono: skin.mono, weight: '700' }) }}
+				style={{
+					fontFamily: resolveFont(skin, { mono: skin.mono, weight: '700' }),
+				}}
 			>
 				{applyCase(skin, loading ? (loadingTitle ?? title) : title)}
 			</Text>

@@ -15,8 +15,7 @@ const TAB_BAR_OPTIONS: readonly { id: TabBarImpl; label: string }[] = [
 
 export default function Tab() {
 	const { themeName, setThemeName } = useAppTheme();
-	const [tabBarImpl, setTabBarImpl] =
-		preferences.tabBarImpl.useTabBarImplPref();
+	const [tabBarImpl, setTabBarImpl] = preferences.tabBarImpl.useValue();
 
 	return (
 		<ThemedScreen edges={['top']}>

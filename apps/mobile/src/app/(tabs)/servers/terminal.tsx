@@ -146,7 +146,7 @@ function ShellDetail() {
 	// directly — exact, no measurement timing. The native bar doesn't expose its
 	// height to JS (see docs/toolbar-keyboard-by-construction.md + rns#3627), so for
 	// it we keep measuring the column via measureInWindow.
-	const [tabBarImpl] = preferences.tabBarImpl.useTabBarImplPref();
+	const [tabBarImpl] = preferences.tabBarImpl.useValue();
 	const windowHeight = useWindowDimensions().height;
 	const columnRef = useRef<View>(null);
 	const [measuredBottomReserved, setMeasuredBottomReserved] = useState(
@@ -201,7 +201,10 @@ function ShellDetail() {
 			let modifiedBytes = bytes;
 			// NB: copy-then-sort ([...].sort), not Array.prototype.toSorted —
 			// toSorted is ES2023 and isn't reliably present in Hermes, so calling it
-			// throws "undefined is not a function" on the very first keystroke.
+			// throws "undefined is not a function" on the very first keystroke. The
+			// spread already makes a fresh copy, so the in-place .sort() mutates nothing
+			// shared. (The unicorn/no-array-sort autofix is disabled globally for this
+			// exact reason — see oxlint.config.ts.)
 			[...modifierKeysActive]
 				.sort((a, b) => a.orderPreference - b.orderPreference)
 				.forEach((m) => {
@@ -228,100 +231,98 @@ function ShellDetail() {
 	);
 
 	return (
-		<>
-			<View className='flex-1 justify-start bg-background px-2 pt-0.5 pb-0'>
-				<Stack.Screen
-					options={{
-						headerBackVisible: true,
-						title: `${connection?.connectionDetails.username}@${connection?.connectionDetails.host}`,
-						headerRight: () => (
-							<Pressable
-								accessibilityLabel='Close Shell'
-								hitSlop={10}
-								onPress={async () => {
-									logger.info('Close Shell button pressed');
-									if (!shell) {
-										return;
-									}
-									try {
-										await shell.close();
-									} catch (error) {
-										logger.warn('Failed to close shell', error);
-									}
-								}}
-								className='flex-row items-center gap-1'
-							>
-								<Ionicons name='close' size={20} color={textPrimaryColor} />
-								<Text className='text-text-primary'>Close Shell</Text>
-							</Pressable>
-						),
-					}}
-				/>
-				{/* Fixed-height column (the window does NOT shrink for the IME here). We
+		<View className='flex-1 justify-start bg-background px-2 pt-0.5 pb-0'>
+			<Stack.Screen
+				options={{
+					headerBackVisible: true,
+					title: `${connection?.connectionDetails.username}@${connection?.connectionDetails.host}`,
+					headerRight: () => (
+						<Pressable
+							accessibilityLabel='Close Shell'
+							hitSlop={10}
+							onPress={async () => {
+								logger.info('Close Shell button pressed');
+								if (!shell) {
+									return;
+								}
+								try {
+									await shell.close();
+								} catch (error) {
+									logger.warn('Failed to close shell', error);
+								}
+							}}
+							className='flex-row items-center gap-1'
+						>
+							<Ionicons name='close' size={20} color={textPrimaryColor} />
+							<Text className='text-text-primary'>Close Shell</Text>
+						</Pressable>
+					),
+				}}
+			/>
+			{/* Fixed-height column (the window does NOT shrink for the IME here). We
 						avoid for the keyboard ourselves via the toolbar's marginBottom below,
 						which shrinks the flex:1 terminal by the keyboard height and triggers the
 						deterministic surface resize. (A KeyboardAvoidingView resized the surface
 						only inconsistently and clipped the 2nd toolbar row.) Paired with
 						softwareKeyboardLayoutMode='resize'. */}
-				<View ref={columnRef} onLayout={measureColumn} className='flex-1 gap-1'>
-					<KeyboardToolBarContext value={toolbarContext}>
-						<View className='flex-1 border-2 border-border'>
-							{shell ? (
-								<TerminalSurface
-									shellId={shell.shellId}
-									config={terminalConfig}
-									onTapEmpty={() => inputRef.current?.focus()}
-								/>
-							) : null}
-							{/* Hidden input: captures soft-keyboard text/keys and forwards
+			<View ref={columnRef} onLayout={measureColumn} className='flex-1 gap-1'>
+				<KeyboardToolBarContext value={toolbarContext}>
+					<View className='flex-1 border-2 border-border'>
+						{shell ? (
+							<TerminalSurface
+								shellId={shell.shellId}
+								config={terminalConfig}
+								onTapEmpty={() => inputRef.current?.focus()}
+							/>
+						) : null}
+						{/* Hidden input: captures soft-keyboard text/keys and forwards
 									bytes to the shell. The native <Terminal/> only renders; input
 									rides the control plane via sendBytes -> shell.sendData. */}
-							<TextInput
-								ref={inputRef}
-								autoFocus
-								value=''
-								onChangeText={(text) => {
-									if (!shell || !text) {
-										return;
-									}
-									// Enter/Backspace are handled in onKeyPress; send the rest.
-									const printable = text.replace(/\n/g, '');
-									if (printable) {
-										sendBytes(encoder.encode(printable));
-									}
-								}}
-								onKeyPress={(e) => {
-									if (!shell) {
-										return;
-									}
-									const key = e.nativeEvent.key;
-									if (key === 'Enter') {
-										sendBytes(new Uint8Array([13]));
-									} else if (key === 'Backspace') {
-										sendBytes(new Uint8Array([127]));
-									}
-								}}
-								autoCapitalize='none'
-								autoComplete='off'
-								autoCorrect={false}
-								spellCheck={false}
-								blurOnSubmit={false}
-								caretHidden
-								multiline
-								className='absolute h-px w-px opacity-0'
-							/>
-						</View>
-						{/* marginBottom reserves space below the toolbar: the keyboard height
+						<TextInput
+							ref={inputRef}
+							autoFocus
+							value=''
+							onChangeText={(text) => {
+								if (!shell || !text) {
+									return;
+								}
+								// Enter/Backspace are handled in onKeyPress; send the rest.
+								const printable = text.replaceAll('\n', '');
+								if (printable) {
+									sendBytes(encoder.encode(printable));
+								}
+							}}
+							onKeyPress={(e) => {
+								if (!shell) {
+									return;
+								}
+								const key = e.nativeEvent.key;
+								if (key === 'Enter') {
+									sendBytes(new Uint8Array([13]));
+								} else if (key === 'Backspace') {
+									sendBytes(new Uint8Array([127]));
+								}
+							}}
+							autoCapitalize='none'
+							autoComplete='off'
+							autoCorrect={false}
+							spellCheck={false}
+							blurOnSubmit={false}
+							caretHidden
+							multiline
+							className='absolute h-px w-px opacity-0'
+						/>
+					</View>
+					{/* marginBottom reserves space below the toolbar: the keyboard height
 								when it's up (so both rows — incl. CTRL/ALT — clear the keyboard and
 								the terminal shrinks to match), else the gesture-nav inset. This is
 								the single knob that drives the deterministic terminal resize. */}
-						<View style={{ marginBottom: toolbarMarginBottom }}>
-							<KeyboardToolbar />
-						</View>
-					</KeyboardToolBarContext>
-				</View>
+					<View style={{ marginBottom: toolbarMarginBottom }}>
+						<KeyboardToolbar />
+					</View>
+				</KeyboardToolBarContext>
 			</View>
-		</>
+		</View>
 	);
 }
 
@@ -379,7 +380,10 @@ function TerminalSurface({
 				void scroll(
 					shellId,
 					e.changeY / Math.max(1, sizeRef.current.height),
-				).catch(() => {});
+				).catch((error: unknown) => {
+					// Scroll is best-effort (a dropped frame is non-fatal), but still log.
+					logger.warn('scroll failed', error);
+				});
 			});
 
 		// Hold-then-drag → select. Word-snap on start, extend on move, surface the
@@ -416,7 +420,6 @@ function TerminalSurface({
 		// A held finger arms selectPan; an immediate drag wins scrollPan; a clean
 		// tap takes the tap. Race = first to activate wins.
 		return Gesture.Race(selectPan, scrollPan, tap);
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [shellId, pendingCopy, dismissSelection, onTapEmpty]);
 
 	const onCopy = useCallback(async () => {

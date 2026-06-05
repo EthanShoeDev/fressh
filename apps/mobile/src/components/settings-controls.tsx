@@ -12,7 +12,9 @@ export function Section({
 }) {
 	return (
 		<View className='mb-6'>
-			<ThemedText className='mb-2 text-sm text-text-secondary'>{title}</ThemedText>
+			<ThemedText className='mb-2 text-sm text-text-secondary'>
+				{title}
+			</ThemedText>
 			{children}
 		</View>
 	);
@@ -20,7 +22,9 @@ export function Section({
 
 export function FieldLabel({ children }: { children: React.ReactNode }) {
 	return (
-		<ThemedText className='mt-2 text-[13px] text-text-secondary'>{children}</ThemedText>
+		<ThemedText className='mt-2 text-[13px] text-text-secondary'>
+			{children}
+		</ThemedText>
 	);
 }
 
@@ -50,7 +54,9 @@ export function StepperRow({
 }) {
 	return (
 		<Card>
-			<ThemedText className='text-base font-semibold text-text-primary'>{label}</ThemedText>
+			<ThemedText className='text-base font-semibold text-text-primary'>
+				{label}
+			</ThemedText>
 			<View className='flex-row items-center gap-4'>
 				<StepperButton
 					label='−'
@@ -83,7 +89,9 @@ export function ToggleRow({
 }) {
 	return (
 		<Card>
-			<ThemedText className='text-base font-semibold text-text-primary'>{label}</ThemedText>
+			<ThemedText className='text-base font-semibold text-text-primary'>
+				{label}
+			</ThemedText>
 			<Switch
 				value={value}
 				onValueChange={onChange}
@@ -155,7 +163,9 @@ export function StepperButton({
 			accessibilityLabel={accessibilityLabel}
 			className='h-10 w-10 items-center justify-center rounded-[10px] border border-border bg-background disabled:opacity-40'
 		>
-			<ThemedText className='text-[22px] font-bold text-text-primary'>{label}</ThemedText>
+			<ThemedText className='text-[22px] font-bold text-text-primary'>
+				{label}
+			</ThemedText>
 		</Pressable>
 	);
 }
@@ -180,7 +190,9 @@ export function SelectRow({
 			accessibilityRole='button'
 			accessibilityState={{ selected }}
 		>
-			<ThemedText className='text-base font-semibold text-text-primary'>{label}</ThemedText>
+			<ThemedText className='text-base font-semibold text-text-primary'>
+				{label}
+			</ThemedText>
 			<ThemedText className='text-base font-extrabold text-primary'>
 				{selected ? '✔' : ''}
 			</ThemedText>

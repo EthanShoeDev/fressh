@@ -10,8 +10,7 @@
  */
 
 import { NativeModules } from 'react-native';
-import generatedModule from './generated/shim_uniffi';
-import {
+import generatedModule, {
 	closeShell as _closeShell,
 	connect as _connect,
 	disconnect as _disconnect,
@@ -42,9 +41,22 @@ import {
 
 // Re-export the generated enums/factories (values) the app needs to construct
 // inputs and match events.
-export { FresshEvent_Tags, KeyType, Security, SelectionKind, SshConnectionProgressEvent, TerminalType };
+export {
+	FresshEvent_Tags,
+	KeyType,
+	Security,
+	SelectionKind,
+	SshConnectionProgressEvent,
+	TerminalType,
+};
 // Records + the event union are plain object types — re-export as types.
-export type { ConnectionDetails, FresshEvent, FresshEventListener, ServerPublicKeyInfo, ShellOptions };
+export type {
+	ConnectionDetails,
+	FresshEvent,
+	FresshEventListener,
+	ServerPublicKeyInfo,
+	ShellOptions,
+};
 
 export type ConnectionId = string;
 export type ShellId = string;
@@ -89,8 +101,10 @@ export const connect = (details: ConnectionDetails): Promise<ConnectionId> =>
 export const disconnect = (connectionId: ConnectionId): Promise<void> =>
 	_disconnect(connectionId);
 
-export const respondToHostKey = (connectionId: ConnectionId, accept: boolean): void =>
-	_respondToHostKey(connectionId, accept);
+export const respondToHostKey = (
+	connectionId: ConnectionId,
+	accept: boolean,
+): void => _respondToHostKey(connectionId, accept);
 
 /** Open a PTY + shell. Resolves to a `shellId` — render it with
  *  `<Terminal shellId={shellId} />`. */
@@ -104,14 +118,20 @@ export const startShell = (
 export const sendData = (shellId: ShellId, data: ArrayBuffer): Promise<void> =>
 	_sendData(shellId, data);
 
-export const resize = (shellId: ShellId, cols: number, rows: number): Promise<void> =>
-	_resize(shellId, cols, rows);
+export const resize = (
+	shellId: ShellId,
+	cols: number,
+	rows: number,
+): Promise<void> => _resize(shellId, cols, rows);
 
-export const closeShell = (shellId: ShellId): Promise<void> => _closeShell(shellId);
+export const closeShell = (shellId: ShellId): Promise<void> =>
+	_closeShell(shellId);
 
-export const generateKeyPair = (keyType: KeyType): string => _generateKeyPair(keyType);
+export const generateKeyPair = (keyType: KeyType): string =>
+	_generateKeyPair(keyType);
 
-export const validatePrivateKey = (pem: string): string => _validatePrivateKey(pem);
+export const validatePrivateKey = (pem: string): string =>
+	_validatePrivateKey(pem);
 
 // ─────────────────────── touch interaction (scroll + selection) ──────────────
 // Touch gestures live in JS (cross-platform), but the terminal logic lives in
@@ -137,7 +157,8 @@ export const selectionUpdate = (shellId: ShellId, x: number, y: number): void =>
 	_selectionUpdate(shellId, x, y);
 
 /** Clear any active selection. */
-export const selectionClear = (shellId: ShellId): void => _selectionClear(shellId);
+export const selectionClear = (shellId: ShellId): void =>
+	_selectionClear(shellId);
 
 /** The currently selected text, if any. */
 export const selectionText = (shellId: ShellId): string | undefined =>
@@ -159,7 +180,8 @@ function ensureInstalled() {
 	installed = true;
 	const listener: FresshEventListener = {
 		onEvent(event) {
-			for (const cb of [...subscribers]) cb(event);
+			// Snapshot so a callback that (un)subscribes mid-dispatch is safe.
+			for (const cb of Array.from(subscribers)) cb(event);
 		},
 	};
 	_setEventListener(listener);

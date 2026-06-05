@@ -3,6 +3,7 @@ const { getDefaultConfig } = require('expo/metro-config');
 const { withUniwindConfig } = require('uniwind/metro');
 const path = require('node:path');
 
+/** @type {string} */
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
 

@@ -5,19 +5,18 @@ import {
 	useMMKVNumber,
 	useMMKVString,
 } from 'react-native-mmkv';
-import {
-	DEFAULT_TAB_BAR_IMPL,
-	type TabBarImpl,
-} from './tab-bar-config';
+import { DEFAULT_TAB_BAR_IMPL, type TabBarImpl } from './tab-bar-config';
 import type { AppThemeName } from './theme';
 
-// IMPORTANT: this must be the SAME instance the `useMMKV*` hooks use. Those hooks,
-// when called without an explicit instance, fall back to MMKV's *default* instance
-// (`getDefaultMMKVInstance()`), so the imperative `get`/`set` here must use that same
-// default instance — otherwise reads/writes split across two stores. (They did: a
-// named `{ id: 'settings' }` instance here vs. the default instance in the hooks meant
-// `theme.get()` at startup never saw what the theme picker saved.) We pass `storage`
-// explicitly to every hook below so the two paths can never diverge again.
+// THE one store for all app preferences. It is bound exactly once — here — and
+// handed to every accessor via `definePref` below. Nothing else in the app should
+// call `createMMKV` for settings or reach for MMKV directly.
+//
+// (Why no `{ id: 'settings' }`: the `useMMKV*` hooks, when called without an explicit
+// instance, use MMKV's *default* instance. A named instance here meant the imperative
+// `get`/`set` read a different store than the hooks wrote — so the persisted theme was
+// invisible at startup. Sharing one instance everywhere removes that whole class of
+// bug; see `definePref`.)
 const storage = createMMKV();
 
 const APP_THEME_NAMES = [
@@ -77,249 +76,147 @@ function resolveBoundedNumber(
 	return Math.min(bounds.max, Math.max(bounds.min, Math.round(raw)));
 }
 
-export const preferences = {
-	theme: {
-		_key: 'theme',
-		_resolve: (rawTheme: string | undefined): AppThemeName =>
-			APP_THEME_NAMES.includes(rawTheme as AppThemeName)
-				? (rawTheme as AppThemeName)
-				: DEFAULT_THEME,
-		get: (): AppThemeName =>
-			preferences.theme._resolve(storage.getString(preferences.theme._key)),
-		set: (name: AppThemeName) => {
-			storage.set(preferences.theme._key, name);
-		},
-		useThemePref: (): [AppThemeName, (name: AppThemeName) => void] => {
-			const [theme, setTheme] = useMMKVString(
-				preferences.theme._key,
-				storage,
-			);
-			return [
-				preferences.theme._resolve(theme),
-				(name: AppThemeName) => {
-					setTheme(name);
-				},
-			] as const;
-		},
-		/** DEBUG: raw stored value (undefined if MMKV has nothing / isn't ready). */
-		peekRaw: (): string | undefined =>
-			storage.getString(preferences.theme._key),
-	},
-	tabBarImpl: {
-		_key: 'tabBarImpl',
-		_resolve: (raw: string | undefined): TabBarImpl =>
-			raw === 'native' || raw === 'js' ? raw : DEFAULT_TAB_BAR_IMPL,
-		get: (): TabBarImpl =>
-			preferences.tabBarImpl._resolve(
-				storage.getString(preferences.tabBarImpl._key),
-			),
-		set: (impl: TabBarImpl) => {
-			storage.set(preferences.tabBarImpl._key, impl);
-		},
-		useTabBarImplPref: (): [TabBarImpl, (impl: TabBarImpl) => void] => {
-			const [impl, setImpl] = useMMKVString(
-				preferences.tabBarImpl._key,
-				storage,
-			);
-			return [
-				preferences.tabBarImpl._resolve(impl),
-				(next: TabBarImpl) => {
-					setImpl(next);
-				},
-			] as const;
-		},
-	},
-	shellListViewMode: {
-		_key: 'shellListViewMode',
-		_resolve: (rawMode: string | undefined): ShellListViewMode =>
-			rawMode === 'grouped' ? 'grouped' : 'flat',
-		get: (): ShellListViewMode =>
-			preferences.shellListViewMode._resolve(
-				storage.getString(preferences.shellListViewMode._key),
-			),
-		set: (mode: ShellListViewMode) => {
-			storage.set(preferences.shellListViewMode._key, mode);
-		},
+type PrefKind = 'string' | 'number' | 'boolean';
 
-		useShellListViewModePref: (): [
-			ShellListViewMode,
-			(mode: ShellListViewMode) => void,
-		] => {
-			const [mode, setMode] = useMMKVString(
-				preferences.shellListViewMode._key,
-				storage,
-			);
+type RawOf<K extends PrefKind> = K extends 'string'
+	? string
+	: K extends 'number'
+		? number
+		: boolean;
+
+interface Pref<T> {
+	/** The MMKV key (handy for debugging / future migrations). */
+	readonly key: string;
+	/** Imperative, validated read. Safe outside React (e.g. at shell creation). */
+	get(): T;
+	/** Imperative, validated write. */
+	set(value: T): void;
+	/**
+	 * Reactive read + write; the component re-renders when the value changes.
+	 *
+	 * Named `useValue` (not `use`) on purpose: the React Compiler (enabled via
+	 * `reactCompiler` in app.config.ts) decides what is a Hook by the callee name
+	 * matching `/^use[A-Z0-9]/`. A bare `.use()` method is NOT recognized as a Hook,
+	 * so the compiler hoists/memoizes it into a conditional block — which turns the
+	 * internal `useMMKV*` into a conditional Hook and crashes with "order of Hooks
+	 * changed". `useValue` matches the pattern, so it is always treated as a Hook.
+	 */
+	useValue(): readonly [T, (value: T) => void];
+}
+
+/**
+ * Define a single preference backed by the shared `storage`. This is the ONLY place
+ * that wires a key to MMKV, so a pref's imperative (`get`/`set`) and reactive
+ * (`useValue`) paths provably share the same store, key, and `resolve` — they cannot drift apart
+ * (the divergence that previously hid the persisted theme).
+ *
+ * Add a preference by adding one entry to `preferences` below; declare its `key`,
+ * `kind`, and a `resolve` that validates the raw value + supplies the default. Never
+ * touch `storage` / the `useMMKV*` hooks anywhere else.
+ */
+function definePref<K extends PrefKind, T extends RawOf<K>>(config: {
+	key: string;
+	kind: K;
+	resolve: (raw: RawOf<K> | undefined) => T;
+}): Pref<T> {
+	const { key, kind, resolve } = config;
+
+	// Pick the typed getter + hook ONCE, up front (not per-call), so `useValue()`
+	// makes a single unconditional hook call and the `storage` instance is always
+	// supplied.
+	const readRaw =
+		kind === 'number'
+			? () => storage.getNumber(key) as RawOf<K> | undefined
+			: kind === 'boolean'
+				? () => storage.getBoolean(key) as RawOf<K> | undefined
+				: () => storage.getString(key) as RawOf<K> | undefined;
+
+	const mmkvHook = (
+		kind === 'number'
+			? useMMKVNumber
+			: kind === 'boolean'
+				? useMMKVBoolean
+				: useMMKVString
+	) as (
+		key: string,
+		instance: typeof storage,
+	) => [RawOf<K> | undefined, (value: RawOf<K>) => void];
+
+	return {
+		key,
+		get: () => resolve(readRaw()),
+		set: (value) => {
+			storage.set(key, resolve(value));
+		},
+		useValue: () => {
+			const [raw, setRaw] = mmkvHook(key, storage);
 			return [
-				preferences.shellListViewMode._resolve(mode),
-				(mode: 'flat' | 'grouped') => {
-					setMode(mode);
+				resolve(raw),
+				(value: T) => {
+					setRaw(resolve(value));
 				},
 			] as const;
 		},
-	},
-	terminalFontSize: {
-		_key: 'terminalFontSize',
-		_resolve: (raw: number | undefined): number =>
-			resolveBoundedNumber(raw, TERMINAL_FONT_SIZE),
-		get: (): number =>
-			preferences.terminalFontSize._resolve(
-				storage.getNumber(preferences.terminalFontSize._key),
-			),
-		set: (size: number) => {
-			storage.set(
-				preferences.terminalFontSize._key,
-				preferences.terminalFontSize._resolve(size),
-			);
-		},
-		useTerminalFontSizePref: (): [number, (size: number) => void] => {
-			const [size, setSize] = useMMKVNumber(
-				preferences.terminalFontSize._key,
-				storage,
-			);
-			return [
-				preferences.terminalFontSize._resolve(size),
-				(next: number) => {
-					setSize(preferences.terminalFontSize._resolve(next));
-				},
-			] as const;
-		},
-	},
-	terminalPadding: {
-		_key: 'terminalPadding',
-		_resolve: (raw: number | undefined): number =>
-			resolveBoundedNumber(raw, TERMINAL_PADDING),
-		get: (): number =>
-			preferences.terminalPadding._resolve(
-				storage.getNumber(preferences.terminalPadding._key),
-			),
-		set: (padding: number) => {
-			storage.set(
-				preferences.terminalPadding._key,
-				preferences.terminalPadding._resolve(padding),
-			);
-		},
-		useTerminalPaddingPref: (): [number, (padding: number) => void] => {
-			const [padding, setPadding] = useMMKVNumber(
-				preferences.terminalPadding._key,
-				storage,
-			);
-			return [
-				preferences.terminalPadding._resolve(padding),
-				(next: number) => {
-					setPadding(preferences.terminalPadding._resolve(next));
-				},
-			] as const;
-		},
-	},
-	terminalScrollback: {
-		_key: 'terminalScrollback',
-		_resolve: (raw: number | undefined): number =>
-			resolveBoundedNumber(raw, TERMINAL_SCROLLBACK),
-		get: (): number =>
-			preferences.terminalScrollback._resolve(
-				storage.getNumber(preferences.terminalScrollback._key),
-			),
-		set: (lines: number) => {
-			storage.set(
-				preferences.terminalScrollback._key,
-				preferences.terminalScrollback._resolve(lines),
-			);
-		},
-		useTerminalScrollbackPref: (): [number, (lines: number) => void] => {
-			const [lines, setLines] = useMMKVNumber(
-				preferences.terminalScrollback._key,
-				storage,
-			);
-			return [
-				preferences.terminalScrollback._resolve(lines),
-				(next: number) => {
-					setLines(preferences.terminalScrollback._resolve(next));
-				},
-			] as const;
-		},
-	},
-	terminalColorScheme: {
-		_key: 'terminalColorScheme',
-		_resolve: (raw: string | undefined): ColorSchemeId =>
+	};
+}
+
+export const preferences = {
+	theme: definePref({
+		key: 'theme',
+		kind: 'string',
+		resolve: (raw): AppThemeName =>
+			APP_THEME_NAMES.includes(raw as AppThemeName)
+				? (raw as AppThemeName)
+				: DEFAULT_THEME,
+	}),
+	tabBarImpl: definePref({
+		key: 'tabBarImpl',
+		kind: 'string',
+		resolve: (raw): TabBarImpl =>
+			raw === 'native' || raw === 'js' ? raw : DEFAULT_TAB_BAR_IMPL,
+	}),
+	shellListViewMode: definePref({
+		key: 'shellListViewMode',
+		kind: 'string',
+		resolve: (raw): ShellListViewMode => (raw === 'grouped' ? 'grouped' : 'flat'),
+	}),
+	terminalFontSize: definePref({
+		key: 'terminalFontSize',
+		kind: 'number',
+		resolve: (raw) => resolveBoundedNumber(raw, TERMINAL_FONT_SIZE),
+	}),
+	terminalPadding: definePref({
+		key: 'terminalPadding',
+		kind: 'number',
+		resolve: (raw) => resolveBoundedNumber(raw, TERMINAL_PADDING),
+	}),
+	terminalScrollback: definePref({
+		key: 'terminalScrollback',
+		kind: 'number',
+		resolve: (raw) => resolveBoundedNumber(raw, TERMINAL_SCROLLBACK),
+	}),
+	terminalColorScheme: definePref({
+		key: 'terminalColorScheme',
+		kind: 'string',
+		resolve: (raw): ColorSchemeId =>
 			COLOR_SCHEMES.some((scheme) => scheme.id === raw)
 				? (raw as ColorSchemeId)
 				: 'default',
-		get: (): ColorSchemeId =>
-			preferences.terminalColorScheme._resolve(
-				storage.getString(preferences.terminalColorScheme._key),
-			),
-		set: (id: ColorSchemeId) => {
-			storage.set(preferences.terminalColorScheme._key, id);
-		},
-		useTerminalColorSchemePref: (): [
-			ColorSchemeId,
-			(id: ColorSchemeId) => void,
-		] => {
-			const [id, setId] = useMMKVString(
-				preferences.terminalColorScheme._key,
-				storage,
-			);
-			return [
-				preferences.terminalColorScheme._resolve(id),
-				(next: ColorSchemeId) => {
-					setId(next);
-				},
-			] as const;
-		},
-	},
-	terminalCursorStyle: {
-		_key: 'terminalCursorStyle',
-		_resolve: (raw: string | undefined): CursorStyleId =>
+	}),
+	terminalCursorStyle: definePref({
+		key: 'terminalCursorStyle',
+		kind: 'string',
+		resolve: (raw): CursorStyleId =>
 			CURSOR_STYLES.some((style) => style.id === raw)
 				? (raw as CursorStyleId)
 				: 'block',
-		get: (): CursorStyleId =>
-			preferences.terminalCursorStyle._resolve(
-				storage.getString(preferences.terminalCursorStyle._key),
-			),
-		set: (id: CursorStyleId) => {
-			storage.set(preferences.terminalCursorStyle._key, id);
-		},
-		useTerminalCursorStylePref: (): [
-			CursorStyleId,
-			(id: CursorStyleId) => void,
-		] => {
-			const [id, setId] = useMMKVString(
-				preferences.terminalCursorStyle._key,
-				storage,
-			);
-			return [
-				preferences.terminalCursorStyle._resolve(id),
-				(next: CursorStyleId) => {
-					setId(next);
-				},
-			] as const;
-		},
-	},
-	terminalBoldIsBright: {
-		_key: 'terminalBoldIsBright',
-		_resolve: (raw: boolean | undefined): boolean => raw ?? true,
-		get: (): boolean =>
-			preferences.terminalBoldIsBright._resolve(
-				storage.getBoolean(preferences.terminalBoldIsBright._key),
-			),
-		set: (enabled: boolean) => {
-			storage.set(preferences.terminalBoldIsBright._key, enabled);
-		},
-		useTerminalBoldIsBrightPref: (): [boolean, (enabled: boolean) => void] => {
-			const [enabled, setEnabled] = useMMKVBoolean(
-				preferences.terminalBoldIsBright._key,
-				storage,
-			);
-			return [
-				preferences.terminalBoldIsBright._resolve(enabled),
-				(next: boolean) => {
-					setEnabled(next);
-				},
-			] as const;
-		},
-	},
-} as const;
+	}),
+	terminalBoldIsBright: definePref({
+		key: 'terminalBoldIsBright',
+		kind: 'boolean',
+		resolve: (raw) => raw ?? true,
+	}),
+};
 
 /**
  * Reactive bundle of the render-time terminal config (the live `<Terminal
@@ -328,14 +225,11 @@ export const preferences = {
  * `startShell`. Shape matches `TerminalRenderConfig` from the terminal package.
  */
 export function useTerminalRenderConfig() {
-	const [fontSize] = preferences.terminalFontSize.useTerminalFontSizePref();
-	const [padding] = preferences.terminalPadding.useTerminalPaddingPref();
-	const [colorScheme] =
-		preferences.terminalColorScheme.useTerminalColorSchemePref();
-	const [cursorStyle] =
-		preferences.terminalCursorStyle.useTerminalCursorStylePref();
-	const [boldIsBright] =
-		preferences.terminalBoldIsBright.useTerminalBoldIsBrightPref();
+	const [fontSize] = preferences.terminalFontSize.useValue();
+	const [padding] = preferences.terminalPadding.useValue();
+	const [colorScheme] = preferences.terminalColorScheme.useValue();
+	const [cursorStyle] = preferences.terminalCursorStyle.useValue();
+	const [boldIsBright] = preferences.terminalBoldIsBright.useValue();
 
 	return useMemo(
 		() => ({ fontSize, padding, colorScheme, cursorStyle, boldIsBright }),

@@ -268,7 +268,9 @@ function KeyRow(props: {
 					{entry.metadata.label ?? entry.id}
 					{entry.metadata.isDefault ? '  • Default' : ''}
 				</ThemedText>
-				<ThemedText className='mt-0.5 text-xs text-muted'>ID: {entry.id}</ThemedText>
+				<ThemedText className='mt-0.5 text-xs text-muted'>
+					ID: {entry.id}
+				</ThemedText>
 				{props.mode === 'manage' ? (
 					<TextInput
 						className='mt-2 rounded-[10px] border border-border bg-input-background px-3 py-2.5 text-base text-text-primary'

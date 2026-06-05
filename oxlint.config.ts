@@ -175,6 +175,10 @@ export default defineConfig({
 		'max-statements': 'off',
 		// Forbids Array#forEach; we use it where appropriate.
 		'no-array-for-each': 'off',
+		// Its autofix rewrites `.sort()` → `.toSorted()`, but toSorted (ES2023) is
+		// not reliably present in Hermes (RN) and throws at runtime. We copy before
+		// sorting where mutation matters, so the in-place .sort() is intentional.
+		'unicorn/no-array-sort': 'off',
 		// Disallows nested ternaries; sometimes they are the clearest option.
 		'no-nested-ternary': 'off',
 		// Unicorn variant of nested ternary rule.

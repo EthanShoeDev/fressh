@@ -1,4 +1,4 @@
-import { type ComponentProps, forwardRef, useMemo } from 'react';
+import { type ComponentProps, type Ref, useMemo } from 'react';
 import { PixelRatio } from 'react-native';
 import { getHostComponent, type HybridRef } from 'react-native-nitro-modules';
 
@@ -69,22 +69,29 @@ export type TerminalComponentProps = Omit<
  * fressh-core keeps for `shellId`. Accepts standard RN view props (e.g. `style`)
  * and a `config` object that is scaled + serialized to the renderer.
  */
-export const Terminal = forwardRef<TerminalRef, TerminalComponentProps>(
-	function Terminal({ config, ...props }, ref) {
-		const configJson = useMemo(
-			() => buildConfigJson(config),
-			[
-				config?.fontSize,
-				config?.padding,
-				config?.cursorStyle,
-				config?.colorScheme,
-				config?.boldIsBright,
-			],
-		);
-		// The runtime ref is the Nitro HybridRef (TerminalRef); the host-component's
-		// TS ref type is looser, so cast to keep the public contract.
-		return (
-			<NativeTerminal ref={ref as never} {...props} configJson={configJson} />
-		);
-	},
-);
+export function Terminal({
+	config,
+	ref,
+	...props
+}: TerminalComponentProps & { ref?: Ref<TerminalRef> }) {
+	// Destructure the fields buildConfigJson reads so the memo depends on their
+	// values, not the (per-render) `config` object identity.
+	const { fontSize, padding, cursorStyle, colorScheme, boldIsBright } =
+		config ?? {};
+	const configJson = useMemo(
+		() =>
+			buildConfigJson({
+				fontSize,
+				padding,
+				cursorStyle,
+				colorScheme,
+				boldIsBright,
+			}),
+		[fontSize, padding, cursorStyle, colorScheme, boldIsBright],
+	);
+	// The runtime ref is the Nitro HybridRef (TerminalRef); the host-component's
+	// TS ref type is looser, so cast to keep the public contract.
+	return (
+		<NativeTerminal ref={ref as never} {...props} configJson={configJson} />
+	);
+}

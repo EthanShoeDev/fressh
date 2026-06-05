@@ -7,7 +7,10 @@ import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 import { Button } from '@/components/themed/Button';
 import { ScreenHeader } from '@/components/themed/ScreenHeader';
-import { ThemedScreen, useSurfaceStyle } from '@/components/themed/ThemedScreen';
+import {
+	ThemedScreen,
+	useSurfaceStyle,
+} from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
 import { secretsManager } from '@/lib/secrets-manager';
 import {

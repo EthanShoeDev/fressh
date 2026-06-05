@@ -5,7 +5,7 @@ import { JS_TAB_BAR_HEIGHT } from './tab-bar-config';
 
 export function useBottomTabSpacing() {
 	const insets = useSafeAreaInsets();
-	const [impl] = preferences.tabBarImpl.useTabBarImplPref();
+	const [impl] = preferences.tabBarImpl.useValue();
 	const tabBarHeight =
 		impl === 'js'
 			? JS_TAB_BAR_HEIGHT

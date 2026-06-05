@@ -38,11 +38,7 @@ export function ScreenHeader({
 			<View className='flex-row items-center gap-3 pb-3'>
 				{onBack ? (
 					<Pressable onPress={onBack} hitSlop={12} accessibilityLabel='Back'>
-						<FontAwesome6
-							name='chevron-left'
-							size={18}
-							color={textPrimary}
-						/>
+						<FontAwesome6 name='chevron-left' size={18} color={textPrimary} />
 					</Pressable>
 				) : null}
 				<View className='min-w-0 flex-1'>

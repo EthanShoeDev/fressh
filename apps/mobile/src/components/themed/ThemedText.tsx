@@ -15,7 +15,12 @@ type ThemedTextProps = React.ComponentProps<typeof Text> & {
  * system font (no fontFamily set). Use everywhere instead of `Text` so all copy
  * picks up the theme typeface.
  */
-export function ThemedText({ className, style, mono, ...rest }: ThemedTextProps) {
+export function ThemedText({
+	className,
+	style,
+	mono,
+	...rest
+}: ThemedTextProps) {
 	const skin = useThemeSkin();
 	const resolved = useResolveClassNames(className ?? '') as TextStyle;
 	const flat = StyleSheet.flatten([resolved, style]);

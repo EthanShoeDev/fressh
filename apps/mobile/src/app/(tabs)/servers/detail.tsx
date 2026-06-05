@@ -8,7 +8,10 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 import { Button } from '@/components/themed/Button';
 import { ScreenHeader } from '@/components/themed/ScreenHeader';
-import { ThemedScreen, useSurfaceStyle } from '@/components/themed/ThemedScreen';
+import {
+	ThemedScreen,
+	useSurfaceStyle,
+} from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
 import { rootLogger } from '@/lib/logger';
 import { useSshConnMutation } from '@/lib/query-fns';
@@ -92,7 +95,9 @@ function ServerDetailContent({ id }: { id: string }) {
 	if (AsyncResult.isFailure(detailsResult)) {
 		return (
 			<View className='flex-1 items-center justify-center'>
-				<ThemedText className='text-danger'>Couldn’t load this server.</ThemedText>
+				<ThemedText className='text-danger'>
+					Couldn’t load this server.
+				</ThemedText>
 			</View>
 		);
 	}
@@ -179,14 +184,18 @@ function LiveBadge({
 		return (
 			<View className='flex-row items-center gap-1.5'>
 				<View className='h-2 w-2 rounded-full bg-warning' />
-				<ThemedText className='text-xs font-semibold text-warning'>idle</ThemedText>
+				<ThemedText className='text-xs font-semibold text-warning'>
+					idle
+				</ThemedText>
 			</View>
 		);
 	}
 	return (
 		<View className='flex-row items-center gap-1.5'>
 			<View className='h-2 w-2 rounded-full bg-muted' />
-			<ThemedText className='text-xs font-semibold text-muted'>offline</ThemedText>
+			<ThemedText className='text-xs font-semibold text-muted'>
+				offline
+			</ThemedText>
 		</View>
 	);
 }
@@ -219,7 +228,9 @@ function ShellRow({
 				>
 					{shell.pty}
 				</ThemedText>
-				<ThemedText className='mt-0.5 text-xs text-muted'>Started {since}</ThemedText>
+				<ThemedText className='mt-0.5 text-xs text-muted'>
+					Started {since}
+				</ThemedText>
 			</View>
 			<ThemedText className='text-[13px] font-bold text-primary'>
 				{applyCase(skin, 'Resume')} ›

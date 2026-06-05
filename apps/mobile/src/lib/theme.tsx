@@ -1,6 +1,5 @@
 import { Platform, type TextStyle } from 'react-native';
 import { Uniwind } from 'uniwind';
-import { rootLogger } from './logger';
 import { preferences } from './preferences';
 
 /**
@@ -107,19 +106,7 @@ export const NATIVE_TAB_STYLES: Partial<Record<AppThemeName, NativeTabStyle>> = 
  * app doesn't flash the default theme then switch.
  */
 export function initAppTheme() {
-	const rawStored = preferences.theme.peekRaw();
-	const resolved = preferences.theme.get();
-	const registered = Uniwind.themes;
-	const before = Uniwind.currentTheme;
-	Uniwind.setTheme(resolved);
-	const after = Uniwind.currentTheme;
-	rootLogger.info('[initAppTheme]', {
-		rawStored,
-		resolved,
-		registered,
-		currentBefore: before,
-		currentAfter: after,
-	});
+	Uniwind.setTheme(preferences.theme.get());
 }
 
 /**
@@ -127,7 +114,7 @@ export function initAppTheme() {
  * className re-render via `Uniwind.setTheme`.
  */
 export function useAppTheme() {
-	const [themeName, setPref] = preferences.theme.useThemePref();
+	const [themeName, setPref] = preferences.theme.useValue();
 	const setThemeName = (name: AppThemeName) => {
 		setPref(name);
 		Uniwind.setTheme(name);

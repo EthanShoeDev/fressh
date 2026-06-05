@@ -18,18 +18,15 @@ import {
 } from '@/lib/preferences';
 
 export default function TerminalSettings() {
-	const [fontSize, setFontSize] =
-		preferences.terminalFontSize.useTerminalFontSizePref();
-	const [padding, setPadding] =
-		preferences.terminalPadding.useTerminalPaddingPref();
-	const [scrollback, setScrollback] =
-		preferences.terminalScrollback.useTerminalScrollbackPref();
+	const [fontSize, setFontSize] = preferences.terminalFontSize.useValue();
+	const [padding, setPadding] = preferences.terminalPadding.useValue();
+	const [scrollback, setScrollback] = preferences.terminalScrollback.useValue();
 	const [colorScheme, setColorScheme] =
-		preferences.terminalColorScheme.useTerminalColorSchemePref();
+		preferences.terminalColorScheme.useValue();
 	const [cursorStyle, setCursorStyle] =
-		preferences.terminalCursorStyle.useTerminalCursorStylePref();
+		preferences.terminalCursorStyle.useValue();
 	const [boldIsBright, setBoldIsBright] =
-		preferences.terminalBoldIsBright.useTerminalBoldIsBrightPref();
+		preferences.terminalBoldIsBright.useValue();
 
 	return (
 		<ScrollView

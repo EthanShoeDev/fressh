@@ -51,7 +51,9 @@ export function TextField(
 
 	return (
 		<View className='mb-4'>
-			{label ? <ThemedText className={FIELD_LABEL_CLASS}>{label}</ThemedText> : null}
+			{label ? (
+				<ThemedText className={FIELD_LABEL_CLASS}>{label}</ThemedText>
+			) : null}
 			<TextInput
 				className={TEXT_INPUT_CLASS}
 				style={style}
@@ -81,7 +83,9 @@ export function NumberField(
 	const field = useFieldContext<number>();
 	return (
 		<View className='mb-4'>
-			{label ? <ThemedText className={FIELD_LABEL_CLASS}>{label}</ThemedText> : null}
+			{label ? (
+				<ThemedText className={FIELD_LABEL_CLASS}>{label}</ThemedText>
+			) : null}
 			<TextInput
 				keyboardType={keyboardType ?? 'numeric'}
 				className={TEXT_INPUT_CLASS}
@@ -109,7 +113,9 @@ export function SwitchField(
 
 	return (
 		<View className='mb-4'>
-			{label ? <ThemedText className={FIELD_LABEL_CLASS}>{label}</ThemedText> : null}
+			{label ? (
+				<ThemedText className={FIELD_LABEL_CLASS}>{label}</ThemedText>
+			) : null}
 			<Switch
 				value={field.state.value}
 				onChange={(event) => {
@@ -129,8 +135,13 @@ export function SubmitButton(props: {
 	disabled?: boolean;
 	testID?: string;
 }) {
-	const { onPress, title = 'Connect', submittingTitle, disabled, testID } =
-		props;
+	const {
+		onPress,
+		title = 'Connect',
+		submittingTitle,
+		disabled,
+		testID,
+	} = props;
 	const formContext = useFormContext();
 	const isSubmitting = useStore(
 		formContext.store,
