@@ -540,18 +540,20 @@ function CloseShellButton({ onPress }: { onPress: () => void }) {
 				accessibilityLabel='Close Shell'
 				hitSlop={10}
 				onPress={onPress}
-				className='flex-row items-center gap-1.5 pl-1'
-				// The native header pins headerRight to the right edge and lays it out by
-				// frame, so interior right-padding doesn't create a visible gap from the
-				// edge — a right margin moves the whole bracket group inward instead.
-				style={{ marginRight: 12 }}
+				className='flex-row items-center gap-1.5'
 			>
+				{/* `]` is its own element so the row gap sits before it too, giving an even
+				    `[ x CLOSE ]` — gluing it as `CLOSE]` is what left the close bracket with
+				    no breathing room while the open bracket looked padded. */}
 				<ThemedText mono style={bracket}>
 					[
 				</ThemedText>
 				<Ionicons name='close' size={13} color={danger} />
 				<ThemedText mono style={bracket}>
-					CLOSE]
+					CLOSE
+				</ThemedText>
+				<ThemedText mono style={bracket}>
+					]
 				</ThemedText>
 			</Pressable>
 		);
