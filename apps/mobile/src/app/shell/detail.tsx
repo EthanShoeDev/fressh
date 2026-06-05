@@ -1,7 +1,4 @@
-import {
-	type ListenerEvent,
-	type SshShell,
-} from '@fressh/react-native-uniffi-russh';
+import { type ListenerEvent } from '@fressh/react-native-uniffi-russh';
 import {
 	XtermJsWebView,
 	type XtermWebViewHandle,
@@ -58,14 +55,22 @@ import {
 	runDetectedOpenCallback,
 } from '@/lib/detected-open-actions';
 import {
+	isFocusedActiveRequestCurrent,
+	shouldShowFocusedActiveFeedback,
+} from '@/lib/focused-active-request';
+import {
 	HANDLE_DEV_SERVER_URL,
+	createWorkmuxKeyboardCommandRunner,
 	runAction,
 	type ActionContext,
 	type ActionId,
+	type WorkmuxKeyboardCommand,
 } from '@/lib/keyboard-actions';
 import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
+import { OrderedWriter } from '@/lib/ordered-writer';
+import { runRemoteTextCommand } from '@/lib/remote-command-runner';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -84,7 +89,6 @@ import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
-import { buildShellLiveInputSendPlan } from '@/lib/shell-live-input';
 import {
 	useBrowserActionsController,
 	useFeatureRequestController,
@@ -98,14 +102,19 @@ import {
 	buildCommanderExecuteSegments,
 	buildTextEntryPasteSegments,
 } from '@/lib/terminal-input-payloads';
+import { detachTerminalShellListener } from '@/lib/terminal-shell-listener';
 import { useTheme } from '@/lib/theme';
 import {
-	buildTmuxScrollbackBatchCommand,
-	buildTmuxScrollbackCopyModeCommand,
-	getTmuxScrollbackControlFailurePolicy,
-	isValidTmuxCancelKey,
-	runTmuxControlCommand,
+	disposeTmuxScrollbackRuntimeStateForUiReset,
+	handleTmuxScrollbackBatchEvent,
+	handleTmuxScrollbackEnterRequested,
+	resetTmuxScrollbackRuntimeStateForUiReset,
+	shouldRunTmuxScrollbackRemoteResetForModeChange,
 } from '@/lib/tmux-scrollback';
+import {
+	createTmuxScrollbackLocalExitRequest,
+	resetTmuxScrollbackLocalExitRequests,
+} from '@/lib/tmux-scrollback-local-exit';
 import { queryClient } from '@/lib/utils';
 import {
 	canStartWisprTextEntryAutomation,
@@ -126,6 +135,18 @@ import {
 } from '@/lib/wispr-automation';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
 import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
+import { createTmuxScrollbackLineAccumulator } from '@/lib/workmux-scrollback-batch';
+import {
+	createWorkmuxScrollbackCommandExecutor,
+	type WorkmuxScrollbackCommandExecutor,
+	type WorkmuxScrollbackFailureContext,
+} from '@/lib/workmux-scrollback-executor';
+import {
+	buildWorkmuxScrollbackLiveInputSendPlan,
+	createWorkmuxScrollbackLiveInputCleanupBarrier,
+	isWorkmuxScrollbackLiveInputRequestCurrent,
+	runWorkmuxScrollbackLiveInputSendPlan,
+} from '@/lib/workmux-scrollback-live-input';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
 import { CommandPresetsModal } from './components/CommandPresetsModal';
 import { ConfigureModal } from './components/ConfigureModal';
@@ -138,10 +159,13 @@ import {
 	TextEntryModal,
 	type TextInputScreenBounds,
 } from './components/TextEntryModal';
+import {
+	handleShellWorkmuxScrollbackCommandFailureActions,
+	handleShellWorkmuxScrollbackDisposeExitFailureActions,
+	runShellScrollbackInactiveCleanup,
+} from './shell-scrollback-policy';
 
 const logger = rootLogger.extend('TabsShellDetail');
-
-type OrderedWriteFn = (bytes: Uint8Array<ArrayBufferLike>) => Promise<void>;
 
 const sleep = (ms: number) =>
 	new Promise<void>((resolve) => {
@@ -153,6 +177,7 @@ const WISPR_TAP_RETRY_INTERVAL_MS = 200;
 const WISPR_TAP_ATTEMPT_TIMEOUT_MS = 750;
 const WISPR_PENDING_AUTO_CLOSE_EXPIRY_MS = 5_000;
 const WISPR_OPENING_FALLBACK_MS = 750;
+const WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS = 10_000;
 
 const getErrorMessage = (error: unknown) =>
 	error instanceof Error ? error.message : String(error);
@@ -175,41 +200,6 @@ const getWisprTapFailureMessage = (
 	}
 	return 'Wispr automation failed.';
 };
-
-// Single-writer queue that guarantees no interleaving across all PTY writes.
-class OrderedWriter {
-	private tail: Promise<void> = Promise.resolve();
-
-	constructor(private write: OrderedWriteFn) {}
-
-	send(bytes: Uint8Array<ArrayBufferLike>) {
-		return this.enqueue(async () => {
-			await this.write(bytes);
-		});
-	}
-
-	sendBatch(
-		segments: Uint8Array<ArrayBufferLike>[],
-		opts?: { interSegmentDelayMs?: number },
-	) {
-		const delayMs = opts?.interSegmentDelayMs ?? 0;
-		return this.enqueue(async () => {
-			for (let i = 0; i < segments.length; i += 1) {
-				const segment = segments[i];
-				if (segment) await this.write(segment);
-				if (delayMs > 0 && i + 1 < segments.length) {
-					await sleep(delayMs);
-				}
-			}
-		});
-	}
-
-	private enqueue(task: () => Promise<void>) {
-		const next = this.tail.then(task, task);
-		this.tail = next.catch(() => {});
-		return next;
-	}
-}
 
 const GITHUB_ISSUES_URL = 'https://github.com/mulyoved/fressh/issues';
 const SHELL_CONFIG_DOC_URL =
@@ -265,16 +255,18 @@ function RouteSkeleton() {
 }
 
 type TmuxAttachErrorScreenProps = {
+	failureReason?: string;
 	sessionName: string;
 	onEdit: () => void;
 };
 
 function TmuxAttachErrorScreen({
+	failureReason,
 	sessionName,
 	onEdit,
 }: TmuxAttachErrorScreenProps) {
 	const theme = useTheme();
-	const copy = getWorkmuxAttachErrorCopy(sessionName);
+	const copy = getWorkmuxAttachErrorCopy(sessionName, failureReason);
 	return (
 		<View
 			style={{
@@ -399,20 +391,19 @@ function TerminalErrorFallback({ onRetry }: { onRetry: () => void }) {
 }
 
 const encoder = new TextEncoder();
-const tmuxPrefixKey = '\x02';
-const tmuxCopyModeKey = '[';
-const tmuxCancelKey = 'q';
-const tmuxExitKey = 'q';
-const touchEnterDelayMs = 10;
+const scrollbackExitDelayMs = 10;
+const scrollbackExitKeyPayload = encoder.encode('q');
 
 function ShellDetail() {
 	const xtermRef = useRef<XtermWebViewHandle>(null);
 	const listenerIdRef = useRef<bigint | null>(null);
+	const listenerOwnerRef = useRef<{
+		removeListener: (id: bigint) => void;
+	} | null>(null);
 	const attachedShellKeyRef = useRef<string | null>(null);
 	const hasAttachedOnceRef = useRef(false);
-	const tmuxControlShellRef = useRef<SshShell | null>(null);
-	const tmuxControlListenerRef = useRef<bigint | null>(null);
-	const tmuxControlWriterRef = useRef<OrderedWriter | null>(null);
+	const workmuxScrollbackCommandExecutorRef =
+		useRef<WorkmuxScrollbackCommandExecutor | null>(null);
 	const [terminalReady, setTerminalReady] = useState(false);
 	const [hasRenderedTerminal, setHasRenderedTerminal] = useState(false);
 	const [shellConfigState, setShellConfigState] = useState(() =>
@@ -428,6 +419,7 @@ function ShellDetail() {
 		agentEventId?: string;
 		agentTapToken?: string;
 		tmuxError?: string;
+		tmuxAttachFailureReason?: string;
 		tmuxSessionName?: string;
 		storedConnectionId?: string;
 	}>();
@@ -444,6 +436,8 @@ function ShellDetail() {
 	const agentEventId = searchParams.agentEventId?.trim() || null;
 	const agentTapToken = searchParams.agentTapToken?.trim() || null;
 	const tmuxSessionName = searchParams.tmuxSessionName;
+	const tmuxAttachFailureReason =
+		searchParams.tmuxAttachFailureReason?.trim() || undefined;
 
 	const router = useRouter();
 	const isFocused = useIsFocused();
@@ -465,8 +459,6 @@ function ShellDetail() {
 		tmuxSessionName?.trim().length ? tmuxSessionName.trim() : 'main',
 	);
 	const [tmuxEnabled, setTmuxEnabled] = useState(false);
-	const [tmuxControlReady, setTmuxControlReady] = useState(false);
-	const [tmuxControlRestartNonce, setTmuxControlRestartNonce] = useState(0);
 
 	useEffect(() => {
 		if (hasTmuxAttachError) return;
@@ -524,68 +516,22 @@ function ShellDetail() {
 	useEffect(() => {
 		const xterm = xtermRef.current;
 		return () => {
-			if (shell && listenerIdRef.current != null)
-				shell.removeListener(listenerIdRef.current);
-			listenerIdRef.current = null;
-			attachedShellKeyRef.current = null;
+			liveInputGenerationRef.current += 1;
+			if (listenerIdRef.current != null)
+				detachTerminalShellListener({
+					shell,
+					listenerOwnerRef,
+					listenerIdRef,
+					attachedShellKeyRef,
+					logger,
+				});
 			if (xterm) xterm.flush();
 		};
 	}, [shell]);
 
 	useEffect(() => {
-		if (!connection || !tmuxEnabled) {
-			// eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- Reset readiness when tmux support is unavailable
-			setTmuxControlReady(false);
-			return;
-		}
-		let cancelled = false;
-		const startTmuxControlShell = async () => {
-			try {
-				const controlShell = await connection.startShell({
-					term: 'Xterm',
-					useTmux: false,
-					tmuxSessionName: '',
-					registerInStore: false,
-				});
-				if (cancelled) {
-					await controlShell.close();
-					return;
-				}
-				const listenerId = controlShell.addListener(() => {}, {
-					cursor: { mode: 'live' },
-				});
-				tmuxControlShellRef.current = controlShell;
-				tmuxControlListenerRef.current = listenerId;
-				tmuxControlWriterRef.current = new OrderedWriter(async (bytes) => {
-					await controlShell.sendData(bytes.buffer as ArrayBuffer);
-				});
-				setTmuxControlReady(true);
-			} catch (error) {
-				setTmuxControlReady(false);
-				logger.warn('Failed to start tmux control shell', error);
-			}
-		};
-		void startTmuxControlShell();
 		return () => {
-			cancelled = true;
-			const controlShell = tmuxControlShellRef.current;
-			const listenerId = tmuxControlListenerRef.current;
-			tmuxControlShellRef.current = null;
-			tmuxControlListenerRef.current = null;
-			tmuxControlWriterRef.current = null;
-			setTmuxControlReady(false);
-			if (!controlShell) return;
-			if (listenerId != null) {
-				controlShell.removeListener(listenerId);
-			}
-			controlShell.close().catch((error) => {
-				logger.warn('Failed to close tmux control shell', error);
-			});
-		};
-	}, [connection, tmuxControlRestartNonce, tmuxEnabled]);
-
-	useEffect(() => {
-		return () => {
+			liveInputGenerationRef.current += 1;
 			commandTimeoutsRef.current.forEach((timeout) => {
 				clearTimeout(timeout);
 			});
@@ -702,11 +648,23 @@ function ShellDetail() {
 	const [scrollbackActive, setScrollbackActive] = useState(false);
 	const scrollbackActiveRef = useRef(false);
 	const scrollbackPhaseRef = useRef<'dragging' | 'active'>('active');
+	const nextLocalScrollbackExitRequestIdRef = useRef(0);
+	const scrollbackEnterRequestGenerationRef = useRef(0);
+	const localScrollbackExitRequestIdsRef = useRef(new Set<number>());
+	const scrollbackCleanupBarrierRef = useRef(
+		createWorkmuxScrollbackLiveInputCleanupBarrier(),
+	);
+	const tmuxRemoteScrollbackCopyModeActiveRef = useRef(false);
+	const tmuxRemoteScrollbackCopyModeGenerationRef = useRef(0);
+	const tmuxScrollbackLineAccumulatorRef = useRef(
+		createTmuxScrollbackLineAccumulator(),
+	);
 	const shellConfigRef = useRef(shellConfig);
 	const availableKeyboardIdsRef = useRef(availableKeyboardIds);
 	const selectedKeyboardIdRef = useRef(selectedKeyboardId);
 	const currentInstanceIdRef = useRef<string | null>(null);
 	const writerRef = useRef<OrderedWriter | null>(null);
+	const liveInputGenerationRef = useRef(0);
 	const commandTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 	const wisprAutomationStateRef = useRef<WisprAutomationState>({
 		phase: 'idle',
@@ -734,6 +692,7 @@ function ShellDetail() {
 	const wisprAutoCloseAttemptIdRef = useRef(0);
 	const wisprAutomationRequestIdRef = useRef(0);
 	const agentNotificationAckRequestIdRef = useRef(0);
+	const runtimeShellConfigReloadRequestIdRef = useRef(0);
 	const handledAgentAlertRouteRef = useRef<string | null>(null);
 	const acknowledgeVisibleAgentNotificationRef = useRef<() => void>(() => {});
 	const isFocusedRef = useRef(false);
@@ -751,7 +710,7 @@ function ShellDetail() {
 		Platform.OS === 'android' &&
 		Math.min(width, height) >= 600 &&
 		tmuxEnabled &&
-		tmuxControlReady;
+		Boolean(connection);
 	const touchScrollConfig = useMemo<TouchScrollConfig>(
 		() =>
 			touchScrollEnabled
@@ -780,18 +739,10 @@ function ShellDetail() {
 						debugOverlay: false,
 						debugTelemetry: __DEV__,
 						debugTelemetryIntervalMs: 120,
-						enterDelayMs: touchEnterDelayMs,
-						prefixKey: tmuxPrefixKey,
-						copyModeKey: tmuxCopyModeKey,
-						exitKey: tmuxExitKey,
-						cancelKey: tmuxCancelKey,
 					}
 				: { enabled: false },
 		[touchScrollEnabled],
 	);
-	const cancelKeyBytes = useMemo(() => encoder.encode(tmuxCancelKey), []);
-	const exitKeyBytes = useMemo(() => encoder.encode(tmuxExitKey), []);
-
 	const exitSelectionMode = useCallback(() => {
 		setSelectionModeEnabled(false);
 		xtermRef.current?.setSelectionModeEnabled(false);
@@ -819,115 +770,184 @@ function ShellDetail() {
 		writerRef.current = new OrderedWriter(writeToShell);
 	}, [shell, writeToShell]);
 
-	const sendBytesOrdered = useCallback((bytes: Uint8Array<ArrayBuffer>) => {
-		const send = writerRef.current?.send(bytes);
-		void send?.catch(() => {});
-		return send;
-	}, []);
-
-	const sendBytesQueued = useCallback(
-		(
-			segments: Uint8Array<ArrayBuffer>[],
-			opts?: { interSegmentDelayMs?: number },
-		) => {
-			const send = writerRef.current?.sendBatch(segments, opts);
-			void send?.catch(() => {});
-			return send;
+	const resetTmuxScrollbackForUiReset = useCallback(
+		(options?: { failurePolicy?: 'notify' | 'suppress' }) => {
+			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
+			const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
+				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
+				commandExecutor: workmuxScrollbackCommandExecutorRef.current,
+				cleanupBarrier: scrollbackCleanupBarrierRef.current,
+				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
+				cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
+				targetName,
+				failurePolicy: options?.failurePolicy,
+			});
+			void cleanup?.catch((error: unknown) => {
+				logger.warn('Workmux scrollback reset exit failed', error);
+			});
+			return cleanup;
 		},
-		[],
+		[tmuxTarget],
 	);
 
-	const clearScrollbackState = useCallback(() => {
+	const clearLocalScrollbackUiState = useCallback(() => {
 		scrollbackActiveRef.current = false;
 		scrollbackPhaseRef.current = 'active';
 		setScrollbackActive(false);
-		xtermRef.current?.exitScrollback({ emitExit: false });
+		const xterm = xtermRef.current;
+		if (!xterm) return;
+		nextLocalScrollbackExitRequestIdRef.current += 1;
+		const requestId = nextLocalScrollbackExitRequestIdRef.current;
+		const exitRequest = createTmuxScrollbackLocalExitRequest({
+			requestIds: localScrollbackExitRequestIdsRef.current,
+			requestId,
+			instanceId: currentInstanceIdRef.current,
+		});
+		xterm.exitScrollback(exitRequest.message);
 	}, []);
 
-	const handleTmuxControlUnavailable = useCallback(
-		(reason: string) => {
-			logger.warn(reason);
-			const failurePolicy = getTmuxScrollbackControlFailurePolicy({
-				scrollbackActive: scrollbackActiveRef.current,
-			});
-			const controlShell = tmuxControlShellRef.current;
-			const listenerId = tmuxControlListenerRef.current;
-			tmuxControlShellRef.current = null;
-			tmuxControlListenerRef.current = null;
-			tmuxControlWriterRef.current = null;
-			setTmuxControlReady(false);
-			if (failurePolicy === 'exit-scrollback-and-restart-control') {
-				if (isValidTmuxCancelKey(cancelKeyBytes)) {
-					void sendBytesOrdered(cancelKeyBytes);
-				} else {
-					logger.warn(
-						'cancelKey invalid; cannot exit scrollback after control failure',
-					);
-				}
-			}
-			clearScrollbackState();
-			setTmuxControlRestartNonce((prev) => prev + 1);
-			if (!controlShell) return;
-			if (listenerId != null) {
-				controlShell.removeListener(listenerId);
-			}
-			controlShell.close().catch((error) => {
-				logger.warn(
-					'Failed to close tmux control shell after send failure',
-					error,
-				);
-			});
+	const clearScrollbackState = useCallback(
+		(options?: { failurePolicy?: 'notify' | 'suppress' }) => {
+			clearLocalScrollbackUiState();
+			const reset = resetTmuxScrollbackForUiReset(options);
+			return reset;
 		},
-		[cancelKeyBytes, clearScrollbackState, sendBytesOrdered],
+		[clearLocalScrollbackUiState, resetTmuxScrollbackForUiReset],
 	);
 
-	const sendTmuxControlCommand = useCallback(
-		async (command: string) => {
-			const writer = tmuxControlWriterRef.current;
-			if (!writer) return false;
-			const sent = await runTmuxControlCommand(writer, command);
-			if (sent) return true;
-			handleTmuxControlUnavailable('tmux control send failed');
-			return false;
+	const handleWorkmuxScrollbackCommandFailure = useCallback(
+		(message: string, context: WorkmuxScrollbackFailureContext) => {
+			if (!isFocusedRef.current || !isAppActiveRef.current) {
+				logger.warn(message);
+				if (context.commandKind === 'exit') {
+					clearLocalScrollbackUiState();
+				} else {
+					void clearScrollbackState({ failurePolicy: 'suppress' });
+				}
+				return;
+			}
+			handleShellWorkmuxScrollbackCommandFailureActions({
+				message,
+				alert: (title, alertMessage, buttons) =>
+					Alert.alert(title, alertMessage, buttons),
+				copyMessage: (copyMessage) => {
+					void Clipboard.setStringAsync(copyMessage).catch((error: unknown) => {
+						logger.warn('copy Workmux scroll failure message failed', error);
+					});
+				},
+				clearScrollbackState:
+					context.commandKind === 'exit'
+						? clearLocalScrollbackUiState
+						: clearScrollbackState,
+				warn: (warning) => logger.warn(warning),
+			});
 		},
-		[handleTmuxControlUnavailable],
+		[clearLocalScrollbackUiState, clearScrollbackState],
 	);
+
+	const normalizedTmuxTarget = tmuxTarget.trim().length
+		? tmuxTarget.trim()
+		: 'main';
+
+	const workmuxScrollbackCommandExecutor = useMemo(() => {
+		// Target changes dispose the previous executor in the cleanup effect below.
+		const executorTargetName = normalizedTmuxTarget;
+		return createWorkmuxScrollbackCommandExecutor({
+			executeCommand: async (command) => {
+				if (!connection) {
+					return {
+						success: false,
+						output: '',
+						error: `No SSH connection available for ${executorTargetName}.`,
+					};
+				}
+				return executeSideChannelCommand(
+					connection,
+					command,
+					WORKMUX_SCROLLBACK_COMMAND_TIMEOUT_MS,
+				);
+			},
+			onFailure: handleWorkmuxScrollbackCommandFailure,
+			onDisposeExitFailure: (message) =>
+				handleShellWorkmuxScrollbackDisposeExitFailureActions({
+					message,
+					warn: (warning) => logger.warn(warning),
+				}),
+		});
+	}, [connection, handleWorkmuxScrollbackCommandFailure, normalizedTmuxTarget]);
+
+	useEffect(() => {
+		const lineAccumulator = tmuxScrollbackLineAccumulatorRef.current;
+		const scrollbackCleanupBarrier = scrollbackCleanupBarrierRef.current;
+		workmuxScrollbackCommandExecutorRef.current =
+			workmuxScrollbackCommandExecutor;
+		return () => {
+			scrollbackEnterRequestGenerationRef.current += 1;
+			const cleanup = disposeTmuxScrollbackRuntimeStateForUiReset({
+				lineAccumulator,
+				commandExecutor: workmuxScrollbackCommandExecutor,
+				cleanupBarrier: scrollbackCleanupBarrier,
+				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
+				cleanupGeneration: tmuxRemoteScrollbackCopyModeGenerationRef,
+				targetName: normalizedTmuxTarget,
+			});
+			void cleanup?.catch((error: unknown) => {
+				logger.warn('Workmux scrollback dispose exit failed', error);
+			});
+			if (
+				workmuxScrollbackCommandExecutorRef.current ===
+				workmuxScrollbackCommandExecutor
+			) {
+				workmuxScrollbackCommandExecutorRef.current = null;
+			}
+		};
+	}, [normalizedTmuxTarget, workmuxScrollbackCommandExecutor]);
 
 	const sendLiveInputSegments = useCallback(
 		(
 			payloadSegments: Uint8Array<ArrayBuffer>[],
 			opts?: {
 				interSegmentDelayMs?: number;
-				dropPayloadAfterExit?: boolean;
 			},
 		) => {
-			const plan = buildShellLiveInputSendPlan({
-				scrollbackActive: scrollbackActiveRef.current,
-				cancelKeyBytes,
-				exitKeyBytes,
+			const plan = buildWorkmuxScrollbackLiveInputSendPlan({
+				scrollbackActive:
+					scrollbackActiveRef.current ||
+					tmuxRemoteScrollbackCopyModeActiveRef.current,
 				payloadSegments,
+				scrollbackExitKeyPayload,
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
-				scrollbackExitDelayMs: touchEnterDelayMs,
-				isCurrentPayloadExitKey: opts?.dropPayloadAfterExit,
+				scrollbackExitDelayMs,
 			});
+			const requestInstanceId = currentInstanceIdRef.current;
+			const requestWriter = writerRef.current;
+			const requestLiveInputGeneration = liveInputGenerationRef.current;
+			const isLiveInputRequestCurrent = () =>
+				isWorkmuxScrollbackLiveInputRequestCurrent({
+					requestInstanceId,
+					requestWriter,
+					currentInstanceId: currentInstanceIdRef.current,
+					currentWriter: writerRef.current,
+					isFocused: isFocusedRef.current,
+					isAppActive: isAppActiveRef.current,
+					requestGeneration: requestLiveInputGeneration,
+					currentGeneration: liveInputGenerationRef.current,
+				});
 
-			if (plan.type === 'block') {
-				logger.warn(
-					'cancelKey invalid; blocking input until Jump to live is used',
-				);
-				return;
-			}
-
-			if (plan.clearScrollback) {
-				clearScrollbackState();
-			}
-			if (!plan.segments.length) return;
-
-			void sendBytesQueued(plan.segments, {
-				interSegmentDelayMs: plan.interSegmentDelayMs,
+			void runWorkmuxScrollbackLiveInputSendPlan({
+				plan,
+				currentCleanup: scrollbackCleanupBarrierRef.current.current(),
+				startCleanup: clearScrollbackState,
+				remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
+				isRequestCurrent: isLiveInputRequestCurrent,
+				sendSegments: (segments, options) =>
+					requestWriter?.sendBatch(segments, {
+						interSegmentDelayMs: options?.interSegmentDelayMs,
+						isCurrent: isLiveInputRequestCurrent,
+					}),
 			});
 		},
-		[cancelKeyBytes, clearScrollbackState, exitKeyBytes, sendBytesQueued],
+		[clearScrollbackState],
 	);
 
 	const sendBytesRaw = useCallback(
@@ -946,7 +966,6 @@ function ShellDetail() {
 		) => {
 			sendLiveInputSegments(payloadSegments, {
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
-				dropPayloadAfterExit: false,
 			});
 		},
 		[sendLiveInputSegments],
@@ -1107,7 +1126,7 @@ function ShellDetail() {
 				exitSelectionMode();
 			}
 			sendLiteralInputSegments(segments, {
-				interSegmentDelayMs: touchEnterDelayMs,
+				interSegmentDelayMs: scrollbackExitDelayMs,
 			});
 		},
 		[exitSelectionMode, selectionModeEnabled, sendLiteralInputSegments],
@@ -1769,10 +1788,25 @@ function ShellDetail() {
 		connection: connection ?? null,
 		tmuxEnabled,
 		tmuxTarget,
+		executeRemoteTextCommand: (activeConnection, command, timeoutMs) =>
+			runRemoteTextCommand({
+				connection: activeConnection,
+				command,
+				timeoutMs,
+			}),
 		executeSideChannelCommand,
 		getErrorMessage,
 		closeOtherModals: closeBrowserActionsOtherModals,
 	});
+	const workmuxKeyboardTmuxEnabledRef = useRef(tmuxEnabled);
+	const workmuxKeyboardTmuxTargetRef = useRef(tmuxTarget);
+	const workmuxKeyboardRunHostCommandRef = useRef(
+		browserActions.runHostBrowserCommand,
+	);
+	workmuxKeyboardTmuxEnabledRef.current = tmuxEnabled;
+	workmuxKeyboardTmuxTargetRef.current = tmuxTarget;
+	workmuxKeyboardRunHostCommandRef.current =
+		browserActions.runHostBrowserCommand;
 
 	const closeFeatureRequestOtherModals = useCallback(() => {
 		browserActions.invalidateHostUrlReads();
@@ -1999,14 +2033,25 @@ function ShellDetail() {
 
 	const handleReloadConfig = useCallback(async () => {
 		configureModal.onClose();
+		const requestId = ++runtimeShellConfigReloadRequestIdRef.current;
+		const isCurrentReloadRequest = () =>
+			isFocusedActiveRequestCurrent({
+				requestId,
+				isCurrentRequest: (id) =>
+					id === runtimeShellConfigReloadRequestIdRef.current,
+				isFocused: isFocusedRef.current,
+				isAppActive: isAppActiveRef.current,
+			});
 		try {
 			const nextState = await reloadRuntimeShellConfigFromRemote();
+			if (!isCurrentReloadRequest()) return;
 			setShellConfigState(nextState);
 			Alert.alert(
 				'Config reloaded',
 				`Loaded ${nextState.config.version} from GitHub.`,
 			);
 		} catch (error) {
+			if (!isCurrentReloadRequest()) return;
 			const message =
 				error instanceof Error ? error.message : 'Unable to reload config.';
 			setShellConfigState((current) => ({
@@ -2118,10 +2163,21 @@ function ShellDetail() {
 		agentNotificationAckRequestIdRef.current += 1;
 		if (isFocused) {
 			void acknowledgeVisibleAgentNotification();
+		} else {
+			runtimeShellConfigReloadRequestIdRef.current += 1;
+			browserActions.invalidateAll();
+			browserActions.close();
+			liveInputGenerationRef.current += 1;
+			clearCommandTimeouts();
+			scrollbackEnterRequestGenerationRef.current += 1;
+			void clearScrollbackState({ failurePolicy: 'suppress' });
 		}
 	}, [
 		acknowledgeVisibleAgentNotification,
+		browserActions,
 		channelId,
+		clearScrollbackState,
+		clearCommandTimeouts,
 		connectionStoredConnectionId,
 		isFocused,
 		tmuxTarget,
@@ -2132,11 +2188,14 @@ function ShellDetail() {
 			agentNotificationAckRequestIdRef.current += 1;
 			isFocusedRef.current = false;
 			isAppActiveRef.current = false;
+			runtimeShellConfigReloadRequestIdRef.current += 1;
 			visibleConnectionIdRef.current = null;
 			visibleChannelIdRef.current = null;
 			visibleTmuxTargetRef.current = 'main';
+			liveInputGenerationRef.current += 1;
+			clearCommandTimeouts();
 		};
-	}, []);
+	}, [clearCommandTimeouts]);
 
 	useLayoutEffect(() => {
 		if (Platform.OS !== 'android') return undefined;
@@ -2144,6 +2203,54 @@ function ShellDetail() {
 			acknowledgeVisibleAgentNotificationRef.current();
 		});
 	}, []);
+
+	const workmuxKeyboardCommandRunner = useMemo(
+		() =>
+			createWorkmuxKeyboardCommandRunner({
+				isTmuxEnabled: () => workmuxKeyboardTmuxEnabledRef.current,
+				getSessionName: () => workmuxKeyboardTmuxTargetRef.current,
+				runHostCommand: (command, timeoutMs) =>
+					workmuxKeyboardRunHostCommandRef.current(command, timeoutMs),
+				showFailure: (message) => {
+					if (
+						!shouldShowFocusedActiveFeedback({
+							isFocused: isFocusedRef.current,
+							isAppActive: isAppActiveRef.current,
+						})
+					) {
+						return;
+					}
+					Alert.alert('Workmux action failed', message);
+				},
+				getErrorMessage,
+			}),
+		[],
+	);
+	const workmuxKeyboardSourceKeyRef = useRef(skillSelectorSourceKey);
+
+	useLayoutEffect(() => {
+		if (isFocused) return;
+		workmuxKeyboardCommandRunner.invalidate();
+	}, [isFocused, workmuxKeyboardCommandRunner]);
+
+	useLayoutEffect(() => {
+		if (workmuxKeyboardSourceKeyRef.current === skillSelectorSourceKey) return;
+		workmuxKeyboardSourceKeyRef.current = skillSelectorSourceKey;
+		workmuxKeyboardCommandRunner.invalidate();
+	}, [skillSelectorSourceKey, workmuxKeyboardCommandRunner]);
+
+	useLayoutEffect(() => {
+		return () => {
+			workmuxKeyboardCommandRunner.invalidate();
+		};
+	}, [workmuxKeyboardCommandRunner]);
+
+	const runWorkmuxKeyboardCommand = useCallback(
+		(command: WorkmuxKeyboardCommand) => {
+			return workmuxKeyboardCommandRunner.run(command);
+		},
+		[workmuxKeyboardCommandRunner],
+	);
 
 	const actionContext = useMemo<ActionContext>(
 		() => ({
@@ -2186,7 +2293,7 @@ function ShellDetail() {
 				runDetectedOpenCallback(mode, browserActions.browserActionsProps);
 			},
 			editHostUrlSlot: browserActions.browserActionsProps.onEditUrlSlot,
-			cycleWorkmuxStatus: browserActions.cycleWorkmuxStatus,
+			runWorkmuxKeyboardCommand,
 		}),
 		[
 			availableKeyboardIds,
@@ -2201,6 +2308,7 @@ function ShellDetail() {
 			handleOpenWisprTextEditor,
 			openConfigDialog,
 			rotateKeyboard,
+			runWorkmuxKeyboardCommand,
 			shellConfig,
 			selectKeyboardIfExists,
 			sendBytesRaw,
@@ -2352,43 +2460,73 @@ function ShellDetail() {
 	}, []);
 
 	useEffect(() => {
-		if (Platform.OS !== 'android') return;
-		const dismissKeyboard = () => Keyboard.dismiss();
+		const isAndroid = Platform.OS === 'android';
+		const dismissKeyboard = () => {
+			if (isAndroid) Keyboard.dismiss();
+		};
+		const scheduleKeyboardDismiss = () => {
+			if (resumeDismissTimeoutRef.current) {
+				clearTimeout(resumeDismissTimeoutRef.current);
+			}
+			resumeDismissTimeoutRef.current = setTimeout(() => {
+				dismissKeyboard();
+			}, 150);
+		};
 		appStateRef.current = AppState.currentState;
-		dismissKeyboard();
-		xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
+		if (isAndroid) {
+			dismissKeyboard();
+			xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
+		}
 		// eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener -- React Native AppState cleans up via subscription.remove()
 		const subscription = AppState.addEventListener('change', (nextState) => {
 			const previousState = appStateRef.current;
 			appStateRef.current = nextState;
 			isAppActiveRef.current = nextState === 'active';
 			if (nextState === 'active') {
-				xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
+				if (isAndroid) {
+					xtermRef.current?.setSystemKeyboardEnabled(systemKeyboardEnabled);
+				}
 				acknowledgeVisibleAgentNotificationRef.current();
-				// Preserve the previous OS keyboard visibility when returning to the app.
-				if (!systemKeyboardEnabled || !lastKeyboardVisibleRef.current) {
+				if (
+					isAndroid &&
+					(!systemKeyboardEnabled || !lastKeyboardVisibleRef.current)
+				) {
 					dismissKeyboard();
-					// Some devices show the keyboard after focus settles; dismiss again.
-					if (resumeDismissTimeoutRef.current) {
-						clearTimeout(resumeDismissTimeoutRef.current);
-					}
-					resumeDismissTimeoutRef.current = setTimeout(() => {
-						dismissKeyboard();
-					}, 150);
+					scheduleKeyboardDismiss();
 					systemKeyboardVisibleRef.current = false;
 				}
 				return;
 			}
-			// Capture once when transitioning away from active.
+
+			void runShellScrollbackInactiveCleanup({
+				previousState,
+				nextState,
+				clearScrollbackState: () =>
+					clearScrollbackState({ failurePolicy: 'suppress' }),
+				warn: (message, error) => logger.warn(message, error),
+			});
 			if (previousState === 'active') {
 				agentNotificationAckRequestIdRef.current += 1;
-				lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
+				runtimeShellConfigReloadRequestIdRef.current += 1;
+				browserActions.invalidateAll();
+				workmuxKeyboardCommandRunner.invalidate();
+				liveInputGenerationRef.current += 1;
+				clearCommandTimeouts();
+				if (isAndroid) {
+					lastKeyboardVisibleRef.current = systemKeyboardVisibleRef.current;
+				}
 			}
 		});
 		return () => {
 			subscription.remove();
 		};
-	}, [systemKeyboardEnabled]);
+	}, [
+		browserActions,
+		clearCommandTimeouts,
+		clearScrollbackState,
+		systemKeyboardEnabled,
+		workmuxKeyboardCommandRunner,
+	]);
 
 	const enableSystemKeyboard = useCallback(() => {
 		if (Platform.OS !== 'android') return;
@@ -2421,6 +2559,7 @@ function ShellDetail() {
 			active: boolean;
 			phase: 'dragging' | 'active';
 			instanceId: string;
+			requestId?: number;
 		}) => {
 			if (
 				currentInstanceIdRef.current &&
@@ -2431,78 +2570,97 @@ function ShellDetail() {
 			scrollbackActiveRef.current = event.active;
 			scrollbackPhaseRef.current = event.phase;
 			setScrollbackActive(event.active);
+			if (
+				shouldRunTmuxScrollbackRemoteResetForModeChange({
+					active: event.active,
+					requestId: event.requestId,
+					localExitRequestIds: localScrollbackExitRequestIdsRef.current,
+				})
+			) {
+				void resetTmuxScrollbackForUiReset();
+			}
 		},
-		[],
+		[resetTmuxScrollbackForUiReset],
 	);
 
-	const handleTmuxEnterCopyMode = useCallback(
+	const handleScrollbackEnterRequested = useCallback(
 		async (event: { instanceId: string; requestId: number }) => {
-			if (
-				currentInstanceIdRef.current &&
-				event.instanceId !== currentInstanceIdRef.current
-			) {
+			if (!isFocusedRef.current || !isAppActiveRef.current) {
+				clearLocalScrollbackUiState();
 				return;
 			}
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-			const command = buildTmuxScrollbackCopyModeCommand(targetName);
-			if (!(await sendTmuxControlCommand(command))) {
-				logger.warn(
-					'tmux touch-scroll entry unavailable without tmux control shell',
-				);
-				return;
-			}
-			xtermRef.current?.sendTmuxEnterCopyModeAck(
-				event.requestId,
-				event.instanceId,
-			);
+			scrollbackEnterRequestGenerationRef.current += 1;
+			const requestGeneration = scrollbackEnterRequestGenerationRef.current;
+			const isRequestCurrent = () =>
+				scrollbackEnterRequestGenerationRef.current === requestGeneration &&
+				isFocusedRef.current &&
+				isAppActiveRef.current &&
+				currentInstanceIdRef.current === event.instanceId;
+			await handleTmuxScrollbackEnterRequested({
+				event,
+				isAppActive: isAppActiveRef.current,
+				currentInstanceId: currentInstanceIdRef.current,
+				shellAvailable: Boolean(shell),
+				selectionModeEnabled,
+				tmuxEnabled,
+				connectionAvailable: Boolean(connection),
+				targetName,
+				commandExecutor: workmuxScrollbackCommandExecutor,
+				remoteCopyModeActiveRef: tmuxRemoteScrollbackCopyModeActiveRef,
+				remoteCopyModeGenerationRef: tmuxRemoteScrollbackCopyModeGenerationRef,
+				clearLocalScrollbackUiState,
+				sendScrollbackEnterAck: (requestId, instanceId) =>
+					xtermRef.current?.sendScrollbackEnterAck(requestId, instanceId),
+				isRequestCurrent,
+			});
 		},
-		[sendTmuxControlCommand, tmuxTarget],
+		[
+			clearLocalScrollbackUiState,
+			connection,
+			selectionModeEnabled,
+			shell,
+			tmuxEnabled,
+			workmuxScrollbackCommandExecutor,
+			tmuxTarget,
+		],
 	);
 
-	const handleTmuxScrollBatch = useCallback(
+	const handleScrollbackBatch = useCallback(
 		(event: {
 			direction: 'up' | 'down';
 			pages: number;
 			lines: number;
+			pageStep: number;
 			instanceId: string;
 		}) => {
-			if (!shell) return;
-			if (
-				currentInstanceIdRef.current &&
-				event.instanceId !== currentInstanceIdRef.current
-			) {
-				return;
-			}
-			if (selectionModeEnabled) return;
-			if (!tmuxEnabled || !tmuxControlReady) return;
-
 			const targetName = tmuxTarget.trim().length ? tmuxTarget.trim() : 'main';
-			const command = buildTmuxScrollbackBatchCommand({
+			handleTmuxScrollbackBatchEvent({
+				event,
+				shellAvailable: Boolean(shell),
+				currentInstanceId: currentInstanceIdRef.current,
+				selectionModeEnabled,
+				tmuxEnabled,
+				connectionAvailable: Boolean(connection),
+				scrollbackActive: scrollbackActiveRef.current,
 				targetName,
-				direction: event.direction,
-				pages: event.pages,
-				lines: event.lines,
+				lineAccumulator: tmuxScrollbackLineAccumulatorRef.current,
+				enqueueScrollBatch: (commands) =>
+					workmuxScrollbackCommandExecutor.enqueueScrollBatch(commands),
 			});
-			if (!command) return;
-			void (async () => {
-				if (await sendTmuxControlCommand(command)) return;
-				logger.warn(
-					'tmux touch-scroll batch unavailable without tmux control shell',
-				);
-			})();
 		},
 		[
+			connection,
 			shell,
 			selectionModeEnabled,
-			sendTmuxControlCommand,
-			tmuxControlReady,
+			workmuxScrollbackCommandExecutor,
 			tmuxTarget,
 			tmuxEnabled,
 		],
 	);
 
 	const handleWebViewInput = useCallback(
-		(input: { str: string; kind: 'typing' | 'scroll'; instanceId: string }) => {
+		(input: { str: string; instanceId: string }) => {
 			if (!shell) return;
 			if (
 				currentInstanceIdRef.current &&
@@ -2511,21 +2669,10 @@ function ShellDetail() {
 				return;
 			}
 			const bytes = encoder.encode(input.str);
-			if (input.kind === 'scroll') {
-				if (selectionModeEnabled) return;
-				void sendBytesOrdered(bytes);
-				return;
-			}
 			if (selectionModeEnabled) exitSelectionMode();
 			sendBytesRaw(bytes);
 		},
-		[
-			shell,
-			sendBytesOrdered,
-			sendBytesRaw,
-			selectionModeEnabled,
-			exitSelectionMode,
-		],
+		[shell, sendBytesRaw, selectionModeEnabled, exitSelectionMode],
 	);
 
 	const handleTerminalCrashRetry = useCallback(() => {
@@ -2534,18 +2681,32 @@ function ShellDetail() {
 	}, [router]);
 
 	const handleJumpToLive = useCallback(() => {
-		if (!isValidTmuxCancelKey(cancelKeyBytes)) {
-			logger.warn('cancelKey invalid; cannot auto-exit scrollback');
-			return;
-		}
-		void sendBytesOrdered(cancelKeyBytes);
-		clearScrollbackState();
-	}, [cancelKeyBytes, sendBytesOrdered, clearScrollbackState]);
+		void clearScrollbackState();
+	}, [clearScrollbackState]);
 
 	const writeShellChunkToTerminal = useCallback((bytesBuffer: ArrayBuffer) => {
 		const bytes = new Uint8Array(bytesBuffer);
 		xtermRef.current?.write(bytes);
 	}, []);
+
+	const detachShellListener = useCallback(() => {
+		detachTerminalShellListener({
+			shell,
+			listenerOwnerRef,
+			listenerIdRef,
+			attachedShellKeyRef,
+			logger,
+		});
+	}, [shell]);
+
+	const handleTerminalLoadStart = useCallback(() => {
+		liveInputGenerationRef.current += 1;
+		clearCommandTimeouts();
+		detachShellListener();
+		currentInstanceIdRef.current = null;
+		hasAttachedOnceRef.current = false;
+		setTerminalReady(false);
+	}, [clearCommandTimeouts, detachShellListener]);
 
 	const attachShellToTerminal = useCallback(() => {
 		if (!terminalReady) return;
@@ -2607,6 +2768,7 @@ function ShellDetail() {
 				);
 				logger.info('shell listener attached', id.toString());
 				listenerIdRef.current = id;
+				listenerOwnerRef.current = shell;
 				hasAttachedOnceRef.current = true;
 				return;
 			}
@@ -2624,6 +2786,7 @@ function ShellDetail() {
 			);
 			logger.info('shell listener attached (live)', id.toString());
 			listenerIdRef.current = id;
+			listenerOwnerRef.current = shell;
 		})();
 
 		// Focus to pop the keyboard (iOS needs the prop we set).
@@ -2633,25 +2796,22 @@ function ShellDetail() {
 	const handleTerminalInitialized = useCallback(
 		(instanceId: string) => {
 			currentInstanceIdRef.current = instanceId;
+			scrollbackEnterRequestGenerationRef.current += 1;
+			resetTmuxScrollbackLocalExitRequests(
+				localScrollbackExitRequestIdsRef.current,
+			);
 			scrollbackActiveRef.current = false;
 			scrollbackPhaseRef.current = 'active';
+			void resetTmuxScrollbackForUiReset();
 			setScrollbackActive(false);
 			hasAttachedOnceRef.current = false;
 
-			if (listenerIdRef.current != null && shell) {
-				try {
-					shell.removeListener(listenerIdRef.current);
-				} catch (error) {
-					logger.warn('Failed to remove prior shell listener', error);
-				}
-			}
-			listenerIdRef.current = null;
-			attachedShellKeyRef.current = null;
+			detachShellListener();
 
 			setTerminalReady(true);
 			setHasRenderedTerminal(true);
 		},
-		[shell],
+		[detachShellListener, resetTmuxScrollbackForUiReset],
 	);
 
 	useEffect(() => {
@@ -2672,6 +2832,7 @@ function ShellDetail() {
 	if (hasTmuxAttachError) {
 		return (
 			<TmuxAttachErrorScreen
+				failureReason={tmuxAttachFailureReason}
 				sessionName={tmuxSessionName ?? 'main'}
 				onEdit={() => {
 					router.replace({
@@ -2718,6 +2879,7 @@ function ShellDetail() {
 							webViewOptions={{
 								// Prevent iOS from adding automatic top inset inside WebView
 								contentInsetAdjustmentBehavior: 'never',
+								onLoadStart: handleTerminalLoadStart,
 								onLayout: () => {
 									// Refit terminal when container size changes
 									xtermRef.current?.fit();
@@ -2753,8 +2915,8 @@ function ShellDetail() {
 							onInitialized={handleTerminalInitialized}
 							onInput={handleWebViewInput}
 							onScrollbackModeChange={handleScrollbackModeChange}
-							onTmuxEnterCopyMode={handleTmuxEnterCopyMode}
-							onTmuxScrollBatch={handleTmuxScrollBatch}
+							onScrollbackEnterRequested={handleScrollbackEnterRequested}
+							onScrollbackBatch={handleScrollbackBatch}
 						/>
 						{scrollbackVisible && (
 							<Pressable
@@ -2806,7 +2968,7 @@ function ShellDetail() {
 						const segments = buildCommanderExecuteSegments(value);
 						if (!segments.length) return;
 						sendLiteralInputSegments(segments, {
-							interSegmentDelayMs: touchEnterDelayMs,
+							interSegmentDelayMs: scrollbackExitDelayMs,
 						});
 					}}
 					onPasteText={(value) => {

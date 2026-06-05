@@ -7,6 +7,12 @@
       "skillPath": "skills/brainstorming/SKILL.md",
       "computedHash": "8df9b47092524833138b58682d03f2e153a242e550d1693657afdbee0cc9cdb0"
     },
+    "code-review": {
+      "source": "mulyoved/skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-review/SKILL.md",
+      "computedHash": "f785d8aa72443dc196a8a4ff1f6b8c0f630d78b6227898408f9c00cafb7b54fd"
+    },
     "code-review-ce1": {
       "source": "mulyoved/skills",
       "sourceType": "github",

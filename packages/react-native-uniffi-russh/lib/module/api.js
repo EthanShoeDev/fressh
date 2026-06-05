@@ -36,6 +36,23 @@ import * as GeneratedRussh from "./index.js";
 // Handles
 // ─────────────────────────────────────────────────────────────────────────────
 
+export const DEFAULT_RUN_COMMAND_MAX_OUTPUT_BYTES = Number(GeneratedRussh.defaultRunCommandMaxOutputBytes());
+export const MAX_RUN_COMMAND_MAX_OUTPUT_BYTES = Number(GeneratedRussh.maxRunCommandMaxOutputBytes());
+function maxOutputBytesToGenerated(maxOutputBytes) {
+  if (maxOutputBytes === undefined) {
+    return undefined;
+  }
+  if (!Number.isSafeInteger(maxOutputBytes)) {
+    throw new Error('maxOutputBytes must be a safe integer');
+  }
+  if (maxOutputBytes <= 0) {
+    throw new Error('maxOutputBytes must be greater than 0');
+  }
+  if (maxOutputBytes > MAX_RUN_COMMAND_MAX_OUTPUT_BYTES) {
+    throw new Error(`maxOutputBytes must be at most ${MAX_RUN_COMMAND_MAX_OUTPUT_BYTES}`);
+  }
+  return BigInt(maxOutputBytes);
+}
 // #endregion
 
 // #region Wrapper to match the ideal API
@@ -168,6 +185,50 @@ function wrapShellSession(shell) {
     removeListener: id => shell.removeListener(id)
   };
 }
+function toCommandStreamEvent(event) {
+  if (event instanceof GeneratedRussh.CommandStreamEvent.Stdout) {
+    return {
+      type: 'stdout',
+      bytes: event.inner.bytes
+    };
+  }
+  if (event instanceof GeneratedRussh.CommandStreamEvent.Stderr) {
+    return {
+      type: 'stderr',
+      bytes: event.inner.bytes
+    };
+  }
+  if (event instanceof GeneratedRussh.CommandStreamEvent.ExitStatus) {
+    return {
+      type: 'exitStatus',
+      exitStatus: event.inner.exitStatus
+    };
+  }
+  if (event instanceof GeneratedRussh.CommandStreamEvent.ExitSignal) {
+    return {
+      type: 'exitSignal',
+      signalName: event.inner.signalName
+    };
+  }
+  if (event instanceof GeneratedRussh.CommandStreamEvent.Closed) {
+    return {
+      type: 'closed'
+    };
+  }
+  const exhaustive = event;
+  throw new Error(`Unsupported command stream event: ${String(exhaustive)}`);
+}
+function wrapCommandStream(stream) {
+  const info = stream.getInfo();
+  return {
+    channelId: info.channelId,
+    createdAtMs: info.createdAtMs,
+    connectionId: info.connectionId,
+    close: opts => stream.close(opts?.signal ? {
+      signal: opts.signal
+    } : undefined)
+  };
+}
 function wrapConnection(conn) {
   const info = conn.getInfo();
   return {
@@ -197,6 +258,38 @@ function wrapConnection(conn) {
         signal: params.abortSignal
       } : undefined);
       return wrapShellSession(shell);
+    },
+    runCommand: async ({
+      command,
+      maxOutputBytes
+    }, asyncOpts) => {
+      const result = await conn.runCommand({
+        command,
+        maxOutputBytes: maxOutputBytesToGenerated(maxOutputBytes)
+      }, asyncOpts?.signal ? {
+        signal: asyncOpts.signal
+      } : undefined);
+      return {
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitStatus: result.exitStatus ?? null,
+        exitSignal: result.exitSignal ?? null
+      };
+    },
+    startCommandStream: async ({
+      command,
+      onEvent,
+      abortSignal
+    }) => {
+      const stream = await conn.startCommandStream({
+        command,
+        onEventCallback: {
+          onEvent: event => onEvent(toCommandStreamEvent(event))
+        }
+      }, abortSignal ? {
+        signal: abortSignal
+      } : undefined);
+      return wrapCommandStream(stream);
     },
     disconnect: opts => conn.disconnect(opts?.signal ? {
       signal: opts.signal

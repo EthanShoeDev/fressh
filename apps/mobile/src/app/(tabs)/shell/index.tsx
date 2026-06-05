@@ -2,7 +2,6 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import {
 	type SshShell,
 	type SshConnection,
-	SshError_Tags,
 } from '@fressh/react-native-uniffi-russh';
 import { FlashList } from '@shopify/flash-list';
 import { formatDistanceToNow } from 'date-fns';
@@ -24,6 +23,7 @@ import { getStoredConnectionId } from '@/lib/connection-utils';
 import { rootLogger } from '@/lib/logger';
 import { preferences } from '@/lib/preferences';
 import { secretsManager } from '@/lib/secrets-manager';
+import { extractTmuxAttachFailureReason } from '@/lib/ssh-error-details';
 import { useSshStore } from '@/lib/ssh-store';
 import { useTheme } from '@/lib/theme';
 import { AbortSignalTimeout, queryClient } from '@/lib/utils';
@@ -141,14 +141,16 @@ function LoadedState() {
 							});
 						})
 						.catch((error) => {
-							const err = error as { tag?: string };
-							if (err?.tag === SshError_Tags.TmuxAttachFailed) {
+							const tmuxAttachFailureReason =
+								extractTmuxAttachFailureReason(error);
+							if (tmuxAttachFailureReason !== null) {
 								router.push({
 									pathname: '/shell/detail',
 									params: {
 										connectionId: actionTarget.connection.connectionId,
 										channelId: '0',
 										tmuxError: 'attach-failed',
+										tmuxAttachFailureReason,
 										tmuxSessionName,
 										storedConnectionId: storedId,
 									},

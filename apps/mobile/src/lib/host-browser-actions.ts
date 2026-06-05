@@ -4,6 +4,7 @@ export const HOST_BROWSER_URL_SLOTS = [
 	'storybook-url',
 	'app-url',
 ] as const;
+export const HOST_BROWSER_NO_CONNECTION_MESSAGE = 'No SSH connection available.';
 
 export type HostBrowserUrlSlot = (typeof HOST_BROWSER_URL_SLOTS)[number];
 
@@ -68,28 +69,6 @@ export function parseHostBrowserUrlInput(
 	return { type: 'valid', url: parsed.href };
 }
 
-// Temporary mdev-boundary violation: these pane/window context helpers still
-// call tmux directly because mdev does not yet expose app-callable wrappers for
-// current pane path, pane context, or visible window id. Do not add new direct
-// tmux helpers here; move them behind mdev first.
-export function buildHostBrowserPanePathCommand(
-	tmuxSessionName: string,
-): string {
-	return `tmux display-message -p -t ${quoteShell(`${tmuxSessionName}:`)} '#{pane_current_path}'`;
-}
-
-export function buildHostBrowserPaneContextCommand(
-	tmuxSessionName: string,
-): string {
-	return `tmux display-message -p -t ${quoteShell(`${tmuxSessionName}:`)} '#{pane_id}\t#{pane_tty}\t#{pane_current_path}'`;
-}
-
-export function buildTmuxCurrentWindowIdCommand(
-	tmuxSessionName: string,
-): string {
-	return `tmux display-message -p -t ${quoteShell(`${tmuxSessionName}:`)} '#{window_id}'`;
-}
-
 export function buildDiffityShareCommand(panePath: string): string {
 	return `cd ${quoteShell(panePath)} && mdev diffity share`;
 }
@@ -109,32 +88,6 @@ export function buildTmuxWindowConfigSetCommand(
 	return `TMUX_PANE_PATH=${quoteShell(panePath)} mdev tmux url set-value ${quoteShell(slot)} ${quoteShell(url)}`;
 }
 
-export function parseTmuxPaneContextOutput(
-	output: string,
-): TmuxPaneContext | null {
-	const lines = output
-		.split(/\r?\n/)
-		.map((item) => item.trim())
-		.filter(Boolean);
-
-	for (let index = lines.length - 1; index >= 0; index -= 1) {
-		const [paneIdRaw, paneTtyRaw, ...panePathParts] =
-			lines[index]?.split('\t') ?? [];
-		const paneId = paneIdRaw?.trim() ?? '';
-		const paneTty = paneTtyRaw?.trim() ?? '';
-		const panePath = panePathParts.join('\t').trim();
-		if (
-			paneId.startsWith('%') &&
-			paneTty.startsWith('/dev/') &&
-			panePath
-		) {
-			return { paneId, paneTty, panePath };
-		}
-	}
-
-	return null;
-}
-
 export function buildMdevOpenCommand(
 	mode: HostBrowserOpenMode,
 	context: TmuxPaneContext,
@@ -147,10 +100,4 @@ export function buildMdevOpenCommand(
 		'open',
 		mode,
 	].join(' ');
-}
-
-export function buildHostBrowserStatusCycleCommand(
-	tmuxSessionName: string,
-): string {
-	return `mdev tmux nav cycle ${quoteShell(`${tmuxSessionName}:`)}`;
 }

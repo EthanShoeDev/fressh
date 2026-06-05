@@ -9,21 +9,24 @@ import {
 	type RefObject,
 } from 'react';
 import { Alert } from 'react-native';
+import {
+	resolveBrowserActionsPaneContext,
+	resolveBrowserActionsPanePath,
+	runBrowserActionsDiffityShare,
+} from '@/lib/browser-actions-controller-actions';
+import { cleanupBrowserActionRequests } from '@/lib/browser-actions-request-cleanup';
 import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
 import {
-	buildDiffityShareCommand,
-	buildHostBrowserPaneContextCommand,
-	buildHostBrowserPanePathCommand,
-	buildHostBrowserStatusCycleCommand,
 	buildTmuxWindowConfigGetCommand,
 	buildTmuxWindowConfigSetCommand,
-	extractLastHttpsUrl,
 	getHostBrowserUrlSlotLabel,
+	HOST_BROWSER_NO_CONNECTION_MESSAGE,
 	parseHostBrowserUrlInput,
-	parseTmuxPaneContextOutput,
 	type HostBrowserOpenMode,
 	type HostBrowserUrlSlot,
 } from './host-browser-actions';
+import { runHostCommandWithBoundary } from './host-command-router';
+import { runHostDiffityOpenRequest } from './host-diffity-open-request';
 import {
 	buildCreateGitHubIssueCommand,
 	buildFeatureRequestSubmittedAlert,
@@ -156,7 +159,10 @@ export type SkillSelectorControllerHandle = {
 export function useSkillSelectorController<TConnection>(deps: {
 	connection: TConnection | null;
 	tmuxEnabled: boolean;
-	runHostBrowserCommand: (command: string, timeoutMs?: number) => Promise<string>;
+	runHostBrowserCommand: (
+		command: string,
+		timeoutMs?: number,
+	) => Promise<string>;
 	resolveHostBrowserPanePath: () => Promise<string>;
 	sendTextRaw: (text: string) => void;
 	sourceKey: string;
@@ -206,7 +212,7 @@ export function useSkillSelectorController<TConnection>(deps: {
 
 		try {
 			if (!connection) {
-				throw new Error('No SSH connection available.');
+				throw new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
 			}
 			if (!tmuxEnabled) {
 				throw new Error('Skill selector requires a tmux-enabled connection.');
@@ -534,7 +540,15 @@ export function useFeatureRequestController<TConnection>(
 			onClose: close,
 			onSubmit: submit,
 		}),
-		[close, error, isResolvingTarget, isSubmitting, open, submit, targetRepository],
+		[
+			close,
+			error,
+			isResolvingTarget,
+			isSubmitting,
+			open,
+			submit,
+			targetRepository,
+		],
 	);
 
 	return useMemo<FeatureRequestControllerHandle>(
@@ -588,16 +602,23 @@ export type BrowserActionsControllerHandle = {
 	close: () => void;
 	resolveHostBrowserPanePath: () => Promise<string>;
 	resolveCurrentGitHubRepository: () => Promise<string>;
-	runHostBrowserCommand: (command: string, timeoutMs?: number) => Promise<string>;
+	runHostBrowserCommand: (
+		command: string,
+		timeoutMs?: number,
+	) => Promise<string>;
 	invalidateHostUrlReads: () => void;
 	invalidateAll: () => void;
-	cycleWorkmuxStatus: () => void;
 };
 
 export type BrowserActionsControllerDeps<TConnection> = {
 	connection: TConnection | null;
 	tmuxEnabled: boolean;
 	tmuxTarget: string;
+	executeRemoteTextCommand: (
+		connection: TConnection,
+		command: string,
+		timeoutMs: number,
+	) => Promise<string>;
 	executeSideChannelCommand: (
 		connection: TConnection,
 		command: string,
@@ -614,6 +635,7 @@ export function useBrowserActionsController<TConnection>(
 		connection,
 		tmuxEnabled,
 		tmuxTarget,
+		executeRemoteTextCommand,
 		executeSideChannelCommand,
 		getErrorMessage,
 		closeOtherModals,
@@ -623,7 +645,9 @@ export function useBrowserActionsController<TConnection>(
 	const [hostUrlModalState, setHostUrlModalState] =
 		useState<HostUrlModalStateValue | null>(null);
 	const [hostUrlModalSubmitting, setHostUrlModalSubmitting] = useState(false);
-	const [hostUrlModalError, setHostUrlModalError] = useState<string | null>(null);
+	const [hostUrlModalError, setHostUrlModalError] = useState<string | null>(
+		null,
+	);
 
 	const hostUrlReadRequestId = useRequestId();
 	const hostUrlSubmitRequestId = useRequestId();
@@ -640,67 +664,34 @@ export function useBrowserActionsController<TConnection>(
 
 	const runHostBrowserCommand = useCallback(
 		async (command: string, timeoutMs = 30_000) => {
-			if (!connection) {
-				throw new Error('No SSH connection available.');
-			}
-			const result = await executeSideChannelCommand(
+			return runHostCommandWithBoundary({
 				connection,
 				command,
 				timeoutMs,
-			);
-			if (!result.success) {
-				throw new Error(
-					result.error || result.output || 'Remote command failed.',
-				);
-			}
-			return result.output.trim();
+				executeRemoteTextCommand,
+				executeSideChannelCommand,
+			});
 		},
-		[connection, executeSideChannelCommand],
+		[connection, executeRemoteTextCommand, executeSideChannelCommand],
 	);
 
 	const resolveHostBrowserPanePath = useCallback(async () => {
-		if (!tmuxEnabled) {
-			throw new Error(
-				'Host browser actions require a tmux-enabled connection.',
-			);
-		}
-		const sessionName = tmuxTarget.trim() || 'main';
-		const output = await runHostBrowserCommand(
-			buildHostBrowserPanePathCommand(sessionName),
-			10_000,
-		);
-		const panePath = output
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.at(-1);
-		if (!panePath) {
-			throw new Error(
-				`Could not resolve pane path for tmux session ${sessionName}.`,
-			);
-		}
-		return panePath;
-	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
+		return resolveBrowserActionsPanePath({
+			tmuxEnabled,
+			tmuxTarget,
+			runHostBrowserCommand,
+			getErrorMessage,
+		});
+	}, [getErrorMessage, runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
 	const resolveHostBrowserPaneContext = useCallback(async () => {
-		if (!tmuxEnabled) {
-			throw new Error(
-				'Host browser actions require a tmux-enabled connection.',
-			);
-		}
-		const sessionName = tmuxTarget.trim() || 'main';
-		const output = await runHostBrowserCommand(
-			buildHostBrowserPaneContextCommand(sessionName),
-			10_000,
-		);
-		const context = parseTmuxPaneContextOutput(output);
-		if (!context) {
-			throw new Error(
-				`Could not resolve pane context for tmux session ${sessionName}.`,
-			);
-		}
-		return context;
-	}, [runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
+		return resolveBrowserActionsPaneContext({
+			tmuxEnabled,
+			tmuxTarget,
+			runHostBrowserCommand,
+			getErrorMessage,
+		});
+	}, [getErrorMessage, runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
 
 	const resolveCurrentGitHubRepository = useCallback(async () => {
 		const panePath = await resolveHostBrowserPanePath();
@@ -792,38 +783,28 @@ export function useBrowserActionsController<TConnection>(
 	);
 
 	const handleOpenHostDiffity = useCallback(() => {
-		if (hostDiffityInFlightRef.current) return;
-		const id = hostDiffityRequestId.next();
-		hostDiffityInFlightRef.current = true;
-		void (async () => {
-			try {
-				const panePath = await resolveHostBrowserPanePath();
-				const output = await runHostBrowserCommand(
-					buildDiffityShareCommand(panePath),
-					60_000,
-				);
-				const url = extractLastHttpsUrl(output);
-				if (!url) {
-					throw new Error(
-						output || 'mdev diffity share did not return an HTTPS URL.',
-					);
-				}
-				if (!hostDiffityRequestId.isCurrent(id)) return;
-				await openAndroidUrl(url);
-			} catch (err) {
-				if (!hostDiffityRequestId.isCurrent(id)) return;
-				showError('Diffity failed', getErrorMessage(err));
-			} finally {
-				hostDiffityInFlightRef.current = false;
-			}
-		})();
+		runHostDiffityOpenRequest({
+			hostDiffityInFlightRef,
+			hostDiffityRequestId,
+			runDiffityShare: () =>
+				runBrowserActionsDiffityShare({
+					tmuxEnabled,
+					tmuxTarget,
+					runHostBrowserCommand,
+					getErrorMessage,
+				}),
+			openAndroidUrl,
+			showError,
+			getErrorMessage,
+		});
 	}, [
 		getErrorMessage,
 		hostDiffityRequestId,
 		openAndroidUrl,
-		resolveHostBrowserPanePath,
 		runHostBrowserCommand,
 		showError,
+		tmuxEnabled,
+		tmuxTarget,
 	]);
 
 	const handleOpenDetected = useCallback(
@@ -1013,38 +994,17 @@ export function useBrowserActionsController<TConnection>(
 		],
 	);
 
-	const cycleWorkmuxStatus = useCallback(() => {
-		void (async () => {
-			try {
-				if (!tmuxEnabled) {
-					throw new Error('Status cycle requires a tmux-enabled connection.');
-				}
-				const sessionName = tmuxTarget.trim() || 'main';
-				await runHostBrowserCommand(
-					buildHostBrowserStatusCycleCommand(sessionName),
-					10_000,
-				);
-			} catch (err) {
-				showError('Status cycle failed', getErrorMessage(err));
-			}
-		})();
-	}, [
-		getErrorMessage,
-		runHostBrowserCommand,
-		showError,
-		tmuxEnabled,
-		tmuxTarget,
-	]);
-
 	const invalidateAll = useCallback(() => {
-		hostUrlReadRequestId.invalidate();
-		hostUrlSubmitRequestId.invalidate();
-		browserGitHubTargetRequestId.invalidate();
-		hostDiffityRequestId.invalidate();
-		hostDetectedOpenRequestId.invalidate();
-		hostUrlSubmitInFlightRef.current = false;
-		hostDiffityInFlightRef.current = false;
-		hostDetectedOpenInFlightRef.current = false;
+		cleanupBrowserActionRequests({
+			hostUrlReadRequestId,
+			hostUrlSubmitRequestId,
+			hostUrlSubmitInFlightRef,
+			browserGitHubTargetRequestId,
+			hostDiffityRequestId,
+			hostDiffityInFlightRef,
+			hostDetectedOpenRequestId,
+			hostDetectedOpenInFlightRef,
+		});
 		setHostUrlModalState(null);
 		setHostUrlModalSubmitting(false);
 		setHostUrlModalError(null);
@@ -1058,14 +1018,16 @@ export function useBrowserActionsController<TConnection>(
 
 	useEffect(() => {
 		return () => {
-			hostUrlReadRequestId.invalidate();
-			hostUrlSubmitRequestId.invalidate();
-			hostUrlSubmitInFlightRef.current = false;
-			browserGitHubTargetRequestId.invalidate();
-			hostDiffityRequestId.invalidate();
-			hostDiffityInFlightRef.current = false;
-			hostDetectedOpenRequestId.invalidate();
-			hostDetectedOpenInFlightRef.current = false;
+			cleanupBrowserActionRequests({
+				hostUrlReadRequestId,
+				hostUrlSubmitRequestId,
+				hostUrlSubmitInFlightRef,
+				browserGitHubTargetRequestId,
+				hostDiffityRequestId,
+				hostDiffityInFlightRef,
+				hostDetectedOpenRequestId,
+				hostDetectedOpenInFlightRef,
+			});
 		};
 	}, [
 		browserGitHubTargetRequestId,
@@ -1134,12 +1096,10 @@ export function useBrowserActionsController<TConnection>(
 			runHostBrowserCommand,
 			invalidateHostUrlReads,
 			invalidateAll,
-			cycleWorkmuxStatus,
 		}),
 		[
 			browserActionsProps,
 			close,
-			cycleWorkmuxStatus,
 			hostUrlProps,
 			invalidateAll,
 			invalidateHostUrlReads,

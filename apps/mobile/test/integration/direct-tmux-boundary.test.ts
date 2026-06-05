@@ -2,63 +2,20 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import * as hostBrowserActions from '../../src/lib/host-browser-actions';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../../..');
 
-type DirectTmuxOccurrence = {
+type DirectBoundaryOccurrence = {
 	commandPrefix: string;
 	functionName: string;
-	kind: 'rust-process' | 'shell';
+	kind: 'invoke-rc' | 'rust-process' | 'shell';
 };
-
-const expectedTemporaryViolationOccurrences = new Map<
-	string,
-	DirectTmuxOccurrence[]
->([
-	[
-		'apps/mobile/src/lib/host-browser-actions.ts',
-		[
-			{
-				kind: 'shell',
-				functionName: 'buildHostBrowserPanePathCommand',
-				commandPrefix: 'tmux display-message',
-			},
-			{
-				kind: 'shell',
-				functionName: 'buildHostBrowserPaneContextCommand',
-				commandPrefix: 'tmux display-message',
-			},
-			{
-				kind: 'shell',
-				functionName: 'buildTmuxCurrentWindowIdCommand',
-				commandPrefix: 'tmux display-message',
-			},
-		],
-	],
-	[
-		'apps/mobile/src/lib/tmux-scrollback.ts',
-		[
-			{
-				kind: 'shell',
-				functionName: 'buildTmuxScrollbackCopyModeCommand',
-				commandPrefix: 'tmux copy-mode',
-			},
-			{
-				kind: 'shell',
-				functionName: 'buildTmuxScrollbackBatchCommand',
-				commandPrefix: 'tmux ${',
-			},
-			{
-				kind: 'shell',
-				functionName: 'buildTmuxSelectWindowCommand',
-				commandPrefix: 'tmux select-window',
-			},
-		],
-	],
-]);
 
 const scannedRoots = [
 	path.join(repoRoot, 'apps/mobile/src'),
+	path.join(repoRoot, 'packages/react-native-xtermjs-webview/src'),
+	path.join(repoRoot, 'packages/react-native-xtermjs-webview/src-internal'),
 	path.join(
 		repoRoot,
 		'packages/react-native-uniffi-russh/rust/uniffi-russh/src',
@@ -180,7 +137,7 @@ function normalizeCommandPrefix(command: string): string {
 function isNonShellProseCall(source: string, commandStart: number): boolean {
 	const callPrefix = source.slice(Math.max(0, commandStart - 80), commandStart);
 	return (
-		/(?:(?:logger|console)\.[A-Za-z_$][\w$]*|handleTmuxControlUnavailable|(?:new\s+)?Error|Alert\.alert)(?:\s*\(\s*)?["'`]?\s*$/.test(
+		/(?:(?:logger|console)\.[A-Za-z_$][\w$]*|(?:new\s+)?Error|Alert\.alert)(?:\s*\(\s*)?["'`]?\s*$/.test(
 			callPrefix,
 		) ||
 		/\b(?:const|let|var)\s+(?:label|title|message|copy|text)\s*=\s*["'`]?\s*$/.test(
@@ -198,9 +155,9 @@ function isNonShellProseCall(source: string, commandStart: number): boolean {
 	);
 }
 
-function findDirectTmuxOccurrences(text: string): DirectTmuxOccurrence[] {
+function findDirectTmuxOccurrences(text: string): DirectBoundaryOccurrence[] {
 	const source = stripComments(text);
-	const occurrences: DirectTmuxOccurrence[] = [];
+	const occurrences: DirectBoundaryOccurrence[] = [];
 	const shellCommandStart =
 		'(?:^|`\\s*|[\\n=:[;&|({]\\s*|\\b(?:return|if|then|do|while|until|else|elif)\\s+)';
 	const shellAssignment =
@@ -275,16 +232,77 @@ function findDirectTmuxOccurrences(text: string): DirectTmuxOccurrence[] {
 	return occurrences;
 }
 
+function findDirectInvokeRcOccurrences(
+	text: string,
+): DirectBoundaryOccurrence[] {
+	const source = stripComments(text);
+	const occurrences: DirectBoundaryOccurrence[] = [];
+	const shellCommandStart =
+		'(?:^|`\\s*|[\\n=:[;&|({]\\s*|\\b(?:return|if|then|do|while|until|else|elif)\\s+)';
+	const shellAssignment =
+		'(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|\'[^\']*\'|`[^`]*`|[^\\s;&|()]+)\\s+)*';
+	const shellCommandWrapper =
+		String.raw`(?:(?:exec|command|sudo)\s+|(?:timeout|gtimeout)\s+\S+\s+|bash\s+-lc\s+["']|env\s+` +
+		shellAssignment +
+		')?';
+	const invokeRcExecutable = String.raw`(?:invoke-rc(?:\.bash)?\b|(?:/[^\s;&|()]+)+/invoke-rc(?:\.bash)?\b)`;
+	const directInvokeRcCommandPattern = new RegExp(
+		shellCommandStart +
+			shellAssignment +
+			shellCommandWrapper +
+			invokeRcExecutable,
+		'g',
+	);
+	const quotedInvokeRcCommandPattern = new RegExp(
+		String.raw`(?:^|[=:[,({]\s*|\b(?:return|format!)\s*\(?\s*)` +
+			'["\\\']\\s*' +
+			shellAssignment +
+			shellCommandWrapper +
+			invokeRcExecutable,
+		'g',
+	);
+
+	for (const match of [
+		...source.matchAll(directInvokeRcCommandPattern),
+		...source.matchAll(quotedInvokeRcCommandPattern),
+	]) {
+		const invokeRcCommandOffset = match[0].search(/invoke-rc(?:\.bash)?\b/);
+		const commandStart = (match.index ?? 0) + invokeRcCommandOffset;
+		if (!isNonShellProseCall(source, commandStart)) {
+			const commandPrefix = match[0]
+				.slice(invokeRcCommandOffset)
+				.replace(/\s+/g, ' ')
+				.trim()
+				.startsWith('invoke-rc.bash')
+				? 'invoke-rc.bash'
+				: 'invoke-rc';
+			occurrences.push({
+				kind: 'invoke-rc',
+				functionName: getEnclosingFunctionName(source, commandStart),
+				commandPrefix,
+			});
+		}
+	}
+
+	for (const match of source.matchAll(
+		/\bCommand::new\s*\(\s*"(?:(?:\/[^/\s"]+)+\/)?invoke-rc(?:\.bash)?"\s*\)/g,
+	)) {
+		occurrences.push({
+			kind: 'invoke-rc',
+			functionName: getEnclosingFunctionName(source, match.index ?? 0),
+			commandPrefix: 'Command::new("invoke-rc")',
+		});
+	}
+
+	return occurrences;
+}
+
 function containsDirectTmuxCommand(text: string): boolean {
 	return findDirectTmuxOccurrences(text).length > 0;
 }
 
-function occurrenceKey(occurrence: DirectTmuxOccurrence): string {
-	return [
-		occurrence.kind,
-		occurrence.functionName,
-		occurrence.commandPrefix,
-	].join(':');
+function containsDirectInvokeRcCommand(text: string): boolean {
+	return findDirectInvokeRcOccurrences(text).length > 0;
 }
 
 void test('direct tmux command detector matches shell command strings', () => {
@@ -368,38 +386,76 @@ void test('direct tmux command detector ignores mdev and prose', () => {
 	}
 });
 
-void test('direct tmux command strings match exact temporary violation occurrences', () => {
-	const actualOccurrencesByFile = new Map<string, DirectTmuxOccurrence[]>();
+void test('direct invoke-rc command detector matches shell command strings', () => {
+	const directShellCommands = [
+		'`invoke-rc.bash mdev_tmux_context`',
+		'`invoke-rc mdev_tmux_context`',
+		'`exec invoke-rc.bash mdev_tmux_context`',
+		'`command invoke-rc.bash mdev_tmux_context`',
+		'`sudo invoke-rc.bash mdev_tmux_context`',
+		'`timeout 2 invoke-rc.bash mdev_tmux_context`',
+		'`bash -lc "invoke-rc.bash mdev_tmux_context"`',
+		'`env FOO=bar invoke-rc.bash mdev_tmux_context`',
+		'`/home/muly/bin/invoke-rc.bash mdev_tmux_context`',
+		"executeSideChannelCommand('invoke-rc.bash mdev_tmux_context')",
+		'const command = "invoke-rc.bash mdev_tmux_context"',
+		"return 'invoke-rc.bash mdev_tmux_context'",
+		'ch.exec(true, "invoke-rc.bash mdev_tmux_context".to_string())',
+		'format!("invoke-rc.bash mdev_tmux_context")',
+	];
+
+	for (const command of directShellCommands) {
+		assert.equal(containsDirectInvokeRcCommand(command), true, command);
+	}
+});
+
+void test('direct invoke-rc command detector ignores prose', () => {
+	const allowedText = [
+		"logger.info('invoke-rc.bash migration complete')",
+		"throw new Error('invoke-rc.bash failed')",
+		"const message = 'invoke-rc.bash failed'",
+		"{ message: 'invoke-rc.bash failed' }",
+		'// Avoid invoke-rc.bash command paths.',
+	];
+
+	for (const text of allowedText) {
+		assert.equal(containsDirectInvokeRcCommand(text), false, text);
+	}
+});
+
+void test('direct tmux and invoke-rc command strings are absent outside the app boundary', () => {
+	const actualOccurrencesByFile = new Map<string, DirectBoundaryOccurrence[]>();
 
 	for (const root of scannedRoots) {
 		for (const file of listSourceFiles(root)) {
 			const text = readFileSync(file, 'utf8');
-			const occurrences = findDirectTmuxOccurrences(text);
+			const occurrences = [
+				...findDirectTmuxOccurrences(text),
+				...findDirectInvokeRcOccurrences(text),
+			];
 			if (occurrences.length > 0) {
 				actualOccurrencesByFile.set(path.relative(repoRoot, file), occurrences);
 			}
 		}
 	}
 
-	const actualFiles = [...actualOccurrencesByFile.keys()].sort();
-	const expectedFiles = [
-		...expectedTemporaryViolationOccurrences.keys(),
-	].sort();
 	assert.deepEqual(
-		actualFiles,
-		expectedFiles,
+		[...actualOccurrencesByFile.entries()].sort(),
+		[],
 		JSON.stringify([...actualOccurrencesByFile.entries()]),
 	);
+});
 
-	for (const [
-		file,
-		expectedOccurrences,
-	] of expectedTemporaryViolationOccurrences) {
-		const actualOccurrences = actualOccurrencesByFile.get(file) ?? [];
-		assert.deepEqual(
-			actualOccurrences.map(occurrenceKey).sort(),
-			expectedOccurrences.map(occurrenceKey).sort(),
-			file,
-		);
+void test('host browser actions do not export legacy tmux context helpers', () => {
+	// Keep these assembled so the final stale-reference scan stays meaningful.
+	const removedExportNames = [
+		['build', 'HostBrowser', 'Pane', 'Context', 'Command'],
+		['build', 'HostBrowser', 'Pane', 'Path', 'Command'],
+		['build', 'Tmux', 'Current', 'Window', 'Id', 'Command'],
+		['parse', 'Tmux', 'Pane', 'Context', 'Output'],
+	].map((parts) => parts.join(''));
+
+	for (const name of removedExportNames) {
+		assert.equal(Object.hasOwn(hostBrowserActions, name), false, name);
 	}
 });

@@ -1,9 +1,12 @@
 import { type Terminal } from '@xterm/xterm';
-import { type BridgeInboundMessage, type TouchScrollConfig } from '../src/bridge';
+import {
+	type BridgeInboundDraftMessage,
+	type TouchScrollConfig,
+} from '../src/bridge';
 
 type TouchScrollController = {
 	setConfig: (next: TouchScrollConfig) => void;
-	exitScrollback: (opts?: { emitExit?: boolean; requestId?: number }) => void;
+	exitScrollback: (opts?: { requestId?: number }) => void;
 	handleEnterAck: (requestId: number) => void;
 	updateLineHeight: () => void;
 };
@@ -15,26 +18,24 @@ export const createTouchScrollController = ({
 	sendToRn,
 	isSelectionModeEnabled,
 	cancelLongPress,
+	scrollbackEnterTimeoutMs = 2_000,
 }: {
 	term: Terminal;
 	root: HTMLElement;
 	instanceId: string;
-	sendToRn: (msg: BridgeInboundMessage) => void;
+	sendToRn: (msg: BridgeInboundDraftMessage) => void;
 	isSelectionModeEnabled: () => boolean;
 	cancelLongPress: () => void;
+	scrollbackEnterTimeoutMs?: number;
 }): TouchScrollController => {
 	type ScrollState = 'Idle' | 'Tracking' | 'Scrolling' | 'ScrollbackActive';
-	type CopyModeState = 'off' | 'entering' | 'on';
-	type CopyModeConfidence = 'uncertain' | 'confident';
-	type EntryIntent = 'scroll' | 'recovery';
+	type ScrollbackEnterState = 'off' | 'entering' | 'on';
 
 	let config: TouchScrollConfig = { enabled: false };
 	let enabled = false;
 
 	let state: ScrollState = 'Idle';
-	let copyModeState: CopyModeState = 'off';
-	let copyModeConfidence: CopyModeConfidence = 'uncertain';
-	let entryIntent: EntryIntent | null = null;
+	let scrollbackEnterState: ScrollbackEnterState = 'off';
 
 	let scrollbackActive = false;
 	let scrollbackPhase: 'dragging' | 'active' = 'active';
@@ -60,36 +61,34 @@ export const createTouchScrollController = ({
 	let debugOverlayEl: HTMLDivElement | null = null;
 	let debugOverlayLastTs = 0;
 	let debugTelemetryLastTs = 0;
-	let lastBatch:
-		| {
-				direction: 'up' | 'down';
-				pages: number;
-				lines: number;
-				totalLines: number;
-				pendingLines: number;
-		  }
-		| null = null;
+	let lastBatch: {
+		direction: 'up' | 'down';
+		pages: number;
+		lines: number;
+		totalLines: number;
+		pendingLines: number;
+	} | null = null;
 
 	let pendingEnterRequestId: number | null = null;
 	let enterRequestCounter = 0;
+	let pendingEnterTimeoutId: ReturnType<typeof setTimeout> | null = null;
+	let pointerGeneration = 0;
+	let pendingEnterPointerGeneration: number | null = null;
 
 	let lineHeightPx = 16;
 	let target: HTMLElement | null = null;
 	let listenersInstalled = false;
 
+	const getPageStep = () => Math.max(10, term.rows - 1);
+
 	const getActiveConfig = () => {
 		if (!config || !config.enabled) return null;
-		const pageStep = Math.max(10, term.rows - 1);
+		const pageStep = getPageStep();
 		const fallbackExtraLines = Math.max(1, Math.min(24, pageStep));
 		return {
 			pxPerLine: config.pxPerLine ?? Math.max(12, lineHeightPx),
 			slopPx: config.slopPx ?? 8,
 			invertScroll: config.invertScroll ?? false,
-			enterDelayMs: config.enterDelayMs ?? 10,
-			prefixKey: config.prefixKey ?? '\x02',
-			copyModeKey: config.copyModeKey ?? '[',
-			exitKey: config.exitKey ?? 'q',
-			cancelKey: config.cancelKey ?? 'q',
 			coalesceMs: config.coalesceMs ?? 24,
 			minFlushMs: config.minFlushMs ?? 16,
 			maxFlushMs: config.maxFlushMs ?? 80,
@@ -182,7 +181,7 @@ export const createTouchScrollController = ({
 			? `${lastBatch.direction} p${lastBatch.pages} l${lastBatch.lines}`
 			: '—';
 		const lines = [
-			`state=${state} copy=${copyModeState} sb=${scrollbackActive ? '1' : '0'}`,
+			`state=${state} enter=${scrollbackEnterState} sb=${scrollbackActive ? '1' : '0'}`,
 			`pending=${pending} desired=${desiredLines.toFixed(1)} sent=${sentLines.toFixed(1)}`,
 			`vel=${velocityEwma.toFixed(2)} rtt=${Math.round(rttEstimateMs)}ms inflight=${inFlightFlushes.length}`,
 			`batch=${batch}`,
@@ -225,6 +224,18 @@ export const createTouchScrollController = ({
 		updateDebugOverlay({ force: true });
 	};
 
+	const clearPendingEnterTimeout = () => {
+		if (pendingEnterTimeoutId == null) return;
+		clearTimeout(pendingEnterTimeoutId);
+		pendingEnterTimeoutId = null;
+	};
+
+	const clearPendingEnterRequest = () => {
+		clearPendingEnterTimeout();
+		pendingEnterRequestId = null;
+		pendingEnterPointerGeneration = null;
+	};
+
 	const resetPointerTracking = () => {
 		pointerIsDown = false;
 		pendingPointerUp = false;
@@ -245,44 +256,33 @@ export const createTouchScrollController = ({
 
 	const resetState = () => {
 		resetPendingScroll();
+		clearPendingEnterRequest();
 		releasePointerCapture();
 		resetPointerTracking();
 		state = 'Idle';
-		copyModeState = 'off';
-		copyModeConfidence = 'uncertain';
-		entryIntent = null;
+		scrollbackEnterState = 'off';
 		scrollbackActive = false;
 		scrollbackPhase = 'active';
-	};
-
-	const sendScrollInput = (payload: string) => {
-		sendToRn({
-			type: 'input',
-			str: payload,
-			instanceId,
-			kind: 'scroll',
-		});
 	};
 
 	const sendScrollBatch = (payload: {
 		direction: 'up' | 'down';
 		pages: number;
 		lines: number;
+		pageStep: number;
 	}) => {
 		scrollBatchSeq += 1;
 		sendToRn({
-			type: 'tmuxScrollBatch',
+			type: 'scrollbackBatch',
 			direction: payload.direction,
 			pages: payload.pages,
 			lines: payload.lines,
+			pageStep: payload.pageStep,
 			instanceId,
 			seq: scrollBatchSeq,
 			ts: Date.now(),
 		});
 	};
-
-	const isValidCancelKey = (key: string) =>
-		key.length === 1 && key.charCodeAt(0) !== 0x1b;
 
 	const clamp = (value: number, min: number, max: number) =>
 		Math.max(min, Math.min(max, value));
@@ -290,11 +290,8 @@ export const createTouchScrollController = ({
 	const clampDesiredLines = (value: number) => {
 		const cfg = getActiveConfig();
 		if (!cfg) return value;
-		const pageStep = Math.max(10, term.rows - 1);
-		const maxBacklogLines = Math.max(
-			pageStep,
-			cfg.maxBacklogPages * pageStep,
-		);
+		const pageStep = getPageStep();
+		const maxBacklogLines = Math.max(pageStep, cfg.maxBacklogPages * pageStep);
 		const delta = value - sentLines;
 		if (Math.abs(delta) > maxBacklogLines) {
 			return sentLines + Math.sign(delta) * maxBacklogLines;
@@ -316,13 +313,13 @@ export const createTouchScrollController = ({
 	const flushPendingLines = (opts?: { force?: boolean }) => {
 		const cfg = getActiveConfig();
 		if (!cfg) return;
-		if (copyModeState !== 'on') return;
+		if (scrollbackEnterState !== 'on') return;
 
 		const pending = Math.trunc(desiredLines - sentLines);
 		if (!pending) return;
 
 		const absPending = Math.abs(pending);
-		const pageStep = Math.max(10, term.rows - 1);
+		const pageStep = getPageStep();
 		const now = nowMs();
 		const inFlightCount = inFlightFlushes.length;
 
@@ -348,10 +345,7 @@ export const createTouchScrollController = ({
 		const backlogPages = absPending / pageStep;
 		let dynamicMaxPages = basePages;
 		if (backlogPages > basePages) {
-			dynamicMaxPages = Math.min(
-				maxPagesPerFlush,
-				Math.ceil(backlogPages / 2),
-			);
+			dynamicMaxPages = Math.min(maxPagesPerFlush, Math.ceil(backlogPages / 2));
 		}
 		if (rttEstimateMs > 120) {
 			dynamicMaxPages = Math.min(maxPagesPerFlush, dynamicMaxPages + 1);
@@ -362,10 +356,7 @@ export const createTouchScrollController = ({
 			Math.min(cfg.maxExtraLines, pageStep - 1),
 		);
 
-		const pages = Math.min(
-			dynamicMaxPages,
-			Math.floor(absPending / pageStep),
-		);
+		const pages = Math.min(dynamicMaxPages, Math.floor(absPending / pageStep));
 		let lines = absPending - pages * pageStep;
 		if (lines > maxExtraLines) lines = maxExtraLines;
 
@@ -383,11 +374,11 @@ export const createTouchScrollController = ({
 			direction: pending > 0 ? 'up' : 'down',
 			pages,
 			lines,
+			pageStep,
 		});
 		sentLines += (pending > 0 ? 1 : -1) * totalLines;
 		lastFlushTs = now;
 		inFlightFlushes.push(now);
-		copyModeConfidence = 'confident';
 		emitTelemetry(
 			`[touch-scroll] batch dir=${pending > 0 ? 'up' : 'down'} pages=${pages} lines=${lines} pending=${pending} rtt=${Math.round(
 				rttEstimateMs,
@@ -398,30 +389,45 @@ export const createTouchScrollController = ({
 		if (Math.trunc(desiredLines - sentLines) !== 0) scheduleFlush();
 	};
 
-	const beginCopyModeEntry = (intent: EntryIntent) => {
-		if (copyModeState !== 'off' || pendingEnterRequestId != null) return;
-		copyModeState = 'entering';
-		entryIntent = intent;
+	const requestScrollbackEnter = () => {
+		if (scrollbackEnterState !== 'off' || pendingEnterRequestId != null)
+			return;
+		scrollbackEnterState = 'entering';
 		const requestId = ++enterRequestCounter;
 		pendingEnterRequestId = requestId;
-		sendToRn({ type: 'tmuxEnterCopyMode', instanceId, requestId });
+		pendingEnterPointerGeneration = pointerGeneration;
+		clearPendingEnterTimeout();
+		pendingEnterTimeoutId = setTimeout(() => {
+			if (pendingEnterRequestId !== requestId) return;
+			if (
+				pointerIsDown &&
+				activePointerId != null &&
+				pendingEnterPointerGeneration !== pointerGeneration
+			) {
+				clearPendingEnterRequest();
+				scrollbackEnterState = 'off';
+				emitScrollbackMode(false, scrollbackPhase, requestId);
+				requestScrollbackEnter();
+				return;
+			}
+			exitScrollback({ requestId });
+		}, scrollbackEnterTimeoutMs);
+		sendToRn({ type: 'scrollbackEnterRequested', instanceId, requestId });
 		return true;
 	};
 
 	const handleEnterAck = (requestId: number) => {
 		if (pendingEnterRequestId !== requestId) return;
-		pendingEnterRequestId = null;
-		copyModeState = 'on';
+		clearPendingEnterRequest();
+		scrollbackEnterState = 'on';
 
 		const pointerDownNow = pointerIsDown;
 		const phase = pointerDownNow ? 'dragging' : 'active';
 
-		if (entryIntent === 'scroll') {
-			if (!scrollbackActive) {
-				emitScrollbackMode(true, phase);
-			} else if (scrollbackPhase !== phase) {
-				emitScrollbackMode(true, phase);
-			}
+		if (!scrollbackActive) {
+			emitScrollbackMode(true, phase);
+		} else if (scrollbackPhase !== phase) {
+			emitScrollbackMode(true, phase);
 		}
 
 		if (pendingPointerUp && !pointerDownNow) {
@@ -429,16 +435,6 @@ export const createTouchScrollController = ({
 		}
 
 		pendingPointerUp = false;
-
-		if (entryIntent === 'recovery') {
-			const cfg = getActiveConfig();
-			if (cfg && isValidCancelKey(cfg.cancelKey)) {
-				sendScrollInput(cfg.cancelKey);
-			}
-			emitScrollbackMode(false, scrollbackPhase);
-			resetState();
-			return;
-		}
 
 		scheduleFlush();
 	};
@@ -458,24 +454,15 @@ export const createTouchScrollController = ({
 	};
 
 	const cancelTrackingForSelectionMode = () => {
-		const wasCopyModeOn = copyModeState === 'on';
 		const previousPhase = scrollbackPhase;
-		pendingEnterRequestId = null;
-		copyModeState = 'off';
-		copyModeConfidence = 'uncertain';
-		entryIntent = null;
+		clearPendingEnterRequest();
+		scrollbackEnterState = 'off';
 		resetPendingScroll();
 		releasePointerCapture();
 		resetPointerTracking();
 		state = 'Idle';
 		if (scrollbackActive) {
 			emitScrollbackMode(false, previousPhase);
-		}
-		if (wasCopyModeOn) {
-			const cfg = getActiveConfig();
-			if (cfg && isValidCancelKey(cfg.cancelKey)) {
-				sendScrollInput(cfg.cancelKey);
-			}
 		}
 		updateDebugOverlay({ force: true });
 	};
@@ -499,6 +486,7 @@ export const createTouchScrollController = ({
 			}
 			if (event.pointerType && event.pointerType !== 'touch') return;
 			if (!event.isPrimary) return;
+			pointerGeneration += 1;
 			pointerIsDown = true;
 			pendingPointerUp = false;
 			activePointerId = event.pointerId;
@@ -530,8 +518,7 @@ export const createTouchScrollController = ({
 
 				cancelLongPress();
 				state = 'Scrolling';
-				copyModeConfidence = 'uncertain';
-				beginCopyModeEntry('scroll');
+				requestScrollbackEnter();
 				emitScrollbackMode(true, 'dragging');
 				try {
 					target?.setPointerCapture(event.pointerId);
@@ -551,14 +538,10 @@ export const createTouchScrollController = ({
 					const dt = Math.max(event.timeStamp - lastMoveTs, 8);
 					const speed = Math.abs(deltaY) / dt;
 					velocityEwma =
-						velocityEwma +
-						(speed - velocityEwma) * cfg.velocitySmoothing;
+						velocityEwma + (speed - velocityEwma) * cfg.velocitySmoothing;
 
 					const scrollDirection = Math.sign(deltaLines);
-					if (
-						scrollDirection &&
-						scrollDirection !== lastScrollDirection
-					) {
+					if (scrollDirection && scrollDirection !== lastScrollDirection) {
 						lastScrollDirection = scrollDirection;
 						velocityEwma = 0;
 						lastDirectionChangeTs = now;
@@ -568,16 +551,14 @@ export const createTouchScrollController = ({
 					if (cfg.velocityMultiplierEnabled) {
 						if (velocityEwma > cfg.velocityThreshold) {
 							multiplier +=
-								cfg.velocityBoost *
-								(velocityEwma - cfg.velocityThreshold);
+								cfg.velocityBoost * (velocityEwma - cfg.velocityThreshold);
 						}
 						multiplier = Math.min(multiplier, cfg.velocityBoostMax);
 					}
 					if (cfg.backlogMultiplierEnabled) {
 						const backlogLines = Math.abs(desiredLines - sentLines);
 						const backlogRefLines =
-							Math.max(1, cfg.backlogBoostRefPages) *
-							Math.max(1, term.rows);
+							Math.max(1, cfg.backlogBoostRefPages) * Math.max(1, term.rows);
 						const backlogBoost = Math.min(
 							backlogLines / backlogRefLines,
 							cfg.backlogBoostMax,
@@ -613,7 +594,7 @@ export const createTouchScrollController = ({
 			releasePointerCapture();
 
 			if (state === 'Scrolling') {
-				if (copyModeState === 'on') {
+				if (scrollbackEnterState === 'on') {
 					state = 'ScrollbackActive';
 					emitScrollbackMode(true, 'active');
 					flushPendingLines({ force: true });
@@ -633,11 +614,16 @@ export const createTouchScrollController = ({
 				return;
 			}
 			if (activePointerId !== event.pointerId) return;
+			const requestId = pendingEnterRequestId ?? undefined;
 			pointerIsDown = false;
 			releasePointerCapture();
 			activePointerId = null;
-			state = scrollbackActive ? 'ScrollbackActive' : 'Idle';
-			resetPendingScroll();
+			if (scrollbackActive || pendingEnterRequestId != null) {
+				exitScrollback({ requestId });
+			} else {
+				state = 'Idle';
+				resetPendingScroll();
+			}
 		};
 
 		target.addEventListener('pointerdown', onPointerDown);
@@ -657,10 +643,9 @@ export const createTouchScrollController = ({
 	let removeListeners: (() => void) | undefined;
 
 	const setConfig = (next: TouchScrollConfig) => {
-		const prev = config;
 		const shouldEnable = Boolean(next?.enabled);
 		if (enabled && !shouldEnable) {
-			exitScrollback({ emitExit: true });
+			exitScrollback();
 		}
 		config = next;
 		if (shouldEnable !== enabled) {
@@ -676,51 +661,17 @@ export const createTouchScrollController = ({
 			}
 		}
 		updateDebugOverlay({ force: true });
-
-		if (
-			prev?.enabled &&
-			'prefixKey' in prev &&
-			'prefixKey' in next &&
-			(prev.prefixKey !== next.prefixKey ||
-				prev.copyModeKey !== next.copyModeKey ||
-				prev.cancelKey !== next.cancelKey)
-		) {
-			copyModeConfidence = 'uncertain';
-		}
 	};
 
-	const exitScrollback = (opts?: { emitExit?: boolean; requestId?: number }) => {
-		const emitExit = opts?.emitExit ?? true;
+	const exitScrollback = (opts?: { requestId?: number }) => {
 		const requestId = opts?.requestId;
 		resetPendingScroll();
-		pendingEnterRequestId = null;
+		clearPendingEnterRequest();
 		releasePointerCapture();
 		state = 'Idle';
 		pendingPointerUp = false;
 		pointerIsDown = false;
-		let recoveryRequested = false;
-
-		if (emitExit) {
-			const cfg = getActiveConfig();
-			if (cfg) {
-				const canSendCancel = isValidCancelKey(cfg.cancelKey);
-				if (!canSendCancel) {
-					emitDebug('cancelKey invalid; auto-exit disabled');
-				} else if (copyModeConfidence === 'confident') {
-					sendScrollInput(cfg.cancelKey);
-				} else {
-					entryIntent = 'recovery';
-					recoveryRequested = Boolean(beginCopyModeEntry('recovery'));
-					if (!recoveryRequested) entryIntent = null;
-				}
-			}
-		}
-
-		if (!recoveryRequested) {
-			copyModeState = 'off';
-			entryIntent = null;
-		}
-		copyModeConfidence = 'uncertain';
+		scrollbackEnterState = 'off';
 		emitScrollbackMode(false, scrollbackPhase, requestId);
 	};
 

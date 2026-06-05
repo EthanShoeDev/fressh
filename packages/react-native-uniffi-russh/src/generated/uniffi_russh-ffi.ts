@@ -164,6 +164,22 @@ interface NativeModuleInterface {
 		uniffi_out_err: UniffiRustCallStatus,
 	): void;
 	ubrn_ffi_uniffi_russh_rust_future_free_void(handle: bigint): void;
+	ubrn_uniffi_uniffi_russh_fn_clone_commandstreamcallback(
+		ptr: bigint,
+		uniffi_out_err: UniffiRustCallStatus,
+	): bigint;
+	ubrn_uniffi_uniffi_russh_fn_free_commandstreamcallback(
+		ptr: bigint,
+		uniffi_out_err: UniffiRustCallStatus,
+	): void;
+	ubrn_uniffi_uniffi_russh_fn_clone_commandstreamsession(
+		ptr: bigint,
+		uniffi_out_err: UniffiRustCallStatus,
+	): bigint;
+	ubrn_uniffi_uniffi_russh_fn_free_commandstreamsession(
+		ptr: bigint,
+		uniffi_out_err: UniffiRustCallStatus,
+	): void;
 	ubrn_uniffi_uniffi_russh_fn_clone_connectprogresscallback(
 		ptr: bigint,
 		uniffi_out_err: UniffiRustCallStatus,
@@ -220,6 +236,9 @@ interface NativeModuleInterface {
 		ptr: bigint,
 		uniffi_out_err: UniffiRustCallStatus,
 	): void;
+	ubrn_uniffi_uniffi_russh_fn_init_callback_vtable_commandstreamcallback(
+		vtable: UniffiVTableCallbackInterfaceUniffiRusshCommandStreamCallback,
+	): void;
 	ubrn_uniffi_uniffi_russh_fn_init_callback_vtable_connectprogresscallback(
 		vtable: UniffiVTableCallbackInterfaceUniffiRusshConnectProgressCallback,
 	): void;
@@ -236,6 +255,9 @@ interface NativeModuleInterface {
 		vtable: UniffiVTableCallbackInterfaceUniffiRusshShellListener,
 	): void;
 	ubrn_uniffi_uniffi_russh_fn_func_connect(options: Uint8Array): bigint;
+	ubrn_uniffi_uniffi_russh_fn_func_default_run_command_max_output_bytes(
+		uniffi_out_err: UniffiRustCallStatus,
+	): bigint;
 	ubrn_uniffi_uniffi_russh_fn_func_extract_public_key(
 		privateKeyContent: Uint8Array,
 		uniffi_out_err: UniffiRustCallStatus,
@@ -244,8 +266,23 @@ interface NativeModuleInterface {
 		keyType: Uint8Array,
 		uniffi_out_err: UniffiRustCallStatus,
 	): Uint8Array;
+	ubrn_uniffi_uniffi_russh_fn_func_max_run_command_max_output_bytes(
+		uniffi_out_err: UniffiRustCallStatus,
+	): bigint;
 	ubrn_uniffi_uniffi_russh_fn_func_validate_private_key(
 		privateKeyContent: Uint8Array,
+		uniffi_out_err: UniffiRustCallStatus,
+	): Uint8Array;
+	ubrn_uniffi_uniffi_russh_fn_method_commandstreamcallback_on_event(
+		uniffiSelf: bigint,
+		event: Uint8Array,
+		uniffi_out_err: UniffiRustCallStatus,
+	): void;
+	ubrn_uniffi_uniffi_russh_fn_method_commandstreamsession_close(
+		uniffiSelf: bigint,
+	): bigint;
+	ubrn_uniffi_uniffi_russh_fn_method_commandstreamsession_get_info(
+		uniffiSelf: bigint,
 		uniffi_out_err: UniffiRustCallStatus,
 	): Uint8Array;
 	ubrn_uniffi_uniffi_russh_fn_method_connectprogresscallback_on_change(
@@ -322,15 +359,28 @@ interface NativeModuleInterface {
 		uniffiSelf: bigint,
 		uniffi_out_err: UniffiRustCallStatus,
 	): Uint8Array;
+	ubrn_uniffi_uniffi_russh_fn_method_sshconnection_run_command(
+		uniffiSelf: bigint,
+		opts: Uint8Array,
+	): bigint;
+	ubrn_uniffi_uniffi_russh_fn_method_sshconnection_start_command_stream(
+		uniffiSelf: bigint,
+		opts: Uint8Array,
+	): bigint;
 	ubrn_uniffi_uniffi_russh_fn_method_sshconnection_start_shell(
 		uniffiSelf: bigint,
 		opts: Uint8Array,
 	): bigint;
 	ubrn_ffi_uniffi_russh_uniffi_contract_version(): number;
 	ubrn_uniffi_uniffi_russh_checksum_func_connect(): number;
+	ubrn_uniffi_uniffi_russh_checksum_func_default_run_command_max_output_bytes(): number;
 	ubrn_uniffi_uniffi_russh_checksum_func_extract_public_key(): number;
 	ubrn_uniffi_uniffi_russh_checksum_func_generate_key_pair(): number;
+	ubrn_uniffi_uniffi_russh_checksum_func_max_run_command_max_output_bytes(): number;
 	ubrn_uniffi_uniffi_russh_checksum_func_validate_private_key(): number;
+	ubrn_uniffi_uniffi_russh_checksum_method_commandstreamcallback_on_event(): number;
+	ubrn_uniffi_uniffi_russh_checksum_method_commandstreamsession_close(): number;
+	ubrn_uniffi_uniffi_russh_checksum_method_commandstreamsession_get_info(): number;
 	ubrn_uniffi_uniffi_russh_checksum_method_connectprogresscallback_on_change(): number;
 	ubrn_uniffi_uniffi_russh_checksum_method_connectiondisconnectedcallback_on_change(): number;
 	ubrn_uniffi_uniffi_russh_checksum_method_serverkeycallback_on_change(): number;
@@ -347,6 +397,8 @@ interface NativeModuleInterface {
 	ubrn_uniffi_uniffi_russh_checksum_method_shellsession_send_data(): number;
 	ubrn_uniffi_uniffi_russh_checksum_method_sshconnection_disconnect(): number;
 	ubrn_uniffi_uniffi_russh_checksum_method_sshconnection_get_info(): number;
+	ubrn_uniffi_uniffi_russh_checksum_method_sshconnection_run_command(): number;
+	ubrn_uniffi_uniffi_russh_checksum_method_sshconnection_start_command_stream(): number;
 	ubrn_uniffi_uniffi_russh_checksum_method_sshconnection_start_shell(): number;
 	ubrn_uniffi_internal_fn_method_connectprogresscallback_ffi__bless_pointer(
 		pointer: bigint,
@@ -360,7 +412,15 @@ interface NativeModuleInterface {
 		pointer: bigint,
 		uniffi_out_err: UniffiRustCallStatus,
 	): UniffiGcObject;
+	ubrn_uniffi_internal_fn_method_commandstreamcallback_ffi__bless_pointer(
+		pointer: bigint,
+		uniffi_out_err: UniffiRustCallStatus,
+	): UniffiGcObject;
 	ubrn_uniffi_internal_fn_method_shellclosedcallback_ffi__bless_pointer(
+		pointer: bigint,
+		uniffi_out_err: UniffiRustCallStatus,
+	): UniffiGcObject;
+	ubrn_uniffi_internal_fn_method_commandstreamsession_ffi__bless_pointer(
 		pointer: bigint,
 		uniffi_out_err: UniffiRustCallStatus,
 	): UniffiGcObject;
@@ -397,6 +457,21 @@ export type UniffiForeignFutureDroppedCallback = (handle: bigint) => void;
 export type UniffiForeignFutureDroppedCallbackStruct = {
 	handle: bigint;
 	free: UniffiForeignFutureDroppedCallback;
+};
+type UniffiCallbackInterfaceUniffiRusshCommandStreamCallbackMethod0 = (
+	uniffiHandle: bigint,
+	event: Uint8Array,
+) => UniffiResult<void>;
+type UniffiCallbackInterfaceCloneUniffiRusshCommandStreamCallback = (
+	handle: bigint,
+) => UniffiResult<void>;
+type UniffiCallbackInterfaceFreeUniffiRusshCommandStreamCallback = (
+	handle: bigint,
+) => void;
+export type UniffiVTableCallbackInterfaceUniffiRusshCommandStreamCallback = {
+	uniffi_free: UniffiCallbackInterfaceFreeUniffiRusshCommandStreamCallback;
+	uniffi_clone: UniffiCallbackInterfaceCloneUniffiRusshCommandStreamCallback;
+	on_event: UniffiCallbackInterfaceUniffiRusshCommandStreamCallbackMethod0;
 };
 type UniffiCallbackInterfaceUniffiRusshConnectProgressCallbackMethod0 = (
 	uniffiHandle: bigint,

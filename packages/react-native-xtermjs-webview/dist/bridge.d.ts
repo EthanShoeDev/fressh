@@ -1,52 +1,97 @@
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
 type ITerminalInitOnlyOptions = import('@xterm/xterm').ITerminalInitOnlyOptions;
-export type BridgeInboundMessage = {
+type BridgeLoad = {
+    bridgeLoadId: number;
+};
+type BridgeGeneration = BridgeLoad & {
+    bridgeLoadToken: string;
+};
+type LegacyBridgeGeneration = {
+    bridgeStartedAt?: number;
+};
+export type BridgeInboundMessage = ({
+    type: 'documentStarted';
+    bridgeLoadToken: string;
+} & BridgeLoad) | ({
     type: 'initialized';
     instanceId: string;
-} | {
+} & BridgeGeneration) | {
     type: 'input';
     str: string;
     instanceId: string;
-    kind?: 'typing' | 'scroll';
-} | {
+    kind?: 'typing';
+} & BridgeGeneration | {
     type: 'debug';
     message: string;
-} | {
+} | ({
     type: 'sizeChanged';
     cols: number;
     rows: number;
-} | {
+    instanceId: string;
+} & BridgeGeneration) | ({
     type: 'selection';
     requestId: number;
     text: string;
     instanceId: string;
-} | {
+} & BridgeGeneration) | ({
     type: 'selectionChanged';
     text: string;
     instanceId: string;
-} | {
+} & BridgeGeneration) | ({
     type: 'selectionModeChanged';
     enabled: boolean;
     instanceId: string;
-} | {
+} & BridgeGeneration) | {
     type: 'scrollbackModeChanged';
     active: boolean;
     phase: 'dragging' | 'active';
     instanceId: string;
     requestId?: number;
-} | {
+} & BridgeGeneration | ({
+    type: 'scrollbackEnterRequested';
+    instanceId: string;
+    requestId: number;
+} & BridgeGeneration) | ({
     type: 'tmuxEnterCopyMode';
     instanceId: string;
     requestId: number;
-} | {
+} & BridgeGeneration) | {
+    type: 'scrollbackBatch';
+    direction: 'up' | 'down';
+    pages: number;
+    lines: number;
+    pageStep: number;
+    instanceId: string;
+    seq?: number;
+    ts?: number;
+} & BridgeGeneration | {
     type: 'tmuxScrollBatch';
     direction: 'up' | 'down';
     pages: number;
     lines: number;
+    pageStep?: number;
+    instanceId: string;
+    seq?: number;
+    ts?: number;
+} & BridgeGeneration;
+type WithOptionalBridgeGeneration<T> = T extends BridgeGeneration ? Omit<T, keyof BridgeGeneration> & Partial<BridgeGeneration> & LegacyBridgeGeneration : T extends BridgeLoad ? Omit<T, keyof BridgeLoad> & Partial<BridgeLoad> : T;
+export type BridgeInboundDraftMessage = WithOptionalBridgeGeneration<BridgeInboundMessage>;
+export type ScrollbackBatchBridgeMessage = Extract<BridgeInboundDraftMessage, {
+    type: 'scrollbackBatch' | 'tmuxScrollBatch';
+}>;
+export type ScrollbackBatchEvent = {
+    direction: 'up' | 'down';
+    pages: number;
+    lines: number;
+    pageStep: number;
     instanceId: string;
     seq?: number;
     ts?: number;
 };
+/** @deprecated Use ScrollbackBatchEvent. Legacy tmux batches are normalized to the scrollback event shape. */
+export type TmuxScrollBatchEvent = ScrollbackBatchEvent;
+export declare function mapScrollbackBatchMessage(msg: ScrollbackBatchBridgeMessage): ScrollbackBatchEvent;
+export declare function handleScrollbackBatchBridgeMessage(msg: BridgeInboundDraftMessage, onScrollbackBatch?: (event: ScrollbackBatchEvent) => void): msg is ScrollbackBatchBridgeMessage;
 export type TouchScrollConfig = {
     enabled: false;
 } | {
@@ -56,11 +101,6 @@ export type TouchScrollConfig = {
     maxLinesPerFrame?: number;
     flickVelocity?: number;
     invertScroll?: boolean;
-    enterDelayMs?: number;
-    prefixKey?: string;
-    copyModeKey?: string;
-    exitKey?: string;
-    cancelKey?: string;
     coalesceMs?: number;
     minFlushMs?: number;
     maxFlushMs?: number;
@@ -104,8 +144,13 @@ export type BridgeOutboundMessage = {
     config: TouchScrollConfig;
 } | {
     type: 'exitScrollback';
-    emitExit?: boolean;
     requestId?: number;
+    instanceId?: string;
+    emitExit?: boolean;
+} | {
+    type: 'scrollbackEnterAck';
+    requestId: number;
+    instanceId: string;
 } | {
     type: 'tmuxEnterCopyModeAck';
     requestId: number;

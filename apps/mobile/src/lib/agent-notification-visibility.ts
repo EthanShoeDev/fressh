@@ -1,7 +1,10 @@
 import { createAgentNotificationRouteIdentityKey } from './agent-notification-route';
-import { buildTmuxCurrentWindowIdCommand } from './host-browser-actions';
 import { rootLogger } from './logger';
-import { buildTmuxSelectWindowCommand } from './tmux-scrollback';
+import {
+	buildWorkmuxAppNotificationOpenCommand,
+	buildWorkmuxAppWindowCommand,
+	parseWorkmuxAppWindowOutput,
+} from './workmux-app-commands';
 
 const logger = rootLogger.extend('AgentNotificationVisibility');
 
@@ -148,7 +151,7 @@ export async function handleAgentNotificationRoute({
 
 	try {
 		await runCommand(
-			buildTmuxSelectWindowCommand(session, agentWindowId),
+			buildWorkmuxAppNotificationOpenCommand(session, agentWindowId),
 			10_000,
 		);
 		markRouteHandled(routeKey);
@@ -259,14 +262,10 @@ async function acknowledgeVisibleAgentNotificationOnce({
 		const channelIdSnapshot = channelId;
 		const sessionNameSnapshot = sessionName;
 		const output = await runCommand(
-			buildTmuxCurrentWindowIdCommand(sessionName),
+			buildWorkmuxAppWindowCommand(sessionName),
 			10_000,
 		);
-		const windowId = output
-			.split(/\r?\n/)
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.at(-1);
+		const { windowId } = parseWorkmuxAppWindowOutput(output);
 		const visibility = getVisibility();
 		if (!windowId || !visibility.isFocused || !visibility.isAppActive) return;
 		if (!isCurrentRequest(requestId)) return;

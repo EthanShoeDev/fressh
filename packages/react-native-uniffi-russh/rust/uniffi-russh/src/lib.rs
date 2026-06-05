@@ -6,6 +6,8 @@
 //! - https://jhugman.github.io/uniffi-bindgen-react-native/idioms/async-callbacks.html
 
 pub mod private_key;
+mod ssh_channel;
+pub mod ssh_command;
 pub mod ssh_connection;
 pub mod ssh_shell;
 pub mod utils;

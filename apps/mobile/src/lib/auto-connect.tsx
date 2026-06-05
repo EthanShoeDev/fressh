@@ -1,4 +1,3 @@
-import { SshError_Tags } from '@fressh/react-native-uniffi-russh';
 import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
 import { AppState, Platform } from 'react-native';
@@ -34,6 +33,7 @@ import {
 	type InputConnectionDetails,
 	type StoredConnectionDetails,
 } from './secrets-manager';
+import { extractTmuxAttachFailureReason } from './ssh-error-details';
 import { useSshStore } from './ssh-store';
 import { AbortSignalTimeout, queryClient } from './utils';
 
@@ -109,8 +109,9 @@ export function AutoConnectManager() {
 	const reconnectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
-	const foregroundStartRetryTimerRef =
-		React.useRef<ReturnType<typeof setTimeout> | null>(null);
+	const foregroundStartRetryTimerRef = React.useRef<ReturnType<
+		typeof setTimeout
+	> | null>(null);
 	const foregroundStartFailureCountRef = React.useRef(0);
 	const [foregroundStartRetryNonce, setForegroundStartRetryNonce] =
 		React.useState(0);
@@ -277,12 +278,13 @@ export function AutoConnectManager() {
 					navigateToShell(activeConnection.connectionId, shellHandle.channelId);
 					return true;
 				} catch (error) {
-					const err = error as { tag?: string };
-					if (err?.tag === SshError_Tags.TmuxAttachFailed) {
+					const tmuxAttachFailureReason = extractTmuxAttachFailureReason(error);
+					if (tmuxAttachFailureReason !== null) {
 						logger.info(
 							'Tmux attach failed while reopening shell on active connection',
 							{
 								connectionId: activeConnection.connectionId,
+								tmuxAttachFailureReason,
 								tmuxSessionName,
 							},
 						);
@@ -322,6 +324,7 @@ export function AutoConnectManager() {
 			if (result.status === 'tmux_attach_failed') {
 				logger.info('Auto-connect tmux attach failed, will retry', {
 					connectionId: result.connectionId,
+					tmuxAttachFailureReason: result.tmuxAttachFailureReason,
 					tmuxSessionName: result.tmuxSessionName,
 				});
 				return false;
@@ -521,8 +524,7 @@ export function AutoConnectManager() {
 						shellCount: useSshStore.getState().shells
 							? Object.keys(useSshStore.getState().shells).length
 							: 0,
-						isAutoConnecting:
-							useAutoConnectStore.getState().isAutoConnecting,
+						isAutoConnecting: useAutoConnectStore.getState().isAutoConnecting,
 						isReconnecting: useAutoConnectStore.getState().isReconnecting,
 					}),
 					failedAttempts: foregroundStartFailureCountRef.current,

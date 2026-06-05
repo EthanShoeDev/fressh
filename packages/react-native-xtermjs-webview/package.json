@@ -1,7 +1,7 @@
 {
   "name": "@fressh/react-native-xtermjs-webview",
   "private": false,
-  "version": "0.0.8",
+  "version": "0.0.9",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -43,7 +43,7 @@
     "lint:check": "eslint --max-warnings 0 --report-unused-disable-directives .",
     "test": "tsx --test src-internal/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "build": "pnpm run build:main && pnpm run build:internal",
+    "build": "pnpm run build:internal && pnpm run build:main",
     "build:main": "tsc -b && vite build",
     "build:internal": "tsc -b && vite build --config vite.config.internal.ts",
     "dev": "vite --config vite.config.internal.ts",
