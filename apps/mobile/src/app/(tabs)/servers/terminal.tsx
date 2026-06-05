@@ -39,8 +39,9 @@ import { KeyboardEvents } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { rootLogger } from '@/lib/logger';
-import { useTerminalRenderConfig } from '@/lib/preferences';
+import { preferences, useTerminalRenderConfig } from '@/lib/preferences';
 import { useSshStore } from '@/lib/ssh-store';
+import { JS_TAB_BAR_HEIGHT } from '@/lib/tab-bar-config';
 import { useContextSafe } from '@/lib/utils';
 
 type TerminalRenderConfig = ReturnType<typeof useTerminalRenderConfig>;
@@ -118,9 +119,16 @@ function ShellDetail() {
 		const show = KeyboardEvents.addListener('keyboardDidShow', (e) =>
 			setKeyboardHeight(e.height),
 		);
-		const hide = KeyboardEvents.addListener('keyboardDidHide', () =>
-			setKeyboardHeight(0),
-		);
+		const hide = KeyboardEvents.addListener('keyboardDidHide', () => {
+			setKeyboardHeight(0);
+			// Keep RN's JS-side focus state in sync with the actual keyboard: a manual
+			// dismiss (keyboard's hide button / back gesture) hides the IME WITHOUT
+			// blurring the hidden input, so RN still thinks it's focused and a later
+			// onTapEmpty -> focus() is a no-op (no state change to re-open the IME).
+			// Blurring here guarantees the next tap is a real unfocused->focused
+			// transition, which reliably brings the keyboard back up.
+			inputRef.current?.blur();
+		});
 		return () => {
 			show.remove();
 			hide.remove();
@@ -128,22 +136,33 @@ function ShellDetail() {
 	}, []);
 
 	// The toolbar's marginBottom must clear the keyboard's overlap with THIS column,
-	// not the whole screen. The column's bottom sits above the native bottom tab bar
-	// (expo-router NativeTabs), so we measure the space below the column (tab bar +
-	// nav inset) and subtract it from the screen-relative keyboard height — otherwise
-	// the toolbar floats a tab-bar-height above the keyboard. (keyboardHeight is
-	// measured from the screen bottom; measureInWindow + window height give us the
-	// reserved space below the column.)
+	// not the whole screen. The column's bottom sits above the bottom tab bar, so we
+	// subtract the space below the column (tab bar + nav inset) from the
+	// screen-relative keyboard height — otherwise the toolbar floats a tab-bar-height
+	// above the keyboard. (keyboardHeight is measured from the screen bottom.)
+	//
+	// With the JS tab bar that reserved space is known *by construction*
+	// (JS_TAB_BAR_HEIGHT + the bottom inset the bar pads itself with), so we use it
+	// directly — exact, no measurement timing. The native bar doesn't expose its
+	// height to JS (see docs/toolbar-keyboard-by-construction.md + rns#3627), so for
+	// it we keep measuring the column via measureInWindow.
+	const [tabBarImpl] = preferences.tabBarImpl.useTabBarImplPref();
 	const windowHeight = useWindowDimensions().height;
 	const columnRef = useRef<View>(null);
-	const [bottomReserved, setBottomReserved] = useState(insets.bottom);
+	const [measuredBottomReserved, setMeasuredBottomReserved] = useState(
+		insets.bottom,
+	);
 	const measureColumn = useCallback(() => {
 		columnRef.current?.measureInWindow((_x, y, _w, h) => {
 			if (h > 0) {
-				setBottomReserved(Math.max(0, windowHeight - (y + h)));
+				setMeasuredBottomReserved(Math.max(0, windowHeight - (y + h)));
 			}
 		});
 	}, [windowHeight]);
+	const bottomReserved =
+		tabBarImpl === 'js'
+			? JS_TAB_BAR_HEIGHT + insets.bottom
+			: measuredBottomReserved;
 	const toolbarMarginBottom =
 		keyboardHeight > 0
 			? Math.max(keyboardHeight - bottomReserved, insets.bottom)

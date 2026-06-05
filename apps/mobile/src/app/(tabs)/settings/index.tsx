@@ -2,20 +2,26 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { ScreenHeader } from '@/components/themed/ScreenHeader';
 import { ThemedScreen } from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
-import { LinkRow, Section } from '@/components/settings-controls';
+import { LinkRow, Section, Segmented } from '@/components/settings-controls';
+import { preferences } from '@/lib/preferences';
+import type { TabBarImpl } from '@/lib/tab-bar-config';
 import { APP_THEMES, useAppTheme, type ThemeSwatch } from '@/lib/theme';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
 
+const TAB_BAR_OPTIONS: readonly { id: TabBarImpl; label: string }[] = [
+	{ id: 'native', label: 'Native' },
+	{ id: 'js', label: 'Custom' },
+];
+
 export default function Tab() {
 	const { themeName, setThemeName } = useAppTheme();
+	const [tabBarImpl, setTabBarImpl] =
+		preferences.tabBarImpl.useTabBarImplPref();
 
 	return (
 		<ThemedScreen edges={['top']}>
 			<ScreenHeader title='Settings' />
-			<ScrollView
-				className='flex-1'
-				contentContainerClassName='px-4 pb-4 pt-2'
-			>
+			<ScrollView className='flex-1' contentContainerClassName='px-4 pb-4 pt-2'>
 				<Section title='Theme'>
 					<View className='flex-row flex-wrap justify-between gap-y-3'>
 						{APP_THEMES.map((appTheme) => (
@@ -30,6 +36,14 @@ export default function Tab() {
 							/>
 						))}
 					</View>
+				</Section>
+
+				<Section title='Tab bar'>
+					<Segmented
+						options={TAB_BAR_OPTIONS}
+						value={tabBarImpl}
+						onChange={setTabBarImpl}
+					/>
 				</Section>
 
 				{/* Manage Keys moved to its own bottom-nav tab; Security section dropped. */}
@@ -74,7 +88,9 @@ function ThemeCard({
 					{applyCase(skin, label)}
 				</ThemedText>
 				{selected ? (
-					<ThemedText className='text-sm font-extrabold text-primary'>✓</ThemedText>
+					<ThemedText className='text-sm font-extrabold text-primary'>
+						✓
+					</ThemedText>
 				) : null}
 			</View>
 		</Pressable>
@@ -99,7 +115,10 @@ function ThemeSwatchPreview({
 				borderRadius: radius,
 			}}
 		>
-			<ThemedText className='text-[13px] font-bold' style={{ color: swatch.accent }}>
+			<ThemedText
+				className='text-[13px] font-bold'
+				style={{ color: swatch.accent }}
+			>
 				{'>_'}
 			</ThemedText>
 			<View className='flex-1 gap-1'>
@@ -109,7 +128,11 @@ function ThemeSwatchPreview({
 				/>
 				<View
 					className='h-1 rounded-full'
-					style={{ width: '45%', backgroundColor: swatch.accent2, opacity: 0.6 }}
+					style={{
+						width: '45%',
+						backgroundColor: swatch.accent2,
+						opacity: 0.6,
+					}}
 				/>
 			</View>
 		</View>

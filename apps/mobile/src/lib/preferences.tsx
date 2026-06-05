@@ -5,9 +5,20 @@ import {
 	useMMKVNumber,
 	useMMKVString,
 } from 'react-native-mmkv';
+import {
+	DEFAULT_TAB_BAR_IMPL,
+	type TabBarImpl,
+} from './tab-bar-config';
 import type { AppThemeName } from './theme';
 
-const storage = createMMKV({ id: 'settings' });
+// IMPORTANT: this must be the SAME instance the `useMMKV*` hooks use. Those hooks,
+// when called without an explicit instance, fall back to MMKV's *default* instance
+// (`getDefaultMMKVInstance()`), so the imperative `get`/`set` here must use that same
+// default instance — otherwise reads/writes split across two stores. (They did: a
+// named `{ id: 'settings' }` instance here vs. the default instance in the hooks meant
+// `theme.get()` at startup never saw what the theme picker saved.) We pass `storage`
+// explicitly to every hook below so the two paths can never diverge again.
+const storage = createMMKV();
 
 const APP_THEME_NAMES = [
 	'phosphor',
@@ -79,11 +90,41 @@ export const preferences = {
 			storage.set(preferences.theme._key, name);
 		},
 		useThemePref: (): [AppThemeName, (name: AppThemeName) => void] => {
-			const [theme, setTheme] = useMMKVString(preferences.theme._key);
+			const [theme, setTheme] = useMMKVString(
+				preferences.theme._key,
+				storage,
+			);
 			return [
 				preferences.theme._resolve(theme),
 				(name: AppThemeName) => {
 					setTheme(name);
+				},
+			] as const;
+		},
+		/** DEBUG: raw stored value (undefined if MMKV has nothing / isn't ready). */
+		peekRaw: (): string | undefined =>
+			storage.getString(preferences.theme._key),
+	},
+	tabBarImpl: {
+		_key: 'tabBarImpl',
+		_resolve: (raw: string | undefined): TabBarImpl =>
+			raw === 'native' || raw === 'js' ? raw : DEFAULT_TAB_BAR_IMPL,
+		get: (): TabBarImpl =>
+			preferences.tabBarImpl._resolve(
+				storage.getString(preferences.tabBarImpl._key),
+			),
+		set: (impl: TabBarImpl) => {
+			storage.set(preferences.tabBarImpl._key, impl);
+		},
+		useTabBarImplPref: (): [TabBarImpl, (impl: TabBarImpl) => void] => {
+			const [impl, setImpl] = useMMKVString(
+				preferences.tabBarImpl._key,
+				storage,
+			);
+			return [
+				preferences.tabBarImpl._resolve(impl),
+				(next: TabBarImpl) => {
+					setImpl(next);
 				},
 			] as const;
 		},
@@ -104,7 +145,10 @@ export const preferences = {
 			ShellListViewMode,
 			(mode: ShellListViewMode) => void,
 		] => {
-			const [mode, setMode] = useMMKVString(preferences.shellListViewMode._key);
+			const [mode, setMode] = useMMKVString(
+				preferences.shellListViewMode._key,
+				storage,
+			);
 			return [
 				preferences.shellListViewMode._resolve(mode),
 				(mode: 'flat' | 'grouped') => {
@@ -128,7 +172,10 @@ export const preferences = {
 			);
 		},
 		useTerminalFontSizePref: (): [number, (size: number) => void] => {
-			const [size, setSize] = useMMKVNumber(preferences.terminalFontSize._key);
+			const [size, setSize] = useMMKVNumber(
+				preferences.terminalFontSize._key,
+				storage,
+			);
 			return [
 				preferences.terminalFontSize._resolve(size),
 				(next: number) => {
@@ -154,6 +201,7 @@ export const preferences = {
 		useTerminalPaddingPref: (): [number, (padding: number) => void] => {
 			const [padding, setPadding] = useMMKVNumber(
 				preferences.terminalPadding._key,
+				storage,
 			);
 			return [
 				preferences.terminalPadding._resolve(padding),
@@ -180,6 +228,7 @@ export const preferences = {
 		useTerminalScrollbackPref: (): [number, (lines: number) => void] => {
 			const [lines, setLines] = useMMKVNumber(
 				preferences.terminalScrollback._key,
+				storage,
 			);
 			return [
 				preferences.terminalScrollback._resolve(lines),
@@ -208,6 +257,7 @@ export const preferences = {
 		] => {
 			const [id, setId] = useMMKVString(
 				preferences.terminalColorScheme._key,
+				storage,
 			);
 			return [
 				preferences.terminalColorScheme._resolve(id),
@@ -236,6 +286,7 @@ export const preferences = {
 		] => {
 			const [id, setId] = useMMKVString(
 				preferences.terminalCursorStyle._key,
+				storage,
 			);
 			return [
 				preferences.terminalCursorStyle._resolve(id),
@@ -258,6 +309,7 @@ export const preferences = {
 		useTerminalBoldIsBrightPref: (): [boolean, (enabled: boolean) => void] => {
 			const [enabled, setEnabled] = useMMKVBoolean(
 				preferences.terminalBoldIsBright._key,
+				storage,
 			);
 			return [
 				preferences.terminalBoldIsBright._resolve(enabled),

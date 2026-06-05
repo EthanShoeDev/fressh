@@ -108,7 +108,7 @@ half4 main(float2 xy) {
   return half4(a, a, a, a);
 }`;
 
-function Scanlines() {
+export function Scanlines() {
 	const effect = useMemo(() => Skia.RuntimeEffect.Make(SCANLINE_SKSL), []);
 	if (!effect) {
 		return null;
