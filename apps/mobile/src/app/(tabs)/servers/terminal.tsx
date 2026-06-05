@@ -41,7 +41,9 @@ import { useCSSVariable } from 'uniwind';
 import { rootLogger } from '@/lib/logger';
 import { preferences, useTerminalRenderConfig } from '@/lib/preferences';
 import { useSshStore } from '@/lib/ssh-store';
+import { ThemedText } from '@/components/themed/ThemedText';
 import { JS_TAB_BAR_HEIGHT } from '@/lib/tab-bar-config';
+import { applyCase, useThemeSkin } from '@/lib/theme-skin';
 import { useContextSafe } from '@/lib/utils';
 
 type TerminalRenderConfig = ReturnType<typeof useTerminalRenderConfig>;
@@ -102,7 +104,6 @@ function ShellDetail() {
 
 	const router = useRouter();
 	const insets = useSafeAreaInsets();
-	const textPrimaryColor = useCSSVariable('--color-text-primary') as string;
 
 	// Settled keyboard height (dp), from KC's did-show/did-hide (NOT the per-frame
 	// animation). The window does NOT shrink for the IME on this edge-to-edge build,
@@ -236,10 +237,13 @@ function ShellDetail() {
 				options={{
 					headerBackVisible: true,
 					title: `${connection?.connectionDetails.username}@${connection?.connectionDetails.host}`,
+					headerTitle: () => (
+						<ShellHeaderTitle
+							title={`${connection?.connectionDetails.username}@${connection?.connectionDetails.host}`}
+						/>
+					),
 					headerRight: () => (
-						<Pressable
-							accessibilityLabel='Close Shell'
-							hitSlop={10}
+						<CloseShellButton
 							onPress={async () => {
 								logger.info('Close Shell button pressed');
 								if (!shell) {
@@ -251,11 +255,7 @@ function ShellDetail() {
 									logger.warn('Failed to close shell', error);
 								}
 							}}
-							className='flex-row items-center gap-1'
-						>
-							<Ionicons name='close' size={20} color={textPrimaryColor} />
-							<Text className='text-text-primary'>Close Shell</Text>
-						</Pressable>
+						/>
 					),
 				}}
 			/>
@@ -480,9 +480,119 @@ const KeyboardToolBarContext = createContext<KeyboardToolbarContextType | null>(
 	null,
 );
 
-function KeyboardToolbar() {
+/**
+ * The native stack header's title for the shell — the `user@host` string in the
+ * theme's mono voice, led by a glowing accent "live" dot, so it reads as a live
+ * terminal session and matches the theme rather than the bare system title.
+ */
+function ShellHeaderTitle({ title }: { title: string }) {
+	const skin = useThemeSkin();
+	const [textPrimary, primary] = useCSSVariable([
+		'--color-text-primary',
+		'--color-primary',
+	]) as [string, string];
 	return (
-		<View className='h-[100px] border border-border'>
+		<View className='flex-row items-center gap-2'>
+			<View
+				style={{
+					width: 7,
+					height: 7,
+					borderRadius: 4,
+					backgroundColor: primary,
+					boxShadow: skin.glow || undefined,
+				}}
+			/>
+			<ThemedText
+				mono
+				numberOfLines={1}
+				style={{
+					color: textPrimary,
+					fontSize: 16,
+					fontWeight: '700',
+					letterSpacing: skin.tracking || undefined,
+				}}
+			>
+				{applyCase(skin, title)}
+			</ThemedText>
+		</View>
+	);
+}
+
+/**
+ * Themed header action that ends the shell, in each theme's voice:
+ * - Brutalist (Monolith / `edgeToEdge`): a borderless `[ × CLOSE ]` in danger mono
+ *   with bracket glyphs — matching the design's `[<x/>CLOSE]` convention.
+ * - Everything else: a danger-tinted rounded pill.
+ */
+function CloseShellButton({ onPress }: { onPress: () => void }) {
+	const skin = useThemeSkin();
+	const danger = useCSSVariable('--color-danger') as string;
+
+	if (skin.edgeToEdge) {
+		const bracket = {
+			color: danger,
+			fontSize: 13,
+			fontWeight: '700' as const,
+			letterSpacing: skin.tracking || undefined,
+		};
+		return (
+			<Pressable
+				accessibilityLabel='Close Shell'
+				hitSlop={10}
+				onPress={onPress}
+				className='flex-row items-center gap-1.5 pl-1'
+				// The native header pins headerRight to the right edge and lays it out by
+				// frame, so interior right-padding doesn't create a visible gap from the
+				// edge — a right margin moves the whole bracket group inward instead.
+				style={{ marginRight: 12 }}
+			>
+				<ThemedText mono style={bracket}>
+					[
+				</ThemedText>
+				<Ionicons name='close' size={13} color={danger} />
+				<ThemedText mono style={bracket}>
+					CLOSE]
+				</ThemedText>
+			</Pressable>
+		);
+	}
+
+	return (
+		<Pressable
+			accessibilityLabel='Close Shell'
+			hitSlop={10}
+			onPress={onPress}
+			className='flex-row items-center gap-1.5 px-2.5 py-1.5'
+			style={{ borderRadius: skin.controlRadius, borderWidth: 1, borderColor: danger }}
+		>
+			<Ionicons name='close' size={15} color={danger} />
+			<ThemedText style={{ color: danger, fontSize: 13, fontWeight: '600' }}>
+				{applyCase(skin, 'Close')}
+			</ThemedText>
+		</Pressable>
+	);
+}
+
+function KeyboardToolbar() {
+	const [terminalBg, border] = useCSSVariable([
+		'--color-terminal-background',
+		'--color-border',
+	]) as [string, string];
+	// Match the design's accessory bar: a hairline-topped strip in the terminal's
+	// own colour, holding two rows of rounded, spaced keys (styled per button).
+	return (
+		<View
+			style={{
+				height: 100,
+				borderTopWidth: 1,
+				borderTopColor: border,
+				backgroundColor: terminalBg,
+				paddingHorizontal: 10,
+				paddingTop: 8,
+				paddingBottom: 6,
+				gap: 7,
+			}}
+		>
 			<KeyboardToolbarRow>
 				<KeyboardToolbarButtonPreset preset='esc' />
 				<KeyboardToolbarButtonPreset preset='/' />
@@ -506,7 +616,11 @@ function KeyboardToolbar() {
 }
 
 function KeyboardToolbarRow({ children }: { children?: React.ReactNode }) {
-	return <View className='flex-1 flex-row'>{children}</View>;
+	return (
+		<View className='flex-1 flex-row' style={{ gap: 7 }}>
+			{children}
+		</View>
+	);
 }
 
 type KeyboardToolbarButtonPresetType =
@@ -657,29 +771,52 @@ function KeyboardToolbarButton({
 	style,
 	...props
 }: KeyboardToolbarButtonProps & { style?: StyleProp<ViewStyle> }) {
-	const textPrimaryColor = useCSSVariable('--color-text-primary') as string;
+	const skin = useThemeSkin();
+	const [textPrimaryColor, surface, border, primary, onPrimary] =
+		useCSSVariable([
+			'--color-text-primary',
+			'--color-surface',
+			'--color-border',
+			'--color-primary',
+			'--color-button-text-on-primary',
+		]) as [string, string, string, string, string];
 	const { sendBytes, modifierKeysActive, setModifierKeysActive } =
 		useContextSafe(KeyboardToolBarContext);
-
-	const isTextLabel = 'label' in props;
-	const children = isTextLabel ? (
-		<Text className='text-text-primary'>{props.label}</Text>
-	) : (
-		<Ionicons name={props.iconName} size={20} color={textPrimaryColor} />
-	);
 
 	const modifierActive =
 		props.type === 'modifier' &&
 		modifierKeysActive.some((m) => propsToKey(m) === propsToKey(props));
 
+	const fg = modifierActive ? onPrimary : textPrimaryColor;
+	const isTextLabel = 'label' in props;
+	const children = isTextLabel ? (
+		<Text
+			style={{
+				color: fg,
+				fontSize: 13,
+				fontWeight: '600',
+				fontFamily: skin.monoFamily,
+			}}
+		>
+			{props.label}
+		</Text>
+	) : (
+		<Ionicons name={props.iconName} size={20} color={fg} />
+	);
+
 	return (
 		<Pressable
-			className={
-				modifierActive
-					? 'flex-1 items-center justify-center border border-border bg-primary'
-					: 'flex-1 items-center justify-center border border-border'
-			}
-			style={style}
+			className='flex-1 items-center justify-center'
+			style={[
+				{
+					borderRadius: skin.controlRadius,
+					borderWidth: 1,
+					borderColor: modifierActive ? primary : border,
+					backgroundColor: modifierActive ? primary : surface,
+					boxShadow: modifierActive && skin.glow ? skin.glow : undefined,
+				},
+				style,
+			]}
 			onPress={() => {
 				if (props.type === 'modifier') {
 					setModifierKeysActive((modifierKeysActive) =>
