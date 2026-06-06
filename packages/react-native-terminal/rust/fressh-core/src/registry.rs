@@ -46,3 +46,10 @@ pub(crate) fn shells_for_connection(connection_id: &str) -> Vec<Arc<ShellSession
 pub fn shell_term(shell_id: &str) -> Option<SharedTerm> {
 	SHELLS.get(shell_id).map(|e| e.term.clone())
 }
+
+/// Render-plane accessor: time (ms) since the shell last received user input.
+/// Drives the cursor blink timeout/reset; read once per frame alongside the
+/// `Term`. `None` if the shell is gone.
+pub fn shell_input_idle_ms(shell_id: &str) -> Option<u64> {
+	SHELLS.get(shell_id).map(|e| e.input_idle_ms())
+}

@@ -128,6 +128,15 @@ pub enum SelectionKind {
 	Line,
 }
 
+/// Seed a shell's `Term` default cursor blink (the `On`/`Off` default a program
+/// can override). Called by the render plane when the blink config is applied, so
+/// `On`/`Always` start blinking on already-open shells. No-op if the shell is gone.
+pub fn set_cursor_default_blinking(shell_id: &str, blinking: bool) {
+	if let Some(shell) = registry::shell(shell_id) {
+		shell.set_cursor_default_blinking(blinking);
+	}
+}
+
 /// Record the renderer's current cell metrics for a shell. Still called by the
 /// render plane on resize; retained for diagnostics (the touch mapping works in
 /// grid fractions now and no longer reads these).

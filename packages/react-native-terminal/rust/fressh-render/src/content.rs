@@ -34,11 +34,15 @@ pub struct CursorRender {
 /// is a later optimization). `draw_bold_bright` mirrors the config option;
 /// `cursor_style` overrides the shape we render (matching the embedder config —
 /// program DECSCUSR shape is intentionally ignored for predictability).
+/// `blink_on` is the driver-computed blink visibility (`false` hides the cursor
+/// for the dark half of a blink cycle); it folds into the cursor visibility so
+/// both the block and non-block draw sites honour it.
 pub fn renderable_cells<T: EventListener>(
 	term: &Term<T>,
 	palette: &Palette,
 	draw_bold_bright: bool,
 	cursor_style: CursorStyle,
+	blink_on: bool,
 ) -> (Vec<RenderableCell>, Option<CursorRender>) {
 	let content = term.renderable_content();
 	let overrides = content.colors;
@@ -47,7 +51,7 @@ pub fn renderable_cells<T: EventListener>(
 	// we read it here to reverse-video the selected cells.
 	let selection = content.selection;
 	let cursor = content.cursor;
-	let cursor_visible = cursor.shape != CursorShape::Hidden;
+	let cursor_visible = cursor.shape != CursorShape::Hidden && blink_on;
 	let cursor_color = palette.color(overrides, NamedColor::Cursor as usize);
 
 	// Non-block cursors are overlaid as rects after the cells are drawn. Resolve
@@ -233,7 +237,7 @@ mod tests {
 		parser.advance(&mut term, b"hi\x1b[31mX");
 
 		let palette = Palette::new(&ColorScheme::default());
-		let (cells, _cursor) = renderable_cells(&term, &palette, true, CursorStyle::Block);
+		let (cells, _cursor) = renderable_cells(&term, &palette, true, CursorStyle::Block, true);
 
 		let row0: String =
 			cells.iter().filter(|c| c.point.line == 0).map(|c| c.character).collect();

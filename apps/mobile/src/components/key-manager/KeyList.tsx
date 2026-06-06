@@ -144,9 +144,7 @@ export function KeyList(props: {
 				{body}
 			</ScrollView>
 
-			{importOpen ? (
-				<ImportSheet onClose={() => setImportOpen(false)} />
-			) : null}
+			{importOpen ? <ImportSheet onClose={() => setImportOpen(false)} /> : null}
 
 			{props.mode === 'manage' && detailEntry ? (
 				<KeyDetailSheet
@@ -160,10 +158,7 @@ export function KeyList(props: {
 			) : null}
 
 			{props.mode === 'manage' && renameEntry ? (
-				<RenameDialog
-					entry={renameEntry}
-					onClose={() => setRenameId(null)}
-				/>
+				<RenameDialog entry={renameEntry} onClose={() => setRenameId(null)} />
 			) : null}
 		</View>
 	);
@@ -184,7 +179,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 	);
 }
 
-function KeyGlyph({ isDefault, size = 42 }: { isDefault?: boolean; size?: number }) {
+function KeyGlyph({
+	isDefault,
+	size = 42,
+}: {
+	isDefault?: boolean;
+	size?: number;
+}) {
 	const skin = useThemeSkin();
 	const primary = useCSSVariable('--color-primary') as string;
 	return (
@@ -226,13 +227,7 @@ function DefaultBadge() {
 	);
 }
 
-function KeyCard({
-	entry,
-	onPress,
-}: {
-	entry: KeyEntry;
-	onPress: () => void;
-}) {
+function KeyCard({ entry, onPress }: { entry: KeyEntry; onPress: () => void }) {
 	const cardStyle = useSurfaceStyle({ glow: entry.metadata.isDefault });
 	const primary = useCSSVariable('--color-primary') as string;
 	const muted = useCSSVariable('--color-muted') as string;
@@ -292,11 +287,7 @@ function EmptyState({
 				}}
 				className={skin.glass ? '' : 'border border-border bg-surface'}
 			>
-				<MaterialCommunityIcons
-					name='key-variant'
-					size={34}
-					color={primary}
-				/>
+				<MaterialCommunityIcons name='key-variant' size={34} color={primary} />
 			</View>
 			<ThemedText className='mt-5 text-[17px] font-semibold text-text-primary'>
 				No keys yet
@@ -383,9 +374,12 @@ function KeyDetailSheet({
 	onRename: () => void;
 }) {
 	const onPrimary = useCSSVariable('--color-button-text-on-primary') as string;
-	const setDefault = useAtomSet(secretsManager.keys.atoms.setDefault(entry.id), {
-		mode: 'promise',
-	});
+	const setDefault = useAtomSet(
+		secretsManager.keys.atoms.setDefault(entry.id),
+		{
+			mode: 'promise',
+		},
+	);
 	const deleteKey = useAtomSet(secretsManager.keys.atoms.delete(entry.id));
 	const isDefault = !!entry.metadata.isDefault;
 	const label = entry.metadata.label ?? entry.id;
@@ -456,9 +450,7 @@ function RenameDialog({
 	const rename = useAtomSet(secretsManager.keys.atoms.rename(entry.id), {
 		mode: 'promise',
 	});
-	const renameResult = useAtomValue(
-		secretsManager.keys.atoms.rename(entry.id),
-	);
+	const renameResult = useAtomValue(secretsManager.keys.atoms.rename(entry.id));
 	const pending = renameResult.waiting;
 
 	const onSave = () => {

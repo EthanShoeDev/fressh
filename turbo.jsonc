@@ -7,6 +7,18 @@
 		"SSL_CERT_FILE",
 		"GRADLE_OPTS",
 		"BW_SESSION",
+		// Native (rust/cmake) builds run inside the nix devShell, which provides
+		// system libs (freetype/fontconfig) via pkg-config + the dynamic linker.
+		// turbo strips any env var not whitelisted here, so without these a host
+		// `cargo build` panics in yeslogic-fontconfig-sys ("fontconfig not found")
+		// and ubrn can't dlopen the built cdylib. Passthrough vars are NOT hashed,
+		// so listing them does not change any task's cache key.
+		"PKG_CONFIG_PATH",
+		"PKG_CONFIG",
+		"LD_LIBRARY_PATH",
+		"CMAKE_INCLUDE_PATH",
+		"CMAKE_LIBRARY_PATH",
+		"NIXPKGS_CMAKE_PREFIX_PATH",
 	],
 	// ============================================================================
 	// TURBO TASK INHERITANCE PATTERN
@@ -68,8 +80,15 @@
 		// ========================================
 		// Optional per-package tasks (defined here so ^taskName works)
 		// ========================================
-		"ubrn:build:android": {},
-		"ubrn:build:ios": {},
+		// Platform-split native builds (mirrors main): a package that ships a native
+		// module defines these with real inputs/outputs in its own turbo.jsonc (see
+		// react-native-terminal: build:android = cargo ndk -> jniLibs .so). They're
+		// declared here so dependents can reference `^build:android` / `^build:ios`
+		// even when only some platforms are implemented. Keeping them separate from
+		// the plain `build` (codegen / JS) is the cross-platform trick: an Android
+		// run never triggers an iOS native build on Linux, and vice versa on macOS.
+		"build:android": {},
+		"build:ios": {},
 
 		// ========================================
 		// Root-only tasks (run once at root level)
@@ -82,12 +101,26 @@
 		},
 		"//#nix:fmt": {},
 		"//#nix:fmt:check": {},
+		// oxlint runs once over the WHOLE repo with `--type-aware --type-check`, so
+		// it resolves types across every package — including the gitignored codegen
+		// outputs (RNT's ubrn/nitrogen bindings, mobile's expo-env.d.ts). Without
+		// these deps oxlint races codegen and fails with TS2307 "Cannot find module
+		// './generated/shim_uniffi'". (Same package-scoped-dep pattern as the
+		// oxlint-plugins#build dep above; root tasks can't use `^build`.)
 		"//#oxlint:fix": {
-			"dependsOn": ["@fressh/oxlint-plugins#build"],
+			"dependsOn": [
+				"@fressh/oxlint-plugins#build",
+				"@fressh/react-native-terminal#codegen",
+				"@fressh/mobile#expo:typegen",
+			],
 			"with": ["jscpd:check", "catalog:fix"],
 		},
 		"//#oxlint:check": {
-			"dependsOn": ["@fressh/oxlint-plugins#build"],
+			"dependsOn": [
+				"@fressh/oxlint-plugins#build",
+				"@fressh/react-native-terminal#codegen",
+				"@fressh/mobile#expo:typegen",
+			],
 			"with": ["jscpd:check", "catalog:check"],
 		},
 		"//#jscpd:check": {},

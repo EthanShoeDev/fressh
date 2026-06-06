@@ -3,6 +3,7 @@
 
 export {
 	Terminal,
+	type CursorBlink,
 	type CursorStyle,
 	type TerminalComponentProps,
 	type TerminalRef,

@@ -10,8 +10,11 @@ import {
 import { ThemedText } from '@/components/themed/ThemedText';
 import {
 	COLOR_SCHEMES,
+	CURSOR_BLINKS,
 	CURSOR_STYLES,
 	preferences,
+	TERMINAL_BLINK_INTERVAL,
+	TERMINAL_BLINK_TIMEOUT,
 	TERMINAL_FONT_SIZE,
 	TERMINAL_PADDING,
 	TERMINAL_SCROLLBACK,
@@ -25,6 +28,12 @@ export default function TerminalSettings() {
 		preferences.terminalColorScheme.useValue();
 	const [cursorStyle, setCursorStyle] =
 		preferences.terminalCursorStyle.useValue();
+	const [cursorBlink, setCursorBlink] =
+		preferences.terminalCursorBlink.useValue();
+	const [blinkInterval, setBlinkInterval] =
+		preferences.terminalBlinkInterval.useValue();
+	const [blinkTimeout, setBlinkTimeout] =
+		preferences.terminalBlinkTimeout.useValue();
 	const [boldIsBright, setBoldIsBright] =
 		preferences.terminalBoldIsBright.useValue();
 
@@ -82,6 +91,45 @@ export default function TerminalSettings() {
 						value={cursorStyle}
 						onChange={setCursorStyle}
 					/>
+
+					<FieldLabel>Cursor blink</FieldLabel>
+					<Segmented
+						options={CURSOR_BLINKS}
+						value={cursorBlink}
+						onChange={setCursorBlink}
+					/>
+					{cursorBlink !== 'never' && (
+						<>
+							<StepperRow
+								label='Blink interval (ms)'
+								value={blinkInterval}
+								decDisabled={blinkInterval <= TERMINAL_BLINK_INTERVAL.min}
+								incDisabled={blinkInterval >= TERMINAL_BLINK_INTERVAL.max}
+								onDec={() => {
+									setBlinkInterval(
+										blinkInterval - TERMINAL_BLINK_INTERVAL.step,
+									);
+								}}
+								onInc={() => {
+									setBlinkInterval(
+										blinkInterval + TERMINAL_BLINK_INTERVAL.step,
+									);
+								}}
+							/>
+							<StepperRow
+								label='Stop blinking after'
+								value={blinkTimeout === 0 ? 'Never' : `${blinkTimeout}s`}
+								decDisabled={blinkTimeout <= TERMINAL_BLINK_TIMEOUT.min}
+								incDisabled={blinkTimeout >= TERMINAL_BLINK_TIMEOUT.max}
+								onDec={() => {
+									setBlinkTimeout(blinkTimeout - TERMINAL_BLINK_TIMEOUT.step);
+								}}
+								onInc={() => {
+									setBlinkTimeout(blinkTimeout + TERMINAL_BLINK_TIMEOUT.step);
+								}}
+							/>
+						</>
+					)}
 
 					<ToggleRow
 						label='Bold is bright'

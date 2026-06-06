@@ -25,14 +25,15 @@ pub mod session;
 pub use control::{
 	close_shell, connect, disconnect, generate_key_pair, resize, respond_to_host_key, scroll,
 	selection_clear, selection_start, selection_text, selection_update, send_data,
-	set_render_metrics, start_shell, validate_private_key, SelectionKind,
+	set_cursor_default_blinking, set_render_metrics, start_shell, validate_private_key,
+	SelectionKind,
 };
 
 // --- event plane (the shim installs the concrete sink) --------------------
 pub use events::{set_event_sink, CoreEvent, EventSink};
 
 // --- render plane (the Nitro view's C-ABI reads this) ---------------------
-pub use registry::shell_term;
+pub use registry::{shell_input_idle_ms, shell_term};
 pub use session::{CoreListener, SharedTerm};
 
 // --- re-exported SSH value types crossing the shim/render boundary --------

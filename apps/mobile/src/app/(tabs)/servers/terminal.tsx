@@ -565,7 +565,11 @@ function CloseShellButton({ onPress }: { onPress: () => void }) {
 			hitSlop={10}
 			onPress={onPress}
 			className='flex-row items-center gap-1.5 px-2.5 py-1.5'
-			style={{ borderRadius: skin.controlRadius, borderWidth: 1, borderColor: danger }}
+			style={{
+				borderRadius: skin.controlRadius,
+				borderWidth: 1,
+				borderColor: danger,
+			}}
 		>
 			<Ionicons name='close' size={15} color={danger} />
 			<ThemedText style={{ color: danger, fontSize: 13, fontWeight: '600' }}>

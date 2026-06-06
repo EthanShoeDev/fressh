@@ -79,6 +79,57 @@ impl CursorStyle {
 	}
 }
 
+/// Cursor blink behaviour, mirroring alacritty's `CursorBlinking`
+/// (`alacritty/src/config/cursor.rs`). `Never`/`Always` are hard overrides;
+/// `Off`/`On` defer to the program's DECSCUSR / `CSI ? 12 h/l` state, differing
+/// only in the *default* blink they seed the terminal with (`On` blinks unless a
+/// program asks for a steady cursor). The render plane resolves the live state
+/// (see [`crate::driver`]); the `On`/`Always` default is seeded onto the `Term`
+/// at shell creation (control plane).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CursorBlink {
+	/// Force the cursor to never blink, ignoring the program.
+	Never,
+	/// Default to steady; a program may turn blinking on via escape.
+	#[default]
+	Off,
+	/// Default to blinking; a program may turn it off via escape.
+	On,
+	/// Force the cursor to always blink, ignoring the program.
+	Always,
+}
+
+impl CursorBlink {
+	/// Parse the wire string (RN side). Unknown values fall back to `Off`.
+	pub fn from_wire(s: &str) -> Self {
+		match s {
+			"never" => Self::Never,
+			"on" => Self::On,
+			"always" => Self::Always,
+			_ => Self::Off,
+		}
+	}
+
+	/// Force-override the program's blink state, or `None` to defer to it
+	/// (`alacritty`'s `CursorBlinking::blinking_override`).
+	pub fn blinking_override(self) -> Option<bool> {
+		match self {
+			Self::Never => Some(false),
+			Self::Always => Some(true),
+			Self::Off | Self::On => None,
+		}
+	}
+
+	/// The default blink state to seed the `Term` with (`alacritty`'s
+	/// `From<CursorBlinking> for bool`): `On`/`Always` blink by default.
+	pub fn default_blinking(self) -> bool {
+		matches!(self, Self::On | Self::Always)
+	}
+}
+
+/// Minimum blink interval (ms), matching alacritty's `MIN_BLINK_INTERVAL`.
+pub const MIN_BLINK_INTERVAL_MS: u64 = 10;
+
 /// Terminal configuration, driven from the RN side.
 #[derive(Debug, Clone)]
 pub struct TerminalConfig {
@@ -91,6 +142,14 @@ pub struct TerminalConfig {
 	pub padding_y: f32,
 	/// The cursor shape to render.
 	pub cursor_style: CursorStyle,
+	/// Cursor blink behaviour (the live override; see [`CursorBlink`]).
+	pub cursor_blink: CursorBlink,
+	/// Blink half-period in ms (visible→hidden each interval). Default 750,
+	/// clamped to [`MIN_BLINK_INTERVAL_MS`] by the driver.
+	pub blink_interval_ms: u64,
+	/// Stop blinking after this many seconds without input (leaving the cursor
+	/// visible). `0` disables the timeout (blink forever). Default 5.
+	pub blink_timeout_s: u64,
 	/// Draw bold text using the bright color variants.
 	pub draw_bold_text_with_bright_colors: bool,
 }
@@ -106,6 +165,9 @@ impl Default for TerminalConfig {
 			padding_x: 0.0,
 			padding_y: 0.0,
 			cursor_style: CursorStyle::Block,
+			cursor_blink: CursorBlink::default(),
+			blink_interval_ms: 750,
+			blink_timeout_s: 5,
 			draw_bold_text_with_bright_colors: true,
 		}
 	}

@@ -1,9 +1,55 @@
 # Future project: blinking cursor in the native terminal renderer
 
-**Status:** NOT STARTED — scoped/planned only.
+**Status:** IMPLEMENTED (full alacritty parity) — code complete, compiles for the
+`aarch64-linux-android` target; **pending on-device visual verification** + a native
+rebuild (and a `bun run ubrn:generate` since the uniffi `ShellOptions` record gained a
+field — see "Implementation notes" below).
 **Scope:** `@fressh/react-native-terminal` (`fressh-render` + the vendored alacritty
 fork) + the mobile app's terminal settings. Android first (the live renderer); iOS
 inherits it for free when that path lands.
+
+## Implementation notes (as built)
+
+The MVP→parity phasing below was collapsed into one pass at full parity. What shipped,
+and where it deviates from the original plan:
+
+- **Resolution (render plane, `driver.rs::cursor_blink_on`):**
+  `cursor_blink.blinking_override().unwrap_or(term.cursor_style().blinking) &&
+  mode.contains(SHOW_CURSOR)`, exactly as specced. Folded into `cursor_visible` in
+  `content.rs` via a new `blink_on` param, so both cursor draw sites honour it.
+- **Clock:** Rust `std::time::Instant` for the blink phase (`blink_epoch`), per the
+  recommended option. No `frameTimeNanos` threading.
+- **Config:** `CursorBlink { Never, Off, On, Always }` + `blink_interval_ms` (750) +
+  `blink_timeout_s` (5; `0` = no timeout) on `TerminalConfig`. Timeout duration matches
+  upstream `blink_timeout()`: `max(interval*2, timeout_s*1000)`.
+- **`On` default-blink (the one cross-plane piece):** `term.cursor_style().blinking`
+  defaults to `false`, so `On` (default-blink, program may steady it) is only honest if
+  the `Term`'s `default_cursor_style.blinking` is seeded `true`. That seed is
+  creation-time (control plane): plumbed `cursor_blink` through the uniffi `ShellOptions`
+  record → `start_shell` → `ShellSession::spawn` → `TermConfig.default_cursor_style`,
+  **mirroring `scrollback_lines`** (so, like scrollback, `On`/`Off` apply to *new*
+  shells; `Never`/`Always`/interval/timeout apply live via the render config). Adding the
+  record field means `bun run ubrn:generate` must be re-run (the field-add doesn't change
+  the `start_shell` checksum, but the generated `shim_uniffi.ts` is gitignored and was
+  hand-patched as a stopgap).
+- **Activity reset — input only, NOT output (corrects the plan's v3):** re-reading
+  upstream, `on_typing_start` resets blink on *input*/focus/config/cursor-style-escape,
+  but plain PTY *output* does **not** reset it (the plan's "v3 reset on output" would have
+  *diverged* from alacritty). So output is intentionally not a reset.
+- **Where the input signal comes from:** the app sends keystrokes via the **control
+  plane** (`shell.sendData` → `fressh_core::send_data`), not the render-plane
+  `fressh_terminal_send_input` (which has no caller in this app). So the activity
+  timestamp lives in `fressh-core`: `ShellSession.last_input_ms` (an `AtomicU64` of
+  `now_ms()`), bumped in `send_data`, exposed as `shell_input_idle_ms(id)`. The shim's
+  draw loop reads it each frame and passes `input_idle_ms` into `draw` → the renderer uses
+  it for the timeout and detects a fresh keystroke as an idle *drop* between frames.
+- **Focus / IME:** upstream also gates on window focus + IME preedit. Mobile has no
+  equivalent in the renderer (a drawing view is effectively focused), so those gates are
+  omitted.
+- **Settings UI:** Never/Off/On/Always segmented control + a blink-interval stepper
+  (100–2000 ms). Timeout is not exposed (defaults to 5 s).
+
+The sections below are the original plan, kept for reference.
 
 ## Goal
 

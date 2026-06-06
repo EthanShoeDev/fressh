@@ -6,6 +6,7 @@
 //! The GL context must be current on the calling thread for every method here.
 
 use std::ffi::{CStr, c_void};
+use std::time::Instant;
 
 use alacritty_renderer::config::font::Font;
 use alacritty_renderer::display::SizeInfo;
@@ -14,10 +15,11 @@ use alacritty_renderer::renderer::{GlyphCache, Renderer};
 use alacritty_terminal::Term;
 use alacritty_terminal::event::EventListener;
 use alacritty_terminal::grid::Dimensions; // brings SizeInfo::{columns, screen_lines} into scope
+use alacritty_terminal::term::TermMode;
 use alacritty_terminal::vte::ansi::NamedColor;
 use crossfont::{Rasterize, Rasterizer};
 
-use crate::config::{CursorStyle, Palette, TerminalConfig};
+use crate::config::{CursorStyle, Palette, TerminalConfig, MIN_BLINK_INTERVAL_MS};
 use crate::content::{renderable_cells, CursorRender};
 
 /// Cursor bar/outline thickness as a fraction of cell width (alacritty default).
@@ -38,6 +40,17 @@ pub struct TerminalRenderer {
 	size_info: SizeInfo,
 	palette: Palette,
 	config: TerminalConfig,
+	/// Blink phase origin: the cursor is visible for the first half-interval after
+	/// this instant, hidden for the second, and so on. Restarted on input (so the
+	/// cursor shows immediately on a keystroke) and when blinking (re)activates.
+	blink_epoch: Instant,
+	/// The shell's input-idle time (ms) seen last frame. A *drop* means a fresh
+	/// keystroke arrived since (input idle resets to ~0), which restarts the
+	/// phase — mirrors alacritty's `on_typing_start`.
+	prev_input_idle_ms: u64,
+	/// Whether blinking was active last frame, to detect the off→on edge that
+	/// should restart the phase (mirrors alacritty's `update_cursor_blinking`).
+	blink_was_active: bool,
 }
 
 impl TerminalRenderer {
@@ -60,7 +73,60 @@ impl TerminalRenderer {
 		let palette = Palette::new(&config.colors);
 		let size_info = build_size_info(0.0, 0.0, &glyph_cache, &config);
 
-		Ok(Self { renderer, glyph_cache, size_info, palette, config })
+		Ok(Self {
+			renderer,
+			glyph_cache,
+			size_info,
+			palette,
+			config,
+			blink_epoch: Instant::now(),
+			prev_input_idle_ms: 0,
+			blink_was_active: false,
+		})
+	}
+
+	/// Resolve whether the cursor should be drawn this frame, advancing the blink
+	/// phase. Mirrors alacritty's `update_cursor_blinking` + the `BlinkCursor`
+	/// toggle, but computed from a monotonic clock instead of an event-loop timer
+	/// (the draw loop already reposts every vsync, so this animates for free).
+	///
+	/// `input_idle_ms` is how long since the shell last received user input
+	/// (supplied by the control plane, where keystrokes actually land): it drives
+	/// the inactivity timeout and — when it drops between frames — restarts the
+	/// blink phase so the cursor shows immediately on a keystroke.
+	fn cursor_blink_on<T: EventListener>(&mut self, term: &Term<T>, input_idle_ms: u64) -> bool {
+		// `blinking_override` forces Never/Always; Off/On defer to the program's
+		// DECSCUSR / `CSI ? 12 h/l` state (seeded with the On/Always default at
+		// shell creation). Gate on SHOW_CURSOR like upstream.
+		let program_blink = term.cursor_style().blinking;
+		let active = self.config.cursor_blink.blinking_override().unwrap_or(program_blink)
+			&& term.mode().contains(TermMode::SHOW_CURSOR);
+
+		// Restart the phase (cursor shows now) on a fresh keystroke (idle dropped)
+		// or on the off→on edge — both mirror alacritty rescheduling the blink.
+		if input_idle_ms < self.prev_input_idle_ms || (active && !self.blink_was_active) {
+			self.blink_epoch = Instant::now();
+		}
+		self.prev_input_idle_ms = input_idle_ms;
+		self.blink_was_active = active;
+
+		if !active {
+			return true;
+		}
+
+		// Inactivity timeout (alacritty's `blink_timeout`): once elapsed, stop
+		// blinking and leave the cursor visible. `0` disables it. The effective
+		// window is at least one full cycle (`interval * 2`).
+		let interval_ms = self.config.blink_interval_ms.max(MIN_BLINK_INTERVAL_MS);
+		if self.config.blink_timeout_s != 0 {
+			let timeout_ms = (interval_ms * 2).max(self.config.blink_timeout_s * 1000);
+			if input_idle_ms >= timeout_ms {
+				return true;
+			}
+		}
+
+		// Visible for the even half-intervals, hidden for the odd ones.
+		(self.blink_epoch.elapsed().as_millis() / u128::from(interval_ms)) % 2 == 0
 	}
 
 	/// Resize to a physical-pixel surface size (DPR already applied by the
@@ -90,15 +156,19 @@ impl TerminalRenderer {
 	}
 
 	/// Draw one frame from the terminal state. The caller swaps buffers after.
-	pub fn draw<T: EventListener>(&mut self, term: &Term<T>) {
+	/// `input_idle_ms` is the time since the bound shell last received user input
+	/// (drives the cursor blink timeout + reset; see [`Self::cursor_blink_on`]).
+	pub fn draw<T: EventListener>(&mut self, term: &Term<T>, input_idle_ms: u64) {
 		let background = self.palette.color(term.colors(), NamedColor::Background as usize);
 		self.renderer.clear(background, 1.0);
 
+		let blink_on = self.cursor_blink_on(term, input_idle_ms);
 		let (cells, cursor) = renderable_cells(
 			term,
 			&self.palette,
 			self.config.draw_bold_text_with_bright_colors,
 			self.config.cursor_style,
+			blink_on,
 		);
 		self.renderer.draw_cells(&self.size_info, &mut self.glyph_cache, cells.into_iter());
 
@@ -148,6 +218,9 @@ impl TerminalRenderer {
 		}
 		self.palette = Palette::new(&config.colors);
 		self.config = config;
+		// A config change restarts the blink phase (alacritty re-runs
+		// `update_cursor_blinking`), so a settings tweak shows the cursor at once.
+		self.blink_epoch = Instant::now();
 		Ok(())
 	}
 }

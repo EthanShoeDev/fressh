@@ -46,7 +46,8 @@ export function StepperRow({
 	incDisabled,
 }: {
 	label: string;
-	value: number;
+	/** A number (rendered via `toLocaleString`) or a preformatted display string. */
+	value: number | string;
 	onDec: () => void;
 	onInc: () => void;
 	decDisabled?: boolean;
@@ -65,7 +66,7 @@ export function StepperRow({
 					onPress={onDec}
 				/>
 				<ThemedText className='min-w-[56px] text-center text-base font-bold text-text-primary'>
-					{value.toLocaleString()}
+					{typeof value === 'number' ? value.toLocaleString() : value}
 				</ThemedText>
 				<StepperButton
 					label='+'

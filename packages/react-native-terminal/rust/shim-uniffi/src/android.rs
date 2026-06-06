@@ -14,8 +14,10 @@
 use std::ffi::{c_char, c_void, CStr};
 use std::slice;
 
-use fressh_core::{runtime, send_data, set_render_metrics, shell_term};
-use fressh_render::{ColorScheme, CursorStyle, EglContext, TerminalConfig};
+use fressh_core::{
+	runtime, send_data, set_render_metrics, shell_input_idle_ms, shell_term,
+};
+use fressh_render::{ColorScheme, CursorBlink, CursorStyle, EglContext, TerminalConfig};
 use serde::Deserialize;
 
 /// Per-frame draw outcome, tracked so we can log on *transitions* only (the draw
@@ -35,6 +37,10 @@ pub struct AttachedTerminal {
 	font_path: String,
 	shell_id: Option<String>,
 	last_state: Option<DrawState>,
+	/// The `On`/`Always` default-blink derived from the latest render config. Pushed
+	/// to the bound shell's `Term` (control plane) so `On` blinks on open shells, not
+	/// just new ones. Re-applied on attach/set_shell/set_config.
+	cursor_default_blinking: bool,
 	/// The surface buffer size we last reflowed the grid to. We poll the real size
 	/// from the draw loop and resize when it actually changes — `eglQuerySurface`
 	/// lags the SurfaceView geometry by a frame, so a one-shot read in
@@ -74,6 +80,13 @@ struct WireConfig {
 	padding_x_px: f32,
 	padding_y_px: f32,
 	cursor_style: String,
+	/// Cursor blink mode: `never` | `off` | `on` | `always` (empty → default).
+	cursor_blink: String,
+	/// Blink half-period in ms (absent → renderer default 750).
+	blink_interval_ms: Option<u64>,
+	/// Inactivity timeout in seconds; `Some(0)` = never time out (absent →
+	/// renderer default 5).
+	blink_timeout_s: Option<u64>,
 	color_scheme: String,
 	bold_is_bright: Option<bool>,
 }
@@ -99,6 +112,15 @@ fn build_config(font_path: String, config_json: *const c_char) -> TerminalConfig
 	config.padding_y = wire.padding_y_px.max(0.0);
 	if !wire.cursor_style.is_empty() {
 		config.cursor_style = CursorStyle::from_wire(&wire.cursor_style);
+	}
+	if !wire.cursor_blink.is_empty() {
+		config.cursor_blink = CursorBlink::from_wire(&wire.cursor_blink);
+	}
+	if let Some(interval) = wire.blink_interval_ms.filter(|ms| *ms > 0) {
+		config.blink_interval_ms = interval;
+	}
+	if let Some(timeout) = wire.blink_timeout_s {
+		config.blink_timeout_s = timeout;
 	}
 	if !wire.color_scheme.is_empty() {
 		config.colors = ColorScheme::by_name(&wire.color_scheme);
@@ -143,16 +165,21 @@ pub unsafe extern "C" fn fressh_terminal_attach(
 	let font_path = cstr_opt(font_path).unwrap_or_default();
 	let shell_id = cstr_opt(shell_id);
 	let config = build_config(font_path.clone(), config_json);
+	let cursor_default_blinking = config.cursor_blink.default_blinking();
 
 	log::info!("fressh_terminal_attach: shell_id={shell_id:?} config={config:?}");
 	match EglContext::create(window, config) {
 		Ok(egl) => {
 			log::info!("fressh_terminal_attach: created, grid={:?}", egl.grid_size());
+			if let Some(id) = shell_id.as_deref() {
+				fressh_core::set_cursor_default_blinking(id, cursor_default_blinking);
+			}
 			Box::into_raw(Box::new(AttachedTerminal {
 				egl,
 				font_path,
 				shell_id,
 				last_state: None,
+				cursor_default_blinking,
 				// (0,0) so the first draw-loop sync reflows the grid + Term to the real size.
 				last_surface_size: (0, 0),
 			}))
@@ -178,6 +205,10 @@ pub unsafe extern "C" fn fressh_terminal_set_shell(
 	if let Some(attached) = unsafe { ptr.as_mut() } {
 		attached.shell_id = cstr_opt(shell_id);
 		attached.last_state = None; // force a fresh transition log
+		// Seed the newly-bound shell's default blink from the current render config.
+		if let Some(id) = attached.shell_id.as_deref() {
+			fressh_core::set_cursor_default_blinking(id, attached.cursor_default_blinking);
+		}
 		log::info!("fressh_terminal_set_shell: shell_id={:?}", attached.shell_id);
 	}
 }
@@ -201,10 +232,13 @@ pub unsafe extern "C" fn fressh_terminal_set_config(
 		return;
 	};
 	let config = build_config(attached.font_path.clone(), config_json);
+	attached.cursor_default_blinking = config.cursor_blink.default_blinking();
 	let (cols, rows) = attached.egl.set_config(config);
 	attached.last_state = None;
 	log::info!("fressh_terminal_set_config: grid={cols}x{rows}");
 	if let Some(id) = attached.shell_id.clone() {
+		// Push the (possibly changed) On/Always default blink to the open shell live.
+		fressh_core::set_cursor_default_blinking(&id, attached.cursor_default_blinking);
 		let (cw, ch, px, py) = attached.egl.cell_metrics();
 		set_render_metrics(&id, cw, ch, px, py);
 		runtime::handle().spawn(async move {
@@ -230,8 +264,11 @@ pub unsafe extern "C" fn fressh_terminal_draw(ptr: *mut AttachedTerminal) {
 	let state = match attached.shell_id.as_deref() {
 		Some(id) => match shell_term(id) {
 			Some(term) => {
+				// Time since the last keystroke (input lands on the control plane);
+				// drives the cursor blink timeout/reset in the renderer.
+				let idle_ms = shell_input_idle_ms(id).unwrap_or(u64::MAX);
 				let term = term.lock().unwrap_or_else(|p| p.into_inner());
-				attached.egl.draw_term(&term);
+				attached.egl.draw_term(&term, idle_ms);
 				if attached.last_state != Some(DrawState::Drawn) {
 					log::info!(
 						"fressh_terminal_draw: DRAWN shell_id={id} surface_grid={:?}",

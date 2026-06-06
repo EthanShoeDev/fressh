@@ -12,25 +12,51 @@
 		"lint:check": {
 			"with": ["tsgo:check", "//#oxfmt:check", "//#oxlint:check"],
 		},
+		// expo-env.d.ts is gitignored and only written by Expo's TypeScript
+		// services (normally the `expo start` metro server), so a fresh checkout /
+		// `git clean` has none of the ambient `*.css` (etc.) module declarations it
+		// pulls in from `expo/types` → tsgo fails TS2882 on `import './global.css'`.
+		// `expo customize tsconfig.json` is the headless command that writes it; for
+		// this project it's idempotent (tsconfig already has the right extends +
+		// include, TS deps present, so its tsconfig/dep steps no-op). Regenerate
+		// first so the typecheck is self-sufficient (mirrors the codegen dep in
+		// @fressh/react-native-terminal).
+		"tsgo:check": {
+			"dependsOn": ["^build", "expo:typegen"],
+		},
+		"expo:typegen": {
+			// app.json toggles experiments.typedRoutes, which gates whether Expo
+			// writes vs removes expo-env.d.ts.
+			"inputs": ["app.json"],
+			"outputs": ["expo-env.d.ts"],
+		},
 		"test": {
 			"dependsOn": ["^build"],
 			"with": ["maestro:test"],
 		},
-		"dev:android": {
-			"dependsOn": ["^build", "^ubrn:build:android"],
+		// These task names match the `android` / `ios` package.json scripts
+		// (expo run:*), so `turbo run android --filter=@fressh/mobile` builds the
+		// prerequisites first, then launches. The `^build:android` / `^build:ios`
+		// edges run react-native-terminal's native .so build into jniLibs BEFORE
+		// gradle/xcode's CMake tries to LINK it (it can't build it). Each platform
+		// depends ONLY on its own native build, so an Android run on Linux never
+		// triggers the iOS build, and vice versa on macOS. `^build` brings in that
+		// package's gitignored codegen (nitrogen + ubrn cpp/ts).
+		"android": {
+			"dependsOn": ["^build", "^build:android"],
 			"cache": false,
 			"persistent": true,
 		},
-		"dev:ios": {
-			"dependsOn": ["^build", "^ubrn:build:ios"],
+		"ios": {
+			"dependsOn": ["^build", "^build:ios"],
 			"cache": false,
 			"persistent": true,
 		},
 		// Mobile-specific tasks
 		"expo:doctor": { "cache": false },
 		"maestro:test": {},
-		"gradle:build:signed:apk": {
-			"dependsOn": ["^build", "^ubrn:build:android"],
+		"build:signed:apk": {
+			"dependsOn": ["^build", "^build:android"],
 			"outputs": ["android/app/build/outputs/**"],
 		},
 	},

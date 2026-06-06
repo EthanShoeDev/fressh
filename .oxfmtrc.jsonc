@@ -22,5 +22,6 @@
 		"**/.expo/**",
 		"**/android/**",
 		"**/ios/**",
+		"**/uniwind-types.d.ts",
 	],
 }

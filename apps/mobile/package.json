@@ -6,6 +6,7 @@
 	"main": "expo-router/entry",
 	"scripts": {
 		"tsgo:check": "tsgo --noEmit",
+		"expo:typegen": "expo customize tsconfig.json",
 		"android": "expo run:android --port 8082",
 		"ios": "expo run:ios --port 8081",
 		"dev:android:release": "expo run:android --port 8082 --variant release",

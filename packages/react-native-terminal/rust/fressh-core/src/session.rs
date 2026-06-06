@@ -2,13 +2,16 @@
 //! the parsed `Term` continuously in the background — view or no view — which is
 //! exactly what makes scrollback durable across view mount/unmount (§9).
 
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use alacritty_terminal::event::{Event, EventListener};
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::term::Config as TermConfig;
-use alacritty_terminal::vte::ansi::Processor;
+use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor};
 use alacritty_terminal::Term;
+use once_cell::sync::Lazy;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -52,6 +55,16 @@ impl EventListener for CoreListener {
 	}
 }
 
+/// Monotonic process clock. Activity timestamps are stored as ms since this
+/// instant so they can live in a lock-free `AtomicU64` (read every frame by the
+/// render plane on a different thread than the input writer).
+static PROCESS_START: Lazy<Instant> = Lazy::new(Instant::now);
+
+/// Milliseconds since [`PROCESS_START`].
+fn now_ms() -> u64 {
+	PROCESS_START.elapsed().as_millis() as u64
+}
+
 /// A live shell: the durable `Term`, a writer for stdin/resize, and the two
 /// background tasks (the reader loop feeding `Term`, and the PTY-response drain).
 pub struct ShellSession {
@@ -66,6 +79,18 @@ pub struct ShellSession {
 	/// Sub-cell scroll accumulator so slow drags still scroll smoothly (mirrors
 	/// termux's `mScrollRemainder`). Reset when a selection starts.
 	pub scroll_remainder: Mutex<f32>,
+	/// `now_ms()` of the last user input (keystroke/paste), bumped in
+	/// [`Self::send_data`]. The render plane reads the resulting idle time each
+	/// frame to drive the cursor blink timeout/reset (input lands on the control
+	/// plane, not the render plane, so the signal must originate here).
+	last_input_ms: AtomicU64,
+	/// History limit this `Term` was built with, kept so [`Self::set_cursor_default_blinking`]
+	/// can rebuild the `Term` config (via `set_options`) without clobbering it.
+	scrollback_lines: usize,
+	/// The `On`/`Always`-vs-`Off` default blink currently seeded into the `Term`'s
+	/// `default_cursor_style`. Tracked so we only call the (event-firing)
+	/// `set_options` when it actually changes.
+	default_cursor_blinking: AtomicBool,
 	writer: ShellWriter,
 	reader_task: JoinHandle<()>,
 	pty_task: JoinHandle<()>,
@@ -126,15 +151,46 @@ impl ShellSession {
 			term,
 			metrics: Mutex::new(RenderMetrics::default()),
 			scroll_remainder: Mutex::new(0.0),
+			// Seed as "just active" so a fresh shell's cursor blinks immediately
+			// rather than starting already timed-out.
+			last_input_ms: AtomicU64::new(now_ms()),
+			scrollback_lines,
+			// `Term` default is steady (false); the render plane seeds On/Always live.
+			default_cursor_blinking: AtomicBool::new(false),
 			writer,
 			reader_task,
 			pty_task,
 		})
 	}
 
+	/// Seed the `Term`'s *default* cursor blink (what `On`/`Off` resolve to when no
+	/// program has set DECSCUSR). Driven live by the render plane on config/attach,
+	/// so switching the app's blink mode to `On` affects already-open shells — not
+	/// just new ones. Cheap and idempotent: a no-op unless the value changes, since
+	/// `set_options` fires events + a full redamage. Preserves `scrolling_history`.
+	pub fn set_cursor_default_blinking(&self, blinking: bool) {
+		if self.default_cursor_blinking.swap(blinking, Ordering::Relaxed) == blinking {
+			return;
+		}
+		let mut term = self.term.lock().unwrap_or_else(|p| p.into_inner());
+		term.set_options(TermConfig {
+			scrolling_history: self.scrollback_lines,
+			default_cursor_style: CursorStyle { shape: CursorShape::Block, blinking },
+			..Default::default()
+		});
+	}
+
 	/// Send user input (stdin) to the shell.
 	pub async fn send_data(&self, data: &[u8]) -> Result<(), SshError> {
+		// Input is the activity that resets the cursor blink timeout/phase.
+		self.last_input_ms.store(now_ms(), Ordering::Relaxed);
 		self.writer.send_data(data).await
+	}
+
+	/// Milliseconds since the last user input — read by the render plane each
+	/// frame to drive the cursor blink. Saturates at 0 (clock is monotonic).
+	pub fn input_idle_ms(&self) -> u64 {
+		now_ms().saturating_sub(self.last_input_ms.load(Ordering::Relaxed))
 	}
 
 	/// Resize the terminal: reflow the durable `Term` and tell the server.

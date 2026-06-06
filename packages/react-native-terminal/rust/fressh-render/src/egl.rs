@@ -88,6 +88,7 @@ impl EglContext {
 	/// Re-query the surface size and resize the renderer. Returns the resulting
 	/// grid `(columns, rows)` so the caller can reflow the `Term` + PTY to match.
 	pub fn resize(&mut self) -> (usize, usize) {
+		self.make_current();
 		let (width, height) = self.surface_size();
 		self.renderer.resize(width as f32, height as f32)
 	}
@@ -113,14 +114,34 @@ impl EglContext {
 		self.renderer.cell_metrics()
 	}
 
-	/// Draw one frame from `term` and present it.
-	pub fn draw_term<T: EventListener>(&mut self, term: &Term<T>) {
-		self.renderer.draw(term);
+	/// Make this context current on the calling thread. Must run before every
+	/// frame: we share the UI thread with other GL consumers (react-native-skia
+	/// drives its own EGL context every frame), and EGL's current context is
+	/// per-thread global state. Binding once at attach is not enough — by the next
+	/// vsync another library has made its own context current, so our draws would
+	/// target the wrong context (our shader program id isn't valid there ->
+	/// glUseProgram fails -> GL_INVALID_OPERATION -> nothing renders).
+	fn make_current(&self) {
+		let _ = self.egl.make_current(
+			self.display,
+			Some(self.surface),
+			Some(self.surface),
+			Some(self.context),
+		);
+	}
+
+	/// Draw one frame from `term` and present it. `input_idle_ms` is the time
+	/// since the bound shell last received user input (drives cursor blink; the
+	/// shim reads it from the control plane each frame).
+	pub fn draw_term<T: EventListener>(&mut self, term: &Term<T>, input_idle_ms: u64) {
+		self.make_current();
+		self.renderer.draw(term, input_idle_ms);
 		let _ = self.egl.swap_buffers(self.display, self.surface);
 	}
 
 	/// Present a cleared (background-only) frame — used before a shell is bound.
 	pub fn clear(&mut self) {
+		self.make_current();
 		self.renderer.present_clear();
 		let _ = self.egl.swap_buffers(self.display, self.surface);
 	}
@@ -130,6 +151,7 @@ impl EglContext {
 	/// the surface. Returns the resulting grid `(columns, rows)` so the caller can
 	/// resize the PTY/`Term`. On font-rebuild failure, keeps the current font.
 	pub fn set_config(&mut self, config: TerminalConfig) -> (usize, usize) {
+		self.make_current();
 		if let Err(err) = self.renderer.apply_config(config) {
 			log::error!("set_config: apply_config failed: {err}");
 			return self.grid_size();

@@ -65,6 +65,36 @@ export const CURSOR_STYLES = [
 ] as const;
 export type CursorStyleId = (typeof CURSOR_STYLES)[number]['id'];
 
+/** Cursor blink modes. Ids must match the Rust `CursorBlink::from_wire` mapping.
+ * `Never`/`Always` force the behaviour; `Off`/`On` defer to the program (differing
+ * only in the default blink seeded at shell creation). */
+export const CURSOR_BLINKS = [
+	{ id: 'never', label: 'Never' },
+	{ id: 'off', label: 'Off' },
+	{ id: 'on', label: 'On' },
+	{ id: 'always', label: 'Always' },
+] as const;
+export type CursorBlinkId = (typeof CURSOR_BLINKS)[number]['id'];
+
+/** Cursor blink interval bounds (ms), matching alacritty's `blink_interval`. */
+export const TERMINAL_BLINK_INTERVAL = {
+	min: 100,
+	max: 2000,
+	default: 750,
+	step: 50,
+} as const;
+
+/** Cursor blink timeout bounds (seconds), matching alacritty's `blink_timeout`.
+ * Blinking stops after this many seconds without input (the cursor stays solid)
+ * and resumes on a keystroke. `0` disables the timeout — the cursor blinks
+ * forever. */
+export const TERMINAL_BLINK_TIMEOUT = {
+	min: 0,
+	max: 60,
+	default: 5,
+	step: 1,
+} as const;
+
 /** Clamp + round a numeric pref against `{ min, max }` bounds, or fall back. */
 function resolveBoundedNumber(
 	raw: number | undefined,
@@ -211,6 +241,24 @@ export const preferences = {
 				? (raw as CursorStyleId)
 				: 'block',
 	}),
+	terminalCursorBlink: definePref({
+		key: 'terminalCursorBlink',
+		kind: 'string',
+		resolve: (raw): CursorBlinkId =>
+			CURSOR_BLINKS.some((blink) => blink.id === raw)
+				? (raw as CursorBlinkId)
+				: 'off',
+	}),
+	terminalBlinkInterval: definePref({
+		key: 'terminalBlinkInterval',
+		kind: 'number',
+		resolve: (raw) => resolveBoundedNumber(raw, TERMINAL_BLINK_INTERVAL),
+	}),
+	terminalBlinkTimeout: definePref({
+		key: 'terminalBlinkTimeout',
+		kind: 'number',
+		resolve: (raw) => resolveBoundedNumber(raw, TERMINAL_BLINK_TIMEOUT),
+	}),
 	terminalBoldIsBright: definePref({
 		key: 'terminalBoldIsBright',
 		kind: 'boolean',
@@ -229,10 +277,31 @@ export function useTerminalRenderConfig() {
 	const [padding] = preferences.terminalPadding.useValue();
 	const [colorScheme] = preferences.terminalColorScheme.useValue();
 	const [cursorStyle] = preferences.terminalCursorStyle.useValue();
+	const [cursorBlink] = preferences.terminalCursorBlink.useValue();
+	const [blinkInterval] = preferences.terminalBlinkInterval.useValue();
+	const [blinkTimeout] = preferences.terminalBlinkTimeout.useValue();
 	const [boldIsBright] = preferences.terminalBoldIsBright.useValue();
 
 	return useMemo(
-		() => ({ fontSize, padding, colorScheme, cursorStyle, boldIsBright }),
-		[fontSize, padding, colorScheme, cursorStyle, boldIsBright],
+		() => ({
+			fontSize,
+			padding,
+			colorScheme,
+			cursorStyle,
+			cursorBlink,
+			blinkInterval,
+			blinkTimeout,
+			boldIsBright,
+		}),
+		[
+			fontSize,
+			padding,
+			colorScheme,
+			cursorStyle,
+			cursorBlink,
+			blinkInterval,
+			blinkTimeout,
+			boldIsBright,
+		],
 	);
 }

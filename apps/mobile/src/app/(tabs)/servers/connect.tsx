@@ -262,7 +262,9 @@ function firstError(errors: readonly unknown[] | undefined) {
 	) {
 		return (first as { message: string }).message;
 	}
-	return first ? String(first) : null;
+	if (typeof first === 'string') return first;
+	if (typeof first === 'number') return String(first);
+	return null;
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
