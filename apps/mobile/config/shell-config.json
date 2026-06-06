@@ -1,6 +1,6 @@
 {
-	"version": "2026-06-06.2",
-	"updatedAt": "2026-06-06T18:02:14Z",
+	"version": "2026-06-06.3",
+	"updatedAt": "2026-06-06T18:12:29Z",
 	"defaultKeyboardId": "phone_base",
 	"activeKeyboardIds": [
 		"phone_base",
@@ -1046,6 +1046,33 @@
 						{
 							"type": "text",
 							"data": "$diff"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "dev pull status",
+					"steps": [
+						{
+							"type": "text",
+							"data": "git checkout dev"
+						},
+						{
+							"type": "enter"
+						},
+						{
+							"type": "text",
+							"data": "git pull"
+						},
+						{
+							"type": "enter"
+						},
+						{
+							"type": "text",
+							"data": "git status"
 						},
 						{
 							"type": "enter"
