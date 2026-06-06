@@ -1,8 +1,13 @@
 {
-	"version": "2026-06-03.1",
-	"updatedAt": "2026-06-03T05:39:32Z",
+	"version": "2026-06-06.1",
+	"updatedAt": "2026-06-06T17:39:28Z",
 	"defaultKeyboardId": "phone_base",
-	"activeKeyboardIds": ["phone_base", "advanced_keyboard", "browser_keyboard"],
+	"activeKeyboardIds": [
+		"phone_base",
+		"advanced_keyboard",
+		"tmux_keyboard",
+		"browser_keyboard"
+	],
 	"keyboardRouting": {
 		"actionTargets": {
 			"OPEN_ADVANCED_KEYBOARD": "advanced_keyboard",
@@ -375,7 +380,12 @@
 						"label": "Issue",
 						"icon": "CirclePlus"
 					},
-					null,
+					{
+						"type": "action",
+						"actionId": "ROTATE_KEYBOARD",
+						"label": "Tmux",
+						"icon": "Command"
+					},
 					null,
 					null,
 					null,
@@ -400,11 +410,36 @@
 						"label": "PAGE_DOWN",
 						"icon": "ChevronsDown"
 					},
-					null,
-					null,
-					null,
-					null,
-					null,
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_PREV_ALL",
+						"label": "Previous All",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_PREV",
+						"label": "Previous",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT",
+						"label": "Next",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT_ALL",
+						"label": "Next All",
+						"icon": null
+					},
+					{
+						"type": "macro",
+						"macroId": "cmd_continue",
+						"label": "continue",
+						"icon": null
+					},
 					null,
 					{
 						"type": "bytes",
@@ -436,6 +471,80 @@
 					},
 					null
 				]
+			]
+		},
+		{
+			"id": "tmux_keyboard",
+			"name": "Tmux Keyboard",
+			"builtIn": true,
+			"active": true,
+			"rotationOrder": 2,
+			"grid": [
+				[
+					{
+						"type": "action",
+						"actionId": "OPEN_MAIN_MENU",
+						"label": "Back",
+						"icon": "X"
+					},
+					{
+						"type": "bytes",
+						"bytes": [27, 88],
+						"label": "Restart",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_FOCUS_CODEX",
+						"label": "Codex",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_FOCUS_GIT",
+						"label": "Git",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_FOCUS_BASH",
+						"label": "Bash",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_PREV",
+						"label": "Previous",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT",
+						"label": "Next",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_PREV_ALL",
+						"label": "Previous All",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT_ALL",
+						"label": "Next All",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "CYCLE_WORKMUX_STATUS",
+						"label": "Status",
+						"icon": "Clock"
+					}
+				],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null]
 			]
 		},
 		{
@@ -599,7 +708,16 @@
 				"script": "{\n  \"type\": \"command\",\n  \"value\": \"2\",\n  \"enter\": true\n}"
 			}
 		],
-		"advanced_keyboard": [],
+		"advanced_keyboard": [
+			{
+				"id": "cmd_continue",
+				"name": "Command: continue",
+				"label": "continue",
+				"category": "Commands",
+				"script": "{\n  \"type\": \"command\",\n  \"value\": \"continue\",\n  \"enter\": true\n}"
+			}
+		],
+		"tmux_keyboard": [],
 		"browser_keyboard": []
 	},
 	"commandMenus": [
