@@ -1,4 +1,3 @@
-
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
@@ -15,8 +14,12 @@ import {
 	resetTmuxScrollbackLocalExitRequests,
 	TMUX_SCROLLBACK_LOCAL_EXIT_REQUEST_ID_LIMIT,
 } from '../../src/lib/tmux-scrollback-local-exit';
+import { type WorkmuxControlChannel } from '../../src/lib/workmux-control-channel';
 import { createTmuxScrollbackLineAccumulator } from '../../src/lib/workmux-scrollback-batch';
-import { createWorkmuxScrollbackCommandExecutor } from '../../src/lib/workmux-scrollback-executor';
+import {
+	createWorkmuxScrollbackCommandExecutor as createBaseWorkmuxScrollbackCommandExecutor,
+	type WorkmuxScrollbackCommandResult,
+} from '../../src/lib/workmux-scrollback-executor';
 import {
 	buildWorkmuxScrollbackLiveInputSendPlan,
 	createWorkmuxScrollbackLiveInputCleanupBarrier,
@@ -27,7 +30,34 @@ import {
 const bytes = (values: number[]) => new Uint8Array(values);
 const segmentValues = (segments: readonly Uint8Array<ArrayBuffer>[]) =>
 	segments.map((segment) => Array.from(segment));
-const workmuxScrollExitCommand = "mdev tmux app scroll exit --session 'main'";
+const enterText = (sessionName = 'main') => `enter:${sessionName}`;
+const exitText = (sessionName = 'main') => `exit:${sessionName}`;
+const workmuxScrollExitCommand = exitText();
+function createRecordingScrollTransport(
+	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>,
+): WorkmuxControlChannel['scroll'] {
+	return {
+		enter: ({ sessionName }) => executeCommand(enterText(sessionName)),
+		move: ({ sessionName, direction, unit, count }) =>
+			executeCommand(`move:${sessionName}:${direction}:${unit}:${count}`),
+		exit: ({ sessionName }) => executeCommand(exitText(sessionName)),
+	};
+}
+
+function createWorkmuxScrollbackCommandExecutor({
+	executeCommand,
+	...options
+}: Omit<
+	Parameters<typeof createBaseWorkmuxScrollbackCommandExecutor>[0],
+	'scrollTransport'
+> & {
+	executeCommand: (command: string) => Promise<WorkmuxScrollbackCommandResult>;
+}) {
+	return createBaseWorkmuxScrollbackCommandExecutor({
+		...options,
+		scrollTransport: createRecordingScrollTransport(executeCommand),
+	});
+}
 const deferred = <T>() => {
 	let resolve: (value: T) => void = () => {};
 	let reject: (reason?: unknown) => void = () => {};
@@ -70,12 +100,7 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 		},
 	});
 
-	assert.equal(
-		await executor.runEnterCommand('enter', {
-			rollbackExitCommand: 'exit',
-		}),
-		true,
-	);
+	assert.equal(await executor.runEnterCommand('main'), true);
 	remoteCopyModeActiveRef.current = true;
 
 	const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
@@ -88,7 +113,7 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 
 	assert.notEqual(cleanup, null);
 	assert.equal(await cleanup, false);
-	assert.deepEqual(commands, ['enter', workmuxScrollExitCommand]);
+	assert.deepEqual(commands, [enterText(), workmuxScrollExitCommand]);
 	assert.deepEqual(failures, ['exit:exit failed']);
 	assert.equal(localScrollbackActive, false);
 	assert.equal(remoteCopyModeActiveRef.current, true);
@@ -118,7 +143,7 @@ void test('failed active Workmux scroll exit clears local UI without recursive e
 	}
 
 	assert.deepEqual(commands, [
-		'enter',
+		enterText(),
 		workmuxScrollExitCommand,
 		workmuxScrollExitCommand,
 	]);
@@ -135,7 +160,7 @@ void test('inactive Workmux scroll enter cleanup suppresses canceled enter alert
 	const remoteCopyModeActiveRef = { current: false };
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
-			if (command === 'enter') {
+			if (command === enterText()) {
 				await commandBlock.promise;
 				return { success: false, output: '', error: 'enter failed' };
 			}
@@ -145,9 +170,7 @@ void test('inactive Workmux scroll enter cleanup suppresses canceled enter alert
 		onDisposeExitFailure: (message) => disposeFailures.push(message),
 	});
 
-	const enter = executor.runEnterCommand('enter', {
-		rollbackExitCommand: workmuxScrollExitCommand,
-	});
+	const enter = executor.runEnterCommand('main');
 	await Promise.resolve();
 
 	const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
@@ -218,12 +241,7 @@ void test('failed UI reset exit keeps remote copy mode active and blocks later l
 		onFailure: () => {},
 	});
 
-	assert.equal(
-		await executor.runEnterCommand('enter', {
-			rollbackExitCommand: 'exit',
-		}),
-		true,
-	);
+	assert.equal(await executor.runEnterCommand('main'), true);
 	remoteCopyModeActiveRef.current = true;
 
 	const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
@@ -265,7 +283,7 @@ void test('failed UI reset exit keeps remote copy mode active and blocks later l
 	assert.deepEqual(sentPayloads, []);
 	assert.equal(remoteCopyModeActiveRef.current, true);
 	assert.deepEqual(commands, [
-		'enter',
+		enterText(),
 		workmuxScrollExitCommand,
 		workmuxScrollExitCommand,
 	]);
@@ -280,16 +298,14 @@ void test('live input waits for pending app scroll enter rollback before sending
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
 			commands.push(command);
-			if (command === 'enter') await enterBlock.promise;
-			if (command === 'exit') await exitBlock.promise;
+			if (command === enterText()) await enterBlock.promise;
+			if (command === exitText()) await exitBlock.promise;
 			return { success: true, output: '' };
 		},
 		onFailure: () => {},
 	});
 
-	const enter = executor.runEnterCommand('enter', {
-		rollbackExitCommand: 'exit',
-	});
+	const enter = executor.runEnterCommand('main');
 	await Promise.resolve();
 	const cleanup = resetTmuxScrollbackRuntimeState({
 		lineAccumulator,
@@ -302,14 +318,14 @@ void test('live input waits for pending app scroll enter rollback before sending
 
 	enterBlock.resolve(undefined);
 	await new Promise((resolve) => setImmediate(resolve));
-	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.deepEqual(commands, [enterText(), exitText()]);
 	assert.deepEqual(sentPayloads, []);
 	exitBlock.resolve(undefined);
 
 	assert.equal(await enter, false);
 	await sendAfterCleanup;
 	assert.deepEqual(sentPayloads, ['payload']);
-	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.deepEqual(commands, [enterText(), exitText()]);
 });
 
 void test('pending enter rollback exit failure notifies active reset policy and blocks live input continuation', async () => {
@@ -321,8 +337,8 @@ void test('pending enter rollback exit failure notifies active reset policy and 
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
 			commands.push(command);
-			if (command === 'enter') await enterBlock.promise;
-			if (command === 'exit') {
+			if (command === enterText()) await enterBlock.promise;
+			if (command === exitText()) {
 				return { success: false, output: '', error: 'exit failed' };
 			}
 			return { success: true, output: '' };
@@ -330,9 +346,7 @@ void test('pending enter rollback exit failure notifies active reset policy and 
 		onFailure: (message) => failures.push(message),
 	});
 
-	const enter = executor.runEnterCommand('enter', {
-		rollbackExitCommand: 'exit',
-	});
+	const enter = executor.runEnterCommand('main');
 	await Promise.resolve();
 	const cleanup = resetTmuxScrollbackRuntimeState({
 		lineAccumulator,
@@ -348,7 +362,7 @@ void test('pending enter rollback exit failure notifies active reset policy and 
 	assert.equal(await enter, false);
 	assert.equal(await cleanup, false);
 	await sendAfterCleanup;
-	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.deepEqual(commands, [enterText(), exitText()]);
 	assert.deepEqual(failures, ['exit failed']);
 	assert.deepEqual(sentPayloads, []);
 });
@@ -362,8 +376,8 @@ void test('pending enter rollback exit failure marks remote copy mode active for
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
 			commands.push(command);
-			if (command === 'enter') await enterBlock.promise;
-			if (command === 'exit') {
+			if (command === enterText()) await enterBlock.promise;
+			if (command === exitText()) {
 				return { success: false, output: '', error: 'exit failed' };
 			}
 			return { success: true, output: '' };
@@ -371,9 +385,7 @@ void test('pending enter rollback exit failure marks remote copy mode active for
 		onFailure: () => {},
 	});
 
-	const enter = executor.runEnterCommand('enter', {
-		rollbackExitCommand: 'exit',
-	});
+	const enter = executor.runEnterCommand('main');
 	await Promise.resolve();
 	const cleanup = resetTmuxScrollbackRuntimeStateForUiReset({
 		lineAccumulator,
@@ -387,7 +399,7 @@ void test('pending enter rollback exit failure marks remote copy mode active for
 	enterBlock.resolve(undefined);
 	assert.equal(await enter, false);
 	assert.equal(await cleanup, false);
-	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.deepEqual(commands, [enterText(), exitText()]);
 	assert.equal(remoteCopyModeActiveRef.current, true);
 });
 
@@ -504,15 +516,13 @@ void test('runtime reset clears scrollback and waits for pending enter rollback'
 	const executor = createWorkmuxScrollbackCommandExecutor({
 		executeCommand: async (command) => {
 			commands.push(command);
-			if (command === 'enter') await enterBlock.promise;
+			if (command === enterText()) await enterBlock.promise;
 			return { success: true, output: '' };
 		},
 		onFailure: () => {},
 	});
 
-	const enter = executor.runEnterCommand('enter', {
-		rollbackExitCommand: 'exit',
-	});
+	const enter = executor.runEnterCommand('main');
 	await Promise.resolve();
 	const cleanup = resetTmuxScrollbackRuntimeState({
 		lineAccumulator,
@@ -523,7 +533,7 @@ void test('runtime reset clears scrollback and waits for pending enter rollback'
 	enterBlock.resolve(undefined);
 	assert.equal(await enter, false);
 	assert.equal(await cleanup, true);
-	assert.deepEqual(commands, ['enter', 'exit']);
+	assert.deepEqual(commands, [enterText(), exitText()]);
 });
 
 void test('Workmux scrollback enter request resolution clears inactive current instance only', () => {
@@ -675,9 +685,7 @@ void test('scrollback enter request adapter acks only after Workmux enter succee
 			acks.push(`${requestId}:${instanceId}`),
 	});
 
-	assert.deepEqual(commands, [
-		"mdev tmux app scroll enter --session 'main'",
-	]);
+	assert.deepEqual(commands, [enterText()]);
 	assert.deepEqual(acks, ['42:current']);
 	assert.equal(remoteCopyModeActiveRef.current, true);
 	assert.equal(remoteCopyModeGenerationRef.current, 1);
@@ -711,9 +719,7 @@ void test('scrollback enter request adapter skips ack on failed Workmux enter', 
 			acks.push(`${requestId}:${instanceId}`),
 	});
 
-	assert.deepEqual(commands, [
-		"mdev tmux app scroll enter --session 'main'",
-	]);
+	assert.deepEqual(commands, [enterText()]);
 	assert.deepEqual(acks, ['clear']);
 });
 
@@ -753,8 +759,8 @@ void test('scrollback enter request adapter clears local UI when enter is cancel
 	await enter;
 
 	assert.deepEqual(events, [
-		"command:mdev tmux app scroll enter --session 'main'",
-		"command:mdev tmux app scroll exit --session 'main'",
+		`command:${enterText()}`,
+		`command:${exitText()}`,
 		'clear',
 	]);
 });
@@ -814,7 +820,9 @@ void test('scrollback enter request adapter clears current guarded events before
 		onFailure: () => {},
 	});
 	const runEnter = (
-		overrides: Partial<Parameters<typeof handleTmuxScrollbackEnterRequested>[0]>,
+		overrides: Partial<
+			Parameters<typeof handleTmuxScrollbackEnterRequested>[0]
+		>,
 	) =>
 		handleTmuxScrollbackEnterRequested({
 			event: { instanceId: 'current', requestId: 42 },
@@ -917,16 +925,13 @@ void test('scrollback enter request adapter suppresses async completion after di
 	enterBlock.resolve(undefined);
 	await enter;
 
-	assert.deepEqual(commands, [
-		"mdev tmux app scroll enter --session 'main'",
-		"mdev tmux app scroll exit --session 'main'",
-	]);
+	assert.deepEqual(commands, [enterText(), exitText()]);
 	assert.deepEqual(events, []);
 	assert.equal(remoteCopyModeActiveRef.current, false);
 	assert.equal(remoteCopyModeGenerationRef.current, 0);
 });
 
-void test('scrollback enter request adapter suppresses async completion after focus invalidation', async () => {
+void test('scrollback enter request adapter exits copy mode after focus invalidation', async () => {
 	const enterBlock = deferred<void>();
 	const commands: string[] = [];
 	const events: string[] = [];
@@ -964,7 +969,7 @@ void test('scrollback enter request adapter suppresses async completion after fo
 	enterBlock.resolve(undefined);
 	await enter;
 
-	assert.deepEqual(commands, ["mdev tmux app scroll enter --session 'main'"]);
+	assert.deepEqual(commands, [enterText(), exitText()]);
 	assert.deepEqual(events, []);
 	assert.equal(remoteCopyModeActiveRef.current, false);
 	assert.equal(remoteCopyModeGenerationRef.current, 0);

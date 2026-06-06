@@ -251,6 +251,38 @@ void test('startRemoteJsonlListener aborts slow start and logs slow close', asyn
 	assert.equal(warn.mock.callCount(), 1);
 });
 
+void test('startRemoteJsonlListener ignores late events after start timeout', async () => {
+	let emitLateEvent: (event: Event) => void = () => {};
+	const fixture = createConnection({
+		startCommandStream: async (opts) => {
+			emitLateEvent = opts.onEvent;
+			return new Promise(() => {});
+		},
+	});
+	const lines: string[] = [];
+	const exits: unknown[] = [];
+
+	await assert.rejects(
+		withTestTimeout(
+			startRemoteJsonlListener({
+				connection: fixture.connection,
+				command: 'listen',
+				operationTimeoutMs: 5,
+				onLine: (line) => lines.push(line),
+				onExit: (error) => exits.push(error),
+			}),
+		),
+		/Remote JSONL listener operation timed out/,
+	);
+
+	emitLateEvent({ type: 'stdout', bytes: bytes('{"late":true}\n') });
+	emitLateEvent({ type: 'closed' });
+	await waitTimeout(0);
+
+	assert.deepEqual(lines, []);
+	assert.deepEqual(exits, []);
+});
+
 void test('startRemoteJsonlListener closes a stream that exits before start resolves', async () => {
 	let closed = 0;
 	const fixture = createConnection({

@@ -1,4 +1,5 @@
 import { quoteShell } from './host-browser-actions';
+import { WORKMUX_REMOTE_COMMAND_ENV_PREFIX } from './workmux-app-commands';
 
 export type AgentNotificationStatus = 'waiting' | 'done';
 
@@ -109,6 +110,16 @@ export function buildAgentNotificationListenCommand(
 		parts.push('--since-id', quoteShell(sinceId));
 	}
 	return parts.join(' ');
+}
+
+export function buildAgentNotificationListenRemoteCommand(
+	session: string,
+	sinceId?: string | null,
+): string {
+	return `${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} ${buildAgentNotificationListenCommand(
+		session,
+		sinceId,
+	)}`;
 }
 
 export function createAgentNotificationPendingKey(input: {

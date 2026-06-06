@@ -91,7 +91,7 @@ function kA(A, {
   if (A.type === "initialized" && typeof A.instanceId != "string")
     return (G = e == null ? void 0 : e.warn) == null || G.call(e, "dropping malformed webview initialized message"), !0;
   if (A.type === "documentStarted")
-    return typeof A.bridgeLoadToken != "string" ? ((M = e == null ? void 0 : e.warn) == null || M.call(e, "dropping malformed webview documentStarted message"), !0) : w && A.bridgeLoadId !== w.current ? ((W = e == null ? void 0 : e.warn) == null || W.call(
+    return typeof A.bridgeLoadToken != "string" ? ((M = e == null ? void 0 : e.warn) == null || M.call(e, "dropping malformed webview documentStarted message"), !0) : w && typeof A.bridgeLoadId == "number" && A.bridgeLoadId !== w.current ? ((W = e == null ? void 0 : e.warn) == null || W.call(
       e,
       "dropping stale webview documentStarted load",
       A.bridgeLoadToken
@@ -101,7 +101,7 @@ function kA(A, {
       A.bridgeLoadToken
     ), !0) : (a && (a.current = A.bridgeLoadToken), I && (I.current = !1), B.current = null, gA(t, ""), !0);
   if ("instanceId" in A) {
-    if ((I != null && I.current || a != null && a.current) && (w && A.bridgeLoadId !== w.current))
+    if ((I != null && I.current || a != null && a.current) && (w && typeof A.bridgeLoadId == "number" && A.bridgeLoadId !== w.current))
       return A.type === "initialized" ? (f = e == null ? void 0 : e.warn) == null || f.call(
         e,
         "dropping stale webview initialized load",

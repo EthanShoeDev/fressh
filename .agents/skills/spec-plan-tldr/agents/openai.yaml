@@ -1,0 +1,6 @@
+interface:
+  display_name: 'Spec Plan TLDR'
+  short_description: 'Summarize specs and plans for approval'
+  default_prompt:
+    'Use $spec-plan-tldr to summarize this spec and implementation plan for
+    approval.'

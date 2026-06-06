@@ -15,7 +15,7 @@ import {
 import {
 	type AgentNotificationEvent,
 	AgentNotificationDedupe,
-	buildAgentNotificationListenCommand,
+	buildAgentNotificationListenRemoteCommand,
 	matchesAgentNotificationPendingKey,
 } from './agent-notification-events';
 import {
@@ -530,7 +530,7 @@ export function AgentNotificationBridgeManager({
 		let exitedBeforeReady = false;
 
 		try {
-			const command = buildAgentNotificationListenCommand(
+			const command = buildAgentNotificationListenRemoteCommand(
 				activeTarget.session,
 				lastSeenIdByTargetRef.current.get(activeTarget.resumeKey),
 			);

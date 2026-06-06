@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
@@ -31,6 +31,33 @@ function withTrackedClearTimeouts(run: (cleared: unknown[]) => void): unknown[] 
 		globalThis.clearTimeout = clearTimeoutOriginal;
 	}
 	return cleared;
+}
+
+function readGeneratedArtifactSnapshot(
+	packageRoot: string,
+): { path: string; content: string }[] {
+	const files: string[] = [];
+	const collect = (path: string) => {
+		const absolutePath = join(packageRoot, path);
+		const stat = statSync(absolutePath);
+		if (stat.isDirectory()) {
+			for (const entry of readdirSync(absolutePath).sort()) {
+				collect(`${path}/${entry}`);
+			}
+			return;
+		}
+		if (stat.isFile()) {
+			files.push(path);
+		}
+	};
+
+	collect('dist');
+	collect('dist-internal');
+
+	return files.sort().map((path) => ({
+		path,
+		content: readFileSync(join(packageRoot, path), 'utf8'),
+	}));
 }
 
 void test('scrollback batch mapper strips only bridge message type', () => {
@@ -886,6 +913,66 @@ void test('XtermJsWebView message handler accepts initialized after load reset',
 	]);
 });
 
+void test('XtermJsWebView message handler accepts document start without load id before initialized load id arrives', () => {
+	const events: unknown[] = [];
+	const currentInstanceIdRef = { current: null as string | null };
+	const currentBridgeLoadTokenRef = { current: null as string | null };
+	const awaitingBridgeDocumentStartRef = { current: true };
+	const pendingSelectionRef = { current: new Map() };
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'documentStarted',
+				bridgeLoadToken: 'new-token',
+			} as never,
+			{
+				currentInstanceIdRef,
+				expectedBridgeLoadIdRef: { current: 2 },
+				currentBridgeLoadTokenRef,
+				awaitingBridgeDocumentStartRef,
+				pendingSelectionRef,
+				logger: { warn: (...args: unknown[]) => events.push(['warn', args]) },
+				autoFitFn: () => events.push('fit'),
+				setInitialized: (initialized) => events.push(`state:${initialized}`),
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentBridgeLoadTokenRef.current, 'new-token');
+	assert.equal(awaitingBridgeDocumentStartRef.current, false);
+
+	assert.equal(
+		handleXtermBridgeInboundMessage(
+			{
+				type: 'initialized',
+				instanceId: 'new-instance',
+				bridgeLoadId: 2,
+				bridgeLoadToken: 'new-token',
+			},
+			{
+				currentInstanceIdRef,
+				expectedBridgeLoadIdRef: { current: 2 },
+				currentBridgeLoadTokenRef,
+				awaitingBridgeDocumentStartRef,
+				pendingSelectionRef,
+				onInitialized: (instanceId) => events.push(`initialized:${instanceId}`),
+				autoFitFn: () => events.push('fit'),
+				setInitialized: (initialized) => events.push(`state:${initialized}`),
+			},
+		),
+		true,
+	);
+
+	assert.equal(currentInstanceIdRef.current, 'new-instance');
+	assert.deepEqual(events, [
+		'initialized:new-instance',
+		'fit',
+		'state:true',
+	]);
+});
+
 void test('XtermJsWebView message handler does not forward stale scroll input to terminal data', () => {
 	const events: unknown[] = [];
 
@@ -1332,22 +1419,12 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 
 void test('generated WebView artifacts are in sync with source', () => {
 	const packageRoot = process.cwd();
+	const beforeBuild = readGeneratedArtifactSnapshot(packageRoot);
 
 	execFileSync('pnpm', ['run', 'build'], {
 		cwd: packageRoot,
 		stdio: 'pipe',
 	});
 
-	const changedArtifacts = execFileSync(
-		'git',
-		['diff', '--name-only', '--', 'dist', 'dist-internal'],
-		{
-			cwd: packageRoot,
-			encoding: 'utf8',
-		},
-	)
-		.split(/\r?\n/)
-		.filter(Boolean);
-
-	assert.deepEqual(changedArtifacts, []);
+	assert.deepEqual(readGeneratedArtifactSnapshot(packageRoot), beforeBuild);
 });

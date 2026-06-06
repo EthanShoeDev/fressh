@@ -1,0 +1,172 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"summary",
+		"diagnosis_only",
+		"dimension_scores",
+		"breakdowns",
+		"patches"
+	],
+	"properties": {
+		"summary": {
+			"type": "string",
+			"minLength": 1
+		},
+		"diagnosis_only": {
+			"type": "boolean"
+		},
+		"dimension_scores": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"intent_adherence",
+				"step_clarity",
+				"user_steering_load",
+				"context_hygiene",
+				"tooling_appropriateness",
+				"verification_behavior"
+			],
+			"properties": {
+				"intent_adherence": {
+					"$ref": "#/$defs/score"
+				},
+				"step_clarity": {
+					"$ref": "#/$defs/score"
+				},
+				"user_steering_load": {
+					"$ref": "#/$defs/score"
+				},
+				"context_hygiene": {
+					"$ref": "#/$defs/score"
+				},
+				"tooling_appropriateness": {
+					"$ref": "#/$defs/score"
+				},
+				"verification_behavior": {
+					"$ref": "#/$defs/score"
+				}
+			}
+		},
+		"breakdowns": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/breakdown"
+			}
+		},
+		"patches": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/patch"
+			}
+		}
+	},
+	"$defs": {
+		"score": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["score", "rationale"],
+			"properties": {
+				"score": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 3
+				},
+				"rationale": {
+					"type": "string",
+					"minLength": 1
+				}
+			}
+		},
+		"breakdown": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"title",
+				"severity",
+				"category",
+				"patch_kind",
+				"evidence_refs",
+				"fact_refs",
+				"expected_benefit",
+				"risk",
+				"proposed_change"
+			],
+			"properties": {
+				"title": {
+					"type": "string",
+					"minLength": 1
+				},
+				"severity": {
+					"type": "string",
+					"enum": ["low", "medium", "high"]
+				},
+				"category": {
+					"type": "string",
+					"enum": ["tool", "skill", "workflow", "docs", "token"]
+				},
+				"patch_kind": {
+					"type": "string",
+					"enum": [
+						"SKILL_MD_CHANGE",
+						"REFERENCES_CHANGE",
+						"SCRIPT_CHANGE",
+						"TOOLING_CHANGE",
+						"DIAGNOSIS_ONLY"
+					]
+				},
+				"evidence_refs": {
+					"type": "array",
+					"maxItems": 0,
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"fact_refs": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"expected_benefit": {
+					"type": "string",
+					"minLength": 1
+				},
+				"risk": {
+					"type": "string",
+					"enum": ["low", "medium", "high"]
+				},
+				"proposed_change": {
+					"type": "string",
+					"minLength": 1
+				}
+			}
+		},
+		"patch": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["path", "risk_level", "rationale", "contents"],
+			"properties": {
+				"path": {
+					"type": "string",
+					"pattern": "^(SKILL\\.md|agents/openai\\.yaml|references/.+|scripts/.+)$"
+				},
+				"risk_level": {
+					"type": "string",
+					"enum": ["low", "medium", "high"]
+				},
+				"rationale": {
+					"type": "string",
+					"minLength": 1
+				},
+				"contents": {
+					"type": "string"
+				}
+			}
+		}
+	}
+}

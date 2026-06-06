@@ -158,6 +158,7 @@ export function handleXtermBridgeInboundMessage(
 		}
 		if (
 			expectedBridgeLoadIdRef &&
+			typeof msg.bridgeLoadId === 'number' &&
 			msg.bridgeLoadId !== expectedBridgeLoadIdRef.current
 		) {
 			logger?.warn?.(
@@ -183,10 +184,11 @@ export function handleXtermBridgeInboundMessage(
 		}
 	if ('instanceId' in msg) {
 		if (
-				(awaitingBridgeDocumentStartRef?.current ||
-					currentBridgeLoadTokenRef?.current) &&
+			(awaitingBridgeDocumentStartRef?.current ||
+				currentBridgeLoadTokenRef?.current) &&
 			(expectedBridgeLoadIdRef
-				? msg.bridgeLoadId !== expectedBridgeLoadIdRef.current
+				? typeof msg.bridgeLoadId === 'number' &&
+					msg.bridgeLoadId !== expectedBridgeLoadIdRef.current
 				: false)
 		) {
 			if (msg.type === 'initialized') {

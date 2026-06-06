@@ -4,16 +4,25 @@ import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	WORKMUX_APP_SCROLL_MAX_COUNT,
 	WORKMUX_REMOTE_COMMAND_ENV_PREFIX,
+	buildWorkmuxAppContextArgv,
 	buildWorkmuxAppContextCommand,
+	buildWorkmuxAppFocusArgv,
 	buildWorkmuxAppFocusCommand,
+	buildWorkmuxAppNavArgv,
 	buildWorkmuxAppNavCommand,
+	buildWorkmuxAppNotificationOpenArgv,
 	buildWorkmuxAppNotificationOpenCommand,
 	buildWorkmuxAppScrollEnterCommand,
 	buildWorkmuxAppScrollExitCommand,
+	buildWorkmuxAppScrollLineCommand,
 	buildWorkmuxAppScrollPageCommand,
+	buildWorkmuxAppWindowArgv,
 	buildWorkmuxAppWindowCommand,
+	buildWorkmuxStatusCycleArgv,
+	buildWorkmuxStatusCycleCommand,
 	formatWorkmuxAppCommandFailureMessage,
 	isWorkmuxAppCommand,
+	isWorkmuxScrollAlreadyInactiveFailureMessage,
 	parseWorkmuxAppContextOutput,
 	parseWorkmuxAppWindowOutput,
 	prepareWorkmuxAppCommandForRemoteShell,
@@ -50,6 +59,40 @@ const windowProjection: WorkmuxAppWindow = {
 	homeWindow: false,
 };
 
+function serializeExpectedMdevCommand(argv: string[]): string {
+	return ['mdev', ...argv]
+		.map((value, index, tokens) =>
+			isExpectedCommandToken(index, tokens)
+				? value
+				: quoteExpectedShellValue(value),
+		)
+		.join(' ');
+}
+
+function isExpectedCommandToken(
+	index: number,
+	tokens: string[],
+): boolean {
+	if (index < 4) return true;
+	switch (tokens[3]) {
+		case 'context':
+		case 'window':
+			return index === 4;
+		case 'notification':
+			return index === 4 || index === 5 || index === 7;
+		case 'focus':
+			return index === 5;
+		case 'nav':
+			return tokens[4] === 'select' ? index === 6 : index === 5;
+		default:
+			return false;
+	}
+}
+
+function quoteExpectedShellValue(value: string): string {
+	return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
 void test('workmux app command builders shell-quote app arguments', () => {
 	assert.equal(
 		buildWorkmuxAppContextCommand("main'quoted"),
@@ -80,6 +123,10 @@ void test('workmux app command builders shell-quote app arguments', () => {
 		"mdev tmux app scroll page-down --count '2' --session 'main'",
 	);
 	assert.equal(
+		buildWorkmuxAppScrollLineCommand('main', 'up', 7),
+		"mdev tmux app scroll line-up --count '7' --session 'main'",
+	);
+	assert.equal(
 		buildWorkmuxAppFocusCommand('main', 'toggle-git-bash'),
 		"mdev tmux app focus 'toggle-git-bash' --session 'main'",
 	);
@@ -98,6 +145,123 @@ void test('workmux app command builders shell-quote app arguments', () => {
 	assert.equal(
 		buildWorkmuxAppNavCommand('main', 'prev-all'),
 		"mdev tmux app nav 'prev-all' --session 'main'",
+	);
+	assert.equal(
+		buildWorkmuxStatusCycleCommand("main'quoted"),
+		"mdev tmux nav cycle 'main'\\''quoted:'",
+	);
+});
+
+void test('workmux app command builders quote values that look like flags', () => {
+	const contextCommand = buildWorkmuxAppContextCommand(
+		'--x; echo injected',
+	);
+	assert.equal(
+		contextCommand,
+		"mdev tmux app context --session '--x; echo injected'",
+	);
+	assert.equal(contextCommand.includes('--session --x; echo injected'), false);
+
+	const notificationCommand = buildWorkmuxAppNotificationOpenCommand(
+		'main',
+		'--window; echo injected',
+	);
+	assert.equal(
+		notificationCommand,
+		"mdev tmux app notification open --session 'main' --window-id '--window; echo injected'",
+	);
+	assert.equal(
+		notificationCommand.includes('--window-id --window; echo injected'),
+		false,
+	);
+});
+
+void test('Workmux app argv builders preserve existing command shapes', () => {
+	assert.deepEqual(buildWorkmuxAppContextArgv('main'), [
+		'tmux',
+		'app',
+		'context',
+		'--session',
+		'main',
+	]);
+	assert.deepEqual(buildWorkmuxAppWindowArgv("main'quoted"), [
+		'tmux',
+		'app',
+		'window',
+		'--session',
+		"main'quoted",
+	]);
+	assert.deepEqual(buildWorkmuxAppNotificationOpenArgv('main', '@12'), [
+		'tmux',
+		'app',
+		'notification',
+		'open',
+		'--session',
+		'main',
+		'--window-id',
+		'@12',
+	]);
+	assert.deepEqual(buildWorkmuxAppFocusArgv('main', 'codex'), [
+		'tmux',
+		'app',
+		'focus',
+		'codex',
+		'--session',
+		'main',
+	]);
+	assert.deepEqual(buildWorkmuxAppNavArgv('main', 'next-all'), [
+		'tmux',
+		'app',
+		'nav',
+		'next-all',
+		'--session',
+		'main',
+	]);
+	assert.deepEqual(buildWorkmuxAppNavArgv('main', 'select', 7), [
+		'tmux',
+		'app',
+		'nav',
+		'select',
+		'7',
+		'--session',
+		'main',
+	]);
+	assert.deepEqual(buildWorkmuxStatusCycleArgv('main'), [
+		'tmux',
+		'nav',
+		'cycle',
+		'main:',
+	]);
+});
+
+void test('Workmux app command builders are derived from argv builders', () => {
+	assert.equal(
+		buildWorkmuxAppContextCommand("main'quoted"),
+		serializeExpectedMdevCommand(buildWorkmuxAppContextArgv("main'quoted")),
+	);
+	assert.equal(
+		buildWorkmuxAppWindowCommand("main'quoted"),
+		serializeExpectedMdevCommand(buildWorkmuxAppWindowArgv("main'quoted")),
+	);
+	assert.equal(
+		buildWorkmuxAppNotificationOpenCommand("main'quoted", "@12'bad"),
+		serializeExpectedMdevCommand(
+			buildWorkmuxAppNotificationOpenArgv("main'quoted", "@12'bad"),
+		),
+	);
+	assert.equal(
+		buildWorkmuxAppFocusCommand("main'quoted", 'git'),
+		serializeExpectedMdevCommand(
+			buildWorkmuxAppFocusArgv("main'quoted", 'git'),
+		),
+	);
+	assert.equal(
+		buildWorkmuxAppNavCommand('main', 'select', 3),
+		serializeExpectedMdevCommand(buildWorkmuxAppNavArgv('main', 'select', 3)),
+	);
+	assert.equal(
+		buildWorkmuxStatusCycleCommand("main'quoted"),
+		serializeExpectedMdevCommand(buildWorkmuxStatusCycleArgv("main'quoted")),
 	);
 });
 
@@ -127,6 +291,12 @@ void test('workmux app remote shell command preparation adds non-login PATH once
 	);
 	assert.equal(
 		prepareWorkmuxAppCommandForRemoteShell(
+			"mdev tmux nav cycle 'main:'",
+		),
+		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux nav cycle 'main:'`,
+	);
+	assert.equal(
+		prepareWorkmuxAppCommandForRemoteShell(
 			`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session 'main'`,
 		),
 		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session 'main'`,
@@ -135,6 +305,21 @@ void test('workmux app remote shell command preparation adds non-login PATH once
 		prepareWorkmuxAppCommandForRemoteShell('git status'),
 		'git status',
 	);
+});
+
+void test('workmux app failure formatting recognizes old nav-cycle mdev versions', () => {
+	for (const message of [
+		'Unknown tmux command: nav',
+		'unknown tmux command nav',
+		'unknown command: tmux nav',
+		"unrecognized subcommand 'nav'",
+		"unrecognized subcommand 'cycle'",
+	]) {
+		assert.equal(
+			formatWorkmuxAppCommandFailureMessage(message),
+			WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+		);
+	}
 });
 
 void test('workmux app builders normalize blank sessions to main', () => {
@@ -151,6 +336,22 @@ void test('workmux scroll page builder rejects invalid counts', () => {
 			/Invalid Workmux scroll count/,
 		);
 	}
+});
+
+void test('workmux scroll line builder rejects invalid counts and directions', () => {
+	assert.throws(
+		() => buildWorkmuxAppScrollLineCommand('main', 'down', 0),
+		/Invalid Workmux scroll count/,
+	);
+	assert.throws(
+		() =>
+			buildWorkmuxAppScrollLineCommand(
+				'main',
+				'left' as Parameters<typeof buildWorkmuxAppScrollLineCommand>[1],
+				1,
+			),
+		/Invalid Workmux scroll direction/,
+	);
 });
 
 void test('workmux scroll page max count is exported by the command boundary', () => {
@@ -183,6 +384,21 @@ void test('workmux scroll page builder rejects invalid directions', () => {
 				1,
 			),
 		/Invalid Workmux scroll direction/,
+	);
+});
+
+void test('workmux scroll inactive failure message recognizes mdev copy-mode wording', () => {
+	assert.equal(
+		isWorkmuxScrollAlreadyInactiveFailureMessage('not in a mode'),
+		true,
+	);
+	assert.equal(
+		isWorkmuxScrollAlreadyInactiveFailureMessage('not in the mode'),
+		true,
+	);
+	assert.equal(
+		isWorkmuxScrollAlreadyInactiveFailureMessage('permission denied'),
+		false,
 	);
 });
 

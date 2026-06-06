@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import test from 'node:test';
 
 function collectSourceFiles(dir: string): string[] {
@@ -19,18 +19,22 @@ function collectSourceFiles(dir: string): string[] {
 
 void test('mobile app command code does not call direct tmux helpers', () => {
 	const root = resolve(import.meta.dirname, '../../src');
+	const directMuxBoundary = 'lib/workmux-direct-tmux-control.ts';
 	const forbidden = [
-		/\btmux\s+display-message\b/,
-		/\btmux\s+send-keys\b/,
-		/\btmux\s+copy-mode\b/,
-		/\binvoke-rc\.bash\b/,
+		{ pattern: /\btmux\s+display-message\b/, boundaryAllowed: false },
+		{ pattern: /\btmux\s+send-keys\b/, boundaryAllowed: true },
+		{ pattern: /\btmux\s+copy-mode\b/, boundaryAllowed: true },
+		{ pattern: /\binvoke-rc\.bash\b/, boundaryAllowed: false },
 	];
 	const offenders: string[] = [];
 
 	for (const file of collectSourceFiles(root)) {
 		const source = readFileSync(file, 'utf8');
-		for (const pattern of forbidden) {
-			if (pattern.test(source)) offenders.push(`${file}: ${pattern}`);
+		const relativePath = relative(root, file);
+		for (const { pattern, boundaryAllowed } of forbidden) {
+			if (!pattern.test(source)) continue;
+			if (boundaryAllowed && relativePath === directMuxBoundary) continue;
+			offenders.push(`${file}: ${pattern}`);
 		}
 	}
 

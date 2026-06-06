@@ -22,6 +22,16 @@ const scannedRoots = [
 	),
 ];
 
+const directMuxBoundaryPath =
+	'apps/mobile/src/lib/workmux-direct-tmux-control.ts';
+const workmuxAppCommandsPath =
+	'apps/mobile/src/lib/workmux-app-commands.ts';
+const allowedDirectMuxCommandPrefixes = new Set([
+	'tmux copy-mode',
+	'tmux send-keys',
+	'tmux select-window',
+]);
+
 function listSourceFiles(root: string): string[] {
 	const entries = readdirSync(root);
 	const files: string[] = [];
@@ -305,6 +315,23 @@ function containsDirectInvokeRcCommand(text: string): boolean {
 	return findDirectInvokeRcOccurrences(text).length > 0;
 }
 
+function isAllowedAppBoundaryOccurrence(
+	relativeFilePath: string,
+	occurrence: DirectBoundaryOccurrence,
+): boolean {
+	const isDirectMuxBoundary =
+		relativeFilePath === directMuxBoundaryPath &&
+		occurrence.kind === 'shell' &&
+		allowedDirectMuxCommandPrefixes.has(occurrence.commandPrefix);
+	const isMdevArgvToken =
+		relativeFilePath === workmuxAppCommandsPath &&
+		occurrence.kind === 'shell' &&
+		occurrence.commandPrefix === 'tmux' &&
+		(/^buildWorkmuxApp[A-Za-z0-9]+Argv$/.test(occurrence.functionName) ||
+			occurrence.functionName === 'buildWorkmuxStatusCycleArgv');
+	return isDirectMuxBoundary || isMdevArgvToken;
+}
+
 void test('direct tmux command detector matches shell command strings', () => {
 	const directShellCommands = [
 		'`cd /tmp && tmux attach -t main`',
@@ -428,13 +455,17 @@ void test('direct tmux and invoke-rc command strings are absent outside the app 
 
 	for (const root of scannedRoots) {
 		for (const file of listSourceFiles(root)) {
+			const relativeFilePath = path.relative(repoRoot, file);
 			const text = readFileSync(file, 'utf8');
 			const occurrences = [
 				...findDirectTmuxOccurrences(text),
 				...findDirectInvokeRcOccurrences(text),
-			];
+			].filter(
+				(occurrence) =>
+					!isAllowedAppBoundaryOccurrence(relativeFilePath, occurrence),
+			);
 			if (occurrences.length > 0) {
-				actualOccurrencesByFile.set(path.relative(repoRoot, file), occurrences);
+				actualOccurrencesByFile.set(relativeFilePath, occurrences);
 			}
 		}
 	}
@@ -443,6 +474,57 @@ void test('direct tmux and invoke-rc command strings are absent outside the app 
 		[...actualOccurrencesByFile.entries()].sort(),
 		[],
 		JSON.stringify([...actualOccurrencesByFile.entries()]),
+	);
+});
+
+void test('direct tmux boundary only allows DirectMux commands in the boundary file', () => {
+	assert.equal(
+		isAllowedAppBoundaryOccurrence(directMuxBoundaryPath, {
+			kind: 'shell',
+			functionName: 'buildDirectTmuxScrollMoveCommand',
+			commandPrefix: 'tmux send-keys',
+		}),
+		true,
+	);
+	assert.equal(
+		isAllowedAppBoundaryOccurrence('apps/mobile/src/lib/other.ts', {
+			kind: 'shell',
+			functionName: 'other',
+			commandPrefix: 'tmux send-keys',
+		}),
+		false,
+	);
+	assert.equal(
+		isAllowedAppBoundaryOccurrence(directMuxBoundaryPath, {
+			kind: 'invoke-rc',
+			functionName: 'other',
+			commandPrefix: 'invoke-rc.bash',
+		}),
+		false,
+	);
+	assert.equal(
+		isAllowedAppBoundaryOccurrence(directMuxBoundaryPath, {
+			kind: 'shell',
+			functionName: 'other',
+			commandPrefix: 'tmux display-message',
+		}),
+		false,
+	);
+	assert.equal(
+		isAllowedAppBoundaryOccurrence(workmuxAppCommandsPath, {
+			kind: 'shell',
+			functionName: 'buildWorkmuxAppContextArgv',
+			commandPrefix: 'tmux',
+		}),
+		true,
+	);
+	assert.equal(
+		isAllowedAppBoundaryOccurrence(workmuxAppCommandsPath, {
+			kind: 'shell',
+			functionName: 'buildWorkmuxAppContextCommand',
+			commandPrefix: 'tmux',
+		}),
+		false,
 	);
 });
 

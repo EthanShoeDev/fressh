@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
 	AgentNotificationDedupe,
 	buildAgentNotificationListenCommand,
+	buildAgentNotificationListenRemoteCommand,
 	createAgentNotificationPendingKey,
 	createStableNotificationId,
 	getAgentAlertNotificationText,
@@ -226,6 +227,17 @@ void test('listen command quotes session and since id', () => {
 	assert.equal(
 		buildAgentNotificationListenCommand('main', "main:@12:1:'bad"),
 		"mdev tmux notifications listen --session 'main' --since-id 'main:@12:1:'\\''bad'",
+	);
+});
+
+void test('remote listen command adds non-login mdev PATH prefix', () => {
+	assert.equal(
+		buildAgentNotificationListenRemoteCommand("main'quoted"),
+		"env PATH=\"$PATH:$HOME/bin\" mdev tmux notifications listen --session 'main'\\''quoted'",
+	);
+	assert.equal(
+		buildAgentNotificationListenRemoteCommand('main', "main:@12:1:'bad"),
+		"env PATH=\"$PATH:$HOME/bin\" mdev tmux notifications listen --session 'main' --since-id 'main:@12:1:'\\''bad'",
 	);
 });
 

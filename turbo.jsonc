@@ -7,6 +7,9 @@
 		"SSL_CERT_FILE",
 		"GRADLE_OPTS",
 		"BW_SESSION",
+		"ADB_SERVER_SOCKET",
+		"MAESTRO_HOST",
+		"MAESTRO_E2E_CLEAR_STATE",
 	],
 	"tasks": {
 		// Defaults

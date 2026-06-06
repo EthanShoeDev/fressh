@@ -4,6 +4,7 @@ import {
 	handleShellWorkmuxScrollbackCommandFailureActions,
 	handleShellWorkmuxScrollbackDisposeExitFailureActions,
 	runShellScrollbackInactiveCleanup,
+	shouldTreatShellWorkmuxScrollbackFailureAsAlreadyInactive,
 } from '../../src/app/shell/shell-scrollback-policy';
 
 void test('shell scrollback inactive cleanup runs on active to non-active transitions', async () => {
@@ -159,6 +160,37 @@ void test('shell scrollback failure actions use supplied app-exit cleanup after 
 		'exit',
 		'clear',
 	]);
+});
+
+void test('shell scrollback failure policy treats scroll not-in-mode as remote already inactive', () => {
+	assert.equal(
+		shouldTreatShellWorkmuxScrollbackFailureAsAlreadyInactive({
+			commandKind: 'scroll',
+			message: 'not in a mode',
+		}),
+		true,
+	);
+	assert.equal(
+		shouldTreatShellWorkmuxScrollbackFailureAsAlreadyInactive({
+			commandKind: 'scroll',
+			message: 'not in the mode',
+		}),
+		true,
+	);
+	assert.equal(
+		shouldTreatShellWorkmuxScrollbackFailureAsAlreadyInactive({
+			commandKind: 'enter',
+			message: 'not in a mode',
+		}),
+		false,
+	);
+	assert.equal(
+		shouldTreatShellWorkmuxScrollbackFailureAsAlreadyInactive({
+			commandKind: 'scroll',
+			message: 'permission denied',
+		}),
+		false,
+	);
 });
 
 void test('shell scrollback dispose exit failure logs without user alert', () => {

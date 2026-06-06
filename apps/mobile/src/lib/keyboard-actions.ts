@@ -5,8 +5,12 @@ import {
 import { rootLogger } from '@/lib/logger';
 import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+	buildWorkmuxAppFocusArgv,
 	buildWorkmuxAppFocusCommand,
+	buildWorkmuxAppNavArgv,
 	buildWorkmuxAppNavCommand,
+	buildWorkmuxStatusCycleArgv,
+	buildWorkmuxStatusCycleCommand,
 	formatWorkmuxAppCommandFailureMessage,
 	type WorkmuxFocusTarget,
 	type WorkmuxNavAction,
@@ -24,7 +28,8 @@ export const KEYBOARD_TARGET_ACTION_IDS = [
 
 export type WorkmuxKeyboardCommand =
 	| { type: 'focus'; target: WorkmuxFocusTarget }
-	| { type: 'nav'; action: Exclude<WorkmuxNavAction, 'select'> };
+	| { type: 'nav'; action: Exclude<WorkmuxNavAction, 'select'> }
+	| { type: 'status-cycle' };
 const WORKMUX_KEYBOARD_PRIMARY_ACTION_ENTRIES = [
 	['WORKMUX_FOCUS_CLAUDE', { type: 'focus', target: 'claude' }],
 	['WORKMUX_FOCUS_GIT', { type: 'focus', target: 'git' }],
@@ -42,7 +47,7 @@ const WORKMUX_KEYBOARD_PRIMARY_ACTION_ENTRIES = [
 	['WORKMUX_NAV_NEXT_ALL', { type: 'nav', action: 'next-all' }],
 ] as const satisfies readonly (readonly [string, WorkmuxKeyboardCommand])[];
 const WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_ENTRIES = [
-	['CYCLE_WORKMUX_STATUS', { type: 'nav', action: 'next-all' }],
+	['CYCLE_WORKMUX_STATUS', { type: 'status-cycle' }],
 ] as const satisfies readonly (readonly [string, WorkmuxKeyboardCommand])[];
 const WORKMUX_KEYBOARD_ACTION_ENTRIES = [
 	...WORKMUX_KEYBOARD_PRIMARY_ACTION_ENTRIES,
@@ -123,25 +128,25 @@ export type WorkmuxKeyboardCommandRunner = {
 export function createWorkmuxKeyboardCommandRunner({
 	isTmuxEnabled,
 	getSessionName,
+	runWorkmuxCommand,
 	runHostCommand,
 	showFailure,
 	getErrorMessage,
 }: {
 	isTmuxEnabled: () => boolean;
 	getSessionName: () => string;
+	runWorkmuxCommand?: (argv: string[], timeoutMs: number) => Promise<unknown>;
 	runHostCommand: (command: string, timeoutMs: number) => Promise<unknown>;
 	showFailure: (message: string) => void;
 	getErrorMessage: (error: unknown) => string;
 }): WorkmuxKeyboardCommandRunner {
 	let running = false;
 	let generation = 0;
-	let pending:
-		| {
-				command: WorkmuxKeyboardCommand;
-				generation: number;
-				resolve: (result: WorkmuxKeyboardCommandRunResult) => void;
-			}
-		| null = null;
+	let pending: {
+		command: WorkmuxKeyboardCommand;
+		generation: number;
+		resolve: (result: WorkmuxKeyboardCommandRunResult) => void;
+	} | null = null;
 
 	const supersedePending = (): void => {
 		pending?.resolve({ status: 'superseded' });
@@ -160,14 +165,23 @@ export function createWorkmuxKeyboardCommandRunner({
 				throw new Error(WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE);
 			}
 			const sessionName = getSessionName().trim() || 'main';
-			const remoteCommand =
+			const argv =
 				command.type === 'focus'
-					? buildWorkmuxAppFocusCommand(sessionName, command.target)
-					: buildWorkmuxAppNavCommand(
-							sessionName,
-							command.action,
-						);
-			await runHostCommand(remoteCommand, 10_000);
+					? buildWorkmuxAppFocusArgv(sessionName, command.target)
+					: command.type === 'nav'
+						? buildWorkmuxAppNavArgv(sessionName, command.action)
+						: buildWorkmuxStatusCycleArgv(sessionName);
+			if (runWorkmuxCommand) {
+				await runWorkmuxCommand(argv, 10_000);
+			} else {
+				const remoteCommand =
+					command.type === 'focus'
+						? buildWorkmuxAppFocusCommand(sessionName, command.target)
+						: command.type === 'nav'
+							? buildWorkmuxAppNavCommand(sessionName, command.action)
+							: buildWorkmuxStatusCycleCommand(sessionName);
+				await runHostCommand(remoteCommand, 10_000);
+			}
 			return commandGeneration === generation
 				? { status: 'handled' }
 				: { status: 'superseded' };
@@ -193,9 +207,7 @@ export function createWorkmuxKeyboardCommandRunner({
 		try {
 			let current: typeof queued | null = queued;
 			while (current) {
-				current.resolve(
-					await execute(current.command, current.generation),
-				);
+				current.resolve(await execute(current.command, current.generation));
 				current = pending;
 				pending = null;
 			}

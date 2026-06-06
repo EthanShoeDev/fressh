@@ -1,0 +1,6 @@
+interface:
+  display_name: 'Goalcraft'
+  short_description: 'Turn rough drafts into powerful Codex goals'
+  default_prompt:
+    'Use $goalcraft to turn this rough draft into an activation-ready Codex
+    /goal objective.'

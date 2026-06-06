@@ -1,17 +1,24 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { handleTmuxScrollbackBatchEvent } from '../../src/lib/tmux-scrollback';
+import { type WorkmuxControlChannel } from '../../src/lib/workmux-control-channel';
 import {
 	createTmuxScrollbackLineAccumulator,
 	type WorkmuxScrollbackPageCommand,
 } from '../../src/lib/workmux-scrollback-batch';
 import { createWorkmuxScrollbackCommandExecutor } from '../../src/lib/workmux-scrollback-executor';
 
+const noopScrollTransport: WorkmuxControlChannel['scroll'] = {
+	enter: async () => ({ success: true, output: '' }),
+	move: async () => ({ success: true, output: '' }),
+	exit: async () => ({ success: true, output: '' }),
+};
+
 void test('scrollback batch adapter gates events and passes pageStep into command building', async () => {
 	const lineAccumulator = createTmuxScrollbackLineAccumulator();
 	const commands: WorkmuxScrollbackPageCommand[][] = [];
 	const executor = createWorkmuxScrollbackCommandExecutor({
-		executeCommand: async () => ({ success: true, output: '' }),
+		scrollTransport: noopScrollTransport,
 		onFailure: () => {},
 	});
 	const enqueueScrollBatch = executor.enqueueScrollBatch.bind(executor);
@@ -33,6 +40,7 @@ void test('scrollback batch adapter gates events and passes pageStep into comman
 			tmuxEnabled: true,
 			connectionAvailable: true,
 			scrollbackActive: true,
+			remoteCopyModeActive: true,
 			targetName: 'main',
 			lineAccumulator,
 			enqueueScrollBatch: (batch) => {
@@ -51,6 +59,7 @@ void test('scrollback batch adapter gates events and passes pageStep into comman
 		{ tmuxEnabled: false },
 		{ connectionAvailable: false },
 		{ scrollbackActive: false },
+		{ remoteCopyModeActive: false },
 	];
 	for (const rejected of rejectedCases) {
 		assert.equal(runBatch(rejected), false);
@@ -70,7 +79,9 @@ void test('scrollback batch adapter gates events and passes pageStep into comman
 		lineAccumulator.lines = 12;
 		assert.equal(
 			runBatch({
-				event: event as Parameters<typeof handleTmuxScrollbackBatchEvent>[0]['event'],
+				event: event as Parameters<
+					typeof handleTmuxScrollbackBatchEvent
+				>[0]['event'],
 			}),
 			false,
 		);
@@ -90,7 +101,7 @@ void test('scrollback batch adapter gates events and passes pageStep into comman
 				instanceId: 'current',
 			},
 		}),
-		false,
+		true,
 	);
 	assert.equal(
 		runBatch({
@@ -107,7 +118,11 @@ void test('scrollback batch adapter gates events and passes pageStep into comman
 	assert.equal(runBatch({}), true);
 
 	assert.deepEqual(commands, [
-		[{ sessionName: 'main', direction: 'up', count: 1 }],
-		[{ sessionName: 'main', direction: 'up', count: 1 }],
+		[
+			{ sessionName: 'main', direction: 'up', unit: 'line', count: 20 },
+			{ sessionName: 'main', direction: 'up', unit: 'line', count: 3 },
+		],
+		[{ sessionName: 'main', direction: 'up', unit: 'line', count: 1 }],
+		[{ sessionName: 'main', direction: 'up', unit: 'page', count: 1 }],
 	]);
 });
