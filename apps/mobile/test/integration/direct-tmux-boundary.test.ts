@@ -327,7 +327,8 @@ function isAllowedAppBoundaryOccurrence(
 		relativeFilePath === workmuxAppCommandsPath &&
 		occurrence.kind === 'shell' &&
 		occurrence.commandPrefix === 'tmux' &&
-		/^buildWorkmuxApp[A-Za-z0-9]+Argv$/.test(occurrence.functionName);
+		(/^buildWorkmuxApp[A-Za-z0-9]+Argv$/.test(occurrence.functionName) ||
+			occurrence.functionName === 'buildWorkmuxStatusCycleArgv');
 	return isDirectMuxBoundary || isMdevArgvToken;
 }
 

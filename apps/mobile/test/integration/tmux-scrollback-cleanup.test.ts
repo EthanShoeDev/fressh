@@ -931,7 +931,7 @@ void test('scrollback enter request adapter suppresses async completion after di
 	assert.equal(remoteCopyModeGenerationRef.current, 0);
 });
 
-void test('scrollback enter request adapter suppresses async completion after focus invalidation', async () => {
+void test('scrollback enter request adapter exits copy mode after focus invalidation', async () => {
 	const enterBlock = deferred<void>();
 	const commands: string[] = [];
 	const events: string[] = [];
@@ -969,7 +969,7 @@ void test('scrollback enter request adapter suppresses async completion after fo
 	enterBlock.resolve(undefined);
 	await enter;
 
-	assert.deepEqual(commands, [enterText()]);
+	assert.deepEqual(commands, [enterText(), exitText()]);
 	assert.deepEqual(events, []);
 	assert.equal(remoteCopyModeActiveRef.current, false);
 	assert.equal(remoteCopyModeGenerationRef.current, 0);

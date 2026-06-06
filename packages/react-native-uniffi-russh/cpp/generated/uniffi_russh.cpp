@@ -16,7 +16,7 @@ namespace jsi = facebook::jsi;
 extern "C" {
     typedef void
     (*UniffiRustFutureContinuationCallback)(
-    uint64_t data,
+    uint64_t data, 
     int8_t poll_result
     );
     typedef void
@@ -39,7 +39,7 @@ extern "C" {
     } UniffiForeignFutureResultU8;
     typedef void
     (*UniffiForeignFutureCompleteU8)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultU8 result
     );typedef struct UniffiForeignFutureResultI8 {
         int8_t return_value;
@@ -47,7 +47,7 @@ extern "C" {
     } UniffiForeignFutureResultI8;
     typedef void
     (*UniffiForeignFutureCompleteI8)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultI8 result
     );typedef struct UniffiForeignFutureResultU16 {
         uint16_t return_value;
@@ -55,7 +55,7 @@ extern "C" {
     } UniffiForeignFutureResultU16;
     typedef void
     (*UniffiForeignFutureCompleteU16)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultU16 result
     );typedef struct UniffiForeignFutureResultI16 {
         int16_t return_value;
@@ -63,7 +63,7 @@ extern "C" {
     } UniffiForeignFutureResultI16;
     typedef void
     (*UniffiForeignFutureCompleteI16)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultI16 result
     );typedef struct UniffiForeignFutureResultU32 {
         uint32_t return_value;
@@ -71,7 +71,7 @@ extern "C" {
     } UniffiForeignFutureResultU32;
     typedef void
     (*UniffiForeignFutureCompleteU32)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultU32 result
     );typedef struct UniffiForeignFutureResultI32 {
         int32_t return_value;
@@ -79,7 +79,7 @@ extern "C" {
     } UniffiForeignFutureResultI32;
     typedef void
     (*UniffiForeignFutureCompleteI32)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultI32 result
     );typedef struct UniffiForeignFutureResultU64 {
         uint64_t return_value;
@@ -87,7 +87,7 @@ extern "C" {
     } UniffiForeignFutureResultU64;
     typedef void
     (*UniffiForeignFutureCompleteU64)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultU64 result
     );typedef struct UniffiForeignFutureResultI64 {
         int64_t return_value;
@@ -95,7 +95,7 @@ extern "C" {
     } UniffiForeignFutureResultI64;
     typedef void
     (*UniffiForeignFutureCompleteI64)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultI64 result
     );typedef struct UniffiForeignFutureResultF32 {
         float return_value;
@@ -103,7 +103,7 @@ extern "C" {
     } UniffiForeignFutureResultF32;
     typedef void
     (*UniffiForeignFutureCompleteF32)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultF32 result
     );typedef struct UniffiForeignFutureResultF64 {
         double return_value;
@@ -111,7 +111,7 @@ extern "C" {
     } UniffiForeignFutureResultF64;
     typedef void
     (*UniffiForeignFutureCompleteF64)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultF64 result
     );typedef struct UniffiForeignFutureResultRustBuffer {
         RustBuffer return_value;
@@ -119,52 +119,52 @@ extern "C" {
     } UniffiForeignFutureResultRustBuffer;
     typedef void
     (*UniffiForeignFutureCompleteRustBuffer)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultRustBuffer result
     );typedef struct UniffiForeignFutureResultVoid {
         RustCallStatus call_status;
     } UniffiForeignFutureResultVoid;
     typedef void
     (*UniffiForeignFutureCompleteVoid)(
-    uint64_t callback_data,
+    uint64_t callback_data, 
     UniffiForeignFutureResultVoid result
     );
     typedef void
     (*UniffiCallbackInterfaceCommandStreamCallbackMethod0)(
-    uint64_t uniffi_handle,
-    RustBuffer event,
+    uint64_t uniffi_handle, 
+    RustBuffer event, 
     void * uniffi_out_return, RustCallStatus* rust_call_status
     );
     typedef void
     (*UniffiCallbackInterfaceConnectProgressCallbackMethod0)(
-    uint64_t uniffi_handle,
-    RustBuffer status,
+    uint64_t uniffi_handle, 
+    RustBuffer status, 
     void * uniffi_out_return, RustCallStatus* rust_call_status
     );
     typedef void
     (*UniffiCallbackInterfaceConnectionDisconnectedCallbackMethod0)(
-    uint64_t uniffi_handle,
-    RustBuffer connection_id,
+    uint64_t uniffi_handle, 
+    RustBuffer connection_id, 
     void * uniffi_out_return, RustCallStatus* rust_call_status
     );
     typedef void
     (*UniffiCallbackInterfaceServerKeyCallbackMethod0)(
-    uint64_t uniffi_handle,
-    RustBuffer server_key_info,
-    UniffiForeignFutureCompleteI8 uniffi_future_callback,
-    uint64_t uniffi_callback_data,
+    uint64_t uniffi_handle, 
+    RustBuffer server_key_info, 
+    UniffiForeignFutureCompleteI8 uniffi_future_callback, 
+    uint64_t uniffi_callback_data, 
     UniffiForeignFutureDroppedCallbackStruct * uniffi_out_dropped_callback
     );
     typedef void
     (*UniffiCallbackInterfaceShellClosedCallbackMethod0)(
-    uint64_t uniffi_handle,
-    uint32_t channel_id,
+    uint64_t uniffi_handle, 
+    uint32_t channel_id, 
     void * uniffi_out_return, RustCallStatus* rust_call_status
     );
     typedef void
     (*UniffiCallbackInterfaceShellListenerMethod0)(
-    uint64_t uniffi_handle,
-    RustBuffer ev,
+    uint64_t uniffi_handle, 
+    RustBuffer ev, 
     void * uniffi_out_return, RustCallStatus* rust_call_status
     );typedef struct UniffiVTableCallbackInterfaceCommandStreamCallback {
         UniffiCallbackInterfaceFree uniffi_free;
@@ -192,191 +192,191 @@ extern "C" {
         UniffiCallbackInterfaceShellListenerMethod0 on_event;
     } UniffiVTableCallbackInterfaceShellListener;
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_commandstreamcallback(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_commandstreamcallback(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_commandstreamcallback(
         UniffiVTableCallbackInterfaceCommandStreamCallback * vtable
     );
     void uniffi_uniffi_russh_fn_method_commandstreamcallback_on_event(
-        /*handle*/ uint64_t ptr,
-        RustBuffer event,
+        /*handle*/ uint64_t ptr, 
+        RustBuffer event, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_commandstreamsession(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_commandstreamsession(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_commandstreamsession_close(
         /*handle*/ uint64_t ptr
     );
     RustBuffer uniffi_uniffi_russh_fn_method_commandstreamsession_get_info(
-        /*handle*/ uint64_t ptr,
+        /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_connectprogresscallback(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_connectprogresscallback(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_connectprogresscallback(
         UniffiVTableCallbackInterfaceConnectProgressCallback * vtable
     );
     void uniffi_uniffi_russh_fn_method_connectprogresscallback_on_change(
-        /*handle*/ uint64_t ptr,
-        RustBuffer status,
+        /*handle*/ uint64_t ptr, 
+        RustBuffer status, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_connectiondisconnectedcallback(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_connectiondisconnectedcallback(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_connectiondisconnectedcallback(
         UniffiVTableCallbackInterfaceConnectionDisconnectedCallback * vtable
     );
     void uniffi_uniffi_russh_fn_method_connectiondisconnectedcallback_on_change(
-        /*handle*/ uint64_t ptr,
-        RustBuffer connection_id,
+        /*handle*/ uint64_t ptr, 
+        RustBuffer connection_id, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_serverkeycallback(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_serverkeycallback(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_serverkeycallback(
         UniffiVTableCallbackInterfaceServerKeyCallback * vtable
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_serverkeycallback_on_change(
-        /*handle*/ uint64_t ptr,
+        /*handle*/ uint64_t ptr, 
         RustBuffer server_key_info
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_shellclosedcallback(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_shellclosedcallback(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_shellclosedcallback(
         UniffiVTableCallbackInterfaceShellClosedCallback * vtable
     );
     void uniffi_uniffi_russh_fn_method_shellclosedcallback_on_change(
-        /*handle*/ uint64_t ptr,
-        uint32_t channel_id,
+        /*handle*/ uint64_t ptr, 
+        uint32_t channel_id, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_shelllistener(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_shelllistener(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_init_callback_vtable_shelllistener(
         UniffiVTableCallbackInterfaceShellListener * vtable
     );
     void uniffi_uniffi_russh_fn_method_shelllistener_on_event(
-        /*handle*/ uint64_t ptr,
-        RustBuffer ev,
+        /*handle*/ uint64_t ptr, 
+        RustBuffer ev, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_shellsession(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_shellsession(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     uint64_t uniffi_uniffi_russh_fn_method_shellsession_add_listener(
-        /*handle*/ uint64_t ptr,
-        /*handle*/ uint64_t listener,
-        RustBuffer opts,
+        /*handle*/ uint64_t ptr, 
+        /*handle*/ uint64_t listener, 
+        RustBuffer opts, 
         RustCallStatus *uniffi_out_err
     );
     RustBuffer uniffi_uniffi_russh_fn_method_shellsession_buffer_stats(
-        /*handle*/ uint64_t ptr,
+        /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_shellsession_close(
         /*handle*/ uint64_t ptr
     );
     uint64_t uniffi_uniffi_russh_fn_method_shellsession_current_seq(
-        /*handle*/ uint64_t ptr,
+        /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
     RustBuffer uniffi_uniffi_russh_fn_method_shellsession_get_info(
-        /*handle*/ uint64_t ptr,
+        /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
     RustBuffer uniffi_uniffi_russh_fn_method_shellsession_read_buffer(
-        /*handle*/ uint64_t ptr,
-        RustBuffer cursor,
-        RustBuffer max_bytes,
+        /*handle*/ uint64_t ptr, 
+        RustBuffer cursor, 
+        RustBuffer max_bytes, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_method_shellsession_remove_listener(
-        /*handle*/ uint64_t ptr,
-        uint64_t id,
+        /*handle*/ uint64_t ptr, 
+        uint64_t id, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_shellsession_resize_pty(
-        /*handle*/ uint64_t ptr,
-        uint32_t cols,
-        uint32_t rows,
-        RustBuffer pixel_width,
+        /*handle*/ uint64_t ptr, 
+        uint32_t cols, 
+        uint32_t rows, 
+        RustBuffer pixel_width, 
         RustBuffer pixel_height
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_shellsession_send_data(
-        /*handle*/ uint64_t ptr,
+        /*handle*/ uint64_t ptr, 
         RustBuffer data
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_clone_sshconnection(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void uniffi_uniffi_russh_fn_free_sshconnection(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_sshconnection_disconnect(
         /*handle*/ uint64_t ptr
     );
     RustBuffer uniffi_uniffi_russh_fn_method_sshconnection_get_info(
-        /*handle*/ uint64_t ptr,
+        /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_sshconnection_run_command(
-        /*handle*/ uint64_t ptr,
+        /*handle*/ uint64_t ptr, 
         RustBuffer opts
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_sshconnection_start_command_stream(
-        /*handle*/ uint64_t ptr,
+        /*handle*/ uint64_t ptr, 
         RustBuffer opts
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_method_sshconnection_start_shell(
-        /*handle*/ uint64_t ptr,
+        /*handle*/ uint64_t ptr, 
         RustBuffer opts
     );
     /*handle*/ uint64_t uniffi_uniffi_russh_fn_func_connect(
@@ -385,39 +385,39 @@ extern "C" {
     uint64_t uniffi_uniffi_russh_fn_func_default_run_command_max_output_bytes(RustCallStatus *uniffi_out_err
     );
     RustBuffer uniffi_uniffi_russh_fn_func_extract_public_key(
-        RustBuffer private_key_content,
+        RustBuffer private_key_content, 
         RustCallStatus *uniffi_out_err
     );
     RustBuffer uniffi_uniffi_russh_fn_func_generate_key_pair(
-        RustBuffer key_type,
+        RustBuffer key_type, 
         RustCallStatus *uniffi_out_err
     );
     uint64_t uniffi_uniffi_russh_fn_func_max_run_command_max_output_bytes(RustCallStatus *uniffi_out_err
     );
     RustBuffer uniffi_uniffi_russh_fn_func_validate_private_key(
-        RustBuffer private_key_content,
+        RustBuffer private_key_content, 
         RustCallStatus *uniffi_out_err
     );
     RustBuffer ffi_uniffi_russh_rustbuffer_alloc(
-        uint64_t size,
+        uint64_t size, 
         RustCallStatus *uniffi_out_err
     );
     RustBuffer ffi_uniffi_russh_rustbuffer_from_bytes(
-        ForeignBytes bytes,
+        ForeignBytes bytes, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rustbuffer_free(
-        RustBuffer buf,
+        RustBuffer buf, 
         RustCallStatus *uniffi_out_err
     );
     RustBuffer ffi_uniffi_russh_rustbuffer_reserve(
-        RustBuffer buf,
-        uint64_t additional,
+        RustBuffer buf, 
+        uint64_t additional, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_u8(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_u8(
@@ -427,12 +427,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     uint8_t ffi_uniffi_russh_rust_future_complete_u8(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_i8(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_i8(
@@ -442,12 +442,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     int8_t ffi_uniffi_russh_rust_future_complete_i8(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_u16(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_u16(
@@ -457,12 +457,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     uint16_t ffi_uniffi_russh_rust_future_complete_u16(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_i16(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_i16(
@@ -472,12 +472,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     int16_t ffi_uniffi_russh_rust_future_complete_i16(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_u32(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_u32(
@@ -487,12 +487,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     uint32_t ffi_uniffi_russh_rust_future_complete_u32(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_i32(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_i32(
@@ -502,12 +502,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     int32_t ffi_uniffi_russh_rust_future_complete_i32(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_u64(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_u64(
@@ -517,12 +517,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     uint64_t ffi_uniffi_russh_rust_future_complete_u64(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_i64(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_i64(
@@ -532,12 +532,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     int64_t ffi_uniffi_russh_rust_future_complete_i64(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_f32(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_f32(
@@ -547,12 +547,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     float ffi_uniffi_russh_rust_future_complete_f32(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_f64(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_f64(
@@ -562,12 +562,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     double ffi_uniffi_russh_rust_future_complete_f64(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_rust_buffer(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_rust_buffer(
@@ -577,12 +577,12 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     RustBuffer ffi_uniffi_russh_rust_future_complete_rust_buffer(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     void ffi_uniffi_russh_rust_future_poll_void(
-        /*handle*/ uint64_t handle,
-        UniffiRustFutureContinuationCallback callback,
+        /*handle*/ uint64_t handle, 
+        UniffiRustFutureContinuationCallback callback, 
         /*handle*/ uint64_t callback_data
     );
     void ffi_uniffi_russh_rust_future_cancel_void(
@@ -592,7 +592,7 @@ extern "C" {
         /*handle*/ uint64_t handle
     );
     void ffi_uniffi_russh_rust_future_complete_void(
-        /*handle*/ uint64_t handle,
+        /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
     uint16_t uniffi_uniffi_russh_checksum_func_connect(
@@ -934,9 +934,9 @@ namespace uniffi::uniffi_russh::cb::rustfuturecontinuationcallback {
             auto uniffiResult = cb.call(rt, js_data, js_pollResult
             );
 
+            
 
-
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiRustFutureContinuationCallback: "
                     << error.what() << std::endl;
@@ -961,7 +961,7 @@ namespace uniffi::uniffi_russh::cb::rustfuturecontinuationcallback {
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_data,
+            rs_data, 
             rs_pollResult);
     }
 
@@ -998,7 +998,7 @@ namespace uniffi::uniffi_russh::cb::rustfuturecontinuationcallback {
                 };
                 // We'll then call that lambda from the callInvoker which will
                 // look after calling it on the correct thread.
-
+                
                 callInvoker->invokeNonBlocking(rt, jsLambda);
         };
         return callback;
@@ -1053,9 +1053,9 @@ namespace uniffi::uniffi_russh::cb::foreignfuturedroppedcallback {
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiForeignFutureDroppedCallback: "
                     << error.what() << std::endl;
@@ -1114,7 +1114,7 @@ namespace uniffi::uniffi_russh::cb::foreignfuturedroppedcallback {
                 };
                 // We'll then call that lambda from the callInvoker which will
                 // look after calling it on the correct thread.
-
+                
                 callInvoker->invokeNonBlocking(rt, jsLambda);
         };
         return callback;
@@ -1170,9 +1170,9 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfacecommandstreamcallback
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceFree: "
                     << error.what() << std::endl;
@@ -1231,7 +1231,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfacecommandstreamcallback
                 };
                 // We'll then call that lambda from the callInvoker which will
                 // look after calling it on the correct thread.
-
+                
                 callInvoker->invokeNonBlocking(rt, jsLambda);
         };
         return callback;
@@ -1285,9 +1285,9 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectprogresscallba
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceFree: "
                     << error.what() << std::endl;
@@ -1346,7 +1346,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectprogresscallba
                 };
                 // We'll then call that lambda from the callInvoker which will
                 // look after calling it on the correct thread.
-
+                
                 callInvoker->invokeNonBlocking(rt, jsLambda);
         };
         return callback;
@@ -1400,9 +1400,9 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectiondisconnecte
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceFree: "
                     << error.what() << std::endl;
@@ -1461,7 +1461,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceconnectiondisconnecte
                 };
                 // We'll then call that lambda from the callInvoker which will
                 // look after calling it on the correct thread.
-
+                
                 callInvoker->invokeNonBlocking(rt, jsLambda);
         };
         return callback;
@@ -1515,9 +1515,9 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceserverkeycallback::vt
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceFree: "
                     << error.what() << std::endl;
@@ -1576,7 +1576,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceserverkeycallback::vt
                 };
                 // We'll then call that lambda from the callInvoker which will
                 // look after calling it on the correct thread.
-
+                
                 callInvoker->invokeNonBlocking(rt, jsLambda);
         };
         return callback;
@@ -1630,9 +1630,9 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceshellclosedcallback::
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceFree: "
                     << error.what() << std::endl;
@@ -1691,7 +1691,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceshellclosedcallback::
                 };
                 // We'll then call that lambda from the callInvoker which will
                 // look after calling it on the correct thread.
-
+                
                 callInvoker->invokeNonBlocking(rt, jsLambda);
         };
         return callback;
@@ -1745,9 +1745,9 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceshelllistener::vtable
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceFree: "
                     << error.what() << std::endl;
@@ -1806,7 +1806,7 @@ namespace uniffi::uniffi_russh::st::vtablecallbackinterfaceshelllistener::vtable
                 };
                 // We'll then call that lambda from the callInvoker which will
                 // look after calling it on the correct thread.
-
+                
                 callInvoker->invokeNonBlocking(rt, jsLambda);
         };
         return callback;
@@ -1923,7 +1923,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteU8> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultU8>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -1997,7 +1997,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteI8> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultI8>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2071,7 +2071,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteU16> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultU16>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2145,7 +2145,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteI16> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultI16>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2219,7 +2219,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteU32> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultU32>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2293,7 +2293,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteI32> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultI32>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2367,7 +2367,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteU64> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultU64>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2441,7 +2441,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteI64> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultI64>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2515,7 +2515,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteF32> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultF32>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2589,7 +2589,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteF64> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultF64>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2663,7 +2663,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteRustBuffer> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultRustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2733,7 +2733,7 @@ template <> struct Bridging<UniffiForeignFutureCompleteVoid> {
         func(uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiForeignFutureResultVoid>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return jsi::Value::undefined();
   }
 };
@@ -2781,9 +2781,9 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
             // Write the direct return value back to the caller.
             if (uniffi_direct_return != nullptr) {
                 *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
@@ -2815,7 +2815,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_handle,
+            rs_handle, 
             &uniffi_result);
         return uniffi_result;
     }
@@ -2917,7 +2917,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfacecommandstreamcallbackmethod
                 return;
             }
 
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceCommandStreamCallbackMethod0: "
                     << error.what() << std::endl;
@@ -2942,8 +2942,8 @@ namespace uniffi::uniffi_russh::cb::callbackinterfacecommandstreamcallbackmethod
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_uniffiHandle,
-            rs_event,
+            rs_uniffiHandle, 
+            rs_event, 
             rs_uniffiOutReturn, uniffi_call_status);
     }
 
@@ -3074,9 +3074,9 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
             // Write the direct return value back to the caller.
             if (uniffi_direct_return != nullptr) {
                 *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
@@ -3108,7 +3108,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_handle,
+            rs_handle, 
             &uniffi_result);
         return uniffi_result;
     }
@@ -3210,7 +3210,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmeth
                 return;
             }
 
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceConnectProgressCallbackMethod0: "
                     << error.what() << std::endl;
@@ -3235,8 +3235,8 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectprogresscallbackmeth
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_uniffiHandle,
-            rs_status,
+            rs_uniffiHandle, 
+            rs_status, 
             rs_uniffiOutReturn, uniffi_call_status);
     }
 
@@ -3367,9 +3367,9 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
             // Write the direct return value back to the caller.
             if (uniffi_direct_return != nullptr) {
                 *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
@@ -3401,7 +3401,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_handle,
+            rs_handle, 
             &uniffi_result);
         return uniffi_result;
     }
@@ -3503,7 +3503,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallb
                 return;
             }
 
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceConnectionDisconnectedCallbackMethod0: "
                     << error.what() << std::endl;
@@ -3528,8 +3528,8 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceconnectiondisconnectedcallb
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_uniffiHandle,
-            rs_connectionId,
+            rs_uniffiHandle, 
+            rs_connectionId, 
             rs_uniffiOutReturn, uniffi_call_status);
     }
 
@@ -3660,9 +3660,9 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
             // Write the direct return value back to the caller.
             if (uniffi_direct_return != nullptr) {
                 *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
@@ -3694,7 +3694,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_handle,
+            rs_handle, 
             &uniffi_result);
         return uniffi_result;
     }
@@ -3792,9 +3792,9 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::v
             auto uniffiResult = cb.call(rt, js_uniffiHandle, js_serverKeyInfo, js_uniffiFutureCallback, js_uniffiCallbackData
             );
 
+            
 
-
-
+            
             // return type is Struct("ForeignFutureDroppedCallbackStruct")
             // Finally, we need to copy the return value back into the Rust pointer.
             *rs_uniffiOutDroppedCallback =
@@ -3827,10 +3827,10 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceserverkeycallbackmethod0::v
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_uniffiHandle,
-            rs_serverKeyInfo,
-            rs_uniffiFutureCallback,
-            rs_uniffiCallbackData,
+            rs_uniffiHandle, 
+            rs_serverKeyInfo, 
+            rs_uniffiFutureCallback, 
+            rs_uniffiCallbackData, 
             rs_uniffiOutDroppedCallback);
     }
 
@@ -3965,9 +3965,9 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
             // Write the direct return value back to the caller.
             if (uniffi_direct_return != nullptr) {
                 *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
@@ -3999,7 +3999,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_handle,
+            rs_handle, 
             &uniffi_result);
         return uniffi_result;
     }
@@ -4101,7 +4101,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0:
                 return;
             }
 
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceShellClosedCallbackMethod0: "
                     << error.what() << std::endl;
@@ -4126,8 +4126,8 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceshellclosedcallbackmethod0:
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_uniffiHandle,
-            rs_channelId,
+            rs_uniffiHandle, 
+            rs_channelId, 
             rs_uniffiOutReturn, uniffi_call_status);
     }
 
@@ -4258,9 +4258,9 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
             auto uniffiResult = cb.call(rt, js_handle
             );
 
+            
 
-
-
+            
             // Write the direct return value back to the caller.
             if (uniffi_direct_return != nullptr) {
                 *uniffi_direct_return = uniffi_jsi::Bridging<uint64_t>::fromJs(
@@ -4292,7 +4292,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceclone::vtablecallbackinterf
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_handle,
+            rs_handle, 
             &uniffi_result);
         return uniffi_result;
     }
@@ -4394,7 +4394,7 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::vtabl
                 return;
             }
 
-
+            
         } catch (const jsi::JSError &error) {
             std::cout << "Error in callback UniffiCallbackInterfaceShellListenerMethod0: "
                     << error.what() << std::endl;
@@ -4419,8 +4419,8 @@ namespace uniffi::uniffi_russh::cb::callbackinterfaceshelllistenermethod0::vtabl
         // The runtime, the actual callback jsi::funtion, and the callInvoker
         // are all in the lambda.
         rsLambda(
-            rs_uniffiHandle,
-            rs_ev,
+            rs_uniffiHandle, 
+            rs_ev, 
             rs_uniffiOutReturn, uniffi_call_status);
     }
 
@@ -5910,22 +5910,22 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_internal_fn_func_ffi__read_string_from_
 // Methods calling directly into the uniffi generated C API of the Rust crate.
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_commandstreamcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_commandstreamcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_clone_commandstreamcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_commandstreamcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_commandstreamcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        uniffi_uniffi_russh_fn_free_commandstreamcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_commandstreamcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
@@ -5947,69 +5947,69 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_co
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_commandstreamcallback_on_event(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_commandstreamcallback_on_event(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+        uniffi_uniffi_russh_fn_method_commandstreamcallback_on_event(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_commandstreamsession(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_commandstreamsession(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_clone_commandstreamsession(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_commandstreamsession(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_commandstreamsession(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        uniffi_uniffi_russh_fn_free_commandstreamsession(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_commandstreamsession_close(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_fn_method_commandstreamsession_close(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_commandstreamsession_get_info(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_commandstreamsession_get_info(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_method_commandstreamsession_get_info(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_connectprogresscallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_connectprogresscallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_clone_connectprogresscallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_connectprogresscallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_connectprogresscallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        uniffi_uniffi_russh_fn_free_connectprogresscallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_connectprogresscallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
@@ -6031,32 +6031,32 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_co
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_connectprogresscallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_connectprogresscallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+        uniffi_uniffi_russh_fn_method_connectprogresscallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_connectiondisconnectedcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_connectiondisconnectedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_clone_connectiondisconnectedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_connectiondisconnectedcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_connectiondisconnectedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        uniffi_uniffi_russh_fn_free_connectiondisconnectedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_connectiondisconnectedcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
@@ -6078,32 +6078,32 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_co
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_connectiondisconnectedcallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_connectiondisconnectedcallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+        uniffi_uniffi_russh_fn_method_connectiondisconnectedcallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_serverkeycallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_serverkeycallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_clone_serverkeycallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_serverkeycallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_serverkeycallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        uniffi_uniffi_russh_fn_free_serverkeycallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_serverkeycallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
@@ -6127,27 +6127,27 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_serverkeycallbac
         auto value = uniffi_uniffi_russh_fn_method_serverkeycallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_shellclosedcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_shellclosedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_clone_shellclosedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_shellclosedcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_shellclosedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        uniffi_uniffi_russh_fn_free_shellclosedcallback(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_shellclosedcallback(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
@@ -6169,32 +6169,32 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_sh
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellclosedcallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_shellclosedcallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[1]),
+        uniffi_uniffi_russh_fn_method_shellclosedcallback_on_change(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_shelllistener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_shelllistener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_clone_shelllistener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_shelllistener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_shelllistener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        uniffi_uniffi_russh_fn_free_shelllistener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_shelllistener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
@@ -6216,178 +6216,178 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_init_callback_vtable_sh
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shelllistener_on_event(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_shelllistener_on_event(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+        uniffi_uniffi_russh_fn_method_shelllistener_on_event(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_shellsession(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_shellsession(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_clone_shellsession(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_shellsession(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_shellsession(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        uniffi_uniffi_russh_fn_free_shellsession(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_add_listener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_add_listener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[1]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_add_listener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[1]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_buffer_stats(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_buffer_stats(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_buffer_stats(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_close(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_fn_method_shellsession_close(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_current_seq(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_current_seq(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_current_seq(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_get_info(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_get_info(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_get_info(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_read_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_shellsession_read_buffer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
+        auto value = uniffi_uniffi_russh_fn_method_shellsession_read_buffer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_remove_listener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_method_shellsession_remove_listener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[1]),
+        uniffi_uniffi_russh_fn_method_shellsession_remove_listener(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[1]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_resize_pty(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_fn_method_shellsession_resize_pty(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[2]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4])
         );
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_shellsession_send_data(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_fn_method_shellsession_send_data(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_clone_sshconnection(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_clone_sshconnection(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_clone_sshconnection(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_free_sshconnection(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_uniffi_russh_fn_free_sshconnection(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        uniffi_uniffi_russh_fn_free_sshconnection(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_sshconnection_disconnect(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_fn_method_sshconnection_disconnect(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_sshconnection_get_info(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_method_sshconnection_get_info(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_method_sshconnection_get_info(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_sshconnection_run_command(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_fn_method_sshconnection_run_command(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_sshconnection_start_command_stream(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_fn_method_sshconnection_start_command_stream(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_method_sshconnection_start_shell(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_fn_method_sshconnection_start_shell(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_func_connect(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_fn_func_connect(uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_func_default_run_command_max_output_bytes(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
@@ -6396,27 +6396,27 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_func_default_run_comman
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_func_extract_public_key(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_func_extract_public_key(uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_func_extract_public_key(uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_func_generate_key_pair(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_func_generate_key_pair(uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_func_generate_key_pair(uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_func_max_run_command_max_output_bytes(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
@@ -6425,591 +6425,591 @@ jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_func_max_run_command_ma
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_fn_func_validate_private_key(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = uniffi_uniffi_russh_fn_func_validate_private_key(uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
+        auto value = uniffi_uniffi_russh_fn_func_validate_private_key(uniffi::uniffi_russh::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_u8(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_u8(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_u8(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_u8(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_u8(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_u8(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_u8(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_u8(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_u8(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<uint8_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_i8(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_i8(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_i8(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_i8(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_i8(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_i8(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_i8(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_i8(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_i8(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<int8_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_u16(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_u16(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_u16(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_u16(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_u16(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_u16(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_u16(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_u16(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_u16(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_i16(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_i16(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_i16(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_i16(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_i16(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_i16(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_i16(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_i16(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_i16(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<int16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_u32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_u32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_u32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_u32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_u32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_u32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_u32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_u32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_u32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<uint32_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_i32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_i32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_i32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_i32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_i32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_i32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_i32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_i32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_i32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<int32_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_u64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_u64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_u64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_u64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_u64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_u64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_u64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_u64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_u64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_i64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_i64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_i64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_i64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_i64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_i64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_i64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_i64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_i64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<int64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_f32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_f32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_f32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_f32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_f32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_f32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_f32(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_f32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_f32(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<float>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_f64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_f64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_f64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_f64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_f64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_f64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_f64(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_f64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_f64(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi_jsi::Bridging<double>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_rust_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_rust_buffer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_rust_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_rust_buffer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_rust_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_rust_buffer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_rust_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        auto value = ffi_uniffi_russh_rust_future_complete_rust_buffer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        auto value = ffi_uniffi_russh_rust_future_complete_rust_buffer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return uniffi::uniffi_russh::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_poll_void(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_poll_void(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::uniffi_russh::Bridging<UniffiRustFutureContinuationCallback>::fromJs(rt, callInvoker, args[1]), uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[2])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_cancel_void(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_cancel_void(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_free_void(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         ffi_uniffi_russh_rust_future_free_void(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
         );
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_rust_future_complete_void(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::uniffi_russh::Bridging<RustCallStatus>::rustSuccess(rt);
-        ffi_uniffi_russh_rust_future_complete_void(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]),
+        ffi_uniffi_russh_rust_future_complete_void(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::uniffi_russh::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
 
-
+        
         return jsi::Value::undefined();
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_func_connect(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_func_connect(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_func_default_run_command_max_output_bytes(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_func_default_run_command_max_output_bytes(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_func_extract_public_key(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_func_extract_public_key(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_func_generate_key_pair(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_func_generate_key_pair(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_func_max_run_command_max_output_bytes(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_func_max_run_command_max_output_bytes(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_func_validate_private_key(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_func_validate_private_key(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_commandstreamcallback_on_event(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_commandstreamcallback_on_event(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_commandstreamsession_close(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_commandstreamsession_close(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_commandstreamsession_get_info(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_commandstreamsession_get_info(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_connectprogresscallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_connectprogresscallback_on_change(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_connectiondisconnectedcallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_connectiondisconnectedcallback_on_change(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_serverkeycallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_serverkeycallback_on_change(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shellclosedcallback_on_change(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shellclosedcallback_on_change(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shelllistener_on_event(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shelllistener_on_event(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shellsession_add_listener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shellsession_add_listener(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shellsession_buffer_stats(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shellsession_buffer_stats(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shellsession_close(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shellsession_close(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shellsession_current_seq(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shellsession_current_seq(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shellsession_get_info(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shellsession_get_info(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shellsession_read_buffer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shellsession_read_buffer(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shellsession_remove_listener(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shellsession_remove_listener(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shellsession_resize_pty(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shellsession_resize_pty(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_shellsession_send_data(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_shellsession_send_data(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_sshconnection_disconnect(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_sshconnection_disconnect(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_sshconnection_get_info(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_sshconnection_get_info(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_sshconnection_run_command(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_sshconnection_run_command(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_sshconnection_start_command_stream(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_sshconnection_start_command_stream(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_uniffi_uniffi_russh_checksum_method_sshconnection_start_shell(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_uniffi_russh_checksum_method_sshconnection_start_shell(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeUniffiRussh::cpp_ffi_uniffi_russh_uniffi_contract_version(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = ffi_uniffi_russh_uniffi_contract_version(
         );
 
-
+        
         return uniffi_jsi::Bridging<uint32_t>::toJs(rt, callInvoker, value);
 }

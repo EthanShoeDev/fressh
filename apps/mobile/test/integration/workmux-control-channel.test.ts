@@ -80,6 +80,23 @@ void test('WorkmuxControlChannel.command uses custom timeout', async () => {
 	]);
 });
 
+void test('WorkmuxControlChannel.command formats status cycle argv fallback', async () => {
+	const calls: Array<{ command: string; timeoutMs: number }> = [];
+	const channel = createWorkmuxControlChannel({
+		connection: null,
+		runRemoteCommand: async (command, timeoutMs) => {
+			calls.push({ command, timeoutMs });
+			return { success: true, output: '' };
+		},
+	});
+
+	await channel.command(['tmux', 'nav', 'cycle', 'main:']);
+
+	assert.deepEqual(calls, [
+		{ command: "mdev tmux nav cycle 'main:'", timeoutMs: 10_000 },
+	]);
+});
+
 void test('WorkmuxControlChannel.scroll delegates to DirectMux transport', async () => {
 	const sent: string[] = [];
 	const channel = createWorkmuxControlChannel({

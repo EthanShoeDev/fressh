@@ -9,6 +9,8 @@ import {
 	buildWorkmuxAppFocusCommand,
 	buildWorkmuxAppNavArgv,
 	buildWorkmuxAppNavCommand,
+	buildWorkmuxStatusCycleArgv,
+	buildWorkmuxStatusCycleCommand,
 	formatWorkmuxAppCommandFailureMessage,
 	type WorkmuxFocusTarget,
 	type WorkmuxNavAction,
@@ -26,7 +28,8 @@ export const KEYBOARD_TARGET_ACTION_IDS = [
 
 export type WorkmuxKeyboardCommand =
 	| { type: 'focus'; target: WorkmuxFocusTarget }
-	| { type: 'nav'; action: Exclude<WorkmuxNavAction, 'select'> };
+	| { type: 'nav'; action: Exclude<WorkmuxNavAction, 'select'> }
+	| { type: 'status-cycle' };
 const WORKMUX_KEYBOARD_PRIMARY_ACTION_ENTRIES = [
 	['WORKMUX_FOCUS_CLAUDE', { type: 'focus', target: 'claude' }],
 	['WORKMUX_FOCUS_GIT', { type: 'focus', target: 'git' }],
@@ -44,7 +47,7 @@ const WORKMUX_KEYBOARD_PRIMARY_ACTION_ENTRIES = [
 	['WORKMUX_NAV_NEXT_ALL', { type: 'nav', action: 'next-all' }],
 ] as const satisfies readonly (readonly [string, WorkmuxKeyboardCommand])[];
 const WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_ENTRIES = [
-	['CYCLE_WORKMUX_STATUS', { type: 'nav', action: 'next-all' }],
+	['CYCLE_WORKMUX_STATUS', { type: 'status-cycle' }],
 ] as const satisfies readonly (readonly [string, WorkmuxKeyboardCommand])[];
 const WORKMUX_KEYBOARD_ACTION_ENTRIES = [
 	...WORKMUX_KEYBOARD_PRIMARY_ACTION_ENTRIES,
@@ -165,14 +168,18 @@ export function createWorkmuxKeyboardCommandRunner({
 			const argv =
 				command.type === 'focus'
 					? buildWorkmuxAppFocusArgv(sessionName, command.target)
-					: buildWorkmuxAppNavArgv(sessionName, command.action);
+					: command.type === 'nav'
+						? buildWorkmuxAppNavArgv(sessionName, command.action)
+						: buildWorkmuxStatusCycleArgv(sessionName);
 			if (runWorkmuxCommand) {
 				await runWorkmuxCommand(argv, 10_000);
 			} else {
 				const remoteCommand =
 					command.type === 'focus'
 						? buildWorkmuxAppFocusCommand(sessionName, command.target)
-						: buildWorkmuxAppNavCommand(sessionName, command.action);
+						: command.type === 'nav'
+							? buildWorkmuxAppNavCommand(sessionName, command.action)
+							: buildWorkmuxStatusCycleCommand(sessionName);
 				await runHostCommand(remoteCommand, 10_000);
 			}
 			return commandGeneration === generation

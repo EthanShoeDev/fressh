@@ -44,7 +44,7 @@
     "fmt:rust": "cd rust/uniffi-russh && just fmt",
     "fmt:rust:check": "cd rust/uniffi-russh && just fmt-check",
     "update-rust": "cd rust/uniffi-russh && just update-deps",
-    "test": "jest",
+    "test": "jest --runInBand --forceExit",
     "release": "GITHUB_TOKEN=$(gh auth token) release-it",
     "release:dry": "release-it --dry-run"
   },

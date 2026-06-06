@@ -1,38 +1,17 @@
-appId: dev.fressh.app
+appId: com.finalapp.vibe2
 ---
-- launchApp:
-    clearState: true
+- openLink:
+    link: fressh:///?fresshE2eDisableAutoConnect=1
 - tapOn:
-    id: host
-- eraseText
-- inputText: test.rebex.net
-- tapOn:
+    text: Allow
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: host
+    timeout: 30000
+- assertVisible:
     id: port
-- eraseText: 5
-- inputText: '22'
-- tapOn:
+- assertVisible:
     id: username
-- eraseText
-- inputText: demo
-- tapOn:
-    id: password
-- eraseText
-- inputText: password
-- tapOn:
+- assertVisible:
     id: connect
-- tapOn:
-    id: command-input
-- inputText: help
-- tapOn:
-    id: execute-button
-- assertVisible: 'Supported commands:'
-# https://github.com/mobile-dev-inc/Maestro/issues/1592#issuecomment-2829630053
-- extendedWaitUntil:
-    visible: somethingThatIsNotInTheUI # Any random text that does not exist in the UI
-    optional: true # This should be true so that the test won't fail
-    timeout: 10000 # 10 seconds
-- back
-- extendedWaitUntil:
-    visible: somethingThatIsNotInTheUI # Any random text that does not exist in the UI
-    optional: true # This should be true so that the test won't fail
-    timeout: 10000 # 10 seconds

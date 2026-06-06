@@ -56,7 +56,7 @@ type JsonRecord = Record<string, unknown>;
 
 export function isWorkmuxAppCommand(command: string): boolean {
 	return new RegExp(
-		`^(?:${escapeRegExp(WORKMUX_REMOTE_COMMAND_ENV_PREFIX)}\\s+)?mdev\\s+tmux\\s+app(?:\\s|$)`,
+		`^(?:${escapeRegExp(WORKMUX_REMOTE_COMMAND_ENV_PREFIX)}\\s+)?mdev\\s+tmux\\s+(?:app(?:\\s|$)|nav\\s+cycle(?:\\s|$))`,
 	).test(command);
 }
 
@@ -85,6 +85,11 @@ function isMissingWorkmuxAppCommandFailure(message: string): boolean {
 		/\bunknown command\b.*\bapp\b/i,
 		/\bunrecognized subcommand ['"]?tmux['"]?\b/i,
 		/\bunrecognized subcommand ['"]?app['"]?\b/i,
+		/\bUnknown tmux command: nav\b/i,
+		/\bunknown tmux command\b.*\bnav\b/i,
+		/\bunknown command\b.*\bnav\b/i,
+		/\bunrecognized subcommand ['"]?nav['"]?\b/i,
+		/\bunrecognized subcommand ['"]?cycle['"]?\b/i,
 	].some((pattern) => pattern.test(message));
 }
 
@@ -102,6 +107,12 @@ export function formatWorkmuxAppBoundaryFailureMessage(
 	const trimmed = message.trim();
 	if (/^No SSH connection available\b/.test(trimmed)) return trimmed;
 	return formatWorkmuxAppCommandFailureMessage(message);
+}
+
+export function isWorkmuxScrollAlreadyInactiveFailureMessage(
+	message: string,
+): boolean {
+	return /\bnot in (?:a|the) mode\b/i.test(message);
 }
 
 function buildMdevCommandFromArgv(argv: string[]): string {
@@ -202,6 +213,23 @@ export function buildWorkmuxAppScrollPageCommand(
 	direction: WorkmuxScrollDirection,
 	count: number,
 ): string {
+	return buildWorkmuxAppScrollMoveCommand('page', sessionName, direction, count);
+}
+
+export function buildWorkmuxAppScrollLineCommand(
+	sessionName: string,
+	direction: WorkmuxScrollDirection,
+	count: number,
+): string {
+	return buildWorkmuxAppScrollMoveCommand('line', sessionName, direction, count);
+}
+
+function buildWorkmuxAppScrollMoveCommand(
+	unit: 'line' | 'page',
+	sessionName: string,
+	direction: WorkmuxScrollDirection,
+	count: number,
+): string {
 	if (direction !== 'up' && direction !== 'down') {
 		throw new Error(`Invalid Workmux scroll direction: ${direction}`);
 	}
@@ -210,7 +238,7 @@ export function buildWorkmuxAppScrollPageCommand(
 	}
 
 	return [
-		`mdev tmux app scroll page-${direction}`,
+		`mdev tmux app scroll ${unit}-${direction}`,
 		`--count ${quoteRequiredShellValue(String(count))}`,
 		`--session ${quoteRequiredShellValue(normalizeSessionName(sessionName))}`,
 	].join(' ');
@@ -284,6 +312,19 @@ export function buildWorkmuxAppNavCommand(
 	return buildMdevCommandFromArgv(
 		buildWorkmuxAppNavArgv(sessionName, action, index),
 	);
+}
+
+export function buildWorkmuxStatusCycleArgv(sessionName: string): string[] {
+	return [
+		'tmux',
+		'nav',
+		'cycle',
+		`${normalizeSessionName(sessionName)}:`,
+	];
+}
+
+export function buildWorkmuxStatusCycleCommand(sessionName: string): string {
+	return buildMdevCommandFromArgv(buildWorkmuxStatusCycleArgv(sessionName));
 }
 
 export function parseWorkmuxAppContextOutput(

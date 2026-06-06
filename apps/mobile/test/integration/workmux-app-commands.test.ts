@@ -14,11 +14,15 @@ import {
 	buildWorkmuxAppNotificationOpenCommand,
 	buildWorkmuxAppScrollEnterCommand,
 	buildWorkmuxAppScrollExitCommand,
+	buildWorkmuxAppScrollLineCommand,
 	buildWorkmuxAppScrollPageCommand,
 	buildWorkmuxAppWindowArgv,
 	buildWorkmuxAppWindowCommand,
+	buildWorkmuxStatusCycleArgv,
+	buildWorkmuxStatusCycleCommand,
 	formatWorkmuxAppCommandFailureMessage,
 	isWorkmuxAppCommand,
+	isWorkmuxScrollAlreadyInactiveFailureMessage,
 	parseWorkmuxAppContextOutput,
 	parseWorkmuxAppWindowOutput,
 	prepareWorkmuxAppCommandForRemoteShell,
@@ -119,6 +123,10 @@ void test('workmux app command builders shell-quote app arguments', () => {
 		"mdev tmux app scroll page-down --count '2' --session 'main'",
 	);
 	assert.equal(
+		buildWorkmuxAppScrollLineCommand('main', 'up', 7),
+		"mdev tmux app scroll line-up --count '7' --session 'main'",
+	);
+	assert.equal(
 		buildWorkmuxAppFocusCommand('main', 'toggle-git-bash'),
 		"mdev tmux app focus 'toggle-git-bash' --session 'main'",
 	);
@@ -137,6 +145,10 @@ void test('workmux app command builders shell-quote app arguments', () => {
 	assert.equal(
 		buildWorkmuxAppNavCommand('main', 'prev-all'),
 		"mdev tmux app nav 'prev-all' --session 'main'",
+	);
+	assert.equal(
+		buildWorkmuxStatusCycleCommand("main'quoted"),
+		"mdev tmux nav cycle 'main'\\''quoted:'",
 	);
 });
 
@@ -214,6 +226,12 @@ void test('Workmux app argv builders preserve existing command shapes', () => {
 		'--session',
 		'main',
 	]);
+	assert.deepEqual(buildWorkmuxStatusCycleArgv('main'), [
+		'tmux',
+		'nav',
+		'cycle',
+		'main:',
+	]);
 });
 
 void test('Workmux app command builders are derived from argv builders', () => {
@@ -240,6 +258,10 @@ void test('Workmux app command builders are derived from argv builders', () => {
 	assert.equal(
 		buildWorkmuxAppNavCommand('main', 'select', 3),
 		serializeExpectedMdevCommand(buildWorkmuxAppNavArgv('main', 'select', 3)),
+	);
+	assert.equal(
+		buildWorkmuxStatusCycleCommand("main'quoted"),
+		serializeExpectedMdevCommand(buildWorkmuxStatusCycleArgv("main'quoted")),
 	);
 });
 
@@ -269,6 +291,12 @@ void test('workmux app remote shell command preparation adds non-login PATH once
 	);
 	assert.equal(
 		prepareWorkmuxAppCommandForRemoteShell(
+			"mdev tmux nav cycle 'main:'",
+		),
+		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux nav cycle 'main:'`,
+	);
+	assert.equal(
+		prepareWorkmuxAppCommandForRemoteShell(
 			`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session 'main'`,
 		),
 		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session 'main'`,
@@ -277,6 +305,21 @@ void test('workmux app remote shell command preparation adds non-login PATH once
 		prepareWorkmuxAppCommandForRemoteShell('git status'),
 		'git status',
 	);
+});
+
+void test('workmux app failure formatting recognizes old nav-cycle mdev versions', () => {
+	for (const message of [
+		'Unknown tmux command: nav',
+		'unknown tmux command nav',
+		'unknown command: tmux nav',
+		"unrecognized subcommand 'nav'",
+		"unrecognized subcommand 'cycle'",
+	]) {
+		assert.equal(
+			formatWorkmuxAppCommandFailureMessage(message),
+			WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+		);
+	}
 });
 
 void test('workmux app builders normalize blank sessions to main', () => {
@@ -293,6 +336,22 @@ void test('workmux scroll page builder rejects invalid counts', () => {
 			/Invalid Workmux scroll count/,
 		);
 	}
+});
+
+void test('workmux scroll line builder rejects invalid counts and directions', () => {
+	assert.throws(
+		() => buildWorkmuxAppScrollLineCommand('main', 'down', 0),
+		/Invalid Workmux scroll count/,
+	);
+	assert.throws(
+		() =>
+			buildWorkmuxAppScrollLineCommand(
+				'main',
+				'left' as Parameters<typeof buildWorkmuxAppScrollLineCommand>[1],
+				1,
+			),
+		/Invalid Workmux scroll direction/,
+	);
 });
 
 void test('workmux scroll page max count is exported by the command boundary', () => {
@@ -325,6 +384,21 @@ void test('workmux scroll page builder rejects invalid directions', () => {
 				1,
 			),
 		/Invalid Workmux scroll direction/,
+	);
+});
+
+void test('workmux scroll inactive failure message recognizes mdev copy-mode wording', () => {
+	assert.equal(
+		isWorkmuxScrollAlreadyInactiveFailureMessage('not in a mode'),
+		true,
+	);
+	assert.equal(
+		isWorkmuxScrollAlreadyInactiveFailureMessage('not in the mode'),
+		true,
+	);
+	assert.equal(
+		isWorkmuxScrollAlreadyInactiveFailureMessage('permission denied'),
+		false,
 	);
 });
 

@@ -851,6 +851,30 @@ void test('successful current remote copy mode cleanup clears active state', asy
 	assert.equal(remoteCopyModeActiveRef.current, false);
 });
 
+void test('failed current remote copy mode cleanup preserves inactive state cleared during cleanup', async () => {
+	const cleanupBlock = deferred<boolean>();
+	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();
+	const remoteCopyModeActiveRef = { current: true };
+	const cleanupGeneration = { current: 1 };
+	const cleanupPromise = cleanupBlock.promise.then((exited) => {
+		remoteCopyModeActiveRef.current = false;
+		return exited;
+	});
+	const cleanup = registerTmuxScrollbackRemoteCopyModeExitCleanup({
+		barrier: cleanupBarrier,
+		cleanup: cleanupPromise,
+		remoteCopyModeActiveRef,
+		remoteCopyModeWasActive: remoteCopyModeActiveRef.current,
+		markRemoteCopyModeActiveOnFailedCleanup: true,
+		cleanupGeneration,
+	});
+
+	assert.notEqual(cleanup, null);
+	cleanupBlock.resolve(false);
+	assert.equal(await cleanup, false);
+	assert.equal(remoteCopyModeActiveRef.current, false);
+});
+
 void test('stale failed remote copy mode cleanup cannot mark a newer generation active', async () => {
 	const cleanupBlock = deferred<boolean>();
 	const cleanupBarrier = createWorkmuxScrollbackLiveInputCleanupBarrier();

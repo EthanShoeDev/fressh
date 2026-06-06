@@ -285,7 +285,7 @@ void test('Workmux keyboard actions delegate semantic commands without sending b
 	}
 });
 
-void test('Workmux status keyboard action keeps mdev-backed next-all operation', async () => {
+void test('Workmux status keyboard action runs mdev-backed status cycle', async () => {
 	const calls: string[] = [];
 	const failures: string[] = [];
 	const runner = createWorkmuxKeyboardCommandRunner({
@@ -311,7 +311,7 @@ void test('Workmux status keyboard action keeps mdev-backed next-all operation',
 			runner.run(command),
 	} as Parameters<typeof runAction>[1]);
 
-	assert.deepEqual(calls, ["mdev tmux app nav 'next-all' --session 'main'"]);
+	assert.deepEqual(calls, ["mdev tmux nav cycle 'main:'"]);
 	assert.deepEqual(failures, []);
 	assert.deepEqual(WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_IDS, [
 		'CYCLE_WORKMUX_STATUS',
@@ -363,6 +363,57 @@ void test('Workmux keyboard runner prefers argv command transport', async () => 
 		},
 	]);
 	assert.deepEqual(hostCalls, []);
+});
+
+void test('Workmux status cycle prefers argv command transport', async () => {
+	const argvCalls: { argv: string[]; timeoutMs: number }[] = [];
+	const hostCalls: string[] = [];
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => true,
+		getSessionName: () => 'main',
+		runWorkmuxCommand: async (argv, timeoutMs) => {
+			argvCalls.push({ argv, timeoutMs });
+		},
+		runHostCommand: async (command) => {
+			hostCalls.push(command);
+		},
+		showFailure: () => {},
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	assert.deepEqual(await runner.run({ type: 'status-cycle' }), {
+		status: 'handled',
+	});
+	assert.deepEqual(argvCalls, [
+		{
+			argv: ['tmux', 'nav', 'cycle', 'main:'],
+			timeoutMs: 10_000,
+		},
+	]);
+	assert.deepEqual(hostCalls, []);
+});
+
+void test('Workmux status cycle normalizes old mdev argv failures', async () => {
+	const failures: string[] = [];
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => true,
+		getSessionName: () => 'main',
+		runWorkmuxCommand: async () => {
+			throw new Error('Unknown tmux command: nav');
+		},
+		runHostCommand: async () => {
+			throw new Error('host command should not run');
+		},
+		showFailure: (message) => failures.push(message),
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	assert.deepEqual(await runner.run({ type: 'status-cycle' }), {
+		status: 'handled',
+	});
+	assert.deepEqual(failures, [WORKMUX_APP_COMMAND_UPDATE_MESSAGE]);
 });
 
 void test('Workmux keyboard runner keeps host command fallback', async () => {

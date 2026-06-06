@@ -1872,16 +1872,25 @@ function ShellDetail() {
 		handleCloseTextEntry,
 	]);
 
-	const browserActions = useBrowserActionsController({
-		connection: connection ?? null,
-		tmuxEnabled,
-		tmuxTarget,
-		executeRemoteTextCommand: (activeConnection, command, timeoutMs) =>
+	const executeBrowserActionsRemoteTextCommand = useCallback(
+		(
+			activeConnection: NonNullable<typeof connection>,
+			command: string,
+			timeoutMs: number,
+		) =>
 			runRemoteTextCommand({
 				connection: activeConnection,
 				command,
 				timeoutMs,
 			}),
+		[],
+	);
+
+	const browserActions = useBrowserActionsController({
+		connection: connection ?? null,
+		tmuxEnabled,
+		tmuxTarget,
+		executeRemoteTextCommand: executeBrowserActionsRemoteTextCommand,
 		executeSideChannelCommand,
 		getErrorMessage,
 		closeOtherModals: closeBrowserActionsOtherModals,
@@ -1891,10 +1900,12 @@ function ShellDetail() {
 	const workmuxKeyboardRunHostCommandRef = useRef(
 		browserActions.runHostBrowserCommand,
 	);
+	const browserActionsInvalidateAllRef = useRef(browserActions.invalidateAll);
 	workmuxKeyboardTmuxEnabledRef.current = tmuxEnabled;
 	workmuxKeyboardTmuxTargetRef.current = tmuxTarget;
 	workmuxKeyboardRunHostCommandRef.current =
 		browserActions.runHostBrowserCommand;
+	browserActionsInvalidateAllRef.current = browserActions.invalidateAll;
 
 	const closeFeatureRequestOtherModals = useCallback(() => {
 		browserActions.invalidateHostUrlReads();
@@ -2607,7 +2618,7 @@ function ShellDetail() {
 			if (previousState === 'active') {
 				agentNotificationAckRequestIdRef.current += 1;
 				runtimeShellConfigReloadRequestIdRef.current += 1;
-				browserActions.invalidateAll();
+				browserActionsInvalidateAllRef.current();
 				workmuxKeyboardCommandRunner.invalidate();
 				liveInputGenerationRef.current += 1;
 				clearCommandTimeouts();
@@ -2620,7 +2631,6 @@ function ShellDetail() {
 			subscription.remove();
 		};
 	}, [
-		browserActions,
 		clearCommandTimeouts,
 		clearScrollbackState,
 		systemKeyboardEnabled,

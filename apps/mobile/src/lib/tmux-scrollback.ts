@@ -68,7 +68,12 @@ export function registerTmuxScrollbackRemoteCopyModeExitCleanup({
 				remoteCopyModeActiveRef.current = false;
 				return;
 			}
-			if (remoteCopyModeWasActive || markRemoteCopyModeActiveOnFailedCleanup) {
+			const wasClearedDuringCleanup =
+				remoteCopyModeWasActive && !remoteCopyModeActiveRef.current;
+			if (
+				!wasClearedDuringCleanup &&
+				(remoteCopyModeWasActive || markRemoteCopyModeActiveOnFailedCleanup)
+			) {
 				remoteCopyModeActiveRef.current = true;
 			}
 		})
@@ -318,6 +323,12 @@ export async function handleTmuxScrollbackEnterRequested({
 			instanceId: event.instanceId,
 			entered,
 		});
+		if (entered) {
+			await commandExecutor.reset({
+				targetName,
+				failurePolicy: 'suppress',
+			});
+		}
 		return;
 	}
 	if (!entered) {

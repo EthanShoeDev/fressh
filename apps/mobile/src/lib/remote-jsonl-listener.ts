@@ -171,6 +171,7 @@ export async function startRemoteJsonlListener(input: {
 			(error) => startAbortController.abort(error),
 		);
 	} catch (error) {
+		stopped = true;
 		void startPromise
 			.then((lateStream) =>
 				closeStream(

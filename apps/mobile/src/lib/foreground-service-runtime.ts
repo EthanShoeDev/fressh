@@ -23,7 +23,7 @@ export function shouldRunForegroundService(input: {
 	isAutoConnecting: boolean;
 	isReconnecting: boolean;
 }) {
-	return input.shellCount > 0 || input.isAutoConnecting || input.isReconnecting;
+	return input.shellCount > 0 || input.isReconnecting;
 }
 
 export function shouldStartForegroundService(input: {
