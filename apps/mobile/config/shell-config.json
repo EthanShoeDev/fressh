@@ -1,6 +1,6 @@
 {
-	"version": "2026-06-06.1",
-	"updatedAt": "2026-06-06T17:39:28Z",
+	"version": "2026-06-06.2",
+	"updatedAt": "2026-06-06T18:02:14Z",
 	"defaultKeyboardId": "phone_base",
 	"activeKeyboardIds": [
 		"phone_base",
@@ -1124,6 +1124,51 @@
 						{
 							"type": "text",
 							"data": "clear"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				}
+			]
+		},
+		{
+			"type": "submenu",
+			"label": "mdev",
+			"presets": [
+				{
+					"type": "preset",
+					"label": "codex auth refresh",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev codex auth refresh"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "workspace close",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev tmux workspace close"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "workspace open",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev tmux open-workspace"
 						},
 						{
 							"type": "enter"
