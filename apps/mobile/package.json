@@ -7,9 +7,10 @@
 	"scripts": {
 		"tsgo:check": "tsgo --noEmit",
 		"expo:typegen": "expo customize tsconfig.json",
-		"android": "expo run:android --port 8082",
+		"adb:fix-wifi": "bash scripts/adb-fix-wifi.sh",
+		"android": "bun run adb:fix-wifi && expo run:android --port 8082",
 		"ios": "expo run:ios --port 8081",
-		"dev:android:release": "expo run:android --port 8082 --variant release",
+		"dev:android:release": "bun run adb:fix-wifi && expo run:android --port 8082 --variant release",
 		"dev:ios:release": "expo run:ios --port 8081 --variant release",
 		"build:signed:aab": "tsx scripts/signed-build.ts",
 		"build:signed:apk": "tsx scripts/signed-build.ts --format apk",

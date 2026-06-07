@@ -267,6 +267,22 @@ pub async fn start_shell(
 		.map_err(Into::into)
 }
 
+/// Create a non-SSH preview shell fed a canned snippet, bound by `previewId`.
+/// Render it with `<Terminal shellId={previewId} />` — the live config still flows
+/// through, so it reflows as Terminal settings change. Tear down with
+/// [`close_preview`]. Sync (no network round-trip).
+#[uniffi::export]
+pub fn create_preview(preview_id: String, demo: Vec<u8>) {
+	fressh_core::create_preview(preview_id, demo);
+}
+
+/// Tear down a preview shell created by [`create_preview`]. Emits no `ShellClosed`
+/// event (preview lifetime is owned by the settings screen, not the session list).
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn close_preview(preview_id: String) {
+	fressh_core::close_preview(preview_id).await;
+}
+
 /// Send user input (stdin) to a shell. (Also available on the render plane.)
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn send_data(shell_id: String, data: Vec<u8>) -> Result<(), SshError> {

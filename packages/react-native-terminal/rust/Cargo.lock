@@ -904,6 +904,7 @@ name = "fressh-core"
 version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
+ "bytes",
  "dashmap",
  "fressh-render",
  "fressh-ssh",

@@ -15,9 +15,10 @@ use once_cell::sync::Lazy;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use fressh_ssh::{Connection as SshConnection, Shell, ShellWriter, SshError, TerminalType};
+use fressh_ssh::{Connection as SshConnection, SshError, TerminalType};
 
 use crate::events::{self, CoreEvent};
+use crate::source::{ShellBackend, WriteSink};
 use crate::{registry, runtime};
 
 /// Shared, lockable parsed terminal state. The reader loop writes it; the render
@@ -91,18 +92,20 @@ pub struct ShellSession {
 	/// `default_cursor_style`. Tracked so we only call the (event-firing)
 	/// `set_options` when it actually changes.
 	default_cursor_blinking: AtomicBool,
-	writer: ShellWriter,
+	writer: WriteSink,
 	reader_task: JoinHandle<()>,
 	pty_task: JoinHandle<()>,
 }
 
 impl ShellSession {
-	/// Wrap a freshly opened [`Shell`] in a session: build the `Term`, spawn the
-	/// reader loop (bytes → `Term`) and the PTY-response drain (`Term` → stdin).
+	/// Wrap a byte source ([`ShellBackend`]) in a session: build the `Term`, spawn
+	/// the reader loop (bytes → `Term`) and the PTY-response drain (`Term` → stdin).
+	/// The backend is SSH for a live shell, or a canned snippet for the settings
+	/// preview — the session is identical either way (§ data plane).
 	pub(crate) fn spawn(
 		shell_id: String,
 		connection_id: String,
-		shell: Shell,
+		backend: ShellBackend,
 		cols: usize,
 		rows: usize,
 		scrollback_lines: usize,
@@ -114,22 +117,19 @@ impl ShellSession {
 		let config = TermConfig { scrolling_history: scrollback_lines, ..Default::default() };
 		let term: SharedTerm = Arc::new(Mutex::new(Term::new(config, &dims, listener)));
 
-		let channel_id = shell.channel_id;
-		let term_type = shell.term;
-		let created_at_ms = shell.created_at_ms;
-		let writer = shell.writer.clone();
-		let mut reader = shell.reader;
+		let ShellBackend { channel_id, term_type, created_at_ms, mut reader, writer } = backend;
 
 		// Reader loop: parse incoming bytes into the durable Term until EOF.
 		let term_for_reader = term.clone();
 		let shell_id_for_reader = shell_id.clone();
 		let reader_task = runtime::handle().spawn(async move {
 			let mut processor: Processor = Processor::new();
-			while let Some(chunk) = reader.recv().await {
+			while let Some(bytes) = reader.recv().await {
 				let mut term = term_for_reader.lock().unwrap_or_else(|p| p.into_inner());
-				processor.advance(&mut *term, &chunk.bytes);
+				processor.advance(&mut *term, &bytes);
 			}
-			// EOF → the channel closed; drop the session and notify JS.
+			// EOF → the source closed; drop the session and notify JS. (The canned
+			// preview source never reaches here — it parks after its one snippet.)
 			registry::remove_shell(&shell_id_for_reader);
 			events::emit(CoreEvent::ShellClosed { shell_id: shell_id_for_reader });
 		});
@@ -199,7 +199,7 @@ impl ShellSession {
 			let mut term = self.term.lock().unwrap_or_else(|p| p.into_inner());
 			term.resize(GridDims { columns: cols.max(1), screen_lines: rows.max(1) });
 		}
-		self.writer.resize(cols as u32, rows as u32, 0, 0).await
+		self.writer.resize(cols as u32, rows as u32).await
 	}
 
 	/// Close the shell: stop the background tasks and close the channel. The

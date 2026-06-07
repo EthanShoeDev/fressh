@@ -14,8 +14,10 @@ export type { TerminalMethods, TerminalProps } from '../nitro/Terminal.nitro';
 // Control plane (§10): connect/shell lifecycle + key helpers + the event stream.
 export {
 	addFresshEventListener,
+	closePreviewTerm,
 	closeShell,
 	connect,
+	createPreviewTerm,
 	disconnect,
 	FresshEvent_Tags,
 	generateKeyPair,

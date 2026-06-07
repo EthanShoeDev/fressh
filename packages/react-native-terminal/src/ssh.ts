@@ -11,8 +11,10 @@
 
 import { NativeModules } from 'react-native';
 import generatedModule, {
+	closePreview as _closePreview,
 	closeShell as _closeShell,
 	connect as _connect,
+	createPreview as _createPreview,
 	disconnect as _disconnect,
 	generateKeyPair as _generateKeyPair,
 	resize as _resize,
@@ -126,6 +128,24 @@ export const resize = (
 
 export const closeShell = (shellId: ShellId): Promise<void> =>
 	_closeShell(shellId);
+
+// ─────────────────────────── preview (non-SSH `Term`) ─────────────────────────
+// A `Term` driven by a canned byte snippet instead of an SSH channel — the
+// foundation for the Terminal-settings live preview (and, later, an on-device
+// local shell). It rides the SAME render plane as a real shell: render it with
+// `<Terminal shellId={previewId} />` and the live `config` prop still reflows it.
+
+/** Create a preview shell bound to `previewId`, fed `demo` bytes once. Synchronous
+ *  (no network). Tear down with {@link closePreviewTerm} on unmount. */
+export const createPreviewTerm = (
+	previewId: ShellId,
+	demo: ArrayBuffer,
+): void => _createPreview(previewId, demo);
+
+/** Tear down a preview shell. Emits no `ShellClosed` event (its lifetime is owned
+ *  by the screen that created it, not the app's session list). */
+export const closePreviewTerm = (previewId: ShellId): Promise<void> =>
+	_closePreview(previewId);
 
 export const generateKeyPair = (keyType: KeyType): string =>
 	_generateKeyPair(keyType);

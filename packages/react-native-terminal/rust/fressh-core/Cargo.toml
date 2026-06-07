@@ -27,6 +27,10 @@ fressh-render = { path = "../fressh-render" }
 # For the `HostKeyVerifier` boxed-future seam (host-key park/resume).
 futures = "0.3.31"
 
+# Zero-copy byte chunks shared with fressh-ssh across the reader-loop seam
+# (`source.rs` `ReadSource`). Already in the tree via russh, so this is free.
+bytes = "1"
+
 # TODO(scaffold): add `[build-dependencies] cbindgen` + a build.rs to emit the
 # C-ABI header the Nitro view links against.
 

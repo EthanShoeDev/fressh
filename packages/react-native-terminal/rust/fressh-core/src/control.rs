@@ -19,7 +19,18 @@ use fressh_ssh::{
 use crate::events::{self, CoreEvent};
 use crate::host_key::{self, ParkingVerifier};
 use crate::session::{ConnectionSession, CoreListener, RenderMetrics, ShellSession};
+use crate::source::ShellBackend;
 use crate::{registry, runtime};
+
+/// Reserved `connection_id` for preview shells. They live in the same registry as
+/// real shells but are filtered out of connection-scoped ops by this sentinel (it
+/// matches no real connection id, which has the form `user@host:port#n`).
+const PREVIEW_CONNECTION_ID: &str = "<preview>";
+
+/// Seed grid for a preview `Term`. The native draw loop reflows it to the real
+/// surface size on the first frame, so these are just non-zero starting bounds.
+const PREVIEW_COLS: usize = 40;
+const PREVIEW_ROWS: usize = 12;
 
 static CONN_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -83,7 +94,7 @@ pub async fn start_shell(
 		let session = ShellSession::spawn(
 			shell_id.clone(),
 			connection_id,
-			shell,
+			ShellBackend::from_ssh(shell),
 			cols,
 			rows,
 			scrollback_lines,
@@ -92,6 +103,37 @@ pub async fn start_shell(
 		Ok(shell_id)
 	})
 	.await
+}
+
+/// Create a non-SSH **preview** shell: a registry `Term` fed a canned snippet,
+/// used by the Terminal-settings live preview. It is an ordinary [`ShellSession`]
+/// whose bytes come from [`ShellBackend::canned`] instead of an SSH channel, so the
+/// render plane binds, reflows, and tears it down through the exact same paths as a
+/// live shell (`shell_term`/`resize`/`close`) — no preview-specific branches needed.
+///
+/// Sync: it only allocates a `Term` and spawns the (parked) reader task on the core
+/// runtime; there is no network round-trip to await. Idempotent-ish — a second call
+/// with the same id replaces the entry (the old session's tasks are dropped, not
+/// aborted, but the canned reader is parked and the pty drain idle, so they're inert).
+pub fn create_preview(preview_id: String, demo: Vec<u8>) {
+	let session = ShellSession::spawn(
+		preview_id,
+		PREVIEW_CONNECTION_ID.to_string(),
+		ShellBackend::canned(demo.into()),
+		PREVIEW_COLS,
+		PREVIEW_ROWS,
+		0,
+	);
+	registry::insert_shell(session);
+}
+
+/// Tear down a preview shell. Unlike [`close_shell`], this emits **no** `ShellClosed`
+/// event — a preview's lifetime is owned by the settings screen, not the app's
+/// session list, so it must stay off the JS event stream.
+pub async fn close_preview(preview_id: String) {
+	if let Some(shell) = registry::remove_shell(&preview_id) {
+		runtime::run(async move { shell.close().await }).await;
+	}
 }
 
 /// Send user input (stdin) to a shell.
@@ -319,4 +361,52 @@ pub fn generate_key_pair(key_type: KeyType) -> Result<String, SshError> {
 /// Validate a private key, returning its canonical OpenSSH form. Sync.
 pub fn validate_private_key(pem: &str) -> Result<String, SshError> {
 	fressh_ssh::validate_private_key(pem)
+}
+
+#[cfg(test)]
+mod tests {
+	use bytes::Bytes;
+	use futures::poll;
+
+	use super::*;
+	use crate::source::ReadSource;
+
+	/// The canned preview source must deliver its snippet exactly once and then
+	/// *park* — never returning `None` — so the reader loop never hits the EOF
+	/// branch that would tear the preview down. This is the load-bearing difference
+	/// from the SSH source.
+	#[test]
+	fn canned_source_yields_once_then_parks() {
+		futures::executor::block_on(async {
+			let mut src = ReadSource::Canned(Some(Bytes::from_static(b"hi")));
+			assert_eq!(src.recv().await.as_deref(), Some(&b"hi"[..]));
+			// Second poll: the future is pending forever, not `None`.
+			let mut again = std::pin::pin!(src.recv());
+			assert!(
+				poll!(again.as_mut()).is_pending(),
+				"canned source must park after its one snippet"
+			);
+		});
+	}
+
+	/// `create_preview` registers an ordinary registry `Term` the render plane can
+	/// look up by id, and `close_preview` removes it — proving the preview rides the
+	/// same `shell_term`/close paths as a live shell with no special-casing.
+	#[test]
+	fn create_preview_registers_then_close_removes() {
+		let id = "__preview_test__";
+		assert!(registry::shell_term(id).is_none());
+
+		create_preview(id.to_string(), b"echo hi".to_vec());
+		assert!(
+			registry::shell_term(id).is_some(),
+			"preview Term should be retrievable by the render plane"
+		);
+
+		futures::executor::block_on(close_preview(id.to_string()));
+		assert!(
+			registry::shell_term(id).is_none(),
+			"preview Term should be gone after close_preview"
+		);
+	}
 }
