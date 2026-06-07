@@ -350,6 +350,7 @@ void test('hello write failure asks user to update mdev', async () => {
 
 void test('operation write failure after hello is stream closed', async () => {
 	let onEvent: ((event: MdevBridgeStreamEvent) => void) | null = null;
+	const closeOptions: ({ signal?: AbortSignal } | undefined)[] = [];
 	const writes: string[] = [];
 	const connection: MdevBridgeStreamConnection = {
 		startCommandStream: async (opts) => {
@@ -361,7 +362,9 @@ void test('operation write failure after hello is stream closed', async () => {
 						throw new Error('operation write failed');
 					}
 				},
-				close: async () => {},
+				close: async (opts) => {
+					closeOptions.push(opts);
+				},
 			};
 		},
 	};
@@ -396,6 +399,9 @@ void test('operation write failure after hello is stream closed', async () => {
 		output: '',
 		error: 'mdev bridge stream closed.',
 	});
+	await nextTick();
+	assert.equal(closeOptions.length, 1);
+	assert.equal(closeOptions[0]?.signal instanceof AbortSignal, true);
 	assert.deepEqual(
 		await client.runOperation({ operation: 'op.one', params: {} }),
 		{
@@ -404,6 +410,64 @@ void test('operation write failure after hello is stream closed', async () => {
 			error: 'mdev bridge stream closed.',
 		},
 	);
+});
+
+void test('protocol error closes the started bridge stream', async () => {
+	const fixture = createBridgeFixture();
+	const client = createMdevBridgeClient({
+		connection: fixture.connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 100,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+	});
+	await nextTick();
+	fixture.emit({ type: 'stdout', bytes: bytes('{bad json}\n') });
+
+	assert.deepEqual(await resultPromise, {
+		success: false,
+		output: '',
+		error: 'mdev bridge protocol error.',
+	});
+	await nextTick();
+	assert.equal(fixture.closeOptions.length, 1);
+	assert.equal(fixture.closeOptions[0]?.signal instanceof AbortSignal, true);
+});
+
+void test('post-start request timeout closes the bridge stream', async () => {
+	const fixture = createBridgeFixture();
+	const client = createMdevBridgeClient({
+		connection: fixture.connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 10,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+	});
+	await nextTick();
+	fixture.emitJson(helloResponse());
+	await nextTick();
+	assert.deepEqual(parseWrite(fixture.writes[1] ?? ''), {
+		id: 'mdev-bridge-2',
+		type: 'operation',
+		operation: 'op.one',
+		params: {},
+		timeoutMs: 10,
+	});
+
+	assert.deepEqual(await resultPromise, {
+		success: false,
+		output: '',
+		error: 'mdev bridge request timed out.',
+	});
+	await nextTick();
+	assert.equal(fixture.closeOptions.length, 1);
+	assert.equal(fixture.closeOptions[0]?.signal instanceof AbortSignal, true);
 });
 
 void test('malformed response and invalid hello fail with protocol error', async () => {

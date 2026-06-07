@@ -186,9 +186,17 @@ export function createMdevBridgeClient({
 		request.resolve(result);
 	}
 
+	function closeStartedStreamInBackground() {
+		const startedStream = stream;
+		if (!startedStream) return;
+		stream = null;
+		void closeStreamWithTimeout(startedStream);
+	}
+
 	function markFailed(error: string) {
 		if (disposed) return;
 		failedError = failedError ?? error;
+		closeStartedStreamInBackground();
 		finishPending(errorResult(failedError));
 	}
 
@@ -234,7 +242,8 @@ export function createMdevBridgeClient({
 		const result = request.validate(response);
 		if (result) {
 			if (!result.result.success && result.fatal) {
-				failedError = result.result.error ?? MDEV_BRIDGE_PROTOCOL_ERROR;
+				markFailed(result.result.error ?? MDEV_BRIDGE_PROTOCOL_ERROR);
+				return;
 			}
 			finishPending(result.result);
 			return;
@@ -367,9 +376,7 @@ export function createMdevBridgeClient({
 			const id = String(request.id);
 			const timer = setTimeout(() => {
 				if (pending?.id !== id) return;
-				pending = null;
-				failedError = MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR;
-				resolve(errorResult(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR));
+				markFailed(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR);
 			}, localTimeoutMs);
 
 			pending = { id, resolve, timer, validate };
@@ -380,8 +387,7 @@ export function createMdevBridgeClient({
 					const error = helloComplete
 						? MDEV_BRIDGE_STREAM_CLOSED_ERROR
 						: MDEV_BRIDGE_UPDATE_MESSAGE;
-					failedError = error;
-					finishPending(errorResult(error));
+					markFailed(error);
 				});
 		});
 	}
