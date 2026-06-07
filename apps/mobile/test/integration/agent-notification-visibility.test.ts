@@ -25,6 +25,20 @@ function waitForMicrotask() {
 	return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+function buildWorkmuxWindowOutput(windowId = '@12'): string {
+	return JSON.stringify({
+		sessionName: 'main',
+		target: `main:${windowId}`,
+		windowId,
+		windowIndex: 12,
+		windowName: 'mobile',
+		workspaceId: 'workspace-1',
+		role: 'codex',
+		roleWindow: true,
+		homeWindow: false,
+	});
+}
+
 function createHarness() {
 	let requestId = 0;
 	let visibility: VisibleAgentNotificationSnapshot = {
@@ -91,12 +105,12 @@ void test('acknowledgeVisibleAgentNotification acknowledges current visible wind
 	const harness = createHarness();
 
 	await acknowledgeVisibleAgentNotification(
-		harness.options(async () => 'ignored\n@12\n'),
+		harness.options(async () => buildWorkmuxWindowOutput()),
 	);
 
 	assert.deepEqual(harness.commands, [
 		{
-			command: "tmux display-message -p -t 'main:' '#{window_id}'",
+			command: "mdev tmux app window --session 'main'",
 			timeoutMs: 10_000,
 		},
 	]);
@@ -145,7 +159,7 @@ void test('acknowledgeVisibleAgentNotification ignores stale async results', asy
 		);
 
 		harness.setVisibility(staleVisibility);
-		deferred.resolve('@12');
+		deferred.resolve(buildWorkmuxWindowOutput());
 		await pending;
 
 		assert.deepEqual(harness.acknowledgements, []);
@@ -160,7 +174,7 @@ void test('acknowledgeVisibleAgentNotification ignores superseded requests witho
 	);
 
 	harness.invalidateRequest();
-	deferred.resolve('@12');
+	deferred.resolve(buildWorkmuxWindowOutput());
 	await pending;
 
 	assert.deepEqual(harness.acknowledgements, []);
@@ -188,10 +202,10 @@ void test('acknowledgeVisibleAgentNotification coalesces concurrent requests int
 	await waitForMicrotask();
 
 	assert.equal(commandCount, 1);
-	first.resolve('@12');
+	first.resolve(buildWorkmuxWindowOutput());
 	await waitForMicrotask();
 	assert.equal(commandCount, 2);
-	second.resolve('@12');
+	second.resolve(buildWorkmuxWindowOutput());
 	await Promise.all([firstPending, queuedA, queuedB]);
 
 	assert.equal(commandCount, 2);
@@ -267,7 +281,11 @@ void test('handleAgentNotificationRoute selects and acknowledges routed agent al
 	assert.equal(handledRoute, true);
 	assert.deepEqual(consumedTokens, ['tap-token']);
 	assert.deepEqual(commands, [
-		{ command: "tmux select-window -t 'work:@12'", timeoutMs: 10_000 },
+		{
+			command:
+				"mdev tmux app notification open --session 'work' --window-id '@12'",
+			timeoutMs: 10_000,
+		},
 	]);
 	assert.deepEqual(acknowledgements, [
 		{ connectionId: 'saved-host', session: 'work', windowId: '@12' },
@@ -307,7 +325,11 @@ void test('handleAgentNotificationRoute consumes tap tokens before async routing
 				resolveCommand = () => resolve('');
 			});
 		},
-		acknowledge: (_connectionId: string, _session: string, windowId: string) => {
+		acknowledge: (
+			_connectionId: string,
+			_session: string,
+			windowId: string,
+		) => {
 			acknowledgements.push(windowId);
 		},
 		warn: () => {},
@@ -321,7 +343,9 @@ void test('handleAgentNotificationRoute consumes tap tokens before async routing
 	resolveCommand();
 
 	assert.equal(await firstRoute, true);
-	assert.deepEqual(commands, ["tmux select-window -t 'main:@12'"]);
+	assert.deepEqual(commands, [
+		"mdev tmux app notification open --session 'main' --window-id '@12'",
+	]);
 	assert.deepEqual(acknowledgements, ['@12']);
 });
 
@@ -474,7 +498,9 @@ void test('handleAgentNotificationRoute allows a later alert for the same window
 	});
 
 	assert.equal(handledRoute, true);
-	assert.deepEqual(commands, ["tmux select-window -t 'main:@12'"]);
+	assert.deepEqual(commands, [
+		"mdev tmux app notification open --session 'main' --window-id '@12'",
+	]);
 	assert.deepEqual(acknowledgements, ['@12']);
 	assert.equal(
 		handled.has('["saved-host","main","@12","main:@12:3000:done"]'),

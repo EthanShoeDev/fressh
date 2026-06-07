@@ -11,38 +11,45 @@ type SkillDiscoveryRecord = {
 	content: string;
 };
 
-const skillPathPattern = /\/\.codex\/skills\/([^/]+)\/SKILL\.md$/;
+const skillDiscoveryJsonBeginMarker = '__FRESSH_SKILL_DISCOVERY_JSON_BEGIN__';
+const skillDiscoveryJsonEndMarker = '__FRESSH_SKILL_DISCOVERY_JSON_END__';
+const skillPathPattern = /\/\.(?:agents|codex)\/skills\/([^/]+)\/SKILL\.md$/;
 
 export function parseSkillDiscoveryOutput(output: string): DiscoveredSkill[] {
-	if (!output.trim()) return [];
+	const jsonPayload = extractSkillDiscoveryJsonPayload(output);
+	if (!jsonPayload) return [];
 
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(output);
+		parsed = JSON.parse(jsonPayload);
 	} catch {
 		return [];
 	}
 	if (!Array.isArray(parsed)) return [];
 
-	return parsed
-		.flatMap((record): DiscoveredSkill[] => {
-			if (!isSkillDiscoveryRecord(record)) return [];
+	const skills: DiscoveredSkill[] = [];
+	const seenNames = new Set<string>();
+	for (const record of parsed) {
+		if (!isSkillDiscoveryRecord(record)) continue;
 
-			const pathMatch = record.path.match(skillPathPattern);
-			if (!pathMatch) return [];
+		const pathMatch = record.path.match(skillPathPattern);
+		if (!pathMatch) continue;
 
-			const fallbackName = pathMatch[1];
-			if (!fallbackName) return [];
-			const metadata = parseSkillFrontmatter(record.content);
-			return [
-				{
-					name: metadata.name || fallbackName,
-					path: record.path,
-					description: metadata.description,
-				},
-			];
-		})
-		.sort((a, b) => a.name.localeCompare(b.name));
+		const fallbackName = pathMatch[1];
+		if (!fallbackName) continue;
+		const metadata = parseSkillFrontmatter(record.content);
+		const name = metadata.name || fallbackName;
+		const nameKey = name.toLowerCase();
+		if (seenNames.has(nameKey)) continue;
+		seenNames.add(nameKey);
+		skills.push({
+			name,
+			path: record.path,
+			description: metadata.description,
+		});
+	}
+
+	return skills.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function filterDiscoveredSkills(
@@ -89,16 +96,66 @@ export function buildSkillDiscoveryCommand(panePath: string): string {
 		'except OSError:',
 		'    git=None',
 		'base=pathlib.Path(git.stdout.strip()) if git and git.returncode == 0 and git.stdout.strip() else start',
-		"root=base/'.codex'/'skills'",
+		'start=start.resolve()',
+		'base=base.resolve()',
+		'candidates=[]',
+		'current=start',
+		'while True:',
+		'    candidates.append(current)',
+		'    if current == base or current.parent == current: break',
+		'    current=current.parent',
+		'if base not in candidates: candidates.append(base)',
+		'roots=[]',
+		'seen_roots=set()',
+		'for candidate in candidates:',
+		"    for root in [candidate/'.agents'/'skills',candidate/'.codex'/'skills']:",
+		'        key=str(root)',
+		'        if key in seen_roots: continue',
+		'        seen_roots.add(key)',
+		'        roots.append(root)',
 		'records=[]',
-		"for skill_file in sorted(root.glob('*/SKILL.md')):",
-		"    try: content=skill_file.read_text(encoding='utf-8', errors='replace')",
-		'    except OSError: continue',
-		"    records.append({'path': str(skill_file), 'content': content})",
+		'seen_records=set()',
+		'for root in roots:',
+		"    for skill_file in sorted(root.glob('*/SKILL.md')):",
+		'        record_key=str(skill_file)',
+		'        if record_key in seen_records: continue',
+		'        seen_records.add(record_key)',
+		"        try: content=skill_file.read_text(encoding='utf-8', errors='replace')",
+		'        except OSError: continue',
+		"        records.append({'path': str(skill_file), 'content': content})",
+		`print(${JSON.stringify(skillDiscoveryJsonBeginMarker)})`,
 		'print(json.dumps(records))',
+		`print(${JSON.stringify(skillDiscoveryJsonEndMarker)})`,
 	].join('\n');
 	const script = `exec(${JSON.stringify(scriptBody)})`;
 	return `python3 -c ${quoteShell(script)} ${quoteShell(panePath)}`;
+}
+
+function extractSkillDiscoveryJsonPayload(output: string): string | null {
+	const trimmed = output.trim();
+	if (!trimmed) return null;
+
+	const lines = output.split(/\r?\n/);
+	const beginIndex = lines.findIndex(
+		(line) => stripAnsi(line).trim() === skillDiscoveryJsonBeginMarker,
+	);
+	if (beginIndex < 0) return trimmed.startsWith('[') ? trimmed : null;
+	const endIndex = lines.findIndex(
+		(line, index) =>
+			index > beginIndex &&
+			stripAnsi(line).trim() === skillDiscoveryJsonEndMarker,
+	);
+	if (endIndex < 0) return null;
+
+	const payload = lines
+		.slice(beginIndex + 1, endIndex)
+		.join('\n')
+		.trim();
+	return payload || null;
+}
+
+function stripAnsi(value: string): string {
+	return value.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '');
 }
 
 function isSkillDiscoveryRecord(value: unknown): value is SkillDiscoveryRecord {

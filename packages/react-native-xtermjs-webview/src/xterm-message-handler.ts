@@ -1,0 +1,356 @@
+import {
+	handleScrollbackBatchBridgeMessage,
+	type BridgeInboundDraftMessage,
+	type BridgeOutboundMessage,
+	type ScrollbackBatchEvent,
+} from './bridge';
+
+type PendingSelectionRef = {
+	current: Map<
+		number,
+		{ resolve: (value: string) => void; timeoutId?: ReturnType<typeof setTimeout> }
+	>;
+};
+
+type XtermMessageLogger = {
+	log?: (...args: unknown[]) => void;
+	warn?: (...args: unknown[]) => void;
+};
+
+type ScrollbackEnterRequestEvent = {
+	instanceId: string;
+	requestId: number;
+};
+
+function reportScrollbackEnterRequestFailure({
+	event,
+	error,
+	onScrollbackEnterRequestFailure,
+}: {
+	event: ScrollbackEnterRequestEvent;
+	error: unknown;
+	onScrollbackEnterRequestFailure?: (
+		event: ScrollbackEnterRequestEvent,
+		error: unknown,
+	) => void;
+}): void {
+	try {
+		onScrollbackEnterRequestFailure?.(event, error);
+	} catch {
+		// Failure fallback is best-effort; never rethrow into WebView message flow.
+	}
+}
+
+function resolvePendingSelections(
+	pendingSelectionRef: PendingSelectionRef,
+	value: string,
+): void {
+	for (const pending of pendingSelectionRef.current.values()) {
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
+		pending.resolve(value);
+	}
+	pendingSelectionRef.current.clear();
+}
+
+function resolvePendingSelection(
+	pendingSelectionRef: PendingSelectionRef,
+	requestId: number,
+	value: string,
+): void {
+	const pending = pendingSelectionRef.current.get(requestId);
+	if (!pending) return;
+	pendingSelectionRef.current.delete(requestId);
+	if (pending.timeoutId) clearTimeout(pending.timeoutId);
+	pending.resolve(value);
+}
+
+export function createScrollbackEnterRequestFailureHandler({
+	logger,
+	sendToWebView,
+}: {
+	logger?: XtermMessageLogger;
+	sendToWebView: (message: BridgeOutboundMessage) => void;
+}): (event: ScrollbackEnterRequestEvent, error: unknown) => void {
+	return (event, error) => {
+		logger?.warn?.(
+			`scrollback enter request failed`,
+			event.instanceId,
+			event.requestId,
+			error,
+		);
+		sendToWebView({
+			...buildScrollbackEnterRequestFailureMessage(event),
+		});
+	};
+}
+
+export function handleXtermBridgeInboundMessage(
+	msg: BridgeInboundDraftMessage,
+	{
+		currentInstanceIdRef,
+		pendingSelectionRef,
+		logger,
+		onInitialized,
+		autoFitFn,
+		setInitialized,
+		onInput,
+		onData,
+		onResize,
+		onSelection,
+		onSelectionModeChange,
+		onScrollbackModeChange,
+		onScrollbackEnterRequested,
+		onScrollbackEnterRequestFailure,
+		onScrollbackBatch,
+		invalidatedInstanceIdsRef,
+		invalidatedBridgeLoadTokensRef,
+		currentBridgeLoadTokenRef,
+		expectedBridgeLoadIdRef,
+		awaitingBridgeDocumentStartRef,
+	}: {
+		currentInstanceIdRef: { current: string | null };
+		invalidatedInstanceIdsRef?: { current: Set<string> };
+		invalidatedBridgeLoadTokensRef?: { current: Set<string> };
+		currentBridgeLoadTokenRef?: { current: string | null };
+		expectedBridgeLoadIdRef?: { current: number };
+		awaitingBridgeDocumentStartRef?: { current: boolean };
+		pendingSelectionRef: PendingSelectionRef;
+		logger?: XtermMessageLogger;
+		onInitialized?: (instanceId: string) => void;
+		autoFitFn: () => void;
+		setInitialized: (initialized: boolean) => void;
+		onInput?: (input: {
+			str: string;
+			kind: 'typing';
+			instanceId: string;
+		}) => void;
+		onData?: (data: string) => void;
+		onResize?: (cols: number, rows: number) => void;
+		onSelection?: (text: string) => void;
+		onSelectionModeChange?: (enabled: boolean) => void;
+		onScrollbackModeChange?: (event: {
+			active: boolean;
+			phase: 'dragging' | 'active';
+			instanceId: string;
+			requestId?: number;
+		}) => void;
+		onScrollbackEnterRequested?: (
+			event: ScrollbackEnterRequestEvent,
+		) => void | Promise<void>;
+		onScrollbackEnterRequestFailure?: (
+			event: ScrollbackEnterRequestEvent,
+			error: unknown,
+		) => void;
+		onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
+	},
+): boolean {
+	if (
+		msg.type === 'initialized' &&
+		typeof (msg as { instanceId?: unknown }).instanceId !== 'string'
+	) {
+		logger?.warn?.(`dropping malformed webview initialized message`);
+		return true;
+	}
+	if (msg.type === 'documentStarted') {
+		if (typeof msg.bridgeLoadToken !== 'string') {
+			logger?.warn?.(`dropping malformed webview documentStarted message`);
+			return true;
+		}
+		if (
+			expectedBridgeLoadIdRef &&
+			typeof msg.bridgeLoadId === 'number' &&
+			msg.bridgeLoadId !== expectedBridgeLoadIdRef.current
+		) {
+			logger?.warn?.(
+				`dropping stale webview documentStarted load`,
+				msg.bridgeLoadToken,
+			);
+			return true;
+		}
+		if (invalidatedBridgeLoadTokensRef?.current.has(msg.bridgeLoadToken)) {
+			logger?.warn?.(
+				`dropping invalidated webview documentStarted message`,
+				msg.bridgeLoadToken,
+			);
+			return true;
+		}
+		currentBridgeLoadTokenRef &&
+			(currentBridgeLoadTokenRef.current = msg.bridgeLoadToken);
+		awaitingBridgeDocumentStartRef &&
+			(awaitingBridgeDocumentStartRef.current = false);
+		currentInstanceIdRef.current = null;
+			resolvePendingSelections(pendingSelectionRef, '');
+			return true;
+		}
+	if ('instanceId' in msg) {
+		if (
+			(awaitingBridgeDocumentStartRef?.current ||
+				currentBridgeLoadTokenRef?.current) &&
+			(expectedBridgeLoadIdRef
+				? typeof msg.bridgeLoadId === 'number' &&
+					msg.bridgeLoadId !== expectedBridgeLoadIdRef.current
+				: false)
+		) {
+			if (msg.type === 'initialized') {
+				logger?.warn?.(
+					`dropping stale webview initialized load`,
+					msg.instanceId,
+				);
+			} else {
+				logger?.warn?.(
+					`dropping stale webview message load`,
+					msg.type,
+					msg.instanceId,
+				);
+			}
+			return true;
+		}
+		if (
+			(awaitingBridgeDocumentStartRef?.current ||
+				currentBridgeLoadTokenRef?.current) &&
+			(typeof msg.bridgeLoadToken !== 'string' ||
+				msg.bridgeLoadToken !== currentBridgeLoadTokenRef?.current)
+		) {
+			if (msg.type === 'initialized') {
+				logger?.warn?.(
+					`dropping stale webview initialized generation`,
+					msg.instanceId,
+				);
+			} else {
+				logger?.warn?.(
+					`dropping stale webview message generation`,
+					msg.type,
+					msg.instanceId,
+				);
+			}
+			return true;
+		}
+		if (invalidatedInstanceIdsRef?.current.has(msg.instanceId)) {
+			if (msg.type === 'initialized') {
+				logger?.warn?.(
+					`dropping invalidated webview initialized message`,
+					msg.instanceId,
+				);
+			} else {
+				logger?.warn?.(
+					`dropping invalidated webview message`,
+					msg.type,
+					msg.instanceId,
+				);
+			}
+			return true;
+		}
+		if (
+			currentInstanceIdRef.current &&
+			msg.instanceId !== currentInstanceIdRef.current
+		) {
+			if (msg.type === 'initialized') {
+				logger?.warn?.(
+					`dropping stale webview initialized message`,
+					msg.instanceId,
+				);
+			} else {
+				logger?.warn?.(
+					`dropping stale webview message`,
+					msg.type,
+					msg.instanceId,
+				);
+			}
+			return true;
+		}
+	}
+	if (msg.type === 'initialized') {
+			currentInstanceIdRef.current = msg.instanceId;
+			invalidatedInstanceIdsRef?.current.clear();
+			resolvePendingSelections(pendingSelectionRef, '');
+			onInitialized?.(msg.instanceId);
+			autoFitFn();
+			setInitialized(true);
+		return true;
+	}
+	if (msg.type === 'input') {
+		const kind = msg.kind ?? 'typing';
+		if (kind === 'typing') {
+			onInput?.({ str: msg.str, kind, instanceId: msg.instanceId });
+			onData?.(msg.str);
+		} else {
+			logger?.warn?.(`dropping non-typing webview input`, kind);
+		}
+		return true;
+	}
+	if (msg.type === 'debug') {
+		logger?.log?.(`received debug msg from webview: `, msg.message);
+		return true;
+	}
+	if (msg.type === 'sizeChanged') {
+		logger?.log?.(`terminal size changed: ${msg.cols}x${msg.rows}`);
+		onResize?.(msg.cols, msg.rows);
+		return true;
+	}
+		if (msg.type === 'selection') {
+			resolvePendingSelection(pendingSelectionRef, msg.requestId, msg.text);
+			return true;
+		}
+	if (msg.type === 'selectionChanged') {
+		onSelection?.(msg.text);
+		return true;
+	}
+	if (msg.type === 'selectionModeChanged') {
+		onSelectionModeChange?.(msg.enabled);
+		return true;
+	}
+	if (msg.type === 'scrollbackModeChanged') {
+		onScrollbackModeChange?.({
+			active: msg.active,
+			phase: msg.phase,
+			instanceId: msg.instanceId,
+			requestId: msg.requestId,
+		});
+		return true;
+	}
+	if (
+		msg.type === 'scrollbackEnterRequested' ||
+		msg.type === 'tmuxEnterCopyMode'
+	) {
+		const event = {
+			instanceId: msg.instanceId,
+			requestId: msg.requestId,
+		};
+		if (!onScrollbackEnterRequested) {
+			reportScrollbackEnterRequestFailure({
+				event,
+				error: new Error('Missing scrollback enter handler.'),
+				onScrollbackEnterRequestFailure,
+			});
+			return true;
+		}
+		try {
+			void Promise.resolve(onScrollbackEnterRequested(event)).catch((error) => {
+				reportScrollbackEnterRequestFailure({
+					event,
+					error,
+					onScrollbackEnterRequestFailure,
+				});
+			});
+		} catch (error) {
+			reportScrollbackEnterRequestFailure({
+				event,
+				error,
+				onScrollbackEnterRequestFailure,
+			});
+		}
+		return true;
+	}
+	return handleScrollbackBatchBridgeMessage(msg, onScrollbackBatch);
+}
+
+function buildScrollbackEnterRequestFailureMessage(event: {
+	instanceId: string;
+	requestId: number;
+}): BridgeOutboundMessage {
+	return {
+		type: 'exitScrollback',
+		requestId: event.requestId,
+		instanceId: event.instanceId,
+	};
+}

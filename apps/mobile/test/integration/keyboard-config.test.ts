@@ -130,7 +130,7 @@ void test('phone base keyboard replaces raw dollar key with skill selector macro
 	});
 });
 
-void test('phone base keyboard exposes long-press navigation options on arrows and window', () => {
+void test('phone base keyboard exposes role and workspace navigation controls', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -162,8 +162,8 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 					icon: 'ChevronsUp',
 				},
 				{
-					type: 'bytes',
-					bytes: [27, 91, 49, 59, 55, 68],
+					type: 'action',
+					actionId: 'WORKMUX_NAV_PREV_ALL',
 					label: 'Prev all',
 					icon: null,
 				},
@@ -191,8 +191,8 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 					icon: 'ChevronsDown',
 				},
 				{
-					type: 'bytes',
-					bytes: [27, 91, 49, 59, 55, 67],
+					type: 'action',
+					actionId: 'WORKMUX_NAV_NEXT_ALL',
 					label: 'Next all',
 					icon: null,
 				},
@@ -200,41 +200,94 @@ void test('phone base keyboard exposes long-press navigation options on arrows a
 		},
 	});
 
-	assert.deepEqual(phoneBaseKeyboard.grid[0]?.[6], {
-		type: 'bytes',
-		bytes: [27, 91, 49, 59, 53, 67],
-		label: 'Window',
-		icon: 'AppWindow',
-		span: 2,
+	assert.deepEqual(phoneBaseKeyboard.grid[0]?.[5], {
+		type: 'action',
+		actionId: 'WORKMUX_FOCUS_NEXT',
+		label: 'Role',
+		icon: 'SquareSplitVertical',
 		longPress: {
 			options: [
 				{
-					type: 'bytes',
-					bytes: [27, 91, 49, 59, 53, 67],
-					label: 'Window',
-					icon: 'AppWindow',
-				},
-				{
-					type: 'bytes',
-					bytes: [27, 91, 49, 59, 55, 68],
-					label: 'Prev all',
+					type: 'action',
+					actionId: 'WORKMUX_FOCUS_NEXT',
+					label: 'Next role',
 					icon: null,
 				},
 				{
-					type: 'bytes',
-					bytes: [27, 91, 49, 59, 55, 67],
-					label: 'Next all',
+					type: 'action',
+					actionId: 'WORKMUX_FOCUS_PREV',
+					label: 'Prev role',
 					icon: null,
 				},
 				{
-					type: 'macro',
-					macroId: 'alt_w',
-					label: 'Alt-w',
+					type: 'action',
+					actionId: 'WORKMUX_FOCUS_CLAUDE',
+					label: 'Claude',
+					icon: null,
+				},
+				{
+					type: 'action',
+					actionId: 'WORKMUX_FOCUS_GIT',
+					label: 'Git',
+					icon: null,
+				},
+				{
+					type: 'action',
+					actionId: 'WORKMUX_FOCUS_CODEX',
+					label: 'Codex',
+					icon: null,
+				},
+				{
+					type: 'action',
+					actionId: 'WORKMUX_FOCUS_BASH',
+					label: 'Bash',
 					icon: null,
 				},
 			],
 		},
 	});
+
+	assert.deepEqual(phoneBaseKeyboard.grid[0]?.[6], {
+		type: 'action',
+		actionId: 'WORKMUX_NAV_NEXT',
+		label: 'Work',
+		icon: 'AppWindow',
+		span: 2,
+		longPress: {
+			options: [
+				{
+					type: 'action',
+					actionId: 'WORKMUX_NAV_NEXT',
+					label: 'Next work',
+					icon: null,
+				},
+				{
+					type: 'action',
+					actionId: 'WORKMUX_NAV_PREV',
+					label: 'Prev work',
+					icon: null,
+				},
+				{
+					type: 'action',
+					actionId: 'WORKMUX_NAV_NEXT_ALL',
+					label: 'Next all',
+					icon: null,
+				},
+				{
+					type: 'action',
+					actionId: 'WORKMUX_NAV_PREV_ALL',
+					label: 'Prev all',
+					icon: null,
+				},
+			],
+		},
+	});
+
+	const phoneBaseMacros = config.macrosByKeyboardId.phone_base ?? [];
+	assert.equal(
+		phoneBaseMacros.some((macro) => macro.id === 'alt_w'),
+		false,
+	);
 });
 
 void test('bundled keyboards do not expose tmux history actions', () => {
@@ -252,7 +305,51 @@ void test('bundled keyboards do not expose tmux history actions', () => {
 	assert.deepEqual(historySlots, []);
 });
 
-void test('phone base keyboard exposes explain, browser actions, and status actions', () => {
+void test('phone base keyboard does not expose stale pane labels', () => {
+	const config = getBundledShellConfig();
+	const labels = config.keyboards.flatMap((keyboard) =>
+		keyboard.grid.flatMap((row) =>
+			row.flatMap((slot) => {
+				if (!slot) return [];
+				const longPressLabels =
+					slot.longPress?.options.map((option) => option.label) ?? [];
+				return [slot.label, ...longPressLabels];
+			}),
+		),
+	);
+
+	assert.equal(labels.includes('Pane'), false);
+	assert.equal(labels.includes('Window'), false);
+	assert.equal(labels.includes('Alt-w'), false);
+});
+
+void test('bundled Workmux all-window nav keys use semantic actions', () => {
+	const config = getBundledShellConfig();
+	const workmuxAllNavSlots = config.keyboards.flatMap((keyboard) =>
+		keyboard.grid.flatMap((row) =>
+			row.flatMap((slot) => {
+				const options = slot?.longPress?.options ?? [];
+				return [slot, ...options].filter(
+					(option) =>
+						option?.label === 'Prev all' || option?.label === 'Next all',
+				);
+			}),
+		),
+	);
+
+	assert.notEqual(workmuxAllNavSlots.length, 0);
+	for (const slot of workmuxAllNavSlots) {
+		assert.equal(slot?.type, 'action');
+		if (slot?.type !== 'action') continue;
+		if (slot?.label === 'Prev all') {
+			assert.equal(slot.actionId, 'WORKMUX_NAV_PREV_ALL');
+		} else {
+			assert.equal(slot.actionId, 'WORKMUX_NAV_NEXT_ALL');
+		}
+	}
+});
+
+void test('phone base keyboard exposes explain, browser actions, and status action layout', () => {
 	const config = getBundledShellConfig();
 	const phoneBaseKeyboard = config.keyboards.find(
 		(keyboard) => keyboard.id === 'phone_base',
@@ -395,7 +492,7 @@ void test('browser keyboard exposes host navigation actions', () => {
 	assert.deepEqual(config.macrosByKeyboardId.browser_keyboard, []);
 });
 
-void test('shell config rejects internal detected-open action ids', () => {
+void test('shell config accepts legacy detected-open action ids', () => {
 	const config = getBundledShellConfig();
 	const actionConfig = JSON.parse(JSON.stringify(config));
 	actionConfig.keyboards[0].grid[0][0] = {
@@ -405,10 +502,7 @@ void test('shell config rejects internal detected-open action ids', () => {
 		icon: 'ExternalLink',
 	};
 
-	assert.throws(
-		() => parseShellConfigData(actionConfig),
-		/Unsupported actionId OPEN_HOST_DETECTED_AUTO/,
-	);
+	assert.doesNotThrow(() => parseShellConfigData(actionConfig));
 
 	const macroConfig = JSON.parse(JSON.stringify(config));
 	macroConfig.macrosByKeyboardId.phone_base.push({
@@ -422,10 +516,7 @@ void test('shell config rejects internal detected-open action ids', () => {
 		}),
 	});
 
-	assert.throws(
-		() => parseShellConfigData(macroConfig),
-		/Unsupported macro actionId OPEN_HOST_DETECTED_PICK/,
-	);
+	assert.doesNotThrow(() => parseShellConfigData(macroConfig));
 });
 
 void test('advanced keyboard omits consolidated host URL setter actions', () => {
@@ -449,6 +540,20 @@ void test('advanced keyboard omits consolidated host URL setter actions', () => 
 		null,
 		null,
 		null,
+	]);
+	assert.deepEqual(advancedKeyboard.grid[2]?.slice(7, 9), [
+		{
+			type: 'action',
+			actionId: 'WORKMUX_NAV_PREV_ALL',
+			label: 'Prev all',
+			icon: null,
+		},
+		{
+			type: 'action',
+			actionId: 'WORKMUX_NAV_NEXT_ALL',
+			label: 'Next all',
+			icon: null,
+		},
 	]);
 
 	const advancedActionIds = advancedKeyboard.grid.flatMap((row) =>

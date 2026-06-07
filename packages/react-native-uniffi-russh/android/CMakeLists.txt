@@ -7,17 +7,20 @@ set (CMAKE_CXX_STANDARD 17)
 
 # Resolve the path to the uniffi-bindgen-react-native package
 execute_process(
-    COMMAND node -e "const path = require('path'); const entry = require.resolve('uniffi-bindgen-react-native'); console.log(path.resolve(path.dirname(entry), '../../..'));"
-    OUTPUT_VARIABLE UBRN_ROOT
+    COMMAND node -p "require.resolve('uniffi-bindgen-react-native/package.json')"
+    OUTPUT_VARIABLE UNIFFI_BINDGEN_PATH
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+# Get the directory; get_filename_component and cmake_path will normalize
+# paths with Windows path separators.
+get_filename_component(UNIFFI_BINDGEN_PATH "${UNIFFI_BINDGEN_PATH}" DIRECTORY)
 
 # Specifies a path to native header files.
 include_directories(
     ../cpp
     ../cpp/generated
 
-    ${UBRN_ROOT}/cpp/includes
+    ${UNIFFI_BINDGEN_PATH}/cpp/includes
 )
 
 add_library(fressh-react-native-uniffi-russh            SHARED

@@ -7,6 +7,12 @@
       "skillPath": "skills/brainstorming/SKILL.md",
       "computedHash": "8df9b47092524833138b58682d03f2e153a242e550d1693657afdbee0cc9cdb0"
     },
+    "code-review": {
+      "source": "mulyoved/skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-review/SKILL.md",
+      "computedHash": "f785d8aa72443dc196a8a4ff1f6b8c0f630d78b6227898408f9c00cafb7b54fd"
+    },
     "code-review-ce1": {
       "source": "mulyoved/skills",
       "sourceType": "github",
@@ -37,6 +43,30 @@
       "skillPath": "skills/finishing-a-development-branch/SKILL.md",
       "computedHash": "932d23af11a3eb2b758f5b1d9aec7b6d28ddd26658328414f87f34dff7179d19"
     },
+    "goalcraft": {
+      "source": "mulyoved/skills",
+      "sourceType": "github",
+      "skillPath": "skills/goalcraft/SKILL.md",
+      "computedHash": "6a4ecc8a67a7dab525ac3111c4cafe9dcb714eb8e8ce8be2b7ce74cf0d95aad5"
+    },
+    "handoff": {
+      "source": "mulyoved/skills",
+      "sourceType": "github",
+      "skillPath": "skills/handoff/SKILL.md",
+      "computedHash": "1a78d774f8a59db5daa6e65e20a6596872fa8cde769f9a6e3a09b678dd5ae8cc"
+    },
+    "improve-codex-skills": {
+      "source": "mulyoved/skills",
+      "sourceType": "github",
+      "skillPath": "skills/improve-codex-skills/SKILL.md",
+      "computedHash": "f224bc9d2db39013df4e9e1491ef0b6bd27eb3dfea5336c503473fded88e1689"
+    },
+    "install-custom-skill": {
+      "source": "mulyoved/skills",
+      "sourceType": "github",
+      "skillPath": "skills/install-custom-skill/SKILL.md",
+      "computedHash": "6f7513256abb42ee50d6ec5b8d712b88cabacd8b8e3b9d8531bfc0677184fd3a"
+    },
     "oracle-ask": {
       "source": "mulyoved/skills",
       "sourceType": "github",
@@ -61,6 +91,12 @@
       "skillPath": "skills/requesting-code-review/SKILL.md",
       "computedHash": "874f3786b05007a8b4a60452a4cd89b9917c645d34b6b1e40ea05037d12f0e67"
     },
+    "spec-plan-tldr": {
+      "source": "mulyoved/skills",
+      "sourceType": "github",
+      "skillPath": "skills/spec-plan-tldr/SKILL.md",
+      "computedHash": "cbc064c3cb96cc7ac5c4e292d76d06005563b9cd17f5fc02a6d6c478903b76f3"
+    },
     "subagent-driven-development": {
       "source": "mulyoved/skills",
       "sourceType": "github",
@@ -84,6 +120,12 @@
       "sourceType": "github",
       "skillPath": "skills/test-driven-development/SKILL.md",
       "computedHash": "126f1ebf6ccd414f42544f6e83d8cc5adb089e1108eaffb7c400701e37eecd9f"
+    },
+    "thermo-nuclear-code-quality-review": {
+      "source": "mulyoved/skills",
+      "sourceType": "github",
+      "skillPath": "skills/thermo-nuclear-code-quality-review/SKILL.md",
+      "computedHash": "9052b01b46b1d8dbf94c45f9313ec1983443f9a460e83d49cdc7fe0f640ca476"
     },
     "using-git-worktrees": {
       "source": "obra/superpowers",

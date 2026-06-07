@@ -118,6 +118,14 @@ void test('foreground service keeps running while reconnecting without shells', 
 		}),
 		false,
 	);
+	assert.equal(
+		shouldRunForegroundService({
+			shellCount: 0,
+			isAutoConnecting: true,
+			isReconnecting: false,
+		}),
+		false,
+	);
 });
 
 void test('background shell drop preserves foreground service until reconnect scheduling runs', () => {

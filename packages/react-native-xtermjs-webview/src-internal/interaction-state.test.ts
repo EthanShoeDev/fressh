@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import { type BridgeInboundMessage, type TouchScrollConfig } from '../src/bridge';
+import {
+	type BridgeInboundDraftMessage,
+	type TouchScrollConfig,
+} from '../src/bridge';
 import { createSelectionHandles } from './selection-handles';
 import { createTouchScrollController } from './touch-scroll-controller';
 
@@ -201,10 +204,9 @@ const createPointerEvent = (
 		pointerType?: string;
 		isPrimary?: boolean;
 	},
-) =>
-	{
-		let defaultPrevented = false;
-		return {
+) => {
+	let defaultPrevented = false;
+	return {
 		type,
 		pointerId: init.pointerId,
 		clientX: init.clientX,
@@ -219,8 +221,8 @@ const createPointerEvent = (
 			defaultPrevented = true;
 		},
 		stopPropagation() {},
-		} as PointerEvent;
-	};
+	} as PointerEvent;
+};
 
 const dispatchPointerEvent = (
 	target: FakeElement,
@@ -262,13 +264,16 @@ const installDomGlobals = (t: TestContext) => {
 	return { document, window };
 };
 
-const createTouchScrollTerm = (element: FakeElement) =>
+const createTouchScrollTerm = (element: FakeElement, rows = 24) =>
 	({
-		rows: 24,
+		rows,
 		element,
-	} as const);
+	}) as const;
 
-const createSelectionTerm = (element: FakeElement, screenElement: FakeElement) =>
+const createSelectionTerm = (
+	element: FakeElement,
+	screenElement: FakeElement,
+) =>
 	({
 		element,
 		options: {
@@ -316,15 +321,20 @@ const createSelectionTerm = (element: FakeElement, screenElement: FakeElement) =
 				},
 			},
 		},
-	} as const);
+	}) as const;
 
-void test('touch scroll cancels pending copy-mode entry when selection mode takes over', (t) => {
+void test('touch scroll cancels pending scrollback entry when selection mode takes over', (t) => {
 	installDomGlobals(t);
 
 	const root = new FakeElement('div');
-	root.setBoundingClientRect({ width: 320, height: 200, right: 320, bottom: 200 });
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
 
-	const messages: BridgeInboundMessage[] = [];
+	const messages: BridgeInboundDraftMessage[] = [];
 	let selectionModeEnabled = false;
 	const controller = createTouchScrollController({
 		term: createTouchScrollTerm(root) as never,
@@ -364,8 +374,10 @@ void test('touch scroll cancels pending copy-mode entry when selection mode take
 
 	const scrollbackTransitions = messages
 		.filter(
-			(message): message is Extract<
-				BridgeInboundMessage,
+			(
+				message,
+			): message is Extract<
+				BridgeInboundDraftMessage,
 				{ type: 'scrollbackModeChanged' }
 			> => message.type === 'scrollbackModeChanged',
 		)
@@ -377,76 +389,564 @@ void test('touch scroll cancels pending copy-mode entry when selection mode take
 	]);
 });
 
-void test(
-	'touch scroll clears pending copy-mode entry when scrollback is force-closed without ack',
-	(t) => {
-		installDomGlobals(t);
+void test('touch scroll batch includes the producer page step', (t) => {
+	installDomGlobals(t);
 
-		const root = new FakeElement('div');
-		root.setBoundingClientRect({
-			width: 320,
-			height: 200,
-			right: 320,
-			bottom: 200,
-		});
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
 
-		const messages: BridgeInboundMessage[] = [];
-		const controller = createTouchScrollController({
-			term: createTouchScrollTerm(root) as never,
-			root: root as never,
-			instanceId: 'instance-1',
-			sendToRn: (message) => {
-				messages.push(message);
-			},
-			isSelectionModeEnabled: () => false,
-			cancelLongPress() {},
-		});
+	const messages: BridgeInboundDraftMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root, 25) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
 
-		const config: TouchScrollConfig = { enabled: true, slopPx: 8, pxPerLine: 10 };
-		controller.setConfig(config);
+	controller.setConfig({
+		enabled: true,
+		slopPx: 0,
+		pxPerLine: 1,
+		maxPagesPerFlush: 2,
+		maxExtraLines: 999,
+		velocityMultiplierEnabled: false,
+		backlogMultiplierEnabled: false,
+	});
 
-		dispatchPointerEvent(root, 'pointerdown', {
-			pointerId: 1,
-			clientX: 40,
-			clientY: 40,
-			timeStamp: 0,
-		});
-		dispatchPointerEvent(root, 'pointermove', {
-			pointerId: 1,
-			clientX: 40,
-			clientY: 64,
-			timeStamp: 16,
-		});
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 100,
+	});
+	controller.handleEnterAck(1);
+	dispatchPointerEvent(root, 'pointerup', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 120,
+	});
 
-		controller.exitScrollback({ emitExit: false, requestId: 1 });
+	const scrollBatch = messages.find(
+		(
+			message,
+		): message is Extract<BridgeInboundDraftMessage, { type: 'scrollbackBatch' }> =>
+			message.type === 'scrollbackBatch',
+	);
 
-		dispatchPointerEvent(root, 'pointerdown', {
-			pointerId: 2,
-			clientX: 48,
-			clientY: 48,
-			timeStamp: 32,
-		});
-		dispatchPointerEvent(root, 'pointermove', {
-			pointerId: 2,
-			clientX: 48,
-			clientY: 72,
-			timeStamp: 48,
-		});
+	assert.equal(scrollBatch?.pageStep, 24);
+});
 
-		const entryRequests = messages.filter(
-			(message): message is Extract<
-				BridgeInboundMessage,
-				{ type: 'tmuxEnterCopyMode' }
-			> => message.type === 'tmuxEnterCopyMode',
-		);
+void test('touch scroll quick release flushes after delayed enter ack', async (t) => {
+	installDomGlobals(t);
 
-		assert.equal(entryRequests.length, 2);
-		assert.deepEqual(
-			entryRequests.map(({ requestId }) => requestId),
-			[1, 2],
-		);
-	},
-);
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	const messages: BridgeInboundDraftMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root, 25) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
+
+	controller.setConfig({
+		enabled: true,
+		slopPx: 0,
+		pxPerLine: 1,
+		maxPagesPerFlush: 2,
+		maxExtraLines: 999,
+		coalesceMs: 0,
+		velocityMultiplierEnabled: false,
+		backlogMultiplierEnabled: false,
+	});
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 100,
+	});
+	dispatchPointerEvent(root, 'pointerup', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 120,
+	});
+
+	assert.equal(
+		messages.some((message) => message.type === 'scrollbackBatch'),
+		false,
+	);
+
+	controller.handleEnterAck(1);
+	await new Promise((resolve) => setTimeout(resolve, 0));
+
+	const activeTransition = messages.find(
+		(
+			message,
+		): message is Extract<
+			BridgeInboundDraftMessage,
+			{ type: 'scrollbackModeChanged' }
+		> =>
+			message.type === 'scrollbackModeChanged' &&
+			message.active &&
+			message.phase === 'active',
+	);
+	const scrollBatches = messages.filter(
+		(
+			message,
+		): message is Extract<BridgeInboundDraftMessage, { type: 'scrollbackBatch' }> =>
+			message.type === 'scrollbackBatch',
+	);
+
+	assert.notEqual(activeTransition, undefined);
+	assert.equal(scrollBatches.length, 1);
+	const [scrollBatch] = scrollBatches;
+	assert.equal(scrollBatch?.pageStep, 24);
+	assert.equal(scrollBatch?.direction, 'up');
+});
+
+void test('touch scroll pointer cancel before enter ack ignores the late ack', async (t) => {
+	installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	const messages: BridgeInboundDraftMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root, 25) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
+
+	controller.setConfig({
+		enabled: true,
+		slopPx: 0,
+		pxPerLine: 1,
+		maxPagesPerFlush: 2,
+		maxExtraLines: 999,
+		coalesceMs: 0,
+		velocityMultiplierEnabled: false,
+		backlogMultiplierEnabled: false,
+	});
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 100,
+	});
+	dispatchPointerEvent(root, 'pointercancel', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 120,
+	});
+	controller.handleEnterAck(1);
+	await new Promise((resolve) => setTimeout(resolve, 0));
+
+	const scrollbackTransitions = messages
+		.filter(
+			(
+				message,
+			): message is Extract<
+				BridgeInboundDraftMessage,
+				{ type: 'scrollbackModeChanged' }
+			> => message.type === 'scrollbackModeChanged',
+		)
+		.map(({ active, phase, requestId }) => ({ active, phase, requestId }));
+
+	assert.deepEqual(scrollbackTransitions, [
+		{ active: true, phase: 'dragging', requestId: undefined },
+		{ active: false, phase: 'dragging', requestId: 1 },
+	]);
+	assert.equal(
+		messages.some((message) => message.type === 'scrollbackBatch'),
+		false,
+	);
+});
+
+void test('touch scroll exit does not emit primary-shell cancel input after ack', (t) => {
+	installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	const messages: BridgeInboundDraftMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root, 25) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
+
+	controller.setConfig({
+		enabled: true,
+		slopPx: 0,
+		pxPerLine: 1,
+		maxPagesPerFlush: 2,
+		maxExtraLines: 999,
+		velocityMultiplierEnabled: false,
+		backlogMultiplierEnabled: false,
+	});
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 100,
+	});
+	controller.handleEnterAck(1);
+	dispatchPointerEvent(root, 'pointerup', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 120,
+	});
+
+	controller.exitScrollback({ requestId: 2 });
+
+	const inputMessages = messages.filter(
+		(message): message is Extract<BridgeInboundDraftMessage, { type: 'input' }> =>
+			message.type === 'input',
+	);
+	const exitTransition = messages.find(
+		(
+			message,
+		): message is Extract<
+			BridgeInboundDraftMessage,
+			{ type: 'scrollbackModeChanged' }
+		> =>
+			message.type === 'scrollbackModeChanged' &&
+			!message.active &&
+			message.requestId === 2,
+	);
+
+	assert.deepEqual(inputMessages, []);
+	assert.equal(exitTransition?.active, false);
+});
+
+void test('touch scroll clears pending scrollback entry when scrollback is force-closed without ack', (t) => {
+	installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	const messages: BridgeInboundDraftMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
+
+	const config: TouchScrollConfig = { enabled: true, slopPx: 8, pxPerLine: 10 };
+	controller.setConfig(config);
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 64,
+		timeStamp: 16,
+	});
+
+	controller.exitScrollback({ requestId: 1 });
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 2,
+		clientX: 48,
+		clientY: 48,
+		timeStamp: 32,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 2,
+		clientX: 48,
+		clientY: 72,
+		timeStamp: 48,
+	});
+
+	const entryRequests = messages.filter(
+		(
+			message,
+		): message is Extract<
+			BridgeInboundDraftMessage,
+			{ type: 'scrollbackEnterRequested' }
+		> => message.type === 'scrollbackEnterRequested',
+	);
+
+	assert.equal(entryRequests.length, 2);
+	assert.deepEqual(
+		entryRequests.map(({ requestId }) => requestId),
+		[1, 2],
+	);
+});
+
+void test('touch scroll clears pending scrollback entry when enter ack is lost', async (t) => {
+	installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	const messages: BridgeInboundDraftMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+		scrollbackEnterTimeoutMs: 1,
+	});
+
+	controller.setConfig({ enabled: true, slopPx: 8, pxPerLine: 10 });
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 64,
+		timeStamp: 16,
+	});
+
+	await new Promise((resolve) => setTimeout(resolve, 5));
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 2,
+		clientX: 48,
+		clientY: 48,
+		timeStamp: 32,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 2,
+		clientX: 48,
+		clientY: 72,
+		timeStamp: 48,
+	});
+
+	const entryRequests = messages.filter(
+		(
+			message,
+		): message is Extract<
+			BridgeInboundDraftMessage,
+			{ type: 'scrollbackEnterRequested' }
+		> => message.type === 'scrollbackEnterRequested',
+	);
+	const timeoutExit = messages.find(
+		(
+			message,
+		): message is Extract<
+			BridgeInboundDraftMessage,
+			{ type: 'scrollbackModeChanged' }
+		> =>
+			message.type === 'scrollbackModeChanged' &&
+			!message.active &&
+			message.requestId === 1,
+	);
+
+	assert.deepEqual(
+		entryRequests.map(({ requestId }) => requestId),
+		[1, 2],
+	);
+	assert.notEqual(timeoutExit, undefined);
+});
+
+void test('touch scroll lost ack timeout restarts enter for newer active drag', async (t) => {
+	installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	const messages: BridgeInboundDraftMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+		scrollbackEnterTimeoutMs: 8,
+	});
+
+	controller.setConfig({ enabled: true, slopPx: 8, pxPerLine: 10 });
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 64,
+		timeStamp: 16,
+	});
+	dispatchPointerEvent(root, 'pointerup', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 64,
+		timeStamp: 20,
+	});
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 2,
+		clientX: 48,
+		clientY: 48,
+		timeStamp: 24,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 2,
+		clientX: 48,
+		clientY: 72,
+		timeStamp: 32,
+	});
+
+	await new Promise((resolve) => setTimeout(resolve, 12));
+
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 2,
+		clientX: 48,
+		clientY: 96,
+		timeStamp: 48,
+	});
+	controller.handleEnterAck(2);
+	dispatchPointerEvent(root, 'pointerup', {
+		pointerId: 2,
+		clientX: 48,
+		clientY: 96,
+		timeStamp: 64,
+	});
+
+	const entryRequests = messages.filter(
+		(
+			message,
+		): message is Extract<
+			BridgeInboundDraftMessage,
+			{ type: 'scrollbackEnterRequested' }
+		> => message.type === 'scrollbackEnterRequested',
+	);
+	const timeoutExit = messages.find(
+		(
+			message,
+		): message is Extract<
+			BridgeInboundDraftMessage,
+			{ type: 'scrollbackModeChanged' }
+		> =>
+			message.type === 'scrollbackModeChanged' &&
+			!message.active &&
+			message.requestId === 1,
+	);
+	const scrollBatches = messages.filter(
+		(
+			message,
+		): message is Extract<BridgeInboundDraftMessage, { type: 'scrollbackBatch' }> =>
+			message.type === 'scrollbackBatch',
+	);
+
+	assert.deepEqual(
+		entryRequests.map(({ requestId }) => requestId),
+		[1, 2],
+	);
+	assert.notEqual(timeoutExit, undefined);
+	assert.equal(scrollBatches.length, 1);
+	assert.equal(scrollBatches[0]?.direction, 'up');
+});
 
 void test('selection overlay tap exits even when pointer releases outside the overlay', (t) => {
 	const { document } = installDomGlobals(t);

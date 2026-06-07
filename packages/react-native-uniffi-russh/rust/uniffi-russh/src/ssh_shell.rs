@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex,
     },
     time::Duration,
@@ -11,7 +11,7 @@ use bytes::Bytes;
 
 use crate::{
     ssh_connection::SshConnection,
-    utils::{now_ms, SshError},
+    utils::{catch_foreign_callback_unwind, now_ms, SshError, CLOSE_TIMEOUT},
 };
 use russh::{self, client};
 use tokio::sync::{broadcast, Mutex as AsyncMutex};
@@ -72,6 +72,10 @@ pub trait ShellListener: Send + Sync {
     fn on_event(&self, ev: ShellEvent);
 }
 
+fn emit_shell_listener_event(listener: &Arc<dyn ShellListener>, event: ShellEvent) -> bool {
+    catch_foreign_callback_unwind(|| listener.on_event(event))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
 pub struct TerminalMode {
     pub opcode: u8, // PTY opcode (matches russh::Pty discriminants)
@@ -106,6 +110,23 @@ pub trait ShellClosedCallback: Send + Sync {
     fn on_change(&self, channel_id: u32);
 }
 
+pub(crate) fn emit_shell_closed(callback: &Arc<dyn ShellClosedCallback>, channel_id: u32) -> bool {
+    catch_foreign_callback_unwind(|| callback.on_change(channel_id))
+}
+
+pub(crate) fn emit_shell_closed_once(
+    callback: Option<&Arc<dyn ShellClosedCallback>>,
+    channel_id: u32,
+    closed_notified: &AtomicBool,
+) -> bool {
+    if closed_notified.swap(true, Ordering::AcqRel) {
+        return false;
+    }
+    callback
+        .map(|callback| emit_shell_closed(callback, channel_id))
+        .unwrap_or(true)
+}
+
 /// Snapshot of shell session info for property-like access in TS.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct ShellSessionInfo {
@@ -127,6 +148,7 @@ pub struct ShellSession {
     pub(crate) writer: AsyncMutex<russh::ChannelWriteHalf<client::Msg>>,
     // We keep the reader task to allow cancellation on close.
     pub(crate) reader_task: tokio::task::JoinHandle<()>,
+    pub(crate) closed_notified: Arc<AtomicBool>,
 
     // Ring buffer
     pub(crate) ring: Arc<Mutex<std::collections::VecDeque<Arc<Chunk>>>>,
@@ -396,10 +418,20 @@ impl ShellSession {
         let handle = rt.spawn(async move {
             // Emit replay first
             if let Some(dr) = replay.dropped.as_ref() {
-                listener.on_event(ShellEvent::Dropped { from_seq: dr.from_seq, to_seq: dr.to_seq });
+                if !emit_shell_listener_event(
+                    &listener,
+                    ShellEvent::Dropped {
+                        from_seq: dr.from_seq,
+                        to_seq: dr.to_seq,
+                    },
+                ) {
+                    return;
+                }
             }
             for ch in replay.chunks.into_iter() {
-                listener.on_event(ShellEvent::Chunk(ch));
+                if !emit_shell_listener_event(&listener, ShellEvent::Chunk(ch)) {
+                    return;
+                }
             }
 
             let mut last_seq_seen: u64 = replay.next_seq.saturating_sub(1);
@@ -419,7 +451,15 @@ impl ShellSession {
                 };
                 if let Some(from) = pending_drop_from.take() {
                     if from <= first.seq.saturating_sub(1) {
-                        listener.on_event(ShellEvent::Dropped { from_seq: from, to_seq: first.seq - 1 });
+                        if !emit_shell_listener_event(
+                            &listener,
+                            ShellEvent::Dropped {
+                                from_seq: from,
+                                to_seq: first.seq - 1,
+                            },
+                        ) {
+                            return;
+                        }
                     }
                 }
                 // Start accumulating
@@ -439,7 +479,7 @@ impl ShellSession {
                                     if Some(c.stream) == acc_stream { acc.extend_from_slice(&c.bytes); acc_last_seq = c.seq; acc_last_t = c.t_ms; last_seq_seen = c.seq; }
                                     else { // flush and start new
                                         let chunk = TerminalChunk { seq: acc_last_seq, t_ms: acc_last_t, stream: acc_stream.unwrap_or(StreamKind::Stdout), bytes: std::mem::take(&mut acc) };
-                                        listener.on_event(ShellEvent::Chunk(chunk));
+                                        if !emit_shell_listener_event(&listener, ShellEvent::Chunk(chunk)) { return; }
                                         acc_stream = Some(c.stream); acc_last_seq = c.seq; acc_last_t = c.t_ms; acc.extend_from_slice(&c.bytes); last_seq_seen = c.seq;
                                         deadline = tokio::time::Instant::now() + window;
                                     }
@@ -452,7 +492,9 @@ impl ShellSession {
                 }
                 if let Some(s) = acc_stream.take() {
                     let chunk = TerminalChunk { seq: acc_last_seq, t_ms: acc_last_t, stream: s, bytes: std::mem::take(&mut acc) };
-                    listener.on_event(ShellEvent::Chunk(chunk));
+                    if !emit_shell_listener_event(&listener, ShellEvent::Chunk(chunk)) {
+                        return;
+                    }
                 }
             }
         });
@@ -473,17 +515,31 @@ impl ShellSession {
 
 // Internal lifecycle helpers (not exported via UniFFI)
 impl ShellSession {
-    async fn close_internal(&self) -> Result<(), SshError> {
-        // Try to close channel gracefully; ignore error.
-        self.writer.lock().await.close().await.ok();
-        self.reader_task.abort();
-        if let Some(sl) = self.on_closed_callback.as_ref() {
-            sl.on_change(self.info.channel_id);
+    fn abort_listener_tasks(&self) {
+        if let Ok(mut map) = self.listener_tasks.lock() {
+            for (_, handle) in map.drain() {
+                handle.abort();
+            }
         }
+    }
+
+    async fn close_internal(&self) -> Result<(), SshError> {
+        self.reader_task.abort();
+        self.abort_listener_tasks();
+        emit_shell_closed_once(
+            self.on_closed_callback.as_ref(),
+            self.info.channel_id,
+            &self.closed_notified,
+        );
         // Clear parent's notion of active shell if it matches us.
         if let Some(parent) = self.parent.upgrade() {
             parent.shells.lock().await.remove(&self.info.channel_id);
         }
+        tokio::time::timeout(CLOSE_TIMEOUT, async {
+            self.writer.lock().await.close().await.ok();
+        })
+        .await
+        .ok();
         Ok(())
     }
 
@@ -505,6 +561,13 @@ impl ShellSession {
     //         } else { break; }
     //     }
     // }
+}
+
+impl Drop for ShellSession {
+    fn drop(&mut self) {
+        self.reader_task.abort();
+        self.abort_listener_tasks();
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -567,5 +630,77 @@ pub(crate) fn append_and_broadcast(
         let _ = sender.send(chunk);
 
         offset = end;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicUsize as TestAtomicUsize;
+
+    struct PanickingShellClosedCallback;
+
+    impl ShellClosedCallback for PanickingShellClosedCallback {
+        fn on_change(&self, _channel_id: u32) {
+            panic!("callback panic");
+        }
+    }
+
+    #[derive(Default)]
+    struct CountingShellClosedCallback {
+        count: TestAtomicUsize,
+    }
+
+    impl ShellClosedCallback for CountingShellClosedCallback {
+        fn on_change(&self, _channel_id: u32) {
+            self.count.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    struct PanickingShellListener;
+
+    impl ShellListener for PanickingShellListener {
+        fn on_event(&self, _ev: ShellEvent) {
+            panic!("callback panic");
+        }
+    }
+
+    #[test]
+    fn emit_shell_closed_catches_callback_panic() {
+        let callback: Arc<dyn ShellClosedCallback> = Arc::new(PanickingShellClosedCallback);
+
+        assert!(!emit_shell_closed(&callback, 7));
+    }
+
+    #[test]
+    fn emit_shell_closed_once_notifies_only_once() {
+        let callback = Arc::new(CountingShellClosedCallback::default());
+        let callback_trait: Arc<dyn ShellClosedCallback> = callback.clone();
+        let closed_notified = AtomicBool::new(false);
+
+        assert!(emit_shell_closed_once(
+            Some(&callback_trait),
+            7,
+            &closed_notified
+        ));
+        assert!(!emit_shell_closed_once(
+            Some(&callback_trait),
+            7,
+            &closed_notified
+        ));
+        assert_eq!(callback.count.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn emit_shell_listener_event_catches_callback_panic() {
+        let listener: Arc<dyn ShellListener> = Arc::new(PanickingShellListener);
+
+        assert!(!emit_shell_listener_event(
+            &listener,
+            ShellEvent::Dropped {
+                from_seq: 1,
+                to_seq: 2,
+            }
+        ));
     }
 }

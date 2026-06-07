@@ -13,14 +13,18 @@ This change applies to the mobile shell keyboard and shell detail screen. The
 first version is limited to tmux-enabled connections because the app can resolve
 the active pane cwd through tmux today.
 
-Discovery is limited to repository-local Codex skills under:
+Discovery is limited to local skill roots at the active pane cwd and each
+ancestor up to the git root:
 
 ```text
+<active-pane-cwd>/.agents/skills/*/SKILL.md
 <active-pane-cwd>/.codex/skills/*/SKILL.md
+<ancestor-up-to-git-root>/.agents/skills/*/SKILL.md
+<ancestor-up-to-git-root>/.codex/skills/*/SKILL.md
 ```
 
 The selector must not scan global Codex skills, user skills, plugins, or
-`.agents/skills`.
+other skill roots.
 
 ## Behavior
 
@@ -94,8 +98,8 @@ The shell detail screen owns:
 3. The macro dispatches `OPEN_SKILL_SELECTOR`.
 4. Shell detail opens `SkillSelectorModal` and starts discovery.
 5. Shell detail resolves the active tmux pane cwd.
-6. Discovery runs a side-channel command against
-   `<cwd>/.codex/skills/*/SKILL.md`.
+6. Discovery runs a side-channel command against local `.agents/skills` and
+   `.codex/skills` roots from the pane cwd up to the git root.
 7. The modal filters discovered skills as the user types.
 8. Selecting a skill sends `$skill-name ` to the terminal and closes the modal.
 
@@ -109,7 +113,7 @@ If tmux is disabled, show
 If the pane path cannot be resolved, show the pane-path failure message from the
 existing resolver.
 
-If `.codex/skills` does not exist, or no valid `SKILL.md` files are found, show
+If neither local skill root exists, or no valid `SKILL.md` files are found, show
 an empty state rather than an alert.
 
 If the remote command fails unexpectedly, show an inline error and keep Retry

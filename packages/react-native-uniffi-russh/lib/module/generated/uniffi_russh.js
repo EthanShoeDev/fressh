@@ -38,6 +38,11 @@ export async function connect(options, asyncOpts_) /*throws*/{
     throw __error;
   }
 }
+export function defaultRunCommandMaxOutputBytes() {
+  return FfiConverterUInt64.lift(uniffiCaller.rustCall(/*caller:*/callStatus => {
+    return nativeModule().ubrn_uniffi_uniffi_russh_fn_func_default_run_command_max_output_bytes(callStatus);
+  }, /*liftString:*/FfiConverterString.lift.bind(FfiConverterString)));
+}
 
 /**
  * Extract the public key from a private key in OpenSSH format.
@@ -63,6 +68,11 @@ export function generateKeyPair(keyType) /*throws*/{
     }
   })(uniffiCaller.rustCallWithError(/*liftError:*/FfiConverterTypeSshError.lift.bind(FfiConverterTypeSshError), /*caller:*/callStatus => {
     return nativeModule().ubrn_uniffi_uniffi_russh_fn_func_generate_key_pair(FfiConverterTypeKeyType.lower(keyType, nativeModule().rustbuffer_alloc), callStatus);
+  }, /*liftString:*/FfiConverterString.lift.bind(FfiConverterString)));
+}
+export function maxRunCommandMaxOutputBytes() {
+  return FfiConverterUInt64.lift(uniffiCaller.rustCall(/*caller:*/callStatus => {
+    return nativeModule().ubrn_uniffi_uniffi_russh_fn_func_max_run_command_max_output_bytes(callStatus);
   }, /*liftString:*/FfiConverterString.lift.bind(FfiConverterString)));
 }
 export function validatePrivateKey(privateKeyContent) /*throws*/{
@@ -288,6 +298,76 @@ const stringConverter = (() => {
   };
 })();
 const FfiConverterString = uniffiCreateFfiConverterString(stringConverter);
+/**
+ * Generated factory for {@link CommandOutput} record objects.
+ */
+export const CommandOutput = (() => {
+  const defaults = () => ({});
+  const create = (() => {
+    return uniffiCreateRecord(defaults);
+  })();
+  return Object.freeze({
+    create,
+    new: create,
+    defaults: () => Object.freeze(defaults())
+  });
+})();
+const FfiConverterTypeCommandOutput = (() => {
+  class FFIConverter extends AbstractFfiConverterByteArray {
+    read(from) {
+      return {
+        stdout: FfiConverterArrayBuffer.read(from),
+        stderr: FfiConverterArrayBuffer.read(from),
+        exitStatus: FfiConverterOptionalUInt32.read(from),
+        exitSignal: FfiConverterOptionalString.read(from)
+      };
+    }
+    write(value, into) {
+      FfiConverterArrayBuffer.write(value.stdout, into);
+      FfiConverterArrayBuffer.write(value.stderr, into);
+      FfiConverterOptionalUInt32.write(value.exitStatus, into);
+      FfiConverterOptionalString.write(value.exitSignal, into);
+    }
+    allocationSize(value) {
+      return FfiConverterArrayBuffer.allocationSize(value.stdout) + FfiConverterArrayBuffer.allocationSize(value.stderr) + FfiConverterOptionalUInt32.allocationSize(value.exitStatus) + FfiConverterOptionalString.allocationSize(value.exitSignal);
+    }
+  }
+  return new FFIConverter();
+})();
+/**
+ * Generated factory for {@link CommandStreamInfo} record objects.
+ */
+export const CommandStreamInfo = (() => {
+  const defaults = () => ({});
+  const create = (() => {
+    return uniffiCreateRecord(defaults);
+  })();
+  return Object.freeze({
+    create,
+    new: create,
+    defaults: () => Object.freeze(defaults())
+  });
+})();
+const FfiConverterTypeCommandStreamInfo = (() => {
+  class FFIConverter extends AbstractFfiConverterByteArray {
+    read(from) {
+      return {
+        channelId: FfiConverterUInt32.read(from),
+        createdAtMs: FfiConverterFloat64.read(from),
+        connectionId: FfiConverterString.read(from)
+      };
+    }
+    write(value, into) {
+      FfiConverterUInt32.write(value.channelId, into);
+      FfiConverterFloat64.write(value.createdAtMs, into);
+      FfiConverterString.write(value.connectionId, into);
+    }
+    allocationSize(value) {
+      return FfiConverterUInt32.allocationSize(value.channelId) + FfiConverterFloat64.allocationSize(value.createdAtMs) + FfiConverterString.allocationSize(value.connectionId);
+    }
+  }
+  return new FFIConverter();
+})();
 
 // Enum: Security
 export let Security_Tags = /*#__PURE__*/function (Security_Tags) {
@@ -1096,6 +1176,38 @@ const FfiConverterTypeListenerOptions = (() => {
   }
   return new FFIConverter();
 })();
+/**
+ * Generated factory for {@link RunCommandOptions} record objects.
+ */
+export const RunCommandOptions = (() => {
+  const defaults = () => ({});
+  const create = (() => {
+    return uniffiCreateRecord(defaults);
+  })();
+  return Object.freeze({
+    create,
+    new: create,
+    defaults: () => Object.freeze(defaults())
+  });
+})();
+const FfiConverterTypeRunCommandOptions = (() => {
+  class FFIConverter extends AbstractFfiConverterByteArray {
+    read(from) {
+      return {
+        command: FfiConverterString.read(from),
+        maxOutputBytes: FfiConverterOptionalUInt64.read(from)
+      };
+    }
+    write(value, into) {
+      FfiConverterString.write(value.command, into);
+      FfiConverterOptionalUInt64.write(value.maxOutputBytes, into);
+    }
+    allocationSize(value) {
+      return FfiConverterString.allocationSize(value.command) + FfiConverterOptionalUInt64.allocationSize(value.maxOutputBytes);
+    }
+  }
+  return new FFIConverter();
+})();
 export let TerminalType = /*#__PURE__*/function (TerminalType) {
   TerminalType[TerminalType["Vanilla"] = 0] = "Vanilla";
   TerminalType[TerminalType["Vt100"] = 1] = "Vt100";
@@ -1262,6 +1374,352 @@ const FfiConverterTypeSshConnectionInfo = (() => {
     }
     allocationSize(value) {
       return FfiConverterString.allocationSize(value.connectionId) + FfiConverterTypeConnectionDetails.allocationSize(value.connectionDetails) + FfiConverterFloat64.allocationSize(value.createdAtMs) + FfiConverterFloat64.allocationSize(value.connectedAtMs) + FfiConverterTypeSshConnectionInfoProgressTimings.allocationSize(value.progressTimings);
+    }
+  }
+  return new FFIConverter();
+})();
+
+// Enum: CommandStreamEvent
+export let CommandStreamEvent_Tags = /*#__PURE__*/function (CommandStreamEvent_Tags) {
+  CommandStreamEvent_Tags["Stdout"] = "Stdout";
+  CommandStreamEvent_Tags["Stderr"] = "Stderr";
+  CommandStreamEvent_Tags["ExitStatus"] = "ExitStatus";
+  CommandStreamEvent_Tags["ExitSignal"] = "ExitSignal";
+  CommandStreamEvent_Tags["Closed"] = "Closed";
+  return CommandStreamEvent_Tags;
+}({});
+export const CommandStreamEvent = (() => {
+  class Stdout_ extends UniffiEnum {
+    /**
+     * @private
+     * This field is private and should not be used, use `tag` instead.
+     */
+    [uniffiTypeNameSymbol] = 'CommandStreamEvent';
+    tag = CommandStreamEvent_Tags.Stdout;
+    constructor(inner) {
+      super('CommandStreamEvent', 'Stdout');
+      this.inner = Object.freeze(inner);
+    }
+    static new(inner) {
+      return new Stdout_(inner);
+    }
+    static instanceOf(obj) {
+      return obj.tag === CommandStreamEvent_Tags.Stdout;
+    }
+  }
+  class Stderr_ extends UniffiEnum {
+    /**
+     * @private
+     * This field is private and should not be used, use `tag` instead.
+     */
+    [uniffiTypeNameSymbol] = 'CommandStreamEvent';
+    tag = CommandStreamEvent_Tags.Stderr;
+    constructor(inner) {
+      super('CommandStreamEvent', 'Stderr');
+      this.inner = Object.freeze(inner);
+    }
+    static new(inner) {
+      return new Stderr_(inner);
+    }
+    static instanceOf(obj) {
+      return obj.tag === CommandStreamEvent_Tags.Stderr;
+    }
+  }
+  class ExitStatus_ extends UniffiEnum {
+    /**
+     * @private
+     * This field is private and should not be used, use `tag` instead.
+     */
+    [uniffiTypeNameSymbol] = 'CommandStreamEvent';
+    tag = CommandStreamEvent_Tags.ExitStatus;
+    constructor(inner) {
+      super('CommandStreamEvent', 'ExitStatus');
+      this.inner = Object.freeze(inner);
+    }
+    static new(inner) {
+      return new ExitStatus_(inner);
+    }
+    static instanceOf(obj) {
+      return obj.tag === CommandStreamEvent_Tags.ExitStatus;
+    }
+  }
+  class ExitSignal_ extends UniffiEnum {
+    /**
+     * @private
+     * This field is private and should not be used, use `tag` instead.
+     */
+    [uniffiTypeNameSymbol] = 'CommandStreamEvent';
+    tag = CommandStreamEvent_Tags.ExitSignal;
+    constructor(inner) {
+      super('CommandStreamEvent', 'ExitSignal');
+      this.inner = Object.freeze(inner);
+    }
+    static new(inner) {
+      return new ExitSignal_(inner);
+    }
+    static instanceOf(obj) {
+      return obj.tag === CommandStreamEvent_Tags.ExitSignal;
+    }
+  }
+  class Closed_ extends UniffiEnum {
+    /**
+     * @private
+     * This field is private and should not be used, use `tag` instead.
+     */
+    [uniffiTypeNameSymbol] = 'CommandStreamEvent';
+    tag = CommandStreamEvent_Tags.Closed;
+    constructor() {
+      super('CommandStreamEvent', 'Closed');
+    }
+    static new() {
+      return new Closed_();
+    }
+    static instanceOf(obj) {
+      return obj.tag === CommandStreamEvent_Tags.Closed;
+    }
+  }
+  function instanceOf(obj) {
+    return obj[uniffiTypeNameSymbol] === 'CommandStreamEvent';
+  }
+  return Object.freeze({
+    instanceOf,
+    Stdout: Stdout_,
+    Stderr: Stderr_,
+    ExitStatus: ExitStatus_,
+    ExitSignal: ExitSignal_,
+    Closed: Closed_
+  });
+})();
+// FfiConverter for enum CommandStreamEvent
+const FfiConverterTypeCommandStreamEvent = (() => {
+  const ordinalConverter = FfiConverterInt32;
+  class FFIConverter extends AbstractFfiConverterByteArray {
+    read(from) {
+      switch (ordinalConverter.read(from)) {
+        case 1:
+          return new CommandStreamEvent.Stdout({
+            bytes: FfiConverterArrayBuffer.read(from)
+          });
+        case 2:
+          return new CommandStreamEvent.Stderr({
+            bytes: FfiConverterArrayBuffer.read(from)
+          });
+        case 3:
+          return new CommandStreamEvent.ExitStatus({
+            exitStatus: FfiConverterUInt32.read(from)
+          });
+        case 4:
+          return new CommandStreamEvent.ExitSignal({
+            signalName: FfiConverterString.read(from)
+          });
+        case 5:
+          return new CommandStreamEvent.Closed();
+        default:
+          throw new UniffiInternalError.UnexpectedEnumCase();
+      }
+    }
+    write(value, into) {
+      switch (value.tag) {
+        case CommandStreamEvent_Tags.Stdout:
+          {
+            ordinalConverter.write(1, into);
+            const inner = value.inner;
+            FfiConverterArrayBuffer.write(inner.bytes, into);
+            return;
+          }
+        case CommandStreamEvent_Tags.Stderr:
+          {
+            ordinalConverter.write(2, into);
+            const inner = value.inner;
+            FfiConverterArrayBuffer.write(inner.bytes, into);
+            return;
+          }
+        case CommandStreamEvent_Tags.ExitStatus:
+          {
+            ordinalConverter.write(3, into);
+            const inner = value.inner;
+            FfiConverterUInt32.write(inner.exitStatus, into);
+            return;
+          }
+        case CommandStreamEvent_Tags.ExitSignal:
+          {
+            ordinalConverter.write(4, into);
+            const inner = value.inner;
+            FfiConverterString.write(inner.signalName, into);
+            return;
+          }
+        case CommandStreamEvent_Tags.Closed:
+          {
+            ordinalConverter.write(5, into);
+            return;
+          }
+        default:
+          // Throwing from here means that CommandStreamEvent_Tags hasn't matched an ordinal.
+          throw new UniffiInternalError.UnexpectedEnumCase();
+      }
+    }
+    allocationSize(value) {
+      switch (value.tag) {
+        case CommandStreamEvent_Tags.Stdout:
+          {
+            const inner = value.inner;
+            let size = ordinalConverter.allocationSize(1);
+            size += FfiConverterArrayBuffer.allocationSize(inner.bytes);
+            return size;
+          }
+        case CommandStreamEvent_Tags.Stderr:
+          {
+            const inner = value.inner;
+            let size = ordinalConverter.allocationSize(2);
+            size += FfiConverterArrayBuffer.allocationSize(inner.bytes);
+            return size;
+          }
+        case CommandStreamEvent_Tags.ExitStatus:
+          {
+            const inner = value.inner;
+            let size = ordinalConverter.allocationSize(3);
+            size += FfiConverterUInt32.allocationSize(inner.exitStatus);
+            return size;
+          }
+        case CommandStreamEvent_Tags.ExitSignal:
+          {
+            const inner = value.inner;
+            let size = ordinalConverter.allocationSize(4);
+            size += FfiConverterString.allocationSize(inner.signalName);
+            return size;
+          }
+        case CommandStreamEvent_Tags.Closed:
+          {
+            return ordinalConverter.allocationSize(5);
+          }
+        default:
+          throw new UniffiInternalError.UnexpectedEnumCase();
+      }
+    }
+  }
+  return new FFIConverter();
+})();
+export class CommandStreamCallbackImpl extends UniffiAbstractObject {
+  [uniffiTypeNameSymbol] = 'CommandStreamCallbackImpl';
+  // No primary constructor declared for this class.
+  constructor(pointer) {
+    super();
+    this[pointerLiteralSymbol] = pointer;
+    this[destructorGuardSymbol] = uniffiTypeCommandStreamCallbackImplObjectFactory.bless(pointer);
+  }
+  onEvent(event) {
+    uniffiCaller.rustCall(/*caller:*/callStatus => {
+      nativeModule().ubrn_uniffi_uniffi_russh_fn_method_commandstreamcallback_on_event(uniffiTypeCommandStreamCallbackImplObjectFactory.clonePointer(this), FfiConverterTypeCommandStreamEvent.lower(event, nativeModule().rustbuffer_alloc), callStatus);
+    }, /*liftString:*/FfiConverterString.lift.bind(FfiConverterString));
+  }
+  uniffiDestroy() {
+    const ptr = this[destructorGuardSymbol];
+    if (ptr !== undefined) {
+      const pointer = uniffiTypeCommandStreamCallbackImplObjectFactory.pointer(this);
+      uniffiTypeCommandStreamCallbackImplObjectFactory.freePointer(pointer);
+      uniffiTypeCommandStreamCallbackImplObjectFactory.unbless(ptr);
+      delete this[destructorGuardSymbol];
+    }
+  }
+  static instanceOf(obj_) {
+    return uniffiTypeCommandStreamCallbackImplObjectFactory.isConcreteType(obj_);
+  }
+}
+const uniffiTypeCommandStreamCallbackImplObjectFactory = (() => {
+  return {
+    create(pointer) {
+      const instance = Object.create(CommandStreamCallbackImpl.prototype);
+      instance[pointerLiteralSymbol] = pointer;
+      instance[destructorGuardSymbol] = this.bless(pointer);
+      instance[uniffiTypeNameSymbol] = 'CommandStreamCallbackImpl';
+      return instance;
+    },
+    bless(p) {
+      return uniffiCaller.rustCall(/*caller:*/status => nativeModule().ubrn_uniffi_internal_fn_method_commandstreamcallback_ffi__bless_pointer(p, status), /*liftString:*/FfiConverterString.lift);
+    },
+    unbless(ptr_) {
+      ptr_.markDestroyed();
+    },
+    pointer(obj_) {
+      if (obj_[destructorGuardSymbol] === undefined) {
+        throw new UniffiInternalError.UnexpectedNullPointer();
+      }
+      return obj_[pointerLiteralSymbol];
+    },
+    clonePointer(obj_) {
+      const pointer = this.pointer(obj_);
+      return uniffiCaller.rustCall(/*caller:*/callStatus => nativeModule().ubrn_uniffi_uniffi_russh_fn_clone_commandstreamcallback(pointer, callStatus), /*liftString:*/FfiConverterString.lift);
+    },
+    freePointer(pointer) {
+      uniffiCaller.rustCall(/*caller:*/callStatus => nativeModule().ubrn_uniffi_uniffi_russh_fn_free_commandstreamcallback(pointer, callStatus), /*liftString:*/FfiConverterString.lift);
+    },
+    isConcreteType(obj_) {
+      return obj_[destructorGuardSymbol] && obj_[uniffiTypeNameSymbol] === 'CommandStreamCallbackImpl';
+    }
+  };
+})();
+const FfiConverterTypeCommandStreamCallback = new FfiConverterObjectWithCallbacks(uniffiTypeCommandStreamCallbackImplObjectFactory);
+
+// Add a vtable for the callbacks that go in CommandStreamCallback.
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+const uniffiCallbackInterfaceCommandStreamCallback = {
+  // Create the VTable using a series of closures.
+  // ts automatically converts these into C callback functions.
+  vtable: {
+    on_event: (uniffiHandle, event) => {
+      const uniffiMakeCall = () => {
+        const jsCallback = FfiConverterTypeCommandStreamCallback.lift(uniffiHandle);
+        return jsCallback.onEvent(FfiConverterTypeCommandStreamEvent.lift(event));
+      };
+      const uniffiResult = UniffiResult.ready();
+      const uniffiHandleSuccess = obj => {};
+      const uniffiHandleError = (code, errBuf) => {
+        UniffiResult.writeError(uniffiResult, code, errBuf);
+      };
+      uniffiTraitInterfaceCall(/*makeCall:*/uniffiMakeCall, /*handleSuccess:*/uniffiHandleSuccess, /*handleError:*/uniffiHandleError, /*lowerString:*/FfiConverterString.lower.bind(FfiConverterString), /*alloc:*/nativeModule().rustbuffer_alloc);
+      return uniffiResult;
+    },
+    uniffi_free: uniffiHandle => {
+      // this will throw a stale handle error if the handle isn't found.
+      FfiConverterTypeCommandStreamCallback.drop(uniffiHandle);
+    },
+    uniffi_clone: uniffiHandle => {
+      return FfiConverterTypeCommandStreamCallback.clone(uniffiHandle);
+    }
+  },
+  register: () => {
+    nativeModule().ubrn_uniffi_uniffi_russh_fn_init_callback_vtable_commandstreamcallback(uniffiCallbackInterfaceCommandStreamCallback.vtable);
+  }
+};
+/**
+ * Generated factory for {@link StartCommandStreamOptions} record objects.
+ */
+export const StartCommandStreamOptions = (() => {
+  const defaults = () => ({});
+  const create = (() => {
+    return uniffiCreateRecord(defaults);
+  })();
+  return Object.freeze({
+    create,
+    new: create,
+    defaults: () => Object.freeze(defaults())
+  });
+})();
+const FfiConverterTypeStartCommandStreamOptions = (() => {
+  class FFIConverter extends AbstractFfiConverterByteArray {
+    read(from) {
+      return {
+        command: FfiConverterString.read(from),
+        onEventCallback: FfiConverterTypeCommandStreamCallback.read(from)
+      };
+    }
+    write(value, into) {
+      FfiConverterString.write(value.command, into);
+      FfiConverterTypeCommandStreamCallback.write(value.onEventCallback, into);
+    }
+    allocationSize(value) {
+      return FfiConverterString.allocationSize(value.command) + FfiConverterTypeCommandStreamCallback.allocationSize(value.onEventCallback);
     }
   }
   return new FFIConverter();
@@ -1961,6 +2419,90 @@ const FfiConverterTypeSshError = (() => {
   }
   return new FFIConverter();
 })();
+
+/**
+ * @deprecated Use `CommandStreamSessionLike` instead.
+ */
+
+export class CommandStreamSession extends UniffiAbstractObject {
+  [uniffiTypeNameSymbol] = 'CommandStreamSession';
+  // No primary constructor declared for this class.
+  constructor(pointer) {
+    super();
+    this[pointerLiteralSymbol] = pointer;
+    this[destructorGuardSymbol] = uniffiTypeCommandStreamSessionObjectFactory.bless(pointer);
+  }
+  async close(asyncOpts_) /*throws*/{
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(/*rustCaller:*/uniffiCaller, /*rustFutureFunc:*/() => {
+        return nativeModule().ubrn_uniffi_uniffi_russh_fn_method_commandstreamsession_close(uniffiTypeCommandStreamSessionObjectFactory.clonePointer(this));
+      }, /*pollFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_poll_void, /*cancelFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_cancel_void, /*completeFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_complete_void, /*freeFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_free_void, /*liftFunc:*/_v => {}, /*liftString:*/FfiConverterString.lift.bind(FfiConverterString), /*asyncOpts:*/asyncOpts_, /*errorHandler:*/FfiConverterTypeSshError.lift.bind(FfiConverterTypeSshError));
+    } catch (__error) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
+  }
+  getInfo() {
+    return (__rb => {
+      try {
+        return FfiConverterTypeCommandStreamInfo.lift(__rb);
+      } finally {
+        nativeModule().rustbuffer_free(__rb);
+      }
+    })(uniffiCaller.rustCall(/*caller:*/callStatus => {
+      return nativeModule().ubrn_uniffi_uniffi_russh_fn_method_commandstreamsession_get_info(uniffiTypeCommandStreamSessionObjectFactory.clonePointer(this), callStatus);
+    }, /*liftString:*/FfiConverterString.lift.bind(FfiConverterString)));
+  }
+  uniffiDestroy() {
+    const ptr = this[destructorGuardSymbol];
+    if (ptr !== undefined) {
+      const pointer = uniffiTypeCommandStreamSessionObjectFactory.pointer(this);
+      uniffiTypeCommandStreamSessionObjectFactory.freePointer(pointer);
+      uniffiTypeCommandStreamSessionObjectFactory.unbless(ptr);
+      delete this[destructorGuardSymbol];
+    }
+  }
+  static instanceOf(obj_) {
+    return uniffiTypeCommandStreamSessionObjectFactory.isConcreteType(obj_);
+  }
+}
+const uniffiTypeCommandStreamSessionObjectFactory = (() => {
+  return {
+    create(pointer) {
+      const instance = Object.create(CommandStreamSession.prototype);
+      instance[pointerLiteralSymbol] = pointer;
+      instance[destructorGuardSymbol] = this.bless(pointer);
+      instance[uniffiTypeNameSymbol] = 'CommandStreamSession';
+      return instance;
+    },
+    bless(p) {
+      return uniffiCaller.rustCall(/*caller:*/status => nativeModule().ubrn_uniffi_internal_fn_method_commandstreamsession_ffi__bless_pointer(p, status), /*liftString:*/FfiConverterString.lift);
+    },
+    unbless(ptr_) {
+      ptr_.markDestroyed();
+    },
+    pointer(obj_) {
+      if (obj_[destructorGuardSymbol] === undefined) {
+        throw new UniffiInternalError.UnexpectedNullPointer();
+      }
+      return obj_[pointerLiteralSymbol];
+    },
+    clonePointer(obj_) {
+      const pointer = this.pointer(obj_);
+      return uniffiCaller.rustCall(/*caller:*/callStatus => nativeModule().ubrn_uniffi_uniffi_russh_fn_clone_commandstreamsession(pointer, callStatus), /*liftString:*/FfiConverterString.lift);
+    },
+    freePointer(pointer) {
+      uniffiCaller.rustCall(/*caller:*/callStatus => nativeModule().ubrn_uniffi_uniffi_russh_fn_free_commandstreamsession(pointer, callStatus), /*liftString:*/FfiConverterString.lift);
+    },
+    isConcreteType(obj_) {
+      return obj_[destructorGuardSymbol] && obj_[uniffiTypeNameSymbol] === 'CommandStreamSession';
+    }
+  };
+})();
+const FfiConverterTypeCommandStreamSession = new FfiConverterObject(uniffiTypeCommandStreamSessionObjectFactory);
 export class ShellListenerImpl extends UniffiAbstractObject {
   [uniffiTypeNameSymbol] = 'ShellListenerImpl';
   // No primary constructor declared for this class.
@@ -2272,6 +2814,46 @@ export class SshConnection extends UniffiAbstractObject {
       return nativeModule().ubrn_uniffi_uniffi_russh_fn_method_sshconnection_get_info(uniffiTypeSshConnectionObjectFactory.clonePointer(this), callStatus);
     }, /*liftString:*/FfiConverterString.lift.bind(FfiConverterString)));
   }
+  async runCommand(opts, asyncOpts_) /*throws*/{
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(/*rustCaller:*/uniffiCaller, /*rustFutureFunc:*/() => {
+        return nativeModule().ubrn_uniffi_uniffi_russh_fn_method_sshconnection_run_command(uniffiTypeSshConnectionObjectFactory.clonePointer(this), FfiConverterTypeRunCommandOptions.lower(opts, nativeModule().rustbuffer_alloc));
+      }, /*pollFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_poll_rust_buffer, /*cancelFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_cancel_rust_buffer, /*completeFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_complete_rust_buffer, /*freeFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_free_rust_buffer,
+      // Async returns always go through the JS-side converter: the
+      // FFI symbol returns the future handle (u64), and the user-level
+      // RustBuffer comes back via the shared `rust_future_complete_*`
+      // export. The bytes the runtime hands back must be deserialized
+      // here using the per-callable return-type converter.
+      /*liftFunc:*/
+      FfiConverterTypeCommandOutput.lift.bind(FfiConverterTypeCommandOutput), /*liftString:*/FfiConverterString.lift.bind(FfiConverterString), /*asyncOpts:*/asyncOpts_, /*errorHandler:*/FfiConverterTypeSshError.lift.bind(FfiConverterTypeSshError));
+    } catch (__error) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
+  }
+  async startCommandStream(opts, asyncOpts_) /*throws*/{
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(/*rustCaller:*/uniffiCaller, /*rustFutureFunc:*/() => {
+        return nativeModule().ubrn_uniffi_uniffi_russh_fn_method_sshconnection_start_command_stream(uniffiTypeSshConnectionObjectFactory.clonePointer(this), FfiConverterTypeStartCommandStreamOptions.lower(opts, nativeModule().rustbuffer_alloc));
+      }, /*pollFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_poll_u64, /*cancelFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_cancel_u64, /*completeFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_complete_u64, /*freeFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_free_u64,
+      // Async returns always go through the JS-side converter: the
+      // FFI symbol returns the future handle (u64), and the user-level
+      // RustBuffer comes back via the shared `rust_future_complete_*`
+      // export. The bytes the runtime hands back must be deserialized
+      // here using the per-callable return-type converter.
+      /*liftFunc:*/
+      FfiConverterTypeCommandStreamSession.lift.bind(FfiConverterTypeCommandStreamSession), /*liftString:*/FfiConverterString.lift.bind(FfiConverterString), /*asyncOpts:*/asyncOpts_, /*errorHandler:*/FfiConverterTypeSshError.lift.bind(FfiConverterTypeSshError));
+    } catch (__error) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
+  }
   async startShell(opts, asyncOpts_) /*throws*/{
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
@@ -2346,17 +2928,20 @@ const FfiConverterSequenceTypeTerminalChunk = new FfiConverterArray(FfiConverter
 // FfiConverter for DroppedRange | undefined
 const FfiConverterOptionalTypeDroppedRange = new FfiConverterOptional(FfiConverterTypeDroppedRange);
 
+// FfiConverter for number | undefined
+const FfiConverterOptionalUInt32 = new FfiConverterOptional(FfiConverterUInt32);
+
+// FfiConverter for string | undefined
+const FfiConverterOptionalString = new FfiConverterOptional(FfiConverterString);
+
 // FfiConverter for ConnectProgressCallback | undefined
 const FfiConverterOptionalTypeConnectProgressCallback = new FfiConverterOptional(FfiConverterTypeConnectProgressCallback);
 
 // FfiConverter for ConnectionDisconnectedCallback | undefined
 const FfiConverterOptionalTypeConnectionDisconnectedCallback = new FfiConverterOptional(FfiConverterTypeConnectionDisconnectedCallback);
 
-// FfiConverter for string | undefined
-const FfiConverterOptionalString = new FfiConverterOptional(FfiConverterString);
-
-// FfiConverter for number | undefined
-const FfiConverterOptionalUInt32 = new FfiConverterOptional(FfiConverterUInt32);
+// FfiConverter for bigint | undefined
+const FfiConverterOptionalUInt64 = new FfiConverterOptional(FfiConverterUInt64);
 
 // FfiConverter for Array<TerminalMode>
 const FfiConverterSequenceTypeTerminalMode = new FfiConverterArray(FfiConverterTypeTerminalMode);
@@ -2372,9 +2957,6 @@ const FfiConverterOptionalTypeTerminalPixelSize = new FfiConverterOptional(FfiCo
 
 // FfiConverter for ShellClosedCallback | undefined
 const FfiConverterOptionalTypeShellClosedCallback = new FfiConverterOptional(FfiConverterTypeShellClosedCallback);
-
-// FfiConverter for bigint | undefined
-const FfiConverterOptionalUInt64 = new FfiConverterOptional(FfiConverterUInt64);
 
 /**
  * This should be called before anything else.
@@ -2397,14 +2979,29 @@ function uniffiEnsureInitialized() {
   if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_func_connect() !== 33247) {
     throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_func_connect');
   }
+  if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_func_default_run_command_max_output_bytes() !== 27150) {
+    throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_func_default_run_command_max_output_bytes');
+  }
   if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_func_extract_public_key() !== 41250) {
     throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_func_extract_public_key');
   }
   if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_func_generate_key_pair() !== 37501) {
     throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_func_generate_key_pair');
   }
+  if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_func_max_run_command_max_output_bytes() !== 57675) {
+    throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_func_max_run_command_max_output_bytes');
+  }
   if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_func_validate_private_key() !== 49309) {
     throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_func_validate_private_key');
+  }
+  if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_commandstreamcallback_on_event() !== 47942) {
+    throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_commandstreamcallback_on_event');
+  }
+  if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_commandstreamsession_close() !== 11720) {
+    throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_commandstreamsession_close');
+  }
+  if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_commandstreamsession_get_info() !== 27629) {
+    throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_commandstreamsession_get_info');
   }
   if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_connectprogresscallback_on_change() !== 17699) {
     throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_connectprogresscallback_on_change');
@@ -2454,12 +3051,19 @@ function uniffiEnsureInitialized() {
   if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_sshconnection_get_info() !== 31556) {
     throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_sshconnection_get_info');
   }
+  if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_sshconnection_run_command() !== 16899) {
+    throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_sshconnection_run_command');
+  }
+  if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_sshconnection_start_command_stream() !== 35792) {
+    throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_sshconnection_start_command_stream');
+  }
   if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_sshconnection_start_shell() !== 21163) {
     throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_sshconnection_start_shell');
   }
   uniffiCallbackInterfaceConnectProgressCallback.register();
   uniffiCallbackInterfaceConnectionDisconnectedCallback.register();
   uniffiCallbackInterfaceServerKeyCallback.register();
+  uniffiCallbackInterfaceCommandStreamCallback.register();
   uniffiCallbackInterfaceShellClosedCallback.register();
   uniffiCallbackInterfaceShellListener.register();
 }
@@ -2468,6 +3072,11 @@ export default Object.freeze({
   converters: {
     FfiConverterTypeBufferReadResult,
     FfiConverterTypeBufferStats,
+    FfiConverterTypeCommandOutput,
+    FfiConverterTypeCommandStreamCallback,
+    FfiConverterTypeCommandStreamEvent,
+    FfiConverterTypeCommandStreamInfo,
+    FfiConverterTypeCommandStreamSession,
     FfiConverterTypeConnectOptions,
     FfiConverterTypeConnectProgressCallback,
     FfiConverterTypeConnectionDetails,
@@ -2476,6 +3085,7 @@ export default Object.freeze({
     FfiConverterTypeDroppedRange,
     FfiConverterTypeKeyType,
     FfiConverterTypeListenerOptions,
+    FfiConverterTypeRunCommandOptions,
     FfiConverterTypeSecurity,
     FfiConverterTypeServerKeyCallback,
     FfiConverterTypeServerPublicKeyInfo,
@@ -2489,6 +3099,7 @@ export default Object.freeze({
     FfiConverterTypeSshConnectionInfoProgressTimings,
     FfiConverterTypeSshConnectionProgressEvent,
     FfiConverterTypeSshError,
+    FfiConverterTypeStartCommandStreamOptions,
     FfiConverterTypeStartShellOptions,
     FfiConverterTypeStreamKind,
     FfiConverterTypeTerminalChunk,

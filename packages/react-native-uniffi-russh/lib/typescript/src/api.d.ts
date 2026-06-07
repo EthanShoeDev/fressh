@@ -48,6 +48,32 @@ export type StartShellOptions = {
     onClosed?: (shellId: number) => void;
     abortSignal?: AbortSignal;
 };
+export type CommandOutput = {
+    stdout: ArrayBuffer;
+    stderr: ArrayBuffer;
+    exitStatus: number | null;
+    exitSignal: string | null;
+};
+export type CommandStreamEvent = {
+    type: 'stdout';
+    bytes: ArrayBuffer;
+} | {
+    type: 'stderr';
+    bytes: ArrayBuffer;
+} | {
+    type: 'exitStatus';
+    exitStatus: number;
+} | {
+    type: 'exitSignal';
+    signalName: string;
+} | {
+    type: 'closed';
+};
+export type StartCommandStreamOptions = {
+    command: string;
+    onEvent: (event: CommandStreamEvent) => void;
+    abortSignal?: AbortSignal;
+};
 export type StreamKind = 'stdout' | 'stderr';
 export type TerminalChunk = {
     seq: bigint;
@@ -100,6 +126,13 @@ export type SshConnection = {
     readonly connectionDetails: ConnectionDetails;
     readonly progressTimings: ProgressTimings;
     startShell: (opts: StartShellOptions) => Promise<SshShell>;
+    runCommand: (opts: {
+        command: string;
+        maxOutputBytes?: number;
+    }, asyncOpts?: {
+        signal?: AbortSignal;
+    }) => Promise<CommandOutput>;
+    startCommandStream: (opts: StartCommandStreamOptions) => Promise<SshCommandStream>;
     disconnect: (opts?: {
         signal?: AbortSignal;
     }) => Promise<void>;
@@ -130,6 +163,16 @@ export type SshShell = {
     addListener: (cb: (ev: ListenerEvent) => void, opts: ListenerOptions) => bigint;
     removeListener: (id: bigint) => void;
 };
+export type SshCommandStream = {
+    readonly channelId: number;
+    readonly createdAtMs: number;
+    readonly connectionId: string;
+    close: (opts?: {
+        signal?: AbortSignal;
+    }) => Promise<void>;
+};
+export declare const DEFAULT_RUN_COMMAND_MAX_OUTPUT_BYTES: number;
+export declare const MAX_RUN_COMMAND_MAX_OUTPUT_BYTES: number;
 declare function connect({ onServerKey, onConnectionProgress, onDisconnected, ...options }: ConnectOptions): Promise<SshConnection>;
 declare function generateKeyPair(type: 'rsa' | 'ecdsa' | 'ed25519'): Promise<string>;
 declare function validatePrivateKey(key: string): {

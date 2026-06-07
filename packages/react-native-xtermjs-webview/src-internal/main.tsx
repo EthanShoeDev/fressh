@@ -2,12 +2,12 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import {
-	bStrToBinary,
-	type BridgeInboundMessage,
+	type BridgeInboundDraftMessage,
 	type BridgeOutboundMessage,
 } from '../src/bridge';
 import { createSelectionHandles } from './selection-handles';
 import { createTouchScrollController } from './touch-scroll-controller';
+import { createXtermWebViewMessageHandler } from './webview-message-handler';
 
 declare global {
 	interface Window {
@@ -15,6 +15,8 @@ declare global {
 		fitAddon?: FitAddon;
 		terminalWriteBase64?: (data: string) => void;
 		__FRESSH_XTERM_OPTIONS__?: ITerminalOptions;
+		__FRESSH_XTERM_BRIDGE_LOAD_ID__?: number;
+		__FRESSH_XTERM_BRIDGE_LOAD_TOKEN__?: string;
 		ReactNativeWebView?: {
 			postMessage?: (data: string) => void;
 			injectedObjectJson?: () => string | undefined;
@@ -26,8 +28,15 @@ declare global {
 	}
 }
 
-const sendToRn = (msg: BridgeInboundMessage) =>
-	window.ReactNativeWebView?.postMessage?.(JSON.stringify(msg));
+const sendToRn = (msg: BridgeInboundDraftMessage) => {
+	const bridgeLoadId = window.__FRESSH_XTERM_BRIDGE_LOAD_ID__;
+	const bridgeLoadToken = window.__FRESSH_XTERM_BRIDGE_LOAD_TOKEN__;
+	const generatedMsg =
+		typeof bridgeLoadToken === 'string' && 'instanceId' in msg
+			? { ...msg, bridgeLoadId, bridgeLoadToken }
+			: msg;
+	window.ReactNativeWebView?.postMessage?.(JSON.stringify(generatedMsg));
+};
 
 /**
  * Idempotent boot guard: ensure we only install once.
@@ -42,6 +51,18 @@ window.onload = () => {
 			});
 			return;
 		}
+		const bridgeLoadToken =
+			typeof crypto !== 'undefined' && 'randomUUID' in crypto
+				? crypto.randomUUID()
+				: `${Date.now().toString(36)}-${Math.random()
+						.toString(36)
+						.slice(2, 10)}`;
+		window.__FRESSH_XTERM_BRIDGE_LOAD_TOKEN__ = bridgeLoadToken;
+		sendToRn({
+			type: 'documentStarted',
+			bridgeLoadId: window.__FRESSH_XTERM_BRIDGE_LOAD_ID__,
+			bridgeLoadToken,
+		});
 
 		const injectedObjectJson =
 			window.ReactNativeWebView?.injectedObjectJson?.();
@@ -134,7 +155,12 @@ window.onload = () => {
 
 		// Send initial size after first fit
 		if (term.cols >= 2 && term.rows >= 1) {
-			sendToRn({ type: 'sizeChanged', cols: term.cols, rows: term.rows });
+			sendToRn({
+				type: 'sizeChanged',
+				cols: term.cols,
+				rows: term.rows,
+				instanceId,
+			});
 		}
 
 		const applyFontFamily = (family?: string) => {
@@ -187,7 +213,7 @@ window.onload = () => {
 		// Report terminal size changes back to RN (for PTY resize)
 		term.onResize(({ cols, rows }) => {
 			if (cols >= 2 && rows >= 1) {
-				sendToRn({ type: 'sizeChanged', cols, rows });
+				sendToRn({ type: 'sizeChanged', cols, rows, instanceId });
 			}
 		});
 
@@ -198,116 +224,15 @@ window.onload = () => {
 				window.__FRESSH_XTERM_MSG_HANDLER__!,
 			);
 
-		// RN -> WebView handler (write, resize, setFont, setTheme, setOptions, clear, focus)
-		const handler = (e: MessageEvent<BridgeOutboundMessage>) => {
-			try {
-				const msg = e.data;
-
-				if (!msg || typeof msg.type !== 'string') return;
-
-				// TODO: https://xtermjs.org/docs/guides/flowcontrol/#ideas-for-a-better-mechanism
-				const termWrite = (bStr: string) => {
-					const bytes = bStrToBinary(bStr);
-					term.write(bytes);
-				};
-
-				switch (msg.type) {
-					case 'write': {
-						termWrite(msg.bStr);
-						break;
-					}
-					case 'writeMany': {
-						for (const bStr of msg.chunks) {
-							termWrite(bStr);
-						}
-						break;
-					}
-					case 'resize': {
-						term.resize(msg.cols, msg.rows);
-						break;
-					}
-					case 'fit': {
-						fitAddon.fit();
-						// Report new size after fit (onResize may not fire if size unchanged)
-						if (term.cols >= 2 && term.rows >= 1) {
-							sendToRn({
-								type: 'sizeChanged',
-								cols: term.cols,
-								rows: term.rows,
-							});
-						}
-						break;
-					}
-					case 'getSelection': {
-						const text = term.getSelection();
-						sendToRn({
-							type: 'selection',
-							requestId: msg.requestId,
-							text,
-							instanceId,
-						});
-						break;
-					}
-					case 'setSelectionMode': {
-						sendToRn({
-							type: 'debug',
-							message: `setSelectionMode ${msg.enabled ? 'on' : 'off'}`,
-						});
-						selectionHandles.applySelectionMode(msg.enabled, { force: true });
-						break;
-					}
-					case 'setTouchScrollConfig': {
-						touchScrollController.setConfig(msg.config);
-						break;
-					}
-					case 'exitScrollback': {
-						touchScrollController.exitScrollback({
-							emitExit: msg.emitExit,
-							requestId: msg.requestId,
-						});
-						break;
-					}
-					case 'tmuxEnterCopyModeAck': {
-						if (msg.instanceId !== instanceId) return;
-						touchScrollController.handleEnterAck(msg.requestId);
-						break;
-					}
-					case 'setOptions': {
-						const { theme, ...rest } = msg.opts;
-						for (const key in rest) {
-							if (key === 'cols' || key === 'rows') continue;
-							const value = rest[key as keyof typeof rest];
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							(term.options as any)[key] = value;
-						}
-						if (theme) {
-							term.options.theme = {
-								...term.options.theme,
-								...theme,
-							};
-						}
-						applyFontFamily(msg.opts.fontFamily);
-						if (theme?.background) {
-							document.body.style.backgroundColor = theme.background;
-						}
-						break;
-					}
-					case 'clear': {
-						term.clear();
-						break;
-					}
-					case 'focus': {
-						term.focus();
-						break;
-					}
-				}
-			} catch (err) {
-				sendToRn({
-					type: 'debug',
-					message: `message handler error: ${String(err)}`,
-				});
-			}
-		};
+		const handler = createXtermWebViewMessageHandler({
+			instanceId,
+			term,
+			fitAddon,
+			selectionHandles,
+			touchScrollController,
+			sendToRn,
+			applyFontFamily,
+		});
 
 		window.__FRESSH_XTERM_MSG_HANDLER__ = handler;
 		window.addEventListener('message', handler);

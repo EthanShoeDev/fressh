@@ -15,7 +15,7 @@ import {
 import {
 	type AgentNotificationEvent,
 	AgentNotificationDedupe,
-	buildAgentNotificationListenCommand,
+	buildAgentNotificationListenRemoteCommand,
 	matchesAgentNotificationPendingKey,
 } from './agent-notification-events';
 import {
@@ -43,11 +43,11 @@ import {
 } from './foreground-service-runtime';
 import { rootLogger } from './logger';
 import { preferences } from './preferences';
-import { secretsManager } from './secrets-manager';
 import {
-	type SshJsonlListenerHandle,
-	startSshJsonlListener,
-} from './ssh-jsonl-listener';
+	type RemoteJsonlListenerHandle,
+	startRemoteJsonlListener,
+} from './remote-jsonl-listener';
+import { secretsManager } from './secrets-manager';
 import { useSshStore } from './ssh-store';
 import { queryClient } from './utils';
 
@@ -103,7 +103,7 @@ export function AgentNotificationBridgeManager({
 	);
 	const bridgeRef = React.useRef(new AgentNotificationBridgeStateMachine());
 	const dedupeRef = React.useRef(new AgentNotificationDedupe());
-	const listenerRef = React.useRef<SshJsonlListenerHandle | null>(null);
+	const listenerRef = React.useRef<RemoteJsonlListenerHandle | null>(null);
 	const restartTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
@@ -457,7 +457,10 @@ export function AgentNotificationBridgeManager({
 				}) => {
 					const currentTarget = targetRef.current;
 					if (!currentTarget) return;
-					const repostInput = createRepostInputForTarget(current, currentTarget);
+					const repostInput = createRepostInputForTarget(
+						current,
+						currentTarget,
+					);
 					if (!repostInput) return;
 					postPendingNotification(repostInput);
 				};
@@ -527,13 +530,16 @@ export function AgentNotificationBridgeManager({
 		let exitedBeforeReady = false;
 
 		try {
-			const command = buildAgentNotificationListenCommand(
+			const command = buildAgentNotificationListenRemoteCommand(
 				activeTarget.session,
 				lastSeenIdByTargetRef.current.get(activeTarget.resumeKey),
 			);
-			const listener = await startSshJsonlListener({
+			const listener = await startRemoteJsonlListener({
 				connection: activeTarget.connection,
 				command,
+				onStderr: (line) => {
+					logger.warn('agent notification listener stderr', { line });
+				},
 				onLine: (line) => {
 					handleAgentNotificationListenerLine({
 						line,

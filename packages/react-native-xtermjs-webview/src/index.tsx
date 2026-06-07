@@ -15,15 +15,31 @@ declare const __DEV__: boolean | undefined;
 import {
 	binaryToBStr,
 	bStrToBinary,
-	type BridgeInboundMessage,
+	type BridgeInboundDraftMessage,
 	type BridgeOutboundMessage,
+	type ScrollbackBatchEvent,
 	type TouchScrollConfig,
+	type TmuxScrollBatchEvent,
 } from './bridge';
 import { jetBrainsMonoTtfBase64 } from './jetbrains-mono';
 import { createDefaultXtermOptions } from './terminal-options';
+import {
+	createScrollbackEnterRequestFailureHandler,
+	handleXtermBridgeInboundMessage,
+} from './xterm-message-handler';
+import {
+	createXtermWebViewAckSenders,
+	createXtermWebViewHandle,
+	type XtermWebViewHandle,
+} from './xterm-webview-handle';
 
 export { bStrToBinary, binaryToBStr };
-export type { TouchScrollConfig };
+export type {
+	ScrollbackBatchEvent,
+	TmuxScrollBatchEvent,
+	TouchScrollConfig,
+	XtermWebViewHandle,
+};
 
 type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 type ITerminalOptions = import('@xterm/xterm').ITerminalOptions;
@@ -41,30 +57,18 @@ const jetBrainsMonoFontCss = `
 }
 `;
 
-/**
- * Message from this pkg to calling RN
- */
-export type XtermInbound =
+type LegacyXtermInbound =
 	| { type: 'initialized' }
 	| { type: 'data'; data: Uint8Array }
 	| { type: 'debug'; message: string }
 	| { type: 'selectionChanged'; text: string }
 	| { type: 'selectionModeChanged'; enabled: boolean };
 
-export type XtermWebViewHandle = {
-	write: (data: Uint8Array) => void; // bytes in (batched)
-	// Efficiently write many chunks in one postMessage (for initial replay)
-	writeMany: (chunks: Uint8Array[]) => void;
-	flush: () => void; // force-flush outgoing writes
-	clear: () => void;
-	focus: () => void;
-	setSystemKeyboardEnabled: (enabled: boolean) => void;
-	setSelectionModeEnabled: (enabled: boolean) => void;
-	getSelection: () => Promise<string>;
-	resize: (size: { cols: number; rows: number }) => void;
-	fit: () => void;
-	exitScrollback: (opts?: { emitExit?: boolean; requestId?: number }) => void;
-	sendTmuxEnterCopyModeAck: (requestId: number, instanceId: string) => void;
+export type XtermInbound = BridgeInboundDraftMessage | LegacyXtermInbound;
+
+type PendingSelection = {
+	resolve: (value: string) => void;
+	timeoutId?: ReturnType<typeof setTimeout>;
 };
 
 const defaultWebViewProps: WebViewOptions = {
@@ -105,7 +109,7 @@ export type XtermJsWebViewProps = {
 	onData?: (data: string) => void;
 	onInput?: (input: {
 		str: string;
-		kind: 'typing' | 'scroll';
+		kind: 'typing';
 		instanceId: string;
 	}) => void;
 	onSelection?: (text: string) => void;
@@ -118,18 +122,16 @@ export type XtermJsWebViewProps = {
 		instanceId: string;
 		requestId?: number;
 	}) => void;
+	onScrollbackEnterRequested?: (event: {
+		instanceId: string;
+		requestId: number;
+	}) => void;
+	onScrollbackBatch?: (event: ScrollbackBatchEvent) => void;
 	onTmuxEnterCopyMode?: (event: {
 		instanceId: string;
 		requestId: number;
 	}) => void;
-	onTmuxScrollBatch?: (event: {
-		direction: 'up' | 'down';
-		pages: number;
-		lines: number;
-		instanceId: string;
-		seq?: number;
-		ts?: number;
-	}) => void;
+	onTmuxScrollBatch?: (event: ScrollbackBatchEvent) => void;
 	logger?: {
 		debug?: (...args: unknown[]) => void;
 		log?: (...args: unknown[]) => void;
@@ -181,6 +183,28 @@ function touchScrollConfigEquals(
 	return true;
 }
 
+function resolvePendingSelections(
+	pendingSelectionMap: Map<number, PendingSelection>,
+): void {
+	for (const pending of pendingSelectionMap.values()) {
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
+		pending.resolve('');
+	}
+	pendingSelectionMap.clear();
+}
+
+function resolvePendingSelection(
+	pendingSelectionMap: Map<number, PendingSelection>,
+	requestId: number,
+	value: string,
+): void {
+	const pending = pendingSelectionMap.get(requestId);
+	if (!pending) return;
+	pendingSelectionMap.delete(requestId);
+	if (pending.timeoutId) clearTimeout(pending.timeoutId);
+	pending.resolve(value);
+}
+
 export function XtermJsWebView({
 	ref,
 	style,
@@ -193,6 +217,8 @@ export function XtermJsWebView({
 	onSelectionModeChange,
 	onResize,
 	onScrollbackModeChange,
+	onScrollbackEnterRequested,
+	onScrollbackBatch,
 	onTmuxEnterCopyMode,
 	onTmuxScrollBatch,
 	coalescingThreshold = defaultCoalescingThreshold,
@@ -205,10 +231,15 @@ export function XtermJsWebView({
 	const webRef = useRef<WebView>(null);
 	const [initialized, setInitialized] = useState(false);
 	const selectionRequestIdRef = useRef(0);
-	const pendingSelectionRef = useRef(
-		new Map<number, { resolve: (value: string) => void }>(),
-	);
+	const pendingSelectionRef = useRef(new Map<number, PendingSelection>());
 	const currentInstanceIdRef = useRef<string | null>(null);
+	const invalidatedInstanceIdsRef = useRef(new Set<string>());
+	const invalidatedBridgeLoadTokensRef = useRef(new Set<string>());
+	const [bridgeLoadId, setBridgeLoadId] = useState(1);
+	const expectedBridgeLoadIdRef = useRef(1);
+	const remountingForBridgeLoadRef = useRef(false);
+	const currentBridgeLoadTokenRef = useRef<string | null>(null);
+	const awaitingBridgeDocumentStartRef = useRef(false);
 
 	// ---- RN -> WebView message sender
 	const sendToWebView = useCallback(
@@ -237,6 +268,12 @@ export function XtermJsWebView({
 		}
 		sendToWebView({ type: 'write', bStr });
 	}, [sendToWebView]);
+
+	const cancelPendingWrite = useCallback(() => {
+		if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+		rafRef.current = null;
+		bufRef.current = null;
+	}, []);
 
 	const schedule = useCallback(() => {
 		if (rafRef.current != null) return;
@@ -278,12 +315,10 @@ export function XtermJsWebView({
 	useEffect(() => {
 		const pendingSelectionMap = pendingSelectionRef.current;
 		return () => {
-			if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-			rafRef.current = null;
-			bufRef.current = null;
-			pendingSelectionMap.clear();
+			cancelPendingWrite();
+			resolvePendingSelections(pendingSelectionMap);
 		};
-	}, []);
+	}, [cancelPendingWrite]);
 
 	const fit = useCallback(() => {
 		sendToWebView({ type: 'fit' });
@@ -318,15 +353,11 @@ export function XtermJsWebView({
 		const requestId = selectionRequestIdRef.current + 1;
 		selectionRequestIdRef.current = requestId;
 		return new Promise((resolve) => {
-			pendingSelectionRef.current.set(requestId, { resolve });
-			sendToWebView({ type: 'getSelection', requestId });
-			// Timeout after 5s to prevent hanging if WebView is unresponsive
-			setTimeout(() => {
-				if (pendingSelectionRef.current.has(requestId)) {
-					pendingSelectionRef.current.delete(requestId);
-					resolve('');
-				}
+			const timeoutId = setTimeout(() => {
+				resolvePendingSelection(pendingSelectionRef.current, requestId, '');
 			}, 5000);
+			pendingSelectionRef.current.set(requestId, { resolve, timeoutId });
+			sendToWebView({ type: 'getSelection', requestId });
 		});
 	}, [initialized, sendToWebView]);
 
@@ -358,35 +389,27 @@ export function XtermJsWebView({
 		appliedSizeRef.current = size;
 	}, [size, sendToWebView, logger, autoFitFn, initialized]);
 
-	useImperativeHandle(ref, () => ({
-		write,
-		writeMany,
-		flush,
-		clear: () => sendToWebView({ type: 'clear' }),
-		focus: () => {
-			sendToWebView({ type: 'focus' });
-			webRef.current?.requestFocus();
-		},
-		setSystemKeyboardEnabled,
-		setSelectionModeEnabled,
-		getSelection,
-		resize: (size: { cols: number; rows: number }) => {
-			sendToWebView({ type: 'resize', cols: size.cols, rows: size.rows });
-			autoFitFn();
-			appliedSizeRef.current = size;
-		},
-		fit,
-		exitScrollback: (opts) => {
-			sendToWebView({ type: 'exitScrollback', ...opts });
-		},
-		sendTmuxEnterCopyModeAck: (requestId, instanceId) => {
-			sendToWebView({
-				type: 'tmuxEnterCopyModeAck',
-				requestId,
-				instanceId,
-			});
-		},
-	}));
+	const ackSenders = useMemo(
+		() => createXtermWebViewAckSenders(sendToWebView),
+		[sendToWebView],
+	);
+
+	useImperativeHandle(ref, () =>
+		createXtermWebViewHandle({
+			write,
+			writeMany,
+			flush,
+			sendToWebView,
+			webRef,
+			setSystemKeyboardEnabled,
+			setSelectionModeEnabled,
+			getSelection,
+			autoFitFn,
+			appliedSizeRef,
+			fit,
+			...ackSenders,
+		}),
+	);
 
 	const mergedXTermOptions = useMemo(
 		() => ({
@@ -420,91 +443,47 @@ export function XtermJsWebView({
 		appliedTouchConfigRef.current = normalizedConfig;
 	}, [initialized, sendToWebView, touchScrollConfig]);
 
+	const onScrollbackEnterRequestFailure = useMemo(
+		() =>
+			createScrollbackEnterRequestFailureHandler({
+				logger,
+				sendToWebView,
+			}),
+		[logger, sendToWebView],
+	);
+	const resolvedOnScrollbackEnterRequested =
+		onScrollbackEnterRequested ?? onTmuxEnterCopyMode;
+	const resolvedOnScrollbackBatch = onScrollbackBatch ?? onTmuxScrollBatch;
+
 	const onMessage = useCallback(
 		(e: WebViewMessageEvent) => {
 			try {
-				const msg: BridgeInboundMessage = JSON.parse(e.nativeEvent.data);
+				const msg = JSON.parse(e.nativeEvent.data) as BridgeInboundDraftMessage;
 				logger?.log?.(`received msg from webview: `, msg);
-				if (msg.type === 'initialized') {
-					currentInstanceIdRef.current = msg.instanceId;
-					pendingSelectionRef.current.clear();
-					onInitialized?.(msg.instanceId);
-					autoFitFn();
-					setInitialized(true);
-					return;
-				}
 				if (
-					'instanceId' in msg &&
-					currentInstanceIdRef.current &&
-					msg.instanceId !== currentInstanceIdRef.current
+					handleXtermBridgeInboundMessage(msg, {
+						currentInstanceIdRef,
+						invalidatedInstanceIdsRef,
+						invalidatedBridgeLoadTokensRef,
+						currentBridgeLoadTokenRef,
+						expectedBridgeLoadIdRef,
+						awaitingBridgeDocumentStartRef,
+						pendingSelectionRef,
+						logger,
+						onInitialized,
+						autoFitFn,
+						setInitialized,
+						onInput,
+						onData,
+						onResize,
+						onSelection,
+						onSelectionModeChange,
+						onScrollbackModeChange,
+						onScrollbackEnterRequested: resolvedOnScrollbackEnterRequested,
+						onScrollbackEnterRequestFailure,
+						onScrollbackBatch: resolvedOnScrollbackBatch,
+					})
 				) {
-					logger?.warn?.(
-						`dropping stale webview message`,
-						msg.type,
-						msg.instanceId,
-					);
-					return;
-				}
-				if (msg.type === 'input') {
-					const kind = msg.kind ?? 'typing';
-					onInput?.({ str: msg.str, kind, instanceId: msg.instanceId });
-					if (kind === 'typing') {
-						// const bytes = bStrToBinary(msg.bStr);
-						// onData?.(bytes);
-						onData?.(msg.str);
-					}
-					return;
-				}
-				if (msg.type === 'debug') {
-					logger?.log?.(`received debug msg from webview: `, msg.message);
-					return;
-				}
-				if (msg.type === 'sizeChanged') {
-					logger?.log?.(`terminal size changed: ${msg.cols}x${msg.rows}`);
-					onResize?.(msg.cols, msg.rows);
-					return;
-				}
-				if (msg.type === 'selection') {
-					const pending = pendingSelectionRef.current.get(msg.requestId);
-					if (pending) {
-						pendingSelectionRef.current.delete(msg.requestId);
-						pending.resolve(msg.text);
-					}
-					return;
-				}
-				if (msg.type === 'selectionChanged') {
-					onSelection?.(msg.text);
-					return;
-				}
-				if (msg.type === 'selectionModeChanged') {
-					onSelectionModeChange?.(msg.enabled);
-					return;
-				}
-				if (msg.type === 'scrollbackModeChanged') {
-					onScrollbackModeChange?.({
-						active: msg.active,
-						phase: msg.phase,
-						instanceId: msg.instanceId,
-						requestId: msg.requestId,
-					});
-					return;
-				}
-				if (msg.type === 'tmuxEnterCopyMode') {
-					onTmuxEnterCopyMode?.({
-						instanceId: msg.instanceId,
-						requestId: msg.requestId,
-					});
-					return;
-				}
-				if (msg.type === 'tmuxScrollBatch') {
-					onTmuxScrollBatch?.({
-						direction: msg.direction,
-						pages: msg.pages,
-						lines: msg.lines,
-						instanceId: msg.instanceId,
-						seq: msg.seq,
-						ts: msg.ts,
-					});
 					return;
 				}
 				webViewOptions?.onMessage?.(e);
@@ -527,8 +506,9 @@ export function XtermJsWebView({
 			onSelection,
 			onSelectionModeChange,
 			onScrollbackModeChange,
-			onTmuxEnterCopyMode,
-			onTmuxScrollBatch,
+			resolvedOnScrollbackEnterRequested,
+			onScrollbackEnterRequestFailure,
+			resolvedOnScrollbackBatch,
 		],
 	);
 
@@ -559,17 +539,50 @@ export function XtermJsWebView({
 		},
 		[logger, webViewOptions],
 	);
+	const onLoadStart = useCallback<NonNullable<WebViewOptions['onLoadStart']>>(
+		(e) => {
+			if (remountingForBridgeLoadRef.current) {
+				remountingForBridgeLoadRef.current = false;
+			} else {
+				const nextBridgeLoadId = expectedBridgeLoadIdRef.current + 1;
+				expectedBridgeLoadIdRef.current = nextBridgeLoadId;
+				remountingForBridgeLoadRef.current = true;
+				setBridgeLoadId(nextBridgeLoadId);
+			}
+			awaitingBridgeDocumentStartRef.current = true;
+			if (currentBridgeLoadTokenRef.current) {
+				invalidatedBridgeLoadTokensRef.current.add(
+					currentBridgeLoadTokenRef.current,
+				);
+			}
+			currentBridgeLoadTokenRef.current = null;
+			if (currentInstanceIdRef.current) {
+				invalidatedInstanceIdsRef.current.add(currentInstanceIdRef.current);
+			}
+			currentInstanceIdRef.current = null;
+			appliedSizeRef.current = null;
+			appliedXtermOptionsRef.current = null;
+			appliedTouchConfigRef.current = null;
+			cancelPendingWrite();
+			resolvePendingSelections(pendingSelectionRef.current);
+			setInitialized(false);
+			webViewOptions?.onLoadStart?.(e);
+		},
+		[cancelPendingWrite, webViewOptions],
+	);
 
 	const mergedWebViewOptions = useMemo(
 		() => ({
 			...defaultWebViewProps,
 			...webViewOptions,
+			onLoadStart,
 			onContentProcessDidTerminate,
 			onRenderProcessGone,
 			onLoadEnd,
 		}),
 		[
 			webViewOptions,
+			onLoadStart,
 			onContentProcessDidTerminate,
 			onRenderProcessGone,
 			onLoadEnd,
@@ -585,6 +598,9 @@ export function XtermJsWebView({
 		const optionsScript = `window.__FRESSH_XTERM_OPTIONS__ = ${JSON.stringify(
 			mergedXTermOptions,
 		)};`;
+		const bridgeLoadScript = `window.__FRESSH_XTERM_BRIDGE_LOAD_ID__ = ${JSON.stringify(
+			bridgeLoadId,
+		)};`;
 
 		return `
 			(function () {
@@ -597,11 +613,12 @@ export function XtermJsWebView({
 					(document.head || document.documentElement).appendChild(style);
 				}
 				${optionsScript}
+				${bridgeLoadScript}
 				${backgroundScript}
 			})();
 			true;
 		`;
-	}, [mergedXTermOptions]);
+	}, [bridgeLoadId, mergedXTermOptions]);
 
 	const webViewSource = useMemo(() => {
 		if (__DEV__ && devServerUrl) {
@@ -617,6 +634,7 @@ export function XtermJsWebView({
 
 	return (
 		<WebView
+			key={bridgeLoadId}
 			ref={webRef}
 			source={webViewSource}
 			onMessage={onMessage}

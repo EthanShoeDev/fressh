@@ -1,8 +1,13 @@
 {
-	"version": "2026-05-31.1",
-	"updatedAt": "2026-05-31T00:00:00Z",
+	"version": "2026-06-06.3",
+	"updatedAt": "2026-06-06T18:12:29Z",
 	"defaultKeyboardId": "phone_base",
-	"activeKeyboardIds": ["phone_base", "advanced_keyboard", "browser_keyboard"],
+	"activeKeyboardIds": [
+		"phone_base",
+		"advanced_keyboard",
+		"tmux_keyboard",
+		"browser_keyboard"
+	],
 	"keyboardRouting": {
 		"actionTargets": {
 			"OPEN_ADVANCED_KEYBOARD": "advanced_keyboard",
@@ -51,41 +56,81 @@
 						"icon": null
 					},
 					{
-						"type": "bytes",
-						"bytes": [27, 91, 49, 59, 53, 66],
-						"label": "Pane",
-						"icon": "SquareSplitVertical"
+						"type": "action",
+						"actionId": "WORKMUX_FOCUS_NEXT",
+						"label": "Role",
+						"icon": "SquareSplitVertical",
+						"longPress": {
+							"options": [
+								{
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_NEXT",
+									"label": "Next role",
+									"icon": null
+								},
+								{
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_PREV",
+									"label": "Prev role",
+									"icon": null
+								},
+								{
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_CLAUDE",
+									"label": "Claude",
+									"icon": null
+								},
+								{
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_GIT",
+									"label": "Git",
+									"icon": null
+								},
+								{
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_CODEX",
+									"label": "Codex",
+									"icon": null
+								},
+								{
+									"type": "action",
+									"actionId": "WORKMUX_FOCUS_BASH",
+									"label": "Bash",
+									"icon": null
+								}
+							]
+						}
 					},
 					{
-						"type": "bytes",
-						"bytes": [27, 91, 49, 59, 53, 67],
-						"label": "Window",
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT",
+						"label": "Work",
 						"icon": "AppWindow",
 						"span": 2,
 						"longPress": {
 							"options": [
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 53, 67],
-									"label": "Window",
-									"icon": "AppWindow"
-								},
-								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 55, 68],
-									"label": "Prev all",
+									"type": "action",
+									"actionId": "WORKMUX_NAV_NEXT",
+									"label": "Next work",
 									"icon": null
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 55, 67],
+									"type": "action",
+									"actionId": "WORKMUX_NAV_PREV",
+									"label": "Prev work",
+									"icon": null
+								},
+								{
+									"type": "action",
+									"actionId": "WORKMUX_NAV_NEXT_ALL",
 									"label": "Next all",
 									"icon": null
 								},
 								{
-									"type": "macro",
-									"macroId": "alt_w",
-									"label": "Alt-w",
+									"type": "action",
+									"actionId": "WORKMUX_NAV_PREV_ALL",
+									"label": "Prev all",
 									"icon": null
 								}
 							]
@@ -122,8 +167,8 @@
 									"icon": "ChevronsUp"
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 55, 68],
+									"type": "action",
+									"actionId": "WORKMUX_NAV_PREV_ALL",
 									"label": "Prev all",
 									"icon": null
 								}
@@ -150,8 +195,8 @@
 									"icon": "ChevronsDown"
 								},
 								{
-									"type": "bytes",
-									"bytes": [27, 91, 49, 59, 55, 67],
+									"type": "action",
+									"actionId": "WORKMUX_NAV_NEXT_ALL",
 									"label": "Next all",
 									"icon": null
 								}
@@ -335,7 +380,12 @@
 						"label": "Issue",
 						"icon": "CirclePlus"
 					},
-					null,
+					{
+						"type": "action",
+						"actionId": "ROTATE_KEYBOARD",
+						"label": "Tmux",
+						"icon": "Command"
+					},
 					null,
 					null,
 					null,
@@ -360,11 +410,36 @@
 						"label": "PAGE_DOWN",
 						"icon": "ChevronsDown"
 					},
-					null,
-					null,
-					null,
-					null,
-					null,
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_PREV_ALL",
+						"label": "Previous All",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_PREV",
+						"label": "Previous",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT",
+						"label": "Next",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT_ALL",
+						"label": "Next All",
+						"icon": null
+					},
+					{
+						"type": "macro",
+						"macroId": "cmd_continue",
+						"label": "continue",
+						"icon": null
+					},
 					null,
 					{
 						"type": "bytes",
@@ -383,19 +458,93 @@
 					null,
 					null,
 					{
-						"type": "bytes",
-						"bytes": [27, 91, 49, 59, 55, 68],
+						"type": "action",
+						"actionId": "WORKMUX_NAV_PREV_ALL",
 						"label": "Prev all",
 						"icon": null
 					},
 					{
-						"type": "bytes",
-						"bytes": [27, 91, 49, 59, 55, 67],
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT_ALL",
 						"label": "Next all",
 						"icon": null
 					},
 					null
 				]
+			]
+		},
+		{
+			"id": "tmux_keyboard",
+			"name": "Tmux Keyboard",
+			"builtIn": true,
+			"active": true,
+			"rotationOrder": 2,
+			"grid": [
+				[
+					{
+						"type": "action",
+						"actionId": "OPEN_MAIN_MENU",
+						"label": "Back",
+						"icon": "X"
+					},
+					{
+						"type": "bytes",
+						"bytes": [27, 88],
+						"label": "Restart",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_FOCUS_CODEX",
+						"label": "Codex",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_FOCUS_GIT",
+						"label": "Git",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_FOCUS_BASH",
+						"label": "Bash",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_PREV",
+						"label": "Previous",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT",
+						"label": "Next",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_PREV_ALL",
+						"label": "Previous All",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "WORKMUX_NAV_NEXT_ALL",
+						"label": "Next All",
+						"icon": null
+					},
+					{
+						"type": "action",
+						"actionId": "CYCLE_WORKMUX_STATUS",
+						"label": "Status",
+						"icon": "Clock"
+					}
+				],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null],
+				[null, null, null, null, null, null, null, null, null, null]
 			]
 		},
 		{
@@ -557,16 +706,18 @@
 				"label": "2",
 				"category": "Replies",
 				"script": "{\n  \"type\": \"command\",\n  \"value\": \"2\",\n  \"enter\": true\n}"
-			},
-			{
-				"id": "alt_w",
-				"name": "Meta: Alt-w",
-				"label": "Alt-w",
-				"category": "Navigation",
-				"script": "{\n  \"type\": \"sequence\",\n  \"value\": \"\\u001bw\"\n}"
 			}
 		],
-		"advanced_keyboard": [],
+		"advanced_keyboard": [
+			{
+				"id": "cmd_continue",
+				"name": "Command: continue",
+				"label": "continue",
+				"category": "Commands",
+				"script": "{\n  \"type\": \"command\",\n  \"value\": \"continue\",\n  \"enter\": true\n}"
+			}
+		],
+		"tmux_keyboard": [],
 		"browser_keyboard": []
 	},
 	"commandMenus": [
@@ -903,6 +1054,33 @@
 				},
 				{
 					"type": "preset",
+					"label": "dev pull status",
+					"steps": [
+						{
+							"type": "text",
+							"data": "git checkout dev"
+						},
+						{
+							"type": "enter"
+						},
+						{
+							"type": "text",
+							"data": "git pull"
+						},
+						{
+							"type": "enter"
+						},
+						{
+							"type": "text",
+							"data": "git status"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				},
+				{
+					"type": "preset",
 					"label": "git checkout dev",
 					"steps": [
 						{
@@ -973,6 +1151,51 @@
 						{
 							"type": "text",
 							"data": "clear"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				}
+			]
+		},
+		{
+			"type": "submenu",
+			"label": "mdev",
+			"presets": [
+				{
+					"type": "preset",
+					"label": "codex auth refresh",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev codex auth refresh"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "workspace close",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev tmux workspace close"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "workspace open",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev tmux open-workspace"
 						},
 						{
 							"type": "enter"

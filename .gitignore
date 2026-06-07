@@ -46,5 +46,7 @@ mnt/*
 # Local backups & artifacts
 backup.json
 backup-recovery.json
+docs/run/code-review-*.md
+docs/tool-output/code-review/
 apps/mobile/*.apk
 config.bat

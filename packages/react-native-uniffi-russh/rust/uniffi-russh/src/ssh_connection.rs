@@ -1,4 +1,5 @@
 use std::fmt;
+use std::future::Future;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
@@ -9,15 +10,23 @@ use russh::keys::PrivateKeyWithHashAlg;
 use russh::{self, client, ChannelMsg, Disconnect};
 
 use crate::private_key::normalize_openssh_ed25519_seed_key;
-use crate::ssh_shell::{
-    append_and_broadcast, Chunk, ShellSession, ShellSessionInfo, StartShellOptions, StreamKind,
-    DEFAULT_BROADCAST_CHUNK_CAPACITY, DEFAULT_MAX_CHUNK_SIZE, DEFAULT_SHELL_RING_BUFFER_CAPACITY,
-    DEFAULT_TERMINAL_MODES, DEFAULT_TERM_COALESCE_MS, DEFAULT_TERM_COL_WIDTH,
-    DEFAULT_TERM_PIXEL_HEIGHT, DEFAULT_TERM_PIXEL_WIDTH, DEFAULT_TERM_ROW_HEIGHT,
+use crate::ssh_channel::StartupChannelCloseGuard;
+use crate::ssh_command::{
+    CommandOutput, CommandStreamSession, RunCommandOptions, StartCommandStreamOptions,
 };
-use crate::utils::{now_ms, SshError};
+use crate::ssh_shell::{
+    append_and_broadcast, emit_shell_closed_once, Chunk, ShellSession, ShellSessionInfo,
+    StartShellOptions, StreamKind, DEFAULT_BROADCAST_CHUNK_CAPACITY, DEFAULT_MAX_CHUNK_SIZE,
+    DEFAULT_SHELL_RING_BUFFER_CAPACITY, DEFAULT_TERMINAL_MODES, DEFAULT_TERM_COALESCE_MS,
+    DEFAULT_TERM_COL_WIDTH, DEFAULT_TERM_PIXEL_HEIGHT, DEFAULT_TERM_PIXEL_WIDTH,
+    DEFAULT_TERM_ROW_HEIGHT,
+};
+use crate::utils::{
+    catch_foreign_callback_future_unwind, catch_foreign_callback_unwind, now_ms, SshError,
+    CLOSE_TIMEOUT,
+};
 use russh::keys::PublicKeyBase64;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering as AtomicOrdering};
 
 use std::{
     collections::HashMap,
@@ -27,8 +36,188 @@ use std::{
 // Mobile-friendly keepalive defaults.
 const KEEPALIVE_INTERVAL_SECS: u64 = 15;
 const KEEPALIVE_MAX: usize = 6;
-// Short probe window to catch immediate tmux attach failures.
+// Short probe window to catch immediate Workmux attach failures.
 const TMUX_ATTACH_PROBE_TIMEOUT_MS: u64 = 300;
+const WORKMUX_ATTACH_FAILURE_DETAIL_MAX_BYTES: usize = 1024;
+const SHELL_REQUEST_REPLY_TIMEOUT: Duration = Duration::from_secs(5);
+const WORKMUX_REMOTE_COMMAND_ENV_PREFIX: &str = "env PATH=\"$PATH:$HOME/bin\"";
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn build_workmux_attach_command(session_name: &str) -> String {
+    format!(
+        "{WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux attach {}",
+        shell_quote(session_name)
+    )
+}
+
+enum WorkmuxAttachProbeDecision {
+    Continue,
+    Failed(String),
+}
+
+#[derive(Default)]
+struct WorkmuxAttachProbeOutput {
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+impl WorkmuxAttachProbeOutput {
+    fn record(&mut self, message: &ChannelMsg) {
+        match message {
+            ChannelMsg::Data { data } => self.record_stdout(data.as_ref()),
+            ChannelMsg::ExtendedData { data, .. } => self.record_stderr(data.as_ref()),
+            _ => {}
+        }
+    }
+
+    fn record_stdout(&mut self, bytes: &[u8]) {
+        append_bounded_probe_output(&mut self.stdout, bytes);
+    }
+
+    fn record_stderr(&mut self, bytes: &[u8]) {
+        append_bounded_probe_output(&mut self.stderr, bytes);
+    }
+
+    fn failure_message(&self, base: String) -> String {
+        let stderr = format_probe_output(&self.stderr);
+        if !stderr.is_empty() {
+            return format!("{base}: {stderr}");
+        }
+
+        let stdout = format_probe_output(&self.stdout);
+        if !stdout.is_empty() {
+            return format!("{base}: {stdout}");
+        }
+
+        base
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShellRequestDecision {
+    Continue,
+    Success,
+    Failure,
+    ClosedBeforeSuccess,
+}
+
+fn append_bounded_probe_output(target: &mut Vec<u8>, bytes: &[u8]) {
+    if bytes.is_empty() {
+        return;
+    }
+
+    let remaining = WORKMUX_ATTACH_FAILURE_DETAIL_MAX_BYTES.saturating_sub(target.len());
+    if remaining == 0 {
+        return;
+    }
+
+    target.extend_from_slice(&bytes[..bytes.len().min(remaining)]);
+}
+
+fn format_probe_output(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).trim().replace('\n', " ")
+}
+
+fn classify_workmux_attach_probe_message(
+    message: &ChannelMsg,
+    output: &WorkmuxAttachProbeOutput,
+) -> WorkmuxAttachProbeDecision {
+    match message {
+        ChannelMsg::ExitStatus { exit_status } if *exit_status != 0 => {
+            WorkmuxAttachProbeDecision::Failed(
+                output.failure_message(format!("Workmux attach exited with status {exit_status}")),
+            )
+        }
+        ChannelMsg::ExitSignal { signal_name, .. } => WorkmuxAttachProbeDecision::Failed(
+            output.failure_message(format!("Workmux attach exited with signal {signal_name:?}")),
+        ),
+        ChannelMsg::Eof | ChannelMsg::Close => WorkmuxAttachProbeDecision::Continue,
+        _ => WorkmuxAttachProbeDecision::Continue,
+    }
+}
+
+async fn open_shell_session(
+    connection: &SshConnection,
+) -> Result<russh::Channel<client::Msg>, SshError> {
+    match tokio::time::timeout(SHELL_REQUEST_REPLY_TIMEOUT, async {
+        let client_handle = connection.client_handle.lock().await;
+        client_handle.channel_open_session().await
+    })
+    .await
+    {
+        Ok(Ok(channel)) => Ok(channel),
+        Ok(Err(error)) => Err(error.into()),
+        Err(_) => {
+            connection.disconnect().await.ok();
+            Err(SshError::Russh(
+                "SSH shell channel open timed out".to_string(),
+            ))
+        }
+    }
+}
+
+async fn wait_for_shell_request_send<F, E>(request_name: &str, request: F) -> Result<(), SshError>
+where
+    F: Future<Output = Result<(), E>>,
+    E: Into<SshError>,
+{
+    match tokio::time::timeout(SHELL_REQUEST_REPLY_TIMEOUT, request).await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => Err(error.into()),
+        Err(_) => Err(SshError::Russh(format!(
+            "SSH {request_name} request send timed out"
+        ))),
+    }
+}
+
+async fn wait_for_shell_request_success(
+    channel: &mut russh::Channel<client::Msg>,
+    request_name: &str,
+) -> Result<(), SshError> {
+    let deadline = tokio::time::Instant::now() + SHELL_REQUEST_REPLY_TIMEOUT;
+    loop {
+        let message = match tokio::time::timeout_at(deadline, channel.wait()).await {
+            Ok(Some(message)) => message,
+            Ok(None) => {
+                return Err(SshError::Russh(format!(
+                    "SSH {request_name} request closed before success"
+                )));
+            }
+            Err(_) => {
+                return Err(SshError::Russh(format!(
+                    "SSH {request_name} request timed out before success"
+                )));
+            }
+        };
+
+        match classify_shell_request_message(&message) {
+            ShellRequestDecision::Continue => {}
+            ShellRequestDecision::Success => return Ok(()),
+            ShellRequestDecision::Failure => {
+                return Err(SshError::Russh(format!(
+                    "SSH {request_name} request failed"
+                )));
+            }
+            ShellRequestDecision::ClosedBeforeSuccess => {
+                return Err(SshError::Russh(format!(
+                    "SSH {request_name} request closed before success"
+                )));
+            }
+        }
+    }
+}
+
+fn classify_shell_request_message(message: &ChannelMsg) -> ShellRequestDecision {
+    match message {
+        ChannelMsg::Success => ShellRequestDecision::Success,
+        ChannelMsg::Failure => ShellRequestDecision::Failure,
+        ChannelMsg::Close | ChannelMsg::Eof => ShellRequestDecision::ClosedBeforeSuccess,
+        _ => ShellRequestDecision::Continue,
+    }
+}
 
 fn server_public_key_to_info(
     host: &str,
@@ -98,9 +287,23 @@ pub trait ConnectProgressCallback: Send + Sync {
     fn on_change(&self, status: SshConnectionProgressEvent);
 }
 
+fn emit_connection_progress(
+    callback: &Arc<dyn ConnectProgressCallback>,
+    status: SshConnectionProgressEvent,
+) -> bool {
+    catch_foreign_callback_unwind(|| callback.on_change(status))
+}
+
 #[uniffi::export(with_foreign)]
 pub trait ConnectionDisconnectedCallback: Send + Sync {
     fn on_change(&self, connection_id: String);
+}
+
+fn emit_connection_disconnected(
+    callback: &Arc<dyn ConnectionDisconnectedCallback>,
+    connection_id: String,
+) -> bool {
+    catch_foreign_callback_unwind(|| callback.on_change(connection_id))
 }
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
@@ -151,7 +354,9 @@ impl client::Handler for NoopHandler {
         let info = server_public_key_to_info(&host, port, remote_ip, server_public_key);
         async move {
             // Delegate decision to user callback (async via UniFFI).
-            let accept = cb.on_change(info).await;
+            let accept = catch_foreign_callback_future_unwind(cb.on_change(info))
+                .await
+                .unwrap_or(false);
             Ok(accept)
         }
     }
@@ -165,6 +370,7 @@ pub struct SshConnection {
     pub(crate) client_handle: AsyncMutex<ClientHandle<NoopHandler>>,
 
     pub(crate) shells: AsyncMutex<HashMap<u32, Arc<ShellSession>>>,
+    pub(crate) command_streams: AsyncMutex<HashMap<u32, Weak<CommandStreamSession>>>,
 
     // Weak self for child sessions to refer back without cycles.
     pub(crate) self_weak: AsyncMutex<Weak<SshConnection>>,
@@ -198,11 +404,9 @@ impl SshConnection {
         let use_tmux = opts.use_tmux;
         let tmux_session_name = opts.tmux_session_name.clone();
 
-        let ch = {
-            let client_handle = self.client_handle.lock().await;
-            client_handle.channel_open_session().await?
-        };
-        let channel_id: u32 = ch.id().into();
+        let channel = open_shell_session(self).await?;
+        let mut channel_guard = StartupChannelCloseGuard::new(channel);
+        let channel_id: u32 = channel_guard.channel().id().into();
 
         let mut modes: Vec<(russh::Pty, u32)> = DEFAULT_TERMINAL_MODES.to_vec();
         if let Some(terminal_mode_params) = &opts.terminal_mode {
@@ -238,16 +442,20 @@ impl SshConnection {
             .and_then(|s| s.pixel_height)
             .unwrap_or(DEFAULT_TERM_PIXEL_HEIGHT);
 
-        ch.request_pty(
-            true,
-            term.as_ssh_name(),
-            col_width,
-            row_height,
-            pixel_width,
-            pixel_height,
-            &modes,
+        wait_for_shell_request_send(
+            "PTY",
+            channel_guard.channel().request_pty(
+                true,
+                term.as_ssh_name(),
+                col_width,
+                row_height,
+                pixel_width,
+                pixel_height,
+                &modes,
+            ),
         )
         .await?;
+        wait_for_shell_request_success(channel_guard.channel_mut(), "PTY").await?;
 
         if use_tmux {
             let tmux_name = tmux_session_name
@@ -258,17 +466,21 @@ impl SshConnection {
             if tmux_name.is_empty() {
                 self.disconnect().await.ok();
                 return Err(SshError::TmuxAttachFailed(
-                    "Missing tmux session name".to_string(),
+                    "Missing Workmux session name".to_string(),
                 ));
             }
-            let cmd = format!("tmux attach -t {tmux_name}");
-            ch.exec(true, cmd).await?;
+            let cmd = build_workmux_attach_command(&tmux_name);
+            wait_for_shell_request_send("exec", channel_guard.channel().exec(true, cmd)).await?;
+            wait_for_shell_request_success(channel_guard.channel_mut(), "exec").await?;
         } else {
-            ch.request_shell(true).await?;
+            wait_for_shell_request_send("shell", channel_guard.channel().request_shell(true))
+                .await?;
+            wait_for_shell_request_success(channel_guard.channel_mut(), "shell").await?;
         }
 
         // Split for read/write; spawn reader.
-        let (mut reader, writer) = ch.split();
+        let channel = channel_guard.into_inner();
+        let (mut reader, writer) = channel.split();
 
         // Setup ring + broadcast for this session
         let (tx, _rx) = broadcast::channel::<Arc<Chunk>>(DEFAULT_BROADCAST_CHUNK_CAPACITY);
@@ -291,58 +503,87 @@ impl SshConnection {
         let next_seq_c = next_seq.clone();
 
         let on_closed_callback_for_reader = on_closed_callback.clone();
+        let parent = self.self_weak.lock().await.clone();
+        let parent_for_reader = parent.clone();
+        let reader_has_closed = Arc::new(AtomicBool::new(false));
+        let reader_has_closed_for_reader = reader_has_closed.clone();
+        let closed_notified = Arc::new(AtomicBool::new(false));
+        let closed_notified_for_reader = closed_notified.clone();
 
         if use_tmux {
-            // Probe once for an immediate tmux attach failure before surfacing the shell.
-            let probe = tokio::time::timeout(
-                Duration::from_millis(TMUX_ATTACH_PROBE_TIMEOUT_MS),
-                reader.wait(),
-            )
-            .await;
-            match probe {
-                Ok(Some(ChannelMsg::ExitStatus { exit_status })) if exit_status != 0 => {
-                    self.disconnect().await.ok();
-                    return Err(SshError::TmuxAttachFailed(format!(
-                        "tmux attach exited with status {exit_status}"
-                    )));
-                }
-                Ok(Some(ChannelMsg::Close)) | Ok(None) => {
+            let mut attach_probe_output = WorkmuxAttachProbeOutput::default();
+            let mut attach_probe_channel_ended = false;
+            let probe_deadline =
+                tokio::time::Instant::now() + Duration::from_millis(TMUX_ATTACH_PROBE_TIMEOUT_MS);
+            loop {
+                let probe = tokio::time::timeout_at(probe_deadline, reader.wait()).await;
+                let Some(message) = (match probe {
+                    Ok(message) => message,
+                    Err(_) => {
+                        if attach_probe_channel_ended {
+                            self.disconnect().await.ok();
+                            return Err(SshError::TmuxAttachFailed(
+                                attach_probe_output.failure_message(
+                                    "Workmux attach closed the channel".to_string(),
+                                ),
+                            ));
+                        }
+                        break;
+                    }
+                }) else {
                     self.disconnect().await.ok();
                     return Err(SshError::TmuxAttachFailed(
-                        "tmux attach closed the channel".to_string(),
+                        attach_probe_output
+                            .failure_message("Workmux attach closed the channel".to_string()),
                     ));
+                };
+
+                if matches!(message, ChannelMsg::Eof | ChannelMsg::Close) {
+                    attach_probe_channel_ended = true;
                 }
-                Ok(Some(ChannelMsg::Data { data })) => {
-                    append_and_broadcast(
-                        &data,
-                        StreamKind::Stdout,
-                        &ring_clone,
-                        &used_bytes_clone,
-                        &ring_bytes_capacity_c,
-                        &dropped_bytes_total_c,
-                        &head_seq_c,
-                        &tail_seq_c,
-                        &next_seq_c,
-                        &tx_clone,
-                        DEFAULT_MAX_CHUNK_SIZE,
-                    );
+
+                if let WorkmuxAttachProbeDecision::Failed(message) =
+                    classify_workmux_attach_probe_message(&message, &attach_probe_output)
+                {
+                    self.disconnect().await.ok();
+                    return Err(SshError::TmuxAttachFailed(message));
                 }
-                Ok(Some(ChannelMsg::ExtendedData { data, .. })) => {
-                    append_and_broadcast(
-                        &data,
-                        StreamKind::Stderr,
-                        &ring_clone,
-                        &used_bytes_clone,
-                        &ring_bytes_capacity_c,
-                        &dropped_bytes_total_c,
-                        &head_seq_c,
-                        &tail_seq_c,
-                        &next_seq_c,
-                        &tx_clone,
-                        DEFAULT_MAX_CHUNK_SIZE,
-                    );
+
+                attach_probe_output.record(&message);
+
+                match message {
+                    ChannelMsg::Data { data } => {
+                        append_and_broadcast(
+                            &data,
+                            StreamKind::Stdout,
+                            &ring_clone,
+                            &used_bytes_clone,
+                            &ring_bytes_capacity_c,
+                            &dropped_bytes_total_c,
+                            &head_seq_c,
+                            &tail_seq_c,
+                            &next_seq_c,
+                            &tx_clone,
+                            DEFAULT_MAX_CHUNK_SIZE,
+                        );
+                    }
+                    ChannelMsg::ExtendedData { data, .. } => {
+                        append_and_broadcast(
+                            &data,
+                            StreamKind::Stderr,
+                            &ring_clone,
+                            &used_bytes_clone,
+                            &ring_bytes_capacity_c,
+                            &dropped_bytes_total_c,
+                            &head_seq_c,
+                            &tail_seq_c,
+                            &next_seq_c,
+                            &tx_clone,
+                            DEFAULT_MAX_CHUNK_SIZE,
+                        );
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         }
 
@@ -381,8 +622,14 @@ impl SshConnection {
                         );
                     }
                     Some(ChannelMsg::Close) | None => {
-                        if let Some(sl) = on_closed_callback_for_reader.as_ref() {
-                            sl.on_change(channel_id);
+                        reader_has_closed_for_reader.store(true, AtomicOrdering::Release);
+                        emit_shell_closed_once(
+                            on_closed_callback_for_reader.as_ref(),
+                            channel_id,
+                            &closed_notified_for_reader,
+                        );
+                        if let Some(parent) = parent_for_reader.upgrade() {
+                            parent.shells.lock().await.remove(&channel_id);
                         }
                         break;
                     }
@@ -400,10 +647,11 @@ impl SshConnection {
                 connection_id: self.info.connection_id.clone(),
             },
             on_closed_callback,
-            parent: self.self_weak.lock().await.clone(),
+            parent,
 
             writer: AsyncMutex::new(writer),
             reader_task,
+            closed_notified,
 
             // Ring buffer
             ring,
@@ -421,26 +669,74 @@ impl SshConnection {
             rt_handle: tokio::runtime::Handle::current(),
         });
 
-        self.shells.lock().await.insert(channel_id, session.clone());
+        let mut shells = self.shells.lock().await;
+        shells.insert(channel_id, session.clone());
+        // The reader can observe a fast remote close before this insertion
+        // happens. Remove the just-inserted session if that close already won.
+        if reader_has_closed.load(AtomicOrdering::Acquire) {
+            shells.remove(&channel_id);
+        }
 
         Ok(session)
     }
 
+    pub async fn run_command(&self, opts: RunCommandOptions) -> Result<CommandOutput, SshError> {
+        crate::ssh_command::run_command(self, opts).await
+    }
+
+    pub async fn start_command_stream(
+        &self,
+        opts: StartCommandStreamOptions,
+    ) -> Result<Arc<CommandStreamSession>, SshError> {
+        crate::ssh_command::start_command_stream(self, opts).await
+    }
+
     pub async fn disconnect(&self) -> Result<(), SshError> {
-        // TODO: Check if we need to close all these if we are about to disconnect?
-        let sessions: Vec<Arc<ShellSession>> = {
-            let map = self.shells.lock().await;
-            map.values().cloned().collect()
-        };
-        for s in sessions {
-            s.close().await?;
+        let mut first_error = None;
+
+        let cleanup_result = tokio::time::timeout(CLOSE_TIMEOUT, async {
+            let sessions: Vec<Arc<ShellSession>> = {
+                let map = self.shells.lock().await;
+                map.values().cloned().collect()
+            };
+            for s in sessions {
+                s.close().await.ok();
+            }
+
+            let command_streams: Vec<Arc<CommandStreamSession>> = {
+                let map = self.command_streams.lock().await;
+                map.values().filter_map(Weak::upgrade).collect()
+            };
+            for stream in command_streams {
+                stream.close().await.ok();
+            }
+        })
+        .await;
+        cleanup_result.ok();
+
+        let on_disconnected_callback = self.on_disconnected_callback.clone();
+        let connection_id = self.info.connection_id.clone();
+        let disconnect_result = tokio::time::timeout(CLOSE_TIMEOUT, async {
+            let h = self.client_handle.lock().await;
+            h.disconnect(Disconnect::ByApplication, "bye", "").await
+        })
+        .await;
+        match disconnect_result {
+            Ok(Ok(())) => {
+                if let Some(on_disconnected_callback) = on_disconnected_callback.as_ref() {
+                    emit_connection_disconnected(on_disconnected_callback, connection_id);
+                }
+            }
+            Ok(Err(error)) => {
+                first_error.get_or_insert(error.into());
+            }
+            Err(_) => {
+                first_error.get_or_insert(SshError::Russh("SSH disconnect timed out".to_string()));
+            }
         }
 
-        let h = self.client_handle.lock().await;
-        h.disconnect(Disconnect::ByApplication, "bye", "").await?;
-
-        if let Some(on_disconnected_callback) = self.on_disconnected_callback.as_ref() {
-            on_disconnected_callback.on_change(self.info.connection_id.clone());
+        if let Some(error) = first_error {
+            return Err(error);
         }
 
         Ok(())
@@ -464,7 +760,7 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
 
     let tcp_established_at_ms = now_ms();
     if let Some(sl) = options.on_connection_progress_callback.as_ref() {
-        sl.on_change(SshConnectionProgressEvent::TcpConnected);
+        emit_connection_progress(sl, SshConnectionProgressEvent::TcpConnected);
     }
     let mut cfg = Config::default();
     cfg.keepalive_interval = Some(Duration::from_secs(KEEPALIVE_INTERVAL_SECS));
@@ -484,7 +780,7 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
     .await?;
     let ssh_handshake_at_ms = now_ms();
     if let Some(sl) = options.on_connection_progress_callback.as_ref() {
-        sl.on_change(SshConnectionProgressEvent::SshHandshake);
+        emit_connection_progress(sl, SshConnectionProgressEvent::SshHandshake);
     }
     let auth_result = match &details.security {
         Security::Password { password } => {
@@ -524,10 +820,191 @@ pub async fn connect(options: ConnectOptions) -> Result<Arc<SshConnection>, SshE
         },
         client_handle: AsyncMutex::new(handle),
         shells: AsyncMutex::new(HashMap::new()),
+        command_streams: AsyncMutex::new(HashMap::new()),
         self_weak: AsyncMutex::new(Weak::new()),
         on_disconnected_callback: options.on_disconnected_callback.clone(),
     });
     // Initialize weak self reference.
     *conn.self_weak.lock().await = Arc::downgrade(&conn);
     Ok(conn)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use russh::CryptoVec;
+
+    struct PanickingProgressCallback;
+
+    impl ConnectProgressCallback for PanickingProgressCallback {
+        fn on_change(&self, _status: SshConnectionProgressEvent) {
+            panic!("callback panic");
+        }
+    }
+
+    struct PanickingDisconnectedCallback;
+
+    impl ConnectionDisconnectedCallback for PanickingDisconnectedCallback {
+        fn on_change(&self, _connection_id: String) {
+            panic!("callback panic");
+        }
+    }
+
+    struct PanickingServerKeyCallback;
+
+    #[async_trait::async_trait]
+    impl ServerKeyCallback for PanickingServerKeyCallback {
+        async fn on_change(&self, _server_key_info: ServerPublicKeyInfo) -> bool {
+            panic!("callback panic");
+        }
+    }
+
+    #[test]
+    fn emit_connection_disconnected_catches_callback_panic() {
+        let callback: Arc<dyn ConnectionDisconnectedCallback> =
+            Arc::new(PanickingDisconnectedCallback);
+
+        assert!(!emit_connection_disconnected(
+            &callback,
+            "connection-1".to_string()
+        ));
+    }
+
+    #[test]
+    fn emit_connection_progress_catches_callback_panic() {
+        let callback: Arc<dyn ConnectProgressCallback> = Arc::new(PanickingProgressCallback);
+
+        assert!(!emit_connection_progress(
+            &callback,
+            SshConnectionProgressEvent::TcpConnected
+        ));
+    }
+
+    #[tokio::test]
+    async fn check_server_key_treats_callback_panic_as_reject() {
+        let valid_key = "-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACC7PhmC0yS0Q8LcUkRnoYCxpb4gkCjJhadvvf+TDlRBJwAAAKCX5GEsl+Rh
+LAAAAAtzc2gtZWQyNTUxOQAAACC7PhmC0yS0Q8LcUkRnoYCxpb4gkCjJhadvvf+TDlRBJw
+AAAEBmrg8TL0+2xypHjVpFeuQmgQf3Qn/A45Jz+zCwVgoBt7s+GYLTJLRDwtxSRGehgLGl
+viCQKMmFp2+9/5MOVEEnAAAAF3Rlc3QtZWQyNTUxOUBmcmVzc2guY29tAQIDBAUG
+-----END OPENSSH PRIVATE KEY-----
+";
+        let (_canonical, parsed) = normalize_openssh_ed25519_seed_key(valid_key).unwrap();
+        let public_key = parsed.public_key().clone();
+        let mut handler = NoopHandler {
+            on_server_key_callback: Arc::new(PanickingServerKeyCallback),
+            host: "example.test".to_string(),
+            port: 22,
+            remote_ip: None,
+        };
+
+        let accepted =
+            <NoopHandler as client::Handler>::check_server_key(&mut handler, &public_key)
+                .await
+                .unwrap();
+
+        assert!(!accepted);
+    }
+
+    #[test]
+    fn shell_request_message_classifies_replies() {
+        assert_eq!(
+            classify_shell_request_message(&ChannelMsg::Success),
+            ShellRequestDecision::Success
+        );
+        assert_eq!(
+            classify_shell_request_message(&ChannelMsg::Failure),
+            ShellRequestDecision::Failure
+        );
+        assert_eq!(
+            classify_shell_request_message(&ChannelMsg::Close),
+            ShellRequestDecision::ClosedBeforeSuccess
+        );
+        assert_eq!(
+            classify_shell_request_message(&ChannelMsg::Eof),
+            ShellRequestDecision::ClosedBeforeSuccess
+        );
+        assert_eq!(
+            classify_shell_request_message(&ChannelMsg::Data {
+                data: CryptoVec::from_slice(b"pending"),
+            }),
+            ShellRequestDecision::Continue
+        );
+    }
+
+    #[test]
+    fn workmux_attach_command_uses_mdev_tmux_attach() {
+        assert_eq!(
+            build_workmux_attach_command("main"),
+            "env PATH=\"$PATH:$HOME/bin\" mdev tmux attach 'main'"
+        );
+    }
+
+    #[test]
+    fn workmux_attach_command_shell_quotes_session_names() {
+        assert_eq!(
+            build_workmux_attach_command("main's work"),
+            "env PATH=\"$PATH:$HOME/bin\" mdev tmux attach 'main'\\''s work'"
+        );
+    }
+
+    #[test]
+    fn workmux_attach_probe_continues_after_output_messages() {
+        let output = WorkmuxAttachProbeOutput::default();
+        let stdout = ChannelMsg::Data {
+            data: CryptoVec::from_slice(b"starting"),
+        };
+        let stderr = ChannelMsg::ExtendedData {
+            data: CryptoVec::from_slice(b"missing session"),
+            ext: 1,
+        };
+
+        assert!(matches!(
+            classify_workmux_attach_probe_message(&stdout, &output),
+            WorkmuxAttachProbeDecision::Continue
+        ));
+        assert!(matches!(
+            classify_workmux_attach_probe_message(&stderr, &output),
+            WorkmuxAttachProbeDecision::Continue
+        ));
+    }
+
+    #[test]
+    fn workmux_attach_probe_fails_on_nonzero_exit_after_output() {
+        let mut output = WorkmuxAttachProbeOutput::default();
+        let stderr = ChannelMsg::ExtendedData {
+            data: CryptoVec::from_slice(b"missing session"),
+            ext: 1,
+        };
+        let exit = ChannelMsg::ExitStatus { exit_status: 1 };
+
+        output.record(&stderr);
+        assert!(matches!(
+            classify_workmux_attach_probe_message(&stderr, &output),
+            WorkmuxAttachProbeDecision::Continue
+        ));
+        match classify_workmux_attach_probe_message(&exit, &output) {
+            WorkmuxAttachProbeDecision::Failed(message) => {
+                assert_eq!(
+                    message,
+                    "Workmux attach exited with status 1: missing session"
+                );
+            }
+            WorkmuxAttachProbeDecision::Continue => panic!("expected failure"),
+        }
+    }
+
+    #[test]
+    fn workmux_attach_probe_waits_for_status_after_channel_end() {
+        let output = WorkmuxAttachProbeOutput::default();
+        assert!(matches!(
+            classify_workmux_attach_probe_message(&ChannelMsg::Eof, &output),
+            WorkmuxAttachProbeDecision::Continue
+        ));
+        assert!(matches!(
+            classify_workmux_attach_probe_message(&ChannelMsg::Close, &output),
+            WorkmuxAttachProbeDecision::Continue
+        ));
+    }
 }

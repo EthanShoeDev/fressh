@@ -6,9 +6,10 @@ description: Use when improving Codex skills from session logs or trace evidence
 # Improve Codex Skills
 
 Use Codex session logs and `codex exec --json` traces for focused analysis of
-one target skill at a time. The workflow identifies evidence of skill use,
-diagnoses workflow gaps, reviews token usage when available, and produces
-report-only improvement suggestions.
+one target skill or session-level postmortems of workflow/tooling failures. The
+workflow identifies evidence of skill use or session friction, diagnoses
+workflow gaps, reviews token usage when available, and produces report-only
+improvement suggestions.
 
 Use the direct session helpers when the request is only to locate or summarize a
 stored session before deciding which skill needs focused analysis.
@@ -20,6 +21,14 @@ Focused mode:
 ```bash
 python3 skills/improve-codex-skills/scripts/analyze.py \
   --skill code-review
+```
+
+Session-level postmortem mode:
+
+```bash
+python3 skills/improve-codex-skills/scripts/analyze.py \
+  --postmortem \
+  --session-id <id>
 ```
 
 Find and summarize a stored Codex session directly:
@@ -118,8 +127,10 @@ Judge behavior:
      widening the suggested scope beyond `SKILL.md`.
    - Read
      [references/judge-output.schema.json](references/judge-output.schema.json)
-     only when reviewing or editing the judge contract. Do not load it just to
-     run a normal analysis.
+     or
+     [references/postmortem-judge-output.schema.json](references/postmortem-judge-output.schema.json)
+     only when reviewing or editing the relevant judge contract. Do not load
+     either schema just to run a normal analysis.
    - Keep the judge evidence-first. Do not pass raw unredacted traces to the
      judge stage.
 4. Review token usage before finalizing findings.
@@ -137,6 +148,27 @@ Judge behavior:
    fails, use the deterministic findings and local suggestion summary in
    `report.md`.
 
+### Session Postmortem
+
+Use `--postmortem` when the session failure spans tools, workflow, multiple
+skills, subagent orchestration, evidence durability, or token/context friction.
+Do not force a target skill when the useful diagnosis is session-level.
+
+Postmortem mode is report-only. It does not patch skills, create GitHub issues,
+or infer one skill as the culprit.
+
+Review artifacts in this order:
+
+1. `postmortem-report.md` for the human-readable postmortem.
+2. `postmortem-facts.json` for observed facts extracted from the redacted trace.
+3. `postmortem-suggestions.json` for inferred recommendations and backlog items.
+4. `transcript.md` for the redacted session transcript.
+5. `judge-output.json` only when the judge stage ran, failed, or was skipped.
+6. `rerun.md` for the exact rerun command.
+
+Keep observed facts and inferred recommendations separate. The judge may rank or
+summarize recommendations, but it must not introduce uncited facts.
+
 ## Escalation Table
 
 | Situation | Judge On | Judge Off |
@@ -151,6 +183,9 @@ Judge behavior:
 
 - In focused mode, require an explicit target skill name. Do not infer the
   target skill from the log alone.
+- Use `--postmortem` instead of focused mode when the request is to explain a
+  whole workflow failure rather than improve one named skill.
+- In postmortem mode, do not require or infer a target skill.
 - Bare skill names resolve under the current repo's `.agents/skills/` and should
   be the default.
 - Use explicit skill paths only when the user clearly overrides the current repo
@@ -193,7 +228,10 @@ Judge behavior:
   beyond a local `SKILL.md` patch.
 - Use
   [references/judge-output.schema.json](references/judge-output.schema.json)
-  only when validating or editing the judge contract.
+  only when validating or editing the focused-mode judge contract.
+- Use
+  [references/postmortem-judge-output.schema.json](references/postmortem-judge-output.schema.json)
+  only when validating or editing the postmortem judge contract.
 - Do not load
   [references/patch-proposal.schema.json](references/patch-proposal.schema.json)
   unless you are debugging the legacy patch-only schema.
@@ -209,13 +247,18 @@ If the trace is parseable but the evidence is weak or contradictory:
 
 ## Report Checks
 
-- Trust `report.md`, `diagnosis.json`, and `suggestions.json` more than
+- For focused mode, trust `report.md`, `diagnosis.json`, and
+  `suggestions.json` more than intuition.
+- For postmortem mode, trust `postmortem-report.md`,
+  `postmortem-facts.json`, and `postmortem-suggestions.json` more than
   intuition.
 - If a command or tool call failed twice with the same root cause in the trace,
   surface that in the findings and suggested changes instead of retrying it
   again.
-- Confirm that `evidence.json` exists and is redacted before reviewing judge
-  findings.
+- In focused mode, confirm that `evidence.json` exists and is redacted before
+  reviewing judge findings.
+- In postmortem mode, confirm that `postmortem-facts.json` exists and separates
+  observed facts from inferred recommendations before reviewing judge findings.
 - Confirm that `judge-output.json` exists when the judge stage ran, or contains
   skipped or failed status when it did not.
 - Confirm that `rerun.md` includes an exact rerun command for the same trace

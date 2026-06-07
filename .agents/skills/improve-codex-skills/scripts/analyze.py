@@ -10,7 +10,7 @@ import subprocess
 import sys
 import uuid
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
@@ -22,8 +22,6 @@ def discover_repo_root(start: Path) -> Path:
     for candidate in (start, *start.parents):
         if (candidate / "skills-origin.json").exists() and (candidate / "skills").is_dir():
             return candidate
-        if (candidate / ".agents/skills").is_dir():
-            return candidate
     return start.parents[2]
 
 
@@ -33,6 +31,7 @@ FIND_SESSION_SCRIPT = TRACE_HELPER_DIR / "find-session-log.sh"
 SUMMARIZE_SESSION_SCRIPT = TRACE_HELPER_DIR / "summarize-session.sh"
 PATCH_SCHEMA_PATH = SKILL_DIR / "references/patch-proposal.schema.json"
 JUDGE_SCHEMA_PATH = SKILL_DIR / "references/judge-output.schema.json"
+POSTMORTEM_JUDGE_SCHEMA_PATH = SKILL_DIR / "references/postmortem-judge-output.schema.json"
 QUICK_VALIDATE_PATH = Path.home() / ".codex/skills/.system/skill-creator/scripts/quick_validate.py"
 ARTIFACT_ROOT = REPO_ROOT / "docs/tool-output/improve-codex-skills"
 DIMENSION_NAMES = [
@@ -43,6 +42,7 @@ DIMENSION_NAMES = [
     "tooling_appropriateness",
     "verification_behavior",
 ]
+POSTMORTEM_JUDGE_CATEGORIES = {"tool", "skill", "workflow", "docs", "token"}
 
 SECRET_PATTERNS = [
     re.compile(r"Authorization:\s*Bearer\s+\S+", re.IGNORECASE),
@@ -66,6 +66,112 @@ PREREQUISITE_PATTERNS = [
     re.compile(r"\bunknown argument\b", re.IGNORECASE),
     re.compile(r"\bpermission denied\b", re.IGNORECASE),
     re.compile(r"\bfailed to load skill\b", re.IGNORECASE),
+]
+POSTMORTEM_MISSING_FAILURE_PATTERNS = [
+    re.compile(
+        r"\bmissing\s+(?:(?:credential|credentials|environment|file|files|path|paths|config|configuration|dependency|dependencies|tool|command|schema|input|output|SKILL\.md)\b|\[HOST\])",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bmissing\s*:\s*(?:(?:credential|credentials|environment|file|files|path|paths|config|configuration|dependency|dependencies|tool|command|schema|input|output|SKILL\.md)\b|\[HOST\])",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:\b(?:credential|credentials|environment|file|files|path|paths|config|configuration|dependency|dependencies|tool|command|schema|input|output|SKILL\.md)|\[HOST\])\s+missing\b",
+        re.IGNORECASE,
+    ),
+]
+POSTMORTEM_DIRECT_TOOL_FAILURE_PATTERNS = [
+    re.compile(r"Expected date", re.IGNORECASE),
+    re.compile(r"Invalid environment variables", re.IGNORECASE),
+    re.compile(r"Invalid option", re.IGNORECASE),
+]
+POSTMORTEM_NEGATED_MISSING_SUCCESS_PATTERNS = [
+    re.compile(r"\b(?:no|zero)\s+missing\b", re.IGNORECASE),
+    re.compile(r"\b0\s+missing\b", re.IGNORECASE),
+]
+POSTMORTEM_NEGATED_REQUIRED_SUCCESS_PATTERNS = [
+    re.compile(r"\bno\s+changes?\s+required\b", re.IGNORECASE),
+    re.compile(r"\b0\s+required\s+changes?\b", re.IGNORECASE),
+    re.compile(r"\ball\s+required\s+checks?\s+passed\b", re.IGNORECASE),
+]
+POSTMORTEM_NONZERO_TOOL_FAILURE_PATTERNS = [
+    re.compile(r"\bfailed\b", re.IGNORECASE),
+    re.compile(r"\bblocked\b", re.IGNORECASE),
+]
+POSTMORTEM_REVIEWER_FINDING_PATTERNS = [
+    re.compile(r"\bFindings:\s*(?:\n|\r\n?)\s*(?:[-*]\s*)?(?:\[[Pp][0-3]\]|\d+\.)", re.IGNORECASE),
+    re.compile(r"^\s*(?:[-*]\s*)?\[[Pp][0-3]\]\s+", re.MULTILINE),
+]
+POSTMORTEM_STATUS_FAILURE_PATTERNS = [
+    re.compile(r"\b(?:blocked|failed):", re.IGNORECASE),
+    re.compile(r"\bblocked\s+(?:by|on|because)\b", re.IGNORECASE),
+    re.compile(r"\bfailed\s+to\b", re.IGNORECASE),
+    re.compile(r"\bstatus:\s*(?:blocked|failed)\b", re.IGNORECASE),
+]
+POSTMORTEM_EXPLICIT_STATUS_LINE_PATTERNS = [
+    re.compile(r"^\s*(?:blocked|failed):", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*status:\s*(?:blocked|failed)\b", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*blocked\s+(?:by|on|because)\b", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*failed\s+to\b", re.IGNORECASE | re.MULTILINE),
+]
+POSTMORTEM_ZERO_STATUS_COUNT_KEYS = {"blocked", "failed"}
+POSTMORTEM_LIFECYCLE_PATTERNS = [
+    re.compile(r"direct Prisma", re.IGNORECASE),
+    re.compile(r"\bbypassed\b", re.IGNORECASE),
+    re.compile(r"pendingConfig", re.IGNORECASE),
+    re.compile(r"changeLogEvent", re.IGNORECASE),
+    re.compile(r"\breconcile\b", re.IGNORECASE),
+]
+POSTMORTEM_LIFECYCLE_CONTEXT_PATTERNS = [
+    re.compile(r"\bcaveats?:.*(?:direct Prisma|bypassed|pendingConfig|changeLogEvent|reconcile)", re.IGNORECASE),
+    re.compile(r"\b(?:used|using)\s+direct Prisma\b", re.IGNORECASE),
+    re.compile(r"\bdirect Prisma\s+writes?\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:skipped|missing|bypass(?:ed)?|direct writes?)\b.*\b(?:pendingConfig|changeLogEvent|reconcile)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:pendingConfig|changeLogEvent|reconcile)\b.*\b(?:bypass(?:ed)?|skipped|missing)\b",
+        re.IGNORECASE,
+    ),
+]
+POSTMORTEM_LIFECYCLE_NEGATION_PATTERNS = [
+    re.compile(
+        r"\b(?:did not|didn't)\s+(?:use|using)\s+direct Prisma\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bnot\s+using\s+direct Prisma\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:did not|didn't)\s+bypass(?:ed)?\b[^.]{0,80}\b(?:pendingConfig|changeLogEvent|reconcile)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bnot\s+bypass(?:ed)?\b[^.]{0,80}\b(?:pendingConfig|changeLogEvent|reconcile)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bnever\s+(?:used?|using)\s+direct Prisma\b", re.IGNORECASE),
+    re.compile(
+        r"\bnever\s+bypass(?:ed)?\b[^.]{0,80}\b(?:pendingConfig|changeLogEvent|reconcile)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bdirect Prisma\s+writes?\s+were\s+not\s+used\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:pendingConfig|changeLogEvent|reconcile)\b[^.]{0,80}\bwas\s+not\s+bypassed\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bwithout\s+bypassing\b", re.IGNORECASE),
+    re.compile(r"\bno\s+direct Prisma\b", re.IGNORECASE),
+]
+
+POSTMORTEM_OVERCLAIM_PATTERNS = [
+    re.compile(r"not plan-approved", re.IGNORECASE),
+    re.compile(r"generated code not (?:imported|updated|fixed)", re.IGNORECASE),
+    re.compile(r"no generated-code-fixed", re.IGNORECASE),
+    re.compile(r"plans remain `?DRAFT`?", re.IGNORECASE),
 ]
 STOPWORDS = {
     "a",
@@ -242,6 +348,50 @@ class SuggestedChange:
         }
 
 
+@dataclass
+class PostmortemFact:
+    id: str
+    category: str
+    severity: str
+    kind: str
+    title: str
+    snippet: str
+    evidence_ref: str | None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "category": self.category,
+            "severity": self.severity,
+            "kind": self.kind,
+            "title": self.title,
+            "snippet": self.snippet,
+            "evidence_ref": self.evidence_ref,
+        }
+
+
+@dataclass
+class PostmortemSuggestion:
+    title: str
+    category: str
+    severity: str
+    rationale: str
+    evidence_refs: list[str]
+    fact_refs: list[str] = field(default_factory=list)
+    suggested_target: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "title": self.title,
+            "category": self.category,
+            "severity": self.severity,
+            "rationale": self.rationale,
+            "evidence_refs": self.evidence_refs,
+            "fact_refs": self.fact_refs,
+            "suggested_target": self.suggested_target,
+        }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Analyze Codex logs and report skill-improvement findings plus suggested changes.",
@@ -254,6 +404,11 @@ def parse_args() -> argparse.Namespace:
         "--census",
         action="store_true",
         help="List skills observed in the selected trace instead of analyzing one target skill",
+    )
+    parser.add_argument(
+        "--postmortem",
+        action="store_true",
+        help="Analyze a whole session as a workflow/tooling postmortem instead of one target skill.",
     )
     source = parser.add_mutually_exclusive_group()
     source.add_argument("--session-id", help="Codex session id")
@@ -294,10 +449,21 @@ def parse_args() -> argparse.Namespace:
         help="Model passed to codex exec for the judge stage.",
     )
     args = parser.parse_args()
-    if not args.census and not args.skill:
-        parser.error("--skill is required unless --census is used")
-    if args.census and args.skill:
-        parser.error("Pass either --census or --skill, not both")
+    selected_modes = sum(
+        1
+        for enabled in (
+            bool(args.census),
+            bool(args.postmortem),
+            args.skill is not None,
+        )
+        if enabled
+    )
+    if selected_modes == 0:
+        parser.error("--skill is required unless --census or --postmortem is used")
+    if selected_modes > 1:
+        parser.error("Pass only one of --skill, --census, or --postmortem")
+    if args.skill is not None and not args.skill.strip():
+        parser.error("--skill cannot be empty")
     return args
 
 
@@ -324,13 +490,18 @@ def resolve_target_skill(raw_skill: str) -> Path:
 
 def resolve_target_skill_selector(raw_skill: str, skill_path: Path) -> tuple[str, ...]:
     raw_selector = raw_skill.strip()
+    if is_variant_specific_selector(raw_selector):
+        selectors = [raw_selector]
+        raw_path = Path(raw_selector)
+        if not raw_path.is_absolute():
+            selectors.append(str((REPO_ROOT / raw_path).absolute()))
+        return tuple(selector for selector in dict.fromkeys(selectors) if selector)
+
     raw_path = Path(raw_selector)
     if raw_path.exists():
         selectors: list[str] = []
         if not raw_path.is_absolute():
             selectors.append(raw_selector)
-            if is_variant_specific_selector(raw_selector):
-                return tuple(selector for selector in dict.fromkeys(selectors) if selector)
         if skill_path.is_relative_to(REPO_ROOT):
             selectors.append(
                 normalize_repo_relative_selector(str(skill_path.relative_to(REPO_ROOT)))
@@ -653,7 +824,7 @@ def extract_exec_commands(payload: dict[str, object]) -> list[str]:
     for tool_use in tool_uses:
         if not isinstance(tool_use, dict):
             continue
-        if tool_use.get("recipient_name") != "functions.exec_command":
+        if tool_use.get("recipient_name") not in {"functions.exec_command", "exec_command"}:
             continue
         parameters = first_dict(tool_use.get("parameters"))
         command = parameters.get("cmd")
@@ -1048,15 +1219,31 @@ SCRIPT_READERS = {
     "awk",
     "bat",
     "cat",
+    "cut",
+    "find",
+    "git grep",
     "grep",
     "head",
+    "jq",
     "less",
+    "ls",
     "more",
     "nl",
     "rg",
     "sed",
+    "sort",
     "tail",
+    "tee",
+    "tr",
+    "uniq",
     "wc",
+}
+INSPECTION_SETUP_COMMANDS = {
+    "cd",
+    "mkdir",
+    "pwd",
+    "set",
+    "true",
 }
 
 
@@ -1131,12 +1318,27 @@ def skip_sudo_wrapper_options(tokens: list[str]) -> list[str]:
 
 def shell_inner_command(tokens: list[str]) -> str | None:
     index = 1
+    options_with_values = {"-o", "+o", "-O", "+O", "--rcfile", "--init-file"}
     while index < len(tokens):
         token = tokens[index]
-        if not token.startswith("-"):
+        if token == "--":
             return None
-        if "c" in token.lstrip("-"):
+        if not token.startswith(("-", "+")):
+            return None
+        if token in options_with_values:
+            index += 2
+            continue
+        if token.startswith("--"):
+            index += 1
+            continue
+        short_options = token.lstrip("-+")
+        if "o" in short_options or "O" in short_options:
+            index += 2
+            continue
+        if "c" in short_options:
             inner_index = index + 1
+            if inner_index < len(tokens) and tokens[inner_index] == "--":
+                inner_index += 1
             return tokens[inner_index] if inner_index < len(tokens) else None
         index += 1
     return None
@@ -1356,13 +1558,21 @@ def make_turn(index: int) -> dict[str, object]:
     }
 
 
-def add_message(turn: dict[str, object], role: str, text: str) -> dict[str, object]:
+def add_message(
+    turn: dict[str, object],
+    role: str,
+    text: str,
+    *,
+    source: str | None = None,
+) -> dict[str, object]:
     entry_index = len(turn["messages"]) + 1
     message = {
         "ref": f"{turn['ref']}.{role}-{entry_index}",
         "role": role,
         "text": redact_text(text),
     }
+    if source:
+        message["source"] = source
     turn["messages"].append(message)
     return message
 
@@ -1384,6 +1594,7 @@ def add_command(
     command: str,
     output: str,
     exit_code: int | None,
+    shared_output: bool = False,
 ) -> dict[str, object]:
     entry_index = len(turn["commands"]) + 1
     item = {
@@ -1393,6 +1604,8 @@ def add_command(
         "output": redact_text(output),
         "exit_code": exit_code,
     }
+    if shared_output:
+        item["shared_output"] = True
     turn["commands"].append(item)
     return item
 
@@ -1577,6 +1790,33 @@ def summarize_token_usage(usage: dict[str, object]) -> list[str]:
     return observations
 
 
+def has_high_token_usage(usage: dict[str, object]) -> bool:
+    total_tokens = usage.get("total_tokens")
+    input_tokens = usage.get("input_tokens")
+    cached_input_tokens = usage.get("cached_input_tokens")
+    output_tokens = usage.get("output_tokens")
+    last_usage = first_dict(usage.get("last_token_usage"))
+    last_total_tokens = last_usage.get("total_tokens")
+    return (
+        (isinstance(total_tokens, int) and total_tokens >= 100000)
+        or (isinstance(input_tokens, int) and input_tokens >= 50000)
+        or (
+            isinstance(cached_input_tokens, int)
+            and cached_input_tokens >= 50000
+            and isinstance(input_tokens, int)
+            and input_tokens > 0
+            and cached_input_tokens >= input_tokens // 2
+        )
+        or (
+            isinstance(input_tokens, int)
+            and isinstance(output_tokens, int)
+            and input_tokens >= 5000
+            and input_tokens >= output_tokens * 10
+        )
+        or (isinstance(last_total_tokens, int) and last_total_tokens >= 50000)
+    )
+
+
 def build_token_review(
     normalized: dict[str, object],
     findings: list[Finding],
@@ -1632,6 +1872,1127 @@ def build_token_review(
     }
 
 
+def snippet(text: str, limit: int = 300) -> str:
+    cleaned = re.sub(r"\s+", " ", redact_text(text)).strip()
+    if len(cleaned) <= limit:
+        return cleaned
+    return cleaned[: limit - 3].rstrip() + "..."
+
+
+def next_fact_id(category_counts: Counter[str], category: str) -> str:
+    category_counts[category] += 1
+    return f"{category}-{category_counts[category]}"
+
+
+def add_postmortem_fact(
+    facts: list[PostmortemFact],
+    category_counts: Counter[str],
+    *,
+    category: str,
+    severity: str,
+    title: str,
+    text: str,
+    evidence_ref: str | None,
+    kind: str = "observed",
+) -> None:
+    fact = PostmortemFact(
+        id=next_fact_id(category_counts, category),
+        category=category,
+        severity=severity,
+        kind=kind,
+        title=title,
+        snippet=snippet(text),
+        evidence_ref=evidence_ref,
+    )
+    if not fact.snippet:
+        return
+    facts.append(fact)
+
+
+def text_matches_any(text: str, patterns: list[re.Pattern[str]]) -> bool:
+    return any(pattern.search(text) for pattern in patterns)
+
+
+def postmortem_clauses(text: str) -> list[str]:
+    clauses = [
+        clause.strip()
+        for clause in re.split(
+            r"(?<=[.!?])\s+|[\n\r]+|[;]|\bbut\b|,\s*(?:then|and)\b|\band\s+then\b",
+            text,
+            flags=re.IGNORECASE,
+        )
+    ]
+    return [clause for clause in clauses if clause] or [text]
+
+
+def has_negated_missing_success(text: str) -> bool:
+    return text_matches_any(text, POSTMORTEM_NEGATED_MISSING_SUCCESS_PATTERNS)
+
+
+def has_negated_prerequisite_success(text: str) -> bool:
+    return has_negated_missing_success(text) or text_matches_any(
+        text, POSTMORTEM_NEGATED_REQUIRED_SUCCESS_PATTERNS
+    )
+
+
+def has_missing_resource_failure(text: str) -> bool:
+    searchable_text = re.sub(
+        r"\b(?:no|zero|0)\s+missing\b[^:\n\r,;]*:\s+",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return any(
+        text_matches_any(clause, POSTMORTEM_MISSING_FAILURE_PATTERNS)
+        and not has_negated_missing_success(clause)
+        for clause in re.split(r"[\n\r,;]+|\s+-\s+|\b(?:and|but)\b", searchable_text, flags=re.IGNORECASE)
+        if clause.strip()
+    )
+
+
+def has_specific_postmortem_tool_signal(text: str) -> bool:
+    if text_matches_any(text, POSTMORTEM_DIRECT_TOOL_FAILURE_PATTERNS):
+        return True
+    return has_missing_resource_failure(text)
+
+
+def has_non_shell_direct_tool_signal(text: str) -> bool:
+    return text_matches_any(
+        text,
+        [
+            re.compile(r"Invalid environment variables", re.IGNORECASE),
+            re.compile(r"Invalid option", re.IGNORECASE),
+        ],
+    )
+
+
+def has_non_shell_postmortem_tool_signal(text: str) -> bool:
+    if has_missing_resource_failure(text):
+        return True
+    if has_non_shell_direct_tool_signal(text):
+        return True
+    return any(
+        text_matches_any(clause, PREREQUISITE_PATTERNS)
+        and not has_negated_prerequisite_success(clause)
+        for clause in re.split(r"[\n\r,;]+|\s+-\s+|\b(?:and|but)\b", text, flags=re.IGNORECASE)
+        if clause.strip()
+    )
+
+
+def has_postmortem_status_failure(text: str) -> bool:
+    return text_matches_any(text, POSTMORTEM_STATUS_FAILURE_PATTERNS)
+
+
+def is_zero_count_status_summary_line(line: str) -> bool:
+    count_fields = list(re.finditer(r"\b([A-Za-z][A-Za-z -]*):\s*(\d+)\b", line))
+    if not count_fields:
+        return False
+
+    has_status_count = False
+    for match in count_fields:
+        key_words = set(match.group(1).lower().split())
+        count = int(match.group(2))
+        if key_words & POSTMORTEM_ZERO_STATUS_COUNT_KEYS:
+            has_status_count = True
+            if count != 0:
+                return False
+    if not has_status_count:
+        return False
+
+    residual = re.sub(r"\b[A-Za-z][A-Za-z -]*:\s*\d+\b", "", line)
+    residual = re.sub(r"[\s,;:.]+", " ", residual).strip().lower()
+    residual_words = set(residual.split()) if residual else set()
+    return residual_words <= {"summary", "status", "test", "tests", "result", "results"}
+
+
+def has_actionable_postmortem_status_failure(text: str) -> bool:
+    for line in text.splitlines():
+        if is_zero_count_status_summary_line(line):
+            continue
+        if text_matches_any(line, POSTMORTEM_STATUS_FAILURE_PATTERNS):
+            return True
+    return False
+
+
+def has_nonzero_exit_marker(text: str) -> bool:
+    return any(int(code) != 0 for code in re.findall(r"Process exited with code (\d+)", text))
+
+
+def has_postmortem_reviewer_finding(text: str) -> bool:
+    return text_matches_any(text, POSTMORTEM_REVIEWER_FINDING_PATTERNS)
+
+
+def has_explicit_postmortem_status_line(text: str) -> bool:
+    return text_matches_any(text, POSTMORTEM_EXPLICIT_STATUS_LINE_PATTERNS)
+
+
+def is_postmortem_lifecycle_signal_segment(segment: str) -> bool:
+    return (
+        text_matches_any(segment, POSTMORTEM_LIFECYCLE_PATTERNS)
+        and not text_matches_any(segment, POSTMORTEM_LIFECYCLE_NEGATION_PATTERNS)
+        and text_matches_any(segment, POSTMORTEM_LIFECYCLE_CONTEXT_PATTERNS)
+    )
+
+
+def postmortem_lifecycle_signal_segments(text: str) -> list[str]:
+    return [
+        segment
+        for segment in postmortem_clauses(text)
+        if is_postmortem_lifecycle_signal_segment(segment)
+    ]
+
+
+def has_postmortem_lifecycle_signal(text: str) -> bool:
+    return bool(postmortem_lifecycle_signal_segments(text))
+
+
+def postmortem_lifecycle_severity(text: str) -> str:
+    for segment in postmortem_lifecycle_signal_segments(text):
+        lowered_segment = segment.lower()
+        if "direct prisma" in lowered_segment or "bypassed" in lowered_segment:
+            return "high"
+    return "medium"
+
+
+def is_nonzero_exit_code(value: object) -> bool:
+    if isinstance(value, int):
+        return value != 0
+    if isinstance(value, str) and value.strip():
+        try:
+            return int(value) != 0
+        except ValueError:
+            return False
+    return False
+
+
+def command_name_from_text(command_text: str) -> str:
+    try:
+        tokens = shlex.split(command_text)
+    except ValueError:
+        return ""
+    if not tokens:
+        return ""
+
+    while tokens and "=" in tokens[0] and not tokens[0].startswith(("./", "/", ".agents/")):
+        tokens = tokens[1:]
+    if not tokens:
+        return ""
+
+    if tokens[0] == "cd":
+        if "&&" in tokens:
+            next_command = tokens[tokens.index("&&") + 1 :]
+            return command_name_from_text(shlex.join(next_command)) if next_command else ""
+        for index, token in enumerate(tokens):
+            if token.endswith(";"):
+                next_command = tokens[index + 1 :]
+                return command_name_from_text(shlex.join(next_command)) if next_command else ""
+
+    command_name = Path(tokens[0]).name
+    if command_name == "env":
+        tokens = skip_env_wrapper_options(tokens)
+        return command_name_from_text(shlex.join(tokens)) if tokens else ""
+    if command_name == "sudo":
+        tokens = skip_sudo_wrapper_options(tokens)
+        return command_name_from_text(shlex.join(tokens)) if tokens else ""
+    if command_name in {"bash", "sh", "zsh"}:
+        inner_command = shell_inner_command(tokens)
+        if inner_command:
+            return command_name_from_text(inner_command)
+    if command_name == "git":
+        index = 1
+        while index < len(tokens):
+            token = tokens[index]
+            if token in {"-C", "-c", "--git-dir", "--work-tree"}:
+                index += 2
+                continue
+            if token.startswith("-"):
+                index += 1
+                continue
+            break
+        if index < len(tokens) and tokens[index] == "grep":
+            return "git grep"
+    return command_name
+
+
+def quoted_shell_segments(command_text: str) -> set[str]:
+    segments: set[str] = set()
+    current: list[str] = []
+    quote: str | None = None
+    escaped = False
+    for char in command_text:
+        if escaped:
+            if quote is not None:
+                current.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if quote is None:
+            if char in {"'", '"'}:
+                quote = char
+                current = []
+            continue
+        if char == quote:
+            segments.add("".join(current))
+            quote = None
+            current = []
+            continue
+        current.append(char)
+    return segments
+
+
+def command_names_from_text(command_text: str) -> list[str]:
+    try:
+        tokens = shlex.split(command_text)
+    except ValueError:
+        return []
+    if not tokens:
+        return []
+
+    while tokens and "=" in tokens[0] and not tokens[0].startswith(("./", "/", ".agents/")):
+        tokens = tokens[1:]
+    if not tokens:
+        return []
+
+    command_name = Path(tokens[0]).name
+    if command_name == "env":
+        tokens = skip_env_wrapper_options(tokens)
+        return command_names_from_text(shlex.join(tokens)) if tokens else []
+    if command_name == "sudo":
+        tokens = skip_sudo_wrapper_options(tokens)
+        return command_names_from_text(shlex.join(tokens)) if tokens else []
+    if command_name in {"bash", "sh", "zsh"}:
+        inner_command = shell_inner_command(tokens)
+        if inner_command:
+            return command_names_from_text(inner_command)
+
+    tokens = split_compound_shell_operator_tokens(tokens, quoted_shell_segments(command_text))
+    names: list[str] = []
+    segment: list[str] = []
+
+    def append_segment_name() -> None:
+        if not segment:
+            return
+        name = command_name_from_text(shlex.join(segment))
+        if name:
+            names.append(name)
+
+    for token in tokens:
+        stripped = token.strip()
+        if stripped in {"&&", "||", "|", ";"}:
+            append_segment_name()
+            segment = []
+            continue
+        segment.append(token)
+        if stripped.endswith(";"):
+            append_segment_name()
+            segment = []
+    append_segment_name()
+    if not names:
+        name = command_name_from_text(command_text)
+        if name:
+            names.append(name)
+    return names
+
+
+def split_compound_shell_operator_tokens(tokens: list[str], protected_tokens: set[str] | None = None) -> list[str]:
+    compact_command_start = (
+        r"(?:[./]|node\b|python3?\b|bash\b|sh\b|bun\b|npx\b|pytest\b|deno\b|ruby\b|perl\b|rg\b|grep\b|git\b|sed\b|cat\b|awk\b|find\b|ls\b|head\b|tail\b|nl\b|wc\b)"
+    )
+    protected_tokens = protected_tokens or set()
+    split_tokens: list[str] = []
+    for token in tokens:
+        if token in protected_tokens:
+            parts = [token]
+        elif "|" in token and not any(operator in token for operator in ("&&", "||", ";")):
+            parts = (
+                re.split(r"(\|)", token)
+                if re.search(rf"[^\s]\|{compact_command_start}", token)
+                else [token]
+            )
+        elif ";" in token and not any(operator in token for operator in ("&&", "||", "|")):
+            parts = (
+                re.split(r"(;)", token)
+                if re.search(rf";{compact_command_start}", token)
+                else [token]
+            )
+        else:
+            parts = re.split(r"(&&|\|\||[;|])", token)
+        split_tokens.extend(part for part in parts if part)
+    return split_tokens
+
+
+def is_content_inspection_command(command_text: str) -> bool:
+    return any(name in SCRIPT_READERS for name in command_names_from_text(command_text))
+
+
+def has_non_inspection_work_command(command_text: str) -> bool:
+    return any(
+        name not in SCRIPT_READERS and name not in INSPECTION_SETUP_COMMANDS
+        for name in command_names_from_text(command_text)
+    )
+
+
+def is_postmortem_signal_work_command(command_text: str) -> bool:
+    lowered = command_text.lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "core8",
+            "workflow",
+            "trpc",
+            "codex-review",
+            "review-adapter",
+        )
+    )
+
+
+def is_search_command(command_text: str) -> bool:
+    return any(name in {"grep", "rg", "git grep"} for name in command_names_from_text(command_text))
+
+
+def has_parallel_non_exec_tool_call(tool_call: dict[str, object]) -> bool:
+    arguments = parse_jsonish(tool_call.get("arguments"))
+    tool_uses = arguments.get("tool_uses")
+    if not isinstance(tool_uses, list):
+        return False
+    return any(
+        isinstance(tool_use, dict)
+        and tool_use.get("recipient_name") not in {"functions.exec_command", "exec_command"}
+        for tool_use in tool_uses
+    )
+
+
+def is_search_no_match_output(output_text: str) -> bool:
+    stripped = output_text.strip()
+    if not stripped:
+        return True
+    if re.fullmatch(r"Process exited with code 1", stripped) is not None:
+        return True
+    output_match = re.search(r"(?ms)^Output:\s*(.*)\Z", stripped)
+    return "Process exited with code 1" in stripped and bool(
+        output_match and not output_match.group(1).strip()
+    )
+
+
+def is_shared_search_no_match_output(output_text: str) -> bool:
+    return "Process exited with code 1" in output_text and is_search_no_match_output(output_text)
+
+
+def is_obvious_reader_failure_command(command_text: str) -> bool:
+    return (
+        re.search(r"\b(?:missing|not[-_ ]found|no[-_ ]such)(?:[._/-]|\b)", command_text, re.IGNORECASE)
+        is not None
+        or re.search(r"\b2>\s*/dev/null\b|2>/dev/null", command_text) is not None
+    )
+
+
+def extract_postmortem_facts(normalized: dict[str, object]) -> list[PostmortemFact]:
+    facts: list[PostmortemFact] = []
+    category_counts: Counter[str] = Counter()
+    seen_shared_failure_outputs: set[str] = set()
+    commands = [command for command in normalized.get("commands", []) if isinstance(command, dict)]
+    shared_search_no_match_outputs = {
+        str(command.get("output", ""))
+        for command in commands
+        if command.get("shared_output") is True
+        and is_search_command(str(command.get("command", "")))
+        and is_shared_search_no_match_output(str(command.get("output", "")))
+    }
+    shared_successful_inspection_outputs = {
+        str(command.get("output", ""))
+        for command in commands
+        if command.get("shared_output") is True
+        and not is_nonzero_exit_code(command.get("exit_code"))
+        and is_content_inspection_command(str(command.get("command", "")))
+    }
+    shared_successful_search_outputs = {
+        str(command.get("output", ""))
+        for command in commands
+        if command.get("shared_output") is True
+        and not is_nonzero_exit_code(command.get("exit_code"))
+        and is_search_command(str(command.get("command", "")))
+    }
+    shared_successful_non_inspection_outputs = {
+        str(command.get("output", ""))
+        for command in commands
+        if command.get("shared_output") is True
+        and not is_nonzero_exit_code(command.get("exit_code"))
+        and not is_content_inspection_command(str(command.get("command", "")))
+    }
+    shared_nonzero_action_outputs = {
+        str(command.get("output", ""))
+        for command in commands
+        if command.get("shared_output") is True
+        and (
+            is_nonzero_exit_code(command.get("exit_code"))
+            or has_nonzero_exit_marker(str(command.get("output", "")))
+        )
+        and (
+            has_non_inspection_work_command(str(command.get("command", "")))
+            or is_content_inspection_command(str(command.get("command", "")))
+        )
+    }
+    shared_nonzero_work_outputs = {
+        str(command.get("output", ""))
+        for command in commands
+        if command.get("shared_output") is True
+        and (
+            is_nonzero_exit_code(command.get("exit_code"))
+            or has_nonzero_exit_marker(str(command.get("output", "")))
+        )
+        and has_non_inspection_work_command(str(command.get("command", "")))
+    }
+    shared_nonzero_work_counts = Counter(
+        str(command.get("output", ""))
+        for command in commands
+        if command.get("shared_output") is True
+        and (
+            is_nonzero_exit_code(command.get("exit_code"))
+            or has_nonzero_exit_marker(str(command.get("output", "")))
+        )
+        and has_non_inspection_work_command(str(command.get("command", "")))
+    )
+    shared_ambiguous_nonzero_outputs = {
+        output for output, count in shared_nonzero_work_counts.items() if count > 1
+    }
+    shared_nonzero_inspection_outputs = {
+        str(command.get("output", ""))
+        for command in commands
+        if command.get("shared_output") is True
+        and (
+            is_nonzero_exit_code(command.get("exit_code"))
+            or has_nonzero_exit_marker(str(command.get("output", "")))
+        )
+        and is_content_inspection_command(str(command.get("command", "")))
+    }
+    shared_ambiguous_nonzero_outputs.update(
+        output
+        for output in shared_nonzero_work_outputs
+        if output in shared_nonzero_inspection_outputs
+    )
+    shared_parallel_non_exec_outputs = {
+        str(tool_call.get("output", ""))
+        for tool_call in normalized.get("tool_calls", [])
+        if isinstance(tool_call, dict)
+        and str(tool_call.get("name", "")) == "multi_tool_use.parallel"
+        and has_parallel_non_exec_tool_call(tool_call)
+    }
+    for command in commands:
+        command_text = str(command.get("command", ""))
+        output_text = str(command.get("output", ""))
+        combined = f"{command_text}\n{output_text}"
+        exit_code = command.get("exit_code")
+        has_shared_output = command.get("shared_output") is True
+        has_nonzero_exit = is_nonzero_exit_code(exit_code) or (
+            has_shared_output and has_nonzero_exit_marker(output_text)
+        )
+        has_specific_tool_signal = has_specific_postmortem_tool_signal(output_text)
+        has_nonzero_tool_signal = text_matches_any(
+            output_text,
+            POSTMORTEM_NONZERO_TOOL_FAILURE_PATTERNS,
+        )
+        has_reviewer_finding = has_postmortem_reviewer_finding(output_text)
+        has_status_failure = has_postmortem_status_failure(output_text)
+        has_actionable_status_failure = has_actionable_postmortem_status_failure(output_text)
+        is_inspection_command = is_content_inspection_command(command_text)
+        has_work_command = has_non_inspection_work_command(command_text)
+        has_signal_work_command = is_postmortem_signal_work_command(command_text)
+        is_inspection_only_command = (
+            is_inspection_command and not has_work_command
+        )
+        is_search_no_match = (
+            is_search_command(command_text)
+            and is_search_no_match_output(output_text)
+            and (
+                exit_code == 1
+                or exit_code == "1"
+                or (has_shared_output and is_shared_search_no_match_output(output_text))
+            )
+        )
+        if is_search_no_match:
+            continue
+        if (
+            has_shared_output
+            and output_text in shared_search_no_match_outputs
+            and not is_search_command(command_text)
+            and not has_work_command
+            and not is_obvious_reader_failure_command(command_text)
+        ):
+            continue
+        if (
+            has_shared_output
+            and has_nonzero_exit
+            and output_text in shared_ambiguous_nonzero_outputs
+        ):
+            continue
+        if has_shared_output and output_text in shared_parallel_non_exec_outputs:
+            continue
+        if (
+            has_shared_output
+            and has_nonzero_exit
+            and output_text in shared_nonzero_work_outputs
+            and not has_work_command
+        ):
+            continue
+        if (
+            has_shared_output
+            and has_nonzero_exit
+            and output_text in shared_nonzero_action_outputs
+            and not has_work_command
+            and not is_inspection_command
+        ):
+            continue
+        if (
+            has_shared_output
+            and output_text in shared_successful_search_outputs
+            and not has_nonzero_exit
+            and not (
+                has_signal_work_command
+                and has_explicit_postmortem_status_line(output_text)
+                and has_actionable_status_failure
+            )
+            and not (has_signal_work_command and has_specific_tool_signal)
+        ):
+            continue
+        if (
+            has_shared_output
+            and output_text in shared_successful_inspection_outputs
+            and not has_nonzero_exit
+            and output_text not in shared_successful_non_inspection_outputs
+            and not has_specific_tool_signal
+            and not has_reviewer_finding
+            and not (has_actionable_status_failure and has_work_command)
+        ):
+            continue
+        if (
+            has_shared_output
+            and output_text in shared_successful_search_outputs
+            and not has_nonzero_exit
+            and not has_specific_tool_signal
+            and not has_reviewer_finding
+            and not (has_actionable_status_failure and has_work_command)
+        ):
+            continue
+        if (
+            has_shared_output
+            and has_explicit_postmortem_status_line(output_text)
+            and has_actionable_status_failure
+            and has_work_command
+        ):
+            if output_text in seen_shared_failure_outputs:
+                continue
+            seen_shared_failure_outputs.add(output_text)
+            add_postmortem_fact(
+                facts,
+                category_counts,
+                category="tool",
+                severity="high",
+                title="Command or tool path failed",
+                text=combined,
+                evidence_ref=str(command.get("ref")) if command.get("ref") else None,
+            )
+            continue
+        if has_shared_output and (has_specific_tool_signal or has_reviewer_finding) and has_work_command:
+            if output_text in seen_shared_failure_outputs:
+                continue
+            seen_shared_failure_outputs.add(output_text)
+            add_postmortem_fact(
+                facts,
+                category_counts,
+                category="tool",
+                severity="high",
+                title="Command or tool path failed",
+                text=combined,
+                evidence_ref=str(command.get("ref")) if command.get("ref") else None,
+            )
+            continue
+        if has_shared_output and has_nonzero_exit:
+            if output_text in seen_shared_failure_outputs:
+                continue
+            seen_shared_failure_outputs.add(output_text)
+            add_postmortem_fact(
+                facts,
+                category_counts,
+                category="tool",
+                severity="high" if has_nonzero_tool_signal or has_status_failure else "medium",
+                title="Command or tool path failed",
+                text=combined,
+                evidence_ref=str(command.get("ref")) if command.get("ref") else None,
+            )
+            continue
+        if (
+            has_nonzero_exit
+            or (has_specific_tool_signal and not is_inspection_only_command and not has_shared_output)
+            or (has_reviewer_finding and not is_inspection_only_command and not has_shared_output)
+            or (
+                has_actionable_status_failure
+                and not is_inspection_only_command
+                and not has_shared_output
+            )
+        ):
+            add_postmortem_fact(
+                facts,
+                category_counts,
+                category="tool",
+                severity="high"
+                if (
+                    "Expected date" in output_text
+                    or "Invalid environment" in output_text
+                    or has_nonzero_tool_signal
+                    or has_specific_tool_signal
+                    or has_reviewer_finding
+                    or has_status_failure
+                )
+                else "medium",
+                title="Command or tool path failed",
+                text=combined,
+                evidence_ref=str(command.get("ref")) if command.get("ref") else None,
+            )
+
+    command_tool_names = {"exec_command", "functions.exec_command"}
+    for tool_call in normalized.get("tool_calls", []):
+        if not isinstance(tool_call, dict):
+            continue
+        name = str(tool_call.get("name", ""))
+        if name in command_tool_names:
+            continue
+        output_text = str(tool_call.get("output", ""))
+        if (
+            name == "multi_tool_use.parallel"
+            and commands
+            and output_text not in shared_ambiguous_nonzero_outputs
+            and not has_parallel_non_exec_tool_call(tool_call)
+        ):
+            continue
+        if not output_text:
+            continue
+        if (
+            has_actionable_postmortem_status_failure(output_text)
+            or has_postmortem_reviewer_finding(output_text)
+            or has_non_shell_postmortem_tool_signal(output_text)
+            or (name == "multi_tool_use.parallel" and has_nonzero_exit_marker(output_text))
+        ):
+            add_postmortem_fact(
+                facts,
+                category_counts,
+                category="tool",
+                severity="high",
+                title="Tool call failure or blocker",
+                text=f"{name}\n{output_text}",
+                evidence_ref=str(tool_call.get("ref")) if tool_call.get("ref") else None,
+            )
+
+    for error in normalized.get("errors", []):
+        if not isinstance(error, dict):
+            continue
+        raw_message = error.get("message", "")
+        if not isinstance(raw_message, str):
+            continue
+        message = raw_message.strip()
+        if not message:
+            continue
+        add_postmortem_fact(
+            facts,
+            category_counts,
+            category="tool",
+            severity="high",
+            title="Trace error event",
+            text=message,
+            evidence_ref=str(error.get("ref")) if error.get("ref") else None,
+        )
+
+    for message in normalized.get("assistant_messages", []):
+        if not isinstance(message, dict):
+            continue
+        text = str(message.get("text", ""))
+        ref = str(message.get("ref")) if message.get("ref") else None
+        if message.get("source") == "event_msg":
+            add_postmortem_fact(
+                facts,
+                category_counts,
+                category="workflow",
+                severity="low",
+                title="Narrative milestone",
+                text=text,
+                evidence_ref=ref,
+            )
+        if has_postmortem_lifecycle_signal(text):
+            add_postmortem_fact(
+                facts,
+                category_counts,
+                category="workflow",
+                severity=postmortem_lifecycle_severity(text),
+                title="Workflow bypass or lifecycle caveat",
+                text=text,
+                evidence_ref=ref,
+            )
+        if text_matches_any(text, POSTMORTEM_OVERCLAIM_PATTERNS):
+            add_postmortem_fact(
+                facts,
+                category_counts,
+                category="workflow",
+                severity="medium",
+                title="No-overclaim caveat",
+                text=text,
+                evidence_ref=ref,
+            )
+
+    for message in normalized.get("user_messages", []):
+        if not isinstance(message, dict):
+            continue
+        if message.get("source") != "event_msg":
+            continue
+        text = str(message.get("text", ""))
+        ref = str(message.get("ref")) if message.get("ref") else None
+        add_postmortem_fact(
+            facts,
+            category_counts,
+            category="workflow",
+            severity="low",
+            title="Narrative milestone",
+            text=text,
+            evidence_ref=ref,
+        )
+
+    usage = first_dict(normalized.get("usage"))
+    if usage.get("has_usage") and isinstance(usage.get("total_tokens"), int):
+        raw_refs = usage.get("raw_refs")
+        evidence_ref = None
+        if isinstance(raw_refs, list) and raw_refs:
+            evidence_ref = str(raw_refs[-1])
+        token_title = (
+            "High token usage observed"
+            if has_high_token_usage(usage)
+            else "Token accounting available"
+        )
+        add_postmortem_fact(
+            facts,
+            category_counts,
+            category="token",
+            severity="medium",
+            title=token_title,
+            text="; ".join(summarize_token_usage(usage)),
+            evidence_ref=evidence_ref,
+        )
+
+    if not facts:
+        add_postmortem_fact(
+            facts,
+            category_counts,
+            category="workflow",
+            severity="low",
+            title="Low-signal postmortem",
+            text="The trace did not contain strong command failure, lifecycle bypass, or token accounting signals.",
+            evidence_ref=None,
+        )
+
+    return facts
+
+
+POSTMORTEM_SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3}
+
+
+def strongest_postmortem_severity(facts: list[PostmortemFact], default: str = "medium") -> str:
+    if not facts:
+        return default
+    return max(
+        facts,
+        key=lambda fact: POSTMORTEM_SEVERITY_RANK.get(fact.severity, 0),
+    ).severity
+
+
+def is_low_signal_postmortem(facts: list[PostmortemFact]) -> bool:
+    return (
+        len(facts) == 1
+        and facts[0].category == "workflow"
+        and facts[0].severity == "low"
+        and facts[0].title == "Low-signal postmortem"
+    )
+
+
+def is_actionable_postmortem_fact(fact: PostmortemFact) -> bool:
+    if fact.title in {"Low-signal postmortem", "Narrative milestone", "Token accounting available"}:
+        return False
+    return fact.severity in {"medium", "high"}
+
+
+def build_postmortem_suggestions(facts: list[PostmortemFact]) -> list[PostmortemSuggestion]:
+    if is_low_signal_postmortem(facts):
+        return []
+
+    by_category: dict[str, list[PostmortemFact]] = {}
+    for fact in facts:
+        if not is_actionable_postmortem_fact(fact):
+            continue
+        by_category.setdefault(fact.category, []).append(fact)
+
+    suggestions: list[PostmortemSuggestion] = []
+
+    if "tool" in by_category:
+        suggestions.append(
+            PostmortemSuggestion(
+                title="Harden the supported tool or CLI path",
+                category="tool",
+                severity=strongest_postmortem_severity(by_category["tool"]),
+                rationale="One or more supported command paths failed before the workflow could complete normally.",
+                evidence_refs=[
+                    fact.evidence_ref
+                    for fact in by_category["tool"]
+                    if fact.evidence_ref
+                ],
+                suggested_target="tooling/CLI command surface",
+            )
+        )
+
+    if "workflow" in by_category:
+        suggestions.append(
+            PostmortemSuggestion(
+                title="Clarify lifecycle-safe operator workflow",
+                category="workflow",
+                severity=strongest_postmortem_severity(by_category["workflow"]),
+                rationale=(
+                    "The session showed lifecycle caveats, bypasses, or no-overclaim risks "
+                    "that need explicit workflow support."
+                ),
+                evidence_refs=[
+                    fact.evidence_ref
+                    for fact in by_category["workflow"]
+                    if fact.evidence_ref
+                ],
+                suggested_target="skills and operator workflow docs",
+            )
+        )
+
+    if "token" in by_category:
+        suggestions.append(
+            PostmortemSuggestion(
+                title="Add token budget checkpoints",
+                category="token",
+                severity=strongest_postmortem_severity(by_category["token"]),
+                rationale=(
+                    "The session used enough context that future runs need an explicit budget "
+                    "checkpoint before repeating large inputs or review loops."
+                ),
+                evidence_refs=[
+                    fact.evidence_ref
+                    for fact in by_category["token"]
+                    if fact.evidence_ref
+                ],
+                suggested_target="skills and operator workflow docs",
+            )
+        )
+
+    return suggestions
+
+
+def is_postmortem_command_failure_fact(fact: PostmortemFact) -> bool:
+    return (
+        is_actionable_postmortem_fact(fact)
+        and fact.category == "tool"
+        and isinstance(fact.evidence_ref, str)
+        and fact.title
+        in {"Command or tool path failed", "Tool call failure or blocker", "Trace error event"}
+    )
+
+
+def count_postmortem_command_failure_facts(facts: list[PostmortemFact]) -> int:
+    refs = {
+        fact.evidence_ref
+        for fact in facts
+        if is_postmortem_command_failure_fact(fact) and fact.evidence_ref
+    }
+    return len(refs)
+
+
+def count_postmortem_commands(normalized: dict[str, object], failed_command_count: int) -> int:
+    stats = first_dict(normalized.get("stats"))
+    commands = [
+        command for command in normalized.get("commands", []) if isinstance(command, dict)
+    ]
+    stats_command_count = stats.get("command_count")
+    if isinstance(stats_command_count, int):
+        return max(stats_command_count, len(commands), failed_command_count)
+    return max(len(commands), failed_command_count)
+
+
+def build_postmortem_timeline(normalized: dict[str, object], failed_command_count: int) -> list[str]:
+    lines: list[str] = []
+    user_messages = [
+        message for message in normalized.get("user_messages", []) if isinstance(message, dict)
+    ]
+    assistant_messages = [
+        message for message in normalized.get("assistant_messages", []) if isinstance(message, dict)
+    ]
+
+    if user_messages:
+        first_user_text = snippet(str(user_messages[0].get("text", "")), limit=180)
+        if first_user_text:
+            lines.append(f"- Initial request: {first_user_text}")
+
+    if failed_command_count:
+        lines.append(f"- Failed supported command paths: {failed_command_count}")
+    else:
+        lines.append("- No command failures were detected.")
+
+    if assistant_messages:
+        final_assistant_text = snippet(str(assistant_messages[-1].get("text", "")), limit=220)
+        if final_assistant_text:
+            lines.append(f"- Final assistant caveat or outcome: {final_assistant_text}")
+
+    return lines
+
+
+def render_fact_list(facts: list[PostmortemFact]) -> list[str]:
+    if not facts:
+        return ["- No facts in this category."]
+    lines: list[str] = []
+    for fact in facts:
+        fact_ref = f" Fact: `{fact.id}`."
+        ref = f" Trace ref: `{fact.evidence_ref}`." if fact.evidence_ref else ""
+        lines.append(
+            f"- **{fact.title}** (`{fact.category}`, `{fact.severity}`, {fact.kind.title()}). "
+            f"{fact.snippet}{fact_ref}{ref}"
+        )
+    return lines
+
+
+def build_postmortem_next_steps(facts: list[PostmortemFact]) -> list[str]:
+    actionable_facts = [fact for fact in facts if is_actionable_postmortem_fact(fact)]
+    if not actionable_facts:
+        return ["- Capture clearer command, artifact, and outcome evidence before rerunning the postmortem."]
+
+    categories = {fact.category for fact in actionable_facts}
+    titles = {fact.title for fact in actionable_facts}
+    lines: list[str] = []
+
+    if "tool" in categories:
+        lines.append(
+            "- Prefer supported commands when available; if a supported path fails, record the exact error before switching approach."
+        )
+    if "Workflow bypass or lifecycle caveat" in titles:
+        lines.append(
+            "- Stop when a workflow lifecycle bypass would be required and record the blocker before using a direct workaround."
+        )
+    elif "workflow" in categories:
+        lines.append("- Add an explicit checkpoint before changing workflow state or switching strategy.")
+    if "No-overclaim caveat" in titles:
+        lines.append("- State draft, approval, and generated-output caveats only when the trace supports them.")
+    if "token" in categories:
+        lines.append("- Set a token budget checkpoint before repeating large context or review loops.")
+
+    return lines
+
+
+def build_postmortem_report(
+    *,
+    trace_path: Path,
+    trace_format: str,
+    source_label: str,
+    source_metadata: dict[str, object],
+    normalized: dict[str, object],
+    facts: list[PostmortemFact],
+    suggestions: list[PostmortemSuggestion],
+    mode: str,
+    judge_output: dict[str, object] | None,
+    judge_error: str,
+) -> str:
+    observed_facts = [fact for fact in facts if fact.kind == "observed"]
+    observed_failure_facts = [
+        fact for fact in observed_facts if is_actionable_postmortem_fact(fact)
+    ]
+    inferred_facts = [fact for fact in facts if fact.kind == "inferred"]
+    facts_by_category: dict[str, list[PostmortemFact]] = {}
+    for fact in facts:
+        facts_by_category.setdefault(fact.category, []).append(fact)
+    failed_command_count = count_postmortem_command_failure_facts(observed_failure_facts)
+    command_count = count_postmortem_commands(normalized, failed_command_count)
+
+    lines = [
+        "# Codex Session Postmortem",
+        "",
+        f"- Trace path: `{trace_path}`",
+        f"- Trace format: `{trace_format}`",
+        f"- Trace source: `{source_label}`",
+        f"- Analysis mode: `{mode}`",
+    ]
+    session_id = source_metadata.get("session_id") or source_metadata.get("resolved_session_id")
+    if isinstance(session_id, str):
+        lines.append(f"- Session id: `{session_id}`")
+    matched_cwd = source_metadata.get("matched_cwd")
+    if isinstance(matched_cwd, str):
+        lines.append(f"- Matched cwd: `{matched_cwd}`")
+
+    lines.extend(["", "## What Happened?", ""])
+    lines.extend(build_postmortem_timeline(normalized, failed_command_count))
+    lines.append("")
+    stats = first_dict(normalized.get("stats"))
+    for key in ("event_count", "turn_count", "command_count", "failed_command_count", "tool_call_count"):
+        if key in stats:
+            if key == "failed_command_count":
+                value = failed_command_count
+            elif key == "command_count":
+                value = command_count
+            else:
+                value = stats[key]
+            lines.append(f"- {key.replace('_', ' ').title()}: {value}")
+    if not stats:
+        lines.append("- Trace statistics were unavailable.")
+
+    lines.extend(["", "## What Failed?", "", "### Observed", ""])
+    if failed_command_count == 0:
+        lines.append("- No command failures were detected.")
+    if observed_failure_facts:
+        lines.extend(render_fact_list(observed_failure_facts))
+    else:
+        lines.append("- No observed failure facts were extracted.")
+
+    lines.extend(["", "## Why Did It Fail?", "", "### Inferred", ""])
+    if inferred_facts:
+        lines.extend(render_fact_list(inferred_facts))
+    else:
+        lines.append("- No additional inferred facts were generated beyond the observed evidence.")
+
+    lines.extend(["", "### Categories", ""])
+    for category in sorted(facts_by_category):
+        lines.append(f"- `{category}`: {len(facts_by_category[category])} fact(s)")
+
+    lines.extend(["", "## Token Review", ""])
+    usage = first_dict(normalized.get("usage"))
+    if usage.get("has_usage"):
+        for observation in summarize_token_usage(usage):
+            lines.append(f"- {observation}")
+    else:
+        lines.append("- Token review unavailable because the trace did not expose token accounting fields.")
+
+    if judge_output:
+        lines.extend(["", "## Judge Synthesis", ""])
+        lines.append(f"- Summary: {judge_output.get('summary', '')}")
+    elif judge_error:
+        lines.extend(["", "## Judge Synthesis", ""])
+        lines.append("- Judge stage failed; deterministic postmortem output was used.")
+        lines.append(f"- Error: {judge_error}")
+
+    lines.extend(["", "## What Should Change?", ""])
+    if suggestions:
+        for suggestion in suggestions:
+            lines.append(f"- **{suggestion.title}** (`{suggestion.category}`, `{suggestion.severity}`)")
+            lines.append(f"  Rationale: {suggestion.rationale}")
+            if suggestion.suggested_target:
+                lines.append(f"  Target: `{suggestion.suggested_target}`")
+            if suggestion.fact_refs:
+                lines.append(f"  Fact refs: {', '.join(suggestion.fact_refs)}")
+            if suggestion.evidence_refs:
+                lines.append(f"  Trace refs: {', '.join(suggestion.evidence_refs)}")
+    else:
+        lines.append("- No concrete recommendation was generated.")
+
+    lines.extend(["", "## What Should We Do Next Time?", ""])
+    lines.extend(build_postmortem_next_steps(facts))
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def normalize_stored_session(events: list[dict[str, object]]) -> dict[str, object]:
     outputs_by_call_id: dict[str, str] = {}
     turn = make_turn(1)
@@ -1649,10 +3010,17 @@ def normalize_stored_session(events: list[dict[str, object]]) -> dict[str, objec
             outputs_by_call_id[call_id] = output
 
     for event in events:
-        if event.get("type") != "response_item":
-            continue
+        event_type = event.get("type")
         payload = event.get("payload")
         if not isinstance(payload, dict):
+            continue
+        if event_type == "event_msg" and payload.get("type") in {"user_message", "agent_message"}:
+            text = extract_event_message_text(payload)
+            if text:
+                role = "user" if payload.get("type") == "user_message" else "assistant"
+                add_message(turn, role, text, source="event_msg")
+            continue
+        if event_type != "response_item":
             continue
         payload_type = str(payload.get("type", ""))
         if payload_type == "message":
@@ -1689,6 +3057,7 @@ def normalize_stored_session(events: list[dict[str, object]]) -> dict[str, objec
                         command=command,
                         output=output_text,
                         exit_code=extract_exit_code(output_text),
+                        shared_output=True,
                     )
             tool_call["call_id"] = call_id
 
@@ -1759,14 +3128,18 @@ def normalize_exec_trace(events: list[dict[str, object]]) -> dict[str, object]:
                 or first_dict(payload.get("result")).get("output")
                 or ""
             )
+            result = first_dict(payload.get("result"))
+            exit_code = payload.get("exit_code")
+            if not isinstance(exit_code, int):
+                exit_code = result.get("exit_code")
             if isinstance(command, str):
                 add_command(
                     turn,
                     tool_name="command_execution",
                     command=command,
                     output=str(output_text),
-                    exit_code=payload.get("exit_code")
-                    if isinstance(payload.get("exit_code"), int)
+                    exit_code=exit_code
+                    if isinstance(exit_code, int)
                     else extract_exit_code(str(output_text)),
                 )
         elif item_type not in {
@@ -1776,10 +3149,20 @@ def normalize_exec_trace(events: list[dict[str, object]]) -> dict[str, object]:
             "turn.failed",
             "",
         }:
-            add_tool_call(turn, name=item_type, arguments=payload, output="")
+            output = payload.get("output") or first_dict(payload.get("result")).get("output") or ""
+            add_tool_call(
+                turn,
+                name=item_type,
+                arguments=payload,
+                output=output if isinstance(output, str) else "",
+            )
 
         if event_type in {"turn.completed", "turn.failed"}:
             turn["status"] = "failed" if event_type == "turn.failed" else str(event.get("status", "completed"))
+            if event_type == "turn.failed":
+                message = event.get("message") or payload.get("message")
+                if isinstance(message, str) and message.strip():
+                    add_error(turn, message)
             candidate_usage = first_dict(event.get("usage"), payload.get("usage"))
             if candidate_usage:
                 turn_usages.append(
@@ -2240,7 +3623,12 @@ Rules:
 """.strip()
 
 
-def run_judge(skill_path: Path, evidence_path: Path, output_dir: Path, model: str) -> dict[str, object]:
+def run_judge_prompt(
+    prompt: str,
+    output_dir: Path,
+    model: str,
+    schema_path: Path = JUDGE_SCHEMA_PATH,
+) -> dict[str, object]:
     codex_output = output_dir / "judge-output.json"
     cmd = [
         "codex",
@@ -2253,10 +3641,10 @@ def run_judge(skill_path: Path, evidence_path: Path, output_dir: Path, model: st
         "-C",
         str(REPO_ROOT),
         "--output-schema",
-        str(JUDGE_SCHEMA_PATH),
+        str(schema_path),
         "-o",
         str(codex_output),
-        build_judge_prompt(skill_path, evidence_path),
+        prompt,
     ]
     result = subprocess.run(
         cmd,
@@ -2273,6 +3661,14 @@ def run_judge(skill_path: Path, evidence_path: Path, output_dir: Path, model: st
         if name not in first_dict(payload.get("dimension_scores")):
             raise RuntimeError(f"Judge output missing dimension score: {name}")
     return payload
+
+
+def run_judge(skill_path: Path, evidence_path: Path, output_dir: Path, model: str) -> dict[str, object]:
+    return run_judge_prompt(
+        build_judge_prompt(skill_path, evidence_path),
+        output_dir,
+        model,
+    )
 
 
 def patch_kind_to_target(patch_kind: str) -> str:
@@ -2304,6 +3700,28 @@ def build_local_suggestions(findings: list[Finding]) -> list[SuggestedChange]:
     return suggestions
 
 
+def judge_breakdown_patch_kind(breakdown: dict[str, object]) -> str:
+    return str(breakdown.get("patch_kind", "SKILL_MD_CHANGE"))
+
+
+def judge_breakdown_risk(breakdown: dict[str, object]) -> str:
+    return str(breakdown.get("risk", breakdown.get("severity", "medium")))
+
+
+def judge_breakdown_evidence_refs(breakdown: dict[str, object]) -> list[str]:
+    refs = breakdown.get("evidence_refs", [])
+    if not isinstance(refs, list):
+        return []
+    return [str(ref) for ref in refs if isinstance(ref, str)]
+
+
+def judge_breakdown_fact_refs(breakdown: dict[str, object]) -> list[str]:
+    refs = breakdown.get("fact_refs", [])
+    if not isinstance(refs, list):
+        return []
+    return [str(ref) for ref in refs if isinstance(ref, str)]
+
+
 def build_suggestions(
     findings: list[Finding], judge_output: dict[str, object] | None
 ) -> list[SuggestedChange]:
@@ -2321,22 +3739,14 @@ def build_suggestions(
                     continue
                 suggestions.append(
                     SuggestedChange(
-                        target=patch_kind_to_target(
-                            str(breakdown.get("patch_kind", "SKILL_MD_CHANGE"))
-                        ),
-                        risk_level=str(
-                            breakdown.get("risk", breakdown.get("severity", "medium"))
-                        ),
+                        target=patch_kind_to_target(judge_breakdown_patch_kind(breakdown)),
+                        risk_level=judge_breakdown_risk(breakdown),
                         rationale=str(breakdown.get("title", "Untitled")),
                         suggestion=suggestion,
                         expected_benefit=str(
                             breakdown.get("expected_benefit", "")
                         ).strip(),
-                        evidence_refs=[
-                            str(ref)
-                            for ref in breakdown.get("evidence_refs", [])
-                            if isinstance(ref, str)
-                        ],
+                        evidence_refs=judge_breakdown_evidence_refs(breakdown),
                     )
                 )
         return suggestions
@@ -2527,6 +3937,247 @@ def dump_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
+def append_trace_source_to_rerun_command(
+    command: list[str],
+    args: argparse.Namespace,
+    trace_path: Path,
+) -> None:
+    if args.session_id:
+        command.extend(["--session-id", args.session_id])
+    elif args.log:
+        command.extend(["--log", str(Path(args.log).expanduser().resolve())])
+    elif args.trace:
+        command.extend(["--trace", str(Path(args.trace).expanduser().resolve())])
+    else:
+        command.extend(["--log", str(trace_path)])
+
+
+def append_judge_options_to_rerun_command(command: list[str], args: argparse.Namespace) -> None:
+    if args.judge == "off":
+        command.extend(["--judge", "off"])
+    if args.use_codex:
+        command.append("--use-codex")
+    if args.codex_model != "gpt-5.4":
+        command.extend(["--codex-model", args.codex_model])
+
+
+def build_postmortem_judge_prompt(facts_path: Path) -> str:
+    return f"""
+Read the redacted postmortem fact pack at {facts_path}.
+
+Return JSON only, matching the provided schema.
+
+Rules:
+- Evaluate the whole session workflow, not one skill.
+- Use only the postmortem fact pack. Do not inspect the raw trace.
+- Treat fact snippets with kind=observed as observed facts.
+- Treat recommendations as inferred recommendations unless directly supported by fact ids.
+- Set each breakdown's fact_refs to postmortem fact ids from the fact pack.
+- Leave evidence_refs empty for postmortem breakdowns.
+- Group recommendations into tool, skill, workflow, docs, or token categories.
+- Do not invent new facts.
+- Use `breakdowns` for the actionable advice. Ignore `patches`; this workflow is report-only.
+- Default to diagnosis_only when the facts are weak or contradictory.
+""".strip()
+
+
+def redacted_postmortem_fact_source(
+    trace_path: Path, metadata: dict[str, object]
+) -> tuple[str, dict[str, object]]:
+    redacted_metadata = redact_value(metadata)
+    if not isinstance(redacted_metadata, dict):
+        redacted_metadata = {}
+    return redact_text(str(trace_path)), redacted_metadata
+
+
+def run_postmortem_judge(
+    facts_path: Path,
+    output_dir: Path,
+    model: str,
+) -> dict[str, object]:
+    return run_judge_prompt(
+        build_postmortem_judge_prompt(facts_path),
+        output_dir,
+        model,
+        schema_path=POSTMORTEM_JUDGE_SCHEMA_PATH,
+    )
+
+
+def postmortem_category_from_patch_kind(patch_kind: str) -> str:
+    if patch_kind in {"SCRIPT_CHANGE", "TOOLING_CHANGE"}:
+        return "tool"
+    if patch_kind == "REFERENCES_CHANGE":
+        return "docs"
+    if patch_kind == "SKILL_MD_CHANGE":
+        return "skill"
+    return "workflow"
+
+
+def postmortem_category_from_breakdown(breakdown: dict[str, object]) -> str:
+    category = str(breakdown.get("category", "")).strip()
+    if category in POSTMORTEM_JUDGE_CATEGORIES:
+        return category
+    return postmortem_category_from_patch_kind(judge_breakdown_patch_kind(breakdown))
+
+
+def merge_postmortem_judge_suggestions(
+    local_suggestions: list[PostmortemSuggestion],
+    judge_output: dict[str, object] | None,
+    fact_ref_by_id: dict[str, str | None],
+) -> list[PostmortemSuggestion]:
+    if not judge_output:
+        return local_suggestions
+    if bool(judge_output.get("diagnosis_only")):
+        return []
+
+    merged = list(local_suggestions)
+    breakdowns = judge_output.get("breakdowns", [])
+    if not isinstance(breakdowns, list):
+        return merged
+
+    for breakdown in breakdowns:
+        if not isinstance(breakdown, dict):
+            continue
+        title = str(breakdown.get("title", "")).strip()
+        proposed_change = str(breakdown.get("proposed_change", "")).strip()
+        if not title or not proposed_change:
+            continue
+        patch_kind = judge_breakdown_patch_kind(breakdown)
+        fact_refs = judge_breakdown_fact_refs(breakdown)
+        if not fact_refs or any(ref not in fact_ref_by_id for ref in fact_refs):
+            continue
+        if judge_breakdown_evidence_refs(breakdown):
+            continue
+        evidence_refs = []
+        seen_trace_refs: set[str] = set()
+        for fact_ref in fact_refs:
+            trace_ref = fact_ref_by_id[fact_ref]
+            if trace_ref and trace_ref not in seen_trace_refs:
+                seen_trace_refs.add(trace_ref)
+                evidence_refs.append(trace_ref)
+        merged.append(
+            PostmortemSuggestion(
+                title=title,
+                category=postmortem_category_from_breakdown(breakdown),
+                severity=judge_breakdown_risk(breakdown),
+                rationale=proposed_change,
+                evidence_refs=evidence_refs,
+                fact_refs=fact_refs,
+                suggested_target=patch_kind_to_target(patch_kind),
+            )
+        )
+    return merged
+
+
+def run_postmortem(args: argparse.Namespace, out_dir: Path) -> int:
+    trace_path, source_label, metadata = resolve_trace_source(
+        args,
+        out_dir,
+        target_skill_name=None,
+    )
+    raw_lines, events = read_jsonl(trace_path)
+    trace_format = detect_trace_format(events)
+    normalized = normalize_trace(events, trace_format)
+    facts = extract_postmortem_facts(normalized)
+    suggestions = build_postmortem_suggestions(facts)
+    diagnosis_only = not suggestions
+
+    redacted_trace_path = out_dir / "redacted-trace.jsonl"
+    redacted_trace_path.write_text("\n".join(redact_text(line) for line in raw_lines) + "\n")
+    dump_json(out_dir / "normalized-trace.json", normalized)
+    (out_dir / "transcript.md").write_text(render_markdown_transcript(normalized, trace_format))
+    fact_trace_path, fact_metadata = redacted_postmortem_fact_source(trace_path, metadata)
+
+    facts_payload = {
+        "trace_path": fact_trace_path,
+        "trace_format": trace_format,
+        "source_label": source_label,
+        "source_metadata": fact_metadata,
+        "facts": [fact.to_dict() for fact in facts],
+        "token_usage": normalized.get("usage", empty_token_usage()),
+        "deterministic_diagnosis_only": diagnosis_only,
+    }
+    facts_path = out_dir / "postmortem-facts.json"
+    dump_json(facts_path, facts_payload)
+
+    judge_output: dict[str, object] | None = None
+    judge_error = ""
+    mode = "deterministic-only"
+    if should_run_judge(args):
+        try:
+            judge_output = run_postmortem_judge(facts_path, out_dir, args.codex_model)
+            mode = "judge"
+        except Exception as exc:  # noqa: BLE001
+            judge_error = str(exc)
+            mode = "judge-fallback"
+
+    suggestions = merge_postmortem_judge_suggestions(
+        suggestions,
+        judge_output,
+        {fact.id: fact.evidence_ref for fact in facts},
+    )
+    diagnosis_only = not suggestions
+
+    report = build_postmortem_report(
+        trace_path=trace_path,
+        trace_format=trace_format,
+        source_label=source_label,
+        source_metadata=metadata,
+        normalized=normalized,
+        facts=facts,
+        suggestions=suggestions,
+        mode=mode,
+        judge_output=judge_output,
+        judge_error=judge_error,
+    )
+    (out_dir / "postmortem-report.md").write_text(report)
+
+    dump_json(
+        out_dir / "postmortem-suggestions.json",
+        {
+            "summary": (
+                judge_output.get("summary", "")
+                if judge_output
+                else (
+                    "Deterministic postmortem suggestions"
+                    if suggestions
+                    else "No concrete postmortem suggestions"
+                )
+            ),
+            "mode": mode,
+            "diagnosis_only": diagnosis_only,
+            "suggestions": [suggestion.to_dict() for suggestion in suggestions],
+        },
+    )
+
+    if judge_output is None:
+        dump_json(
+            out_dir / "judge-output.json",
+            {
+                "status": "skipped" if not should_run_judge(args) else "failed",
+                "error": judge_error,
+            },
+        )
+
+    rerun_command = ["python3", str(SCRIPT_PATH), "--postmortem"]
+    append_trace_source_to_rerun_command(rerun_command, args, trace_path)
+    append_judge_options_to_rerun_command(rerun_command, args)
+    rerun_lines = [
+        "# Rerun",
+        "",
+        "- This workflow is report-only. No skill copy, patch diff, or GitHub issue was materialized.",
+        "",
+        f"`{' '.join(shlex.quote(part) for part in rerun_command)}`",
+        "",
+    ]
+    if judge_error:
+        rerun_lines.extend(["Judge error:", "", judge_error, ""])
+    (out_dir / "rerun.md").write_text("\n".join(rerun_lines))
+
+    print(str(out_dir))
+    return 0
+
+
 def render_census_report(
     *,
     trace_path: Path,
@@ -2575,6 +4226,9 @@ def main() -> int:
     out_dir = build_out_dir(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    if args.postmortem:
+        return run_postmortem(args, out_dir)
+
     if args.census:
         trace_path, source_label, metadata = resolve_trace_source(
             args,
@@ -2600,14 +4254,7 @@ def main() -> int:
             )
         )
         rerun_command = ["python3", str(SCRIPT_PATH), "--census"]
-        if args.session_id:
-            rerun_command.extend(["--session-id", args.session_id])
-        elif args.log:
-            rerun_command.extend(["--log", str(Path(args.log).expanduser().resolve())])
-        elif args.trace:
-            rerun_command.extend(["--trace", str(Path(args.trace).expanduser().resolve())])
-        else:
-            rerun_command.extend(["--log", str(trace_path)])
+        append_trace_source_to_rerun_command(rerun_command, args, trace_path)
         (out_dir / "rerun.md").write_text(
             "# Rerun\n\n"
             "- This workflow is report-only.\n\n"
@@ -2695,16 +4342,8 @@ def main() -> int:
     dump_json(out_dir / "suggestions.json", suggestions_payload)
 
     rerun_command = ["python3", str(SCRIPT_PATH), "--skill", str(skill_path)]
-    if args.session_id:
-        rerun_command.extend(["--session-id", args.session_id])
-    elif args.log:
-        rerun_command.extend(["--log", str(Path(args.log).expanduser().resolve())])
-    elif args.trace:
-        rerun_command.extend(["--trace", str(Path(args.trace).expanduser().resolve())])
-    else:
-        rerun_command.extend(["--log", str(trace_path)])
-    if args.judge == "off":
-        rerun_command.extend(["--judge", "off"])
+    append_trace_source_to_rerun_command(rerun_command, args, trace_path)
+    append_judge_options_to_rerun_command(rerun_command, args)
     rerun_lines = [
         "# Rerun",
         "",

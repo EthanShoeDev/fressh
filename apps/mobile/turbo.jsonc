@@ -12,7 +12,7 @@
 		},
 		"test": {
 			"dependsOn": ["^build"],
-			"with": ["test:e2e"],
+			"with": ["test:integration", "test:e2e"],
 		},
 		"dev:android": {
 			"dependsOn": ["^build", "^build:android"],
@@ -27,6 +27,7 @@
 
 		// Special tasks
 		"expo:doctor": {},
+		"test:integration": {},
 		"test:e2e": {},
 		"build:signed:apk": {
 			"dependsOn": ["^build", "^build:android"],

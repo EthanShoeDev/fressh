@@ -1,5 +1,5 @@
 import { type Terminal } from '@xterm/xterm';
-import { type BridgeInboundMessage } from '../src/bridge';
+import { type BridgeInboundDraftMessage } from '../src/bridge';
 
 type SelectionHandlesController = {
 	applySelectionMode: (enabled: boolean, opts?: { force?: boolean }) => void;
@@ -16,7 +16,7 @@ export const createSelectionHandles = ({
 }: {
 	term: Terminal;
 	instanceId: string;
-	sendToRn: (msg: BridgeInboundMessage) => void;
+	sendToRn: (msg: BridgeInboundDraftMessage) => void;
 }): SelectionHandlesController => {
 	const selectionModeClass = 'fressh-selection-mode';
 	const selectionModeStyleId = 'fressh-selection-mode-style';
