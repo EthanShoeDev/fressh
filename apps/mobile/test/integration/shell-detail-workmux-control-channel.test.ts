@@ -30,6 +30,30 @@ function extractWorkmuxControlChannelMemoBlock(source: string): string {
 	return source.slice(memoStart, memoEnd);
 }
 
+function extractAgentNotificationRouteEffectBlock(source: string): string {
+	const effectStart = source.indexOf('void handleAgentNotificationRoute({');
+	assert.notEqual(effectStart, -1);
+	const effectEnd = source.indexOf(
+		'const acknowledgeVisibleAgentNotification',
+		effectStart,
+	);
+	assert.notEqual(effectEnd, -1);
+	return source.slice(effectStart, effectEnd);
+}
+
+function extractRunBrowserActionsWorkmuxCommandBlock(source: string): string {
+	const callbackStart = source.indexOf(
+		'const runBrowserActionsWorkmuxCommand = useCallback',
+	);
+	assert.notEqual(callbackStart, -1);
+	const callbackEnd = source.indexOf(
+		'const browserActions = useBrowserActionsController',
+		callbackStart,
+	);
+	assert.notEqual(callbackEnd, -1);
+	return source.slice(callbackStart, callbackEnd);
+}
+
 void describe('shell detail Workmux control channel wiring', () => {
 	void test('routes shell scrollback through WorkmuxControlChannel instead of one-shot mdev scroll commands', () => {
 		const source = readFileSync(detailSourcePath, 'utf8');
@@ -75,5 +99,18 @@ void describe('shell detail Workmux control channel wiring', () => {
 		const block = extractWorkmuxControlChannelMemoBlock(source);
 
 		assert.match(block, /\[\s*connection\s*,\s*normalizedTmuxTarget\s*\]/);
+	});
+
+	void test('retries routed agent notifications when the Workmux command channel changes', () => {
+		const source = readFileSync(detailSourcePath, 'utf8');
+		const callbackBlock = extractRunBrowserActionsWorkmuxCommandBlock(source);
+		const effectBlock = extractAgentNotificationRouteEffectBlock(source);
+
+		assert.match(callbackBlock, /workmuxControlChannel\.command/);
+		assert.match(callbackBlock, /\[\s*workmuxControlChannel\s*\]/);
+		assert.match(
+			effectBlock,
+			/\[\s*agentConnectionId[\s\S]*runBrowserActionsWorkmuxCommand[\s\S]*\]/,
+		);
 	});
 });

@@ -39,10 +39,13 @@ impl CommandStreamWriterState {
 
     async fn wait_closed(&self) {
         loop {
+            let notified = self.closed_notify.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
             if self.is_closed() {
                 return;
             }
-            self.closed_notify.notified().await;
+            notified.await;
         }
     }
 }

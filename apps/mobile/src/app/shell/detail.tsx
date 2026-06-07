@@ -1935,7 +1935,7 @@ function ShellDetail() {
 
 	const runBrowserActionsWorkmuxCommand = useCallback(
 		async (_connection: unknown, argv: string[], timeoutMs: number) => {
-			const result = await workmuxControlChannelRef.current.command(argv, {
+			const result = await workmuxControlChannel.command(argv, {
 				timeoutMs,
 			});
 			if (!result.success) {
@@ -1945,7 +1945,7 @@ function ShellDetail() {
 			}
 			return result.output;
 		},
-		[],
+		[workmuxControlChannel],
 	);
 
 	const browserActions = useBrowserActionsController({
