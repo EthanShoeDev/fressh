@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import { setTimeout as waitTimeout } from 'node:timers/promises';
 import {
 	MDEV_BRIDGE_UPDATE_MESSAGE,
@@ -26,6 +26,12 @@ function text(bytes: ArrayBuffer): string {
 
 async function nextTick() {
 	await waitTimeout(0);
+}
+
+async function flushMicrotasks() {
+	for (let index = 0; index < 10; index += 1) {
+		await Promise.resolve();
+	}
 }
 
 function createDeferred<T>() {
@@ -64,6 +70,28 @@ async function withMockPerformanceNow<T>(
 			value: originalNow,
 		});
 	}
+}
+
+async function withFakeBridgeClock<T>(
+	run: (clock: { advance: (ms: number) => void }) => Promise<T>,
+) {
+	let currentNowMs = 1_000;
+	return await withMockPerformanceNow(
+		() => currentNowMs,
+		async () => {
+			mock.timers.enable({ apis: ['setTimeout'] });
+			try {
+				return await run({
+					advance: (ms: number) => {
+						currentNowMs += ms;
+						mock.timers.tick(ms);
+					},
+				});
+			} finally {
+				mock.timers.reset();
+			}
+		},
+	);
 }
 
 function parseWrite(write: string): unknown {
@@ -839,6 +867,210 @@ void test('malformed response and invalid hello fail with protocol error', async
 	});
 });
 
+void test('cold startup timeout settles exactly at the local deadline', async () => {
+	await withFakeBridgeClock(async (clock) => {
+		let capturedStart:
+			| {
+					abortSignal: AbortSignal | undefined;
+			  }
+			| undefined;
+		const connection: MdevBridgeStreamConnection = {
+			startCommandStream: async (opts) => {
+				capturedStart = { abortSignal: opts.abortSignal };
+				return await new Promise(() => {});
+			},
+		};
+		const client = createMdevBridgeClient({
+			connection,
+			requiredOperations: ['op.one'],
+			requestTimeoutMs: 50,
+		});
+
+		let settled = false;
+		const resultPromise = client
+			.runOperation({ operation: 'op.one', params: {} })
+			.then((result) => {
+				settled = true;
+				return result;
+			});
+		await flushMicrotasks();
+
+		clock.advance(49);
+		await flushMicrotasks();
+		assert.equal(settled, false);
+		assert.equal(capturedStart?.abortSignal?.aborted, false);
+
+		clock.advance(1);
+		await flushMicrotasks();
+		assert.equal(settled, true);
+		assert.equal(capturedStart?.abortSignal?.aborted, true);
+		assert.deepEqual(await resultPromise, {
+			success: false,
+			output: '',
+			error: 'mdev bridge request timed out.',
+		});
+	});
+});
+
+void test('hello timeout settles exactly at the local deadline', async () => {
+	await withFakeBridgeClock(async (clock) => {
+		const fixture = createBridgeFixture();
+		const client = createMdevBridgeClient({
+			connection: fixture.connection,
+			requiredOperations: ['op.one'],
+			requestTimeoutMs: 50,
+		});
+
+		let settled = false;
+		const resultPromise = client
+			.runOperation({ operation: 'op.one', params: {} })
+			.then((result) => {
+				settled = true;
+				return result;
+			});
+		await flushMicrotasks();
+
+		assert.deepEqual(parseWrite(fixture.writes[0] ?? ''), {
+			id: 'mdev-bridge-1',
+			type: 'hello',
+		});
+		clock.advance(49);
+		await flushMicrotasks();
+		assert.equal(settled, false);
+
+		clock.advance(1);
+		await flushMicrotasks();
+		assert.equal(settled, true);
+		assert.deepEqual(await resultPromise, {
+			success: false,
+			output: '',
+			error: 'mdev bridge request timed out.',
+		});
+	});
+});
+
+void test('operation request timeout settles exactly at the local deadline', async () => {
+	await withFakeBridgeClock(async (clock) => {
+		const fixture = createBridgeFixture();
+		const client = createMdevBridgeClient({
+			connection: fixture.connection,
+			requiredOperations: ['op.one'],
+			requestTimeoutMs: 50,
+		});
+
+		let settled = false;
+		const resultPromise = client
+			.runOperation({ operation: 'op.one', params: {} })
+			.then((result) => {
+				settled = true;
+				return result;
+			});
+		await flushMicrotasks();
+		fixture.emitJson(helloResponse());
+		await flushMicrotasks();
+
+		assertOperationWrite(
+			fixture.writes[1] ?? '',
+			{
+				id: 'mdev-bridge-2',
+				type: 'operation',
+				operation: 'op.one',
+				params: {},
+			},
+			50,
+		);
+		clock.advance(49);
+		await flushMicrotasks();
+		assert.equal(settled, false);
+
+		clock.advance(1);
+		await flushMicrotasks();
+		assert.equal(settled, true);
+		assert.deepEqual(await resultPromise, {
+			success: false,
+			output: '',
+			error: 'mdev bridge request timed out.',
+		});
+	});
+});
+
+void test('queued operation wait timeout settles at deadline without late write or bridge failure', async () => {
+	await withFakeBridgeClock(async (clock) => {
+		const fixture = createBridgeFixture();
+		const client = createMdevBridgeClient({
+			connection: fixture.connection,
+			requiredOperations: ['op.one', 'op.two'],
+			requestTimeoutMs: 500,
+		});
+
+		const firstResultPromise = client.runOperation({
+			operation: 'op.one',
+			params: { order: 1 },
+		});
+		await flushMicrotasks();
+		fixture.emitJson(helloResponse());
+		await flushMicrotasks();
+		assert.equal(fixture.writes.length, 2);
+
+		let secondSettled = false;
+		const secondResultPromise = client
+			.runOperation({
+				operation: 'op.two',
+				params: { order: 2 },
+				timeoutMs: 50,
+			})
+			.then((result) => {
+				secondSettled = true;
+				return result;
+			});
+
+		clock.advance(49);
+		await flushMicrotasks();
+		assert.equal(secondSettled, false);
+		assert.equal(fixture.writes.length, 2);
+
+		clock.advance(1);
+		await flushMicrotasks();
+		assert.equal(secondSettled, true);
+		assert.deepEqual(await secondResultPromise, {
+			success: false,
+			output: '',
+			error: 'mdev bridge request timed out.',
+		});
+		assert.equal(fixture.writes.length, 2);
+
+		fixture.emitJson({ id: 'mdev-bridge-2', ok: true, result: { order: 1 } });
+		assert.deepEqual(await firstResultPromise, {
+			success: true,
+			output: '{"order":1}\n',
+		});
+		await flushMicrotasks();
+		assert.equal(fixture.writes.length, 2);
+
+		const thirdResultPromise = client.runOperation({
+			operation: 'op.two',
+			params: { order: 3 },
+		});
+		await flushMicrotasks();
+		assert.equal(fixture.writes.length, 3);
+		assertOperationWrite(
+			fixture.writes[2] ?? '',
+			{
+				id: 'mdev-bridge-4',
+				type: 'operation',
+				operation: 'op.two',
+				params: { order: 3 },
+			},
+			500,
+		);
+		fixture.emitJson({ id: 'mdev-bridge-4', ok: true, result: { order: 3 } });
+		assert.deepEqual(await thirdResultPromise, {
+			success: true,
+			output: '{"order":3}\n',
+		});
+	});
+});
+
 void test('unanswered request times out and future requests fail', async () => {
 	const fixture = createBridgeFixture();
 	const client = createMdevBridgeClient({
@@ -1002,53 +1234,56 @@ void test('per-operation timeout override controls initial hello timeout', async
 
 void test('per-operation timeout is a single deadline across cold startup and hello', async () => {
 	let currentNowMs = 1_000;
-	await withMockPerformanceNow(() => currentNowMs, async () => {
-		const writes: string[] = [];
-		const closeOptions: ({ signal?: AbortSignal } | undefined)[] = [];
-		const stream =
-			createDeferred<
-				Awaited<ReturnType<MdevBridgeStreamConnection['startCommandStream']>>
-			>();
-		const connection: MdevBridgeStreamConnection = {
-			startCommandStream: async () => await stream.promise,
-		};
-		const client = createMdevBridgeClient({
-			connection,
-			requiredOperations: ['op.one'],
-			requestTimeoutMs: 500,
-		});
+	await withMockPerformanceNow(
+		() => currentNowMs,
+		async () => {
+			const writes: string[] = [];
+			const closeOptions: ({ signal?: AbortSignal } | undefined)[] = [];
+			const stream =
+				createDeferred<
+					Awaited<ReturnType<MdevBridgeStreamConnection['startCommandStream']>>
+				>();
+			const connection: MdevBridgeStreamConnection = {
+				startCommandStream: async () => await stream.promise,
+			};
+			const client = createMdevBridgeClient({
+				connection,
+				requiredOperations: ['op.one'],
+				requestTimeoutMs: 500,
+			});
 
-		const resultPromise = client.runOperation({
-			operation: 'op.one',
-			params: {},
-			timeoutMs: 100,
-		});
-		await nextTick();
+			const resultPromise = client.runOperation({
+				operation: 'op.one',
+				params: {},
+				timeoutMs: 100,
+			});
+			await nextTick();
 
-		currentNowMs = 1_095;
-		stream.resolve({
-			sendData: async (data) => {
-				writes.push(text(data));
-			},
-			close: async (opts) => {
-				closeOptions.push(opts);
-			},
-		});
-		await nextTick();
+			currentNowMs = 1_095;
+			stream.resolve({
+				sendData: async (data) => {
+					writes.push(text(data));
+				},
+				close: async (opts) => {
+					closeOptions.push(opts);
+				},
+			});
+			await nextTick();
 
-		assert.deepEqual(parseWrite(writes[0] ?? ''), {
-			id: 'mdev-bridge-1',
-			type: 'hello',
-		});
-		assert.deepEqual(await withTestTimeout(resultPromise, 100), {
-			success: false,
-			output: '',
-			error: 'mdev bridge request timed out.',
-		});
-		await nextTick();
-		assert.equal(closeOptions.length, 1);
-		assert.equal(closeOptions[0]?.signal instanceof AbortSignal, true);
-	});
+			assert.deepEqual(parseWrite(writes[0] ?? ''), {
+				id: 'mdev-bridge-1',
+				type: 'hello',
+			});
+			assert.deepEqual(await withTestTimeout(resultPromise, 100), {
+				success: false,
+				output: '',
+				error: 'mdev bridge request timed out.',
+			});
+			await nextTick();
+			assert.equal(closeOptions.length, 1);
+			assert.equal(closeOptions[0]?.signal instanceof AbortSignal, true);
+		},
+	);
 });
 
 void test('per-operation timeout override controls the local watchdog', async () => {

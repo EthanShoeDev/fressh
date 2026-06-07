@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { HOST_BROWSER_NO_CONNECTION_MESSAGE } from '../../src/lib/host-browser-actions';
 import { runHostCommandWithBoundary } from '../../src/lib/host-command-router';
 import { WORKMUX_APP_COMMAND_UPDATE_MESSAGE } from '../../src/lib/workmux-app-commands';
 
@@ -22,6 +23,32 @@ void test('runHostCommandWithBoundary sends Workmux app commands to bridge argv 
 	assert.deepEqual(calls, [
 		{ argv: ['tmux', 'app', 'window', '--session', 'main'], timeoutMs: 10_000 },
 	]);
+});
+
+void test('runHostCommandWithBoundary rejects missing connection before any transport', async () => {
+	let workmuxCalls = 0;
+	let sideChannelCalls = 0;
+
+	await assert.rejects(
+		runHostCommandWithBoundary({
+			connection: null,
+			command: "mdev tmux app window --session 'main'",
+			timeoutMs: 10_000,
+			runWorkmuxCommand: async () => {
+				workmuxCalls += 1;
+				return '';
+			},
+			executeSideChannelCommand: async () => {
+				sideChannelCalls += 1;
+				return { success: true, output: '' };
+			},
+		}),
+		(error) =>
+			error instanceof Error &&
+			error.message === HOST_BROWSER_NO_CONNECTION_MESSAGE,
+	);
+	assert.equal(workmuxCalls, 0);
+	assert.equal(sideChannelCalls, 0);
 });
 
 void test('runHostCommandWithBoundary parses quoted Workmux app command values', async () => {
