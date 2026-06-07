@@ -121,6 +121,12 @@ impl CommandStreamSession {
         self.info.clone()
     }
 
+    pub async fn send_data(&self, data: Vec<u8>) -> Result<(), SshError> {
+        let w = self.writer.lock().await;
+        w.data(&data[..]).await?;
+        Ok(())
+    }
+
     pub async fn close(&self) -> Result<(), SshError> {
         self.close_internal().await
     }
