@@ -5,7 +5,7 @@ use std::sync::{
 use std::time::Duration;
 
 use russh::{client, ChannelMsg, Sig};
-use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::{Mutex as AsyncMutex, Notify};
 
 use crate::{
     ssh_channel::StartupChannelCloseGuard,
@@ -19,6 +19,33 @@ const MAX_EXEC_REQUEST_BUFFERED_MESSAGES: usize = 256;
 const EXEC_REQUEST_REPLY_TIMEOUT: Duration = Duration::from_secs(5);
 
 type CommandWriter = AsyncMutex<russh::ChannelWriteHalf<client::Msg>>;
+
+#[derive(Default)]
+struct CommandStreamWriterState {
+    closed: AtomicBool,
+    closed_notify: Notify,
+}
+
+impl CommandStreamWriterState {
+    fn is_closed(&self) -> bool {
+        self.closed.load(Ordering::Acquire)
+    }
+
+    fn mark_closed(&self) {
+        if !self.closed.swap(true, Ordering::AcqRel) {
+            self.closed_notify.notify_waiters();
+        }
+    }
+
+    async fn wait_closed(&self) {
+        loop {
+            if self.is_closed() {
+                return;
+            }
+            self.closed_notify.notified().await;
+        }
+    }
+}
 
 #[uniffi::export]
 pub fn default_run_command_max_output_bytes() -> u64 {
@@ -111,6 +138,7 @@ pub struct CommandStreamSession {
     pub info: CommandStreamInfo,
     parent: Weak<SshConnection>,
     writer: Arc<CommandWriter>,
+    writer_state: Arc<CommandStreamWriterState>,
     reader_task: tokio::task::JoinHandle<()>,
     rt_handle: tokio::runtime::Handle,
 }
@@ -122,9 +150,20 @@ impl CommandStreamSession {
     }
 
     pub async fn send_data(&self, data: Vec<u8>) -> Result<(), SshError> {
+        if self.writer_state.is_closed() {
+            return Err(command_stream_closed_error());
+        }
         let w = self.writer.lock().await;
-        w.data(&data[..]).await?;
-        Ok(())
+        if self.writer_state.is_closed() {
+            return Err(command_stream_closed_error());
+        }
+        tokio::select! {
+            result = w.data(&data[..]) => {
+                result?;
+                Ok(())
+            }
+            _ = self.writer_state.wait_closed() => Err(command_stream_closed_error()),
+        }
     }
 
     pub async fn close(&self) -> Result<(), SshError> {
@@ -134,6 +173,7 @@ impl CommandStreamSession {
 
 impl CommandStreamSession {
     async fn close_internal(&self) -> Result<(), SshError> {
+        self.writer_state.mark_closed();
         self.reader_task.abort();
         if let Some(parent) = self.parent.upgrade() {
             parent
@@ -142,12 +182,20 @@ impl CommandStreamSession {
                 .await
                 .remove(&self.info.channel_id);
         }
-        close_command_writer_best_effort(&self.writer).await;
+        close_command_writer_best_effort(&self.writer, &self.writer_state).await;
         Ok(())
     }
 }
 
-async fn close_command_writer_best_effort(writer: &CommandWriter) {
+fn command_stream_closed_error() -> SshError {
+    SshError::Russh("SSH command stream closed".to_string())
+}
+
+async fn close_command_writer_best_effort(
+    writer: &CommandWriter,
+    writer_state: &CommandStreamWriterState,
+) {
+    writer_state.mark_closed();
     tokio::time::timeout(CLOSE_TIMEOUT, async {
         writer.lock().await.close().await.ok();
     })
@@ -157,15 +205,17 @@ async fn close_command_writer_best_effort(writer: &CommandWriter) {
 
 impl Drop for CommandStreamSession {
     fn drop(&mut self) {
+        self.writer_state.mark_closed();
         self.reader_task.abort();
         let parent = self.parent.clone();
         let writer = self.writer.clone();
+        let writer_state = self.writer_state.clone();
         let channel_id = self.info.channel_id;
         self.rt_handle.spawn(async move {
             if let Some(parent) = parent.upgrade() {
                 parent.command_streams.lock().await.remove(&channel_id);
             }
-            close_command_writer_best_effort(&writer).await;
+            close_command_writer_best_effort(&writer, &writer_state).await;
         });
     }
 }
@@ -616,7 +666,9 @@ pub(crate) async fn start_command_stream(
     let channel = channel_guard.into_inner();
     let (mut reader, writer) = channel.split();
     let writer = Arc::new(AsyncMutex::new(writer));
+    let writer_state = Arc::new(CommandStreamWriterState::default());
     let writer_for_reader = writer.clone();
+    let writer_state_for_reader = writer_state.clone();
 
     let reader_task = tokio::spawn(async move {
         for message in buffered_messages {
@@ -627,7 +679,8 @@ pub(crate) async fn start_command_stream(
             if effects.stop_reader {
                 reader_has_closed_for_reader.store(true, Ordering::Release);
                 if effects.close_writer {
-                    close_command_writer_best_effort(&writer_for_reader).await;
+                    close_command_writer_best_effort(&writer_for_reader, &writer_state_for_reader)
+                        .await;
                 }
                 if effects.remove_session {
                     if let Some(parent) = parent_for_reader.upgrade() {
@@ -655,7 +708,8 @@ pub(crate) async fn start_command_stream(
                 emit_command_stream_event(&callback, CommandStreamEvent::Closed);
             }
             if effects.close_writer {
-                close_command_writer_best_effort(&writer_for_reader).await;
+                close_command_writer_best_effort(&writer_for_reader, &writer_state_for_reader)
+                    .await;
             }
             if effects.remove_session {
                 if let Some(parent) = parent_for_reader.upgrade() {
@@ -677,6 +731,7 @@ pub(crate) async fn start_command_stream(
         },
         parent,
         writer,
+        writer_state,
         reader_task,
         rt_handle: tokio::runtime::Handle::current(),
     });
@@ -837,11 +892,38 @@ mod tests {
 
     #[test]
     fn command_stream_exec_startup_completes_without_eof() {
-        let completed =
-            AcceptedExecStartup::new(vec![ChannelMsg::WindowAdjusted { new_size: 1 }])
-                .complete_without_eof();
+        let completed = AcceptedExecStartup::new(vec![ChannelMsg::WindowAdjusted { new_size: 1 }])
+            .complete_without_eof();
 
         assert_eq!(completed.into_buffered_messages().len(), 1);
+    }
+
+    #[test]
+    fn command_stream_writer_state_marks_closed_once() {
+        let state = CommandStreamWriterState::default();
+
+        assert!(!state.is_closed());
+        state.mark_closed();
+        state.mark_closed();
+
+        assert!(state.is_closed());
+    }
+
+    #[tokio::test]
+    async fn command_stream_writer_state_wakes_waiters_on_close() {
+        let state = Arc::new(CommandStreamWriterState::default());
+        let waiter_state = state.clone();
+        let waiter = tokio::spawn(async move {
+            waiter_state.wait_closed().await;
+        });
+
+        tokio::task::yield_now().await;
+        state.mark_closed();
+
+        tokio::time::timeout(Duration::from_secs(1), waiter)
+            .await
+            .expect("writer state waiter timed out")
+            .expect("writer state waiter panicked");
     }
 
     #[test]
