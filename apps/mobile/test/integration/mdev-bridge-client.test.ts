@@ -275,6 +275,37 @@ void test('stream closed fails pending and future requests', async () => {
 	);
 });
 
+void test('stream closed immediately after valid hello is post-hello stream closed', async () => {
+	const fixture = createBridgeFixture();
+	const client = createMdevBridgeClient({
+		connection: fixture.connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 100,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+	});
+	await nextTick();
+	fixture.emitJson(helloResponse());
+	fixture.emit({ type: 'closed' });
+
+	assert.deepEqual(await resultPromise, {
+		success: false,
+		output: '',
+		error: 'mdev bridge stream closed.',
+	});
+	assert.deepEqual(
+		await client.runOperation({ operation: 'op.one', params: {} }),
+		{
+			success: false,
+			output: '',
+			error: 'mdev bridge stream closed.',
+		},
+	);
+});
+
 void test('malformed response and invalid hello fail with protocol error', async () => {
 	const malformedFixture = createBridgeFixture();
 	const malformedClient = createMdevBridgeClient({

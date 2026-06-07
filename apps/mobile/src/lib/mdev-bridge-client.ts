@@ -386,12 +386,15 @@ export function createMdevBridgeClient({
 		const result = await sendRequest({
 			localTimeoutMs: requestTimeoutMs,
 			request: { id, type: 'hello' },
-			validate: (response) =>
-				validateHelloResponse(response, requiredOperations) ?? null,
+			validate: (response) => {
+				const validation = validateHelloResponse(response, requiredOperations);
+				if (validation) return validation;
+				helloComplete = true;
+				return null;
+			},
 		});
 
 		if (!result.success || result.error) return result;
-		helloComplete = true;
 		return null;
 	}
 
