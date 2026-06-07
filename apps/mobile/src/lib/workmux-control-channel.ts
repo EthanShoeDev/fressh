@@ -121,9 +121,7 @@ export function createWorkmuxControlChannel({
 				const { operation, params } =
 					buildMdevBridgeOperationFromWorkmuxArgv(argv);
 				if (!resolvedBridgeClient) {
-					return Promise.resolve(
-						failureResult('No SSH connection available.'),
-					);
+					return Promise.resolve(failureResult('No SSH connection available.'));
 				}
 				return resolvedBridgeClient.runOperation({
 					operation,
@@ -133,9 +131,7 @@ export function createWorkmuxControlChannel({
 				});
 			} catch (error) {
 				return Promise.resolve(
-					failureResult(
-						error instanceof Error ? error.message : String(error),
-					),
+					failureResult(error instanceof Error ? error.message : String(error)),
 				);
 			}
 		},

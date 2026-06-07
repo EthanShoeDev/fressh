@@ -876,6 +876,71 @@ void test('unresolved startup times out, aborts startup, and fails future reques
 	assert.equal(closeOptions[0]?.signal instanceof AbortSignal, true);
 });
 
+void test('per-operation timeout override controls cold startup timeout', async () => {
+	let capturedStart:
+		| {
+				command: string;
+				abortSignal: AbortSignal | undefined;
+		  }
+		| undefined;
+	const connection: MdevBridgeStreamConnection = {
+		startCommandStream: async (opts) => {
+			capturedStart = {
+				command: opts.command,
+				abortSignal: opts.abortSignal,
+			};
+			return await new Promise(() => {});
+		},
+	};
+	const client = createMdevBridgeClient({
+		connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 500,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+		timeoutMs: 10,
+	});
+	await nextTick();
+
+	assert.equal(capturedStart?.command, EXPECTED_MDEV_BRIDGE_COMMAND);
+	assert.deepEqual(await withTestTimeout(resultPromise, 100), {
+		success: false,
+		output: '',
+		error: 'mdev bridge request timed out.',
+	});
+	assert.equal(capturedStart?.abortSignal?.aborted, true);
+});
+
+void test('per-operation timeout override controls initial hello timeout', async () => {
+	const fixture = createBridgeFixture();
+	const client = createMdevBridgeClient({
+		connection: fixture.connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 500,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+		timeoutMs: 10,
+	});
+	await nextTick();
+
+	assert.deepEqual(parseWrite(fixture.writes[0] ?? ''), {
+		id: 'mdev-bridge-1',
+		type: 'hello',
+	});
+	assert.deepEqual(await withTestTimeout(resultPromise, 100), {
+		success: false,
+		output: '',
+		error: 'mdev bridge request timed out.',
+	});
+	assert.equal(fixture.writes.length, 1);
+});
+
 void test('per-operation timeout override controls the local watchdog', async () => {
 	const fixture = createBridgeFixture();
 	const client = createMdevBridgeClient({

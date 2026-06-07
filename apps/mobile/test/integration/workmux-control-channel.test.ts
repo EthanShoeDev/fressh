@@ -92,14 +92,7 @@ void test('WorkmuxControlChannel.command rejects missing connection locally with
 	});
 
 	assert.deepEqual(
-		await channel.command([
-			'tmux',
-			'app',
-			'nav',
-			'next',
-			'--session',
-			'main',
-		]),
+		await channel.command(['tmux', 'app', 'nav', 'next', '--session', 'main']),
 		{
 			success: false,
 			output: '',

@@ -299,7 +299,9 @@ export function createMdevBridgeClient({
 		).catch(() => {});
 	}
 
-	async function ensureStream(): Promise<MdevBridgeCommandStream> {
+	async function ensureStream(
+		startupTimeoutMs: number,
+	): Promise<MdevBridgeCommandStream> {
 		if (stream) return stream;
 		if (streamPromise) return await streamPromise;
 
@@ -357,7 +359,7 @@ export function createMdevBridgeClient({
 			});
 
 		streamPromise = Promise.race([
-			withBridgeTimeout(startedStreamPromise, requestTimeoutMs, (error) => {
+			withBridgeTimeout(startedStreamPromise, startupTimeoutMs, (error) => {
 				if (startupAbortController === abortController) {
 					failedError = MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR;
 					abortController.abort(error);
@@ -390,7 +392,7 @@ export function createMdevBridgeClient({
 		if (disposed) return errorResult(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
 		if (failedError) return errorResult(failedError);
 
-		const startedStream = await ensureStream();
+		const startedStream = await ensureStream(localTimeoutMs);
 		if (disposed) return errorResult(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
 		if (failedError) return errorResult(failedError);
 
@@ -433,12 +435,14 @@ export function createMdevBridgeClient({
 		});
 	}
 
-	async function ensureHello(): Promise<MdevBridgeResult | null> {
+	async function ensureHello(
+		localTimeoutMs: number,
+	): Promise<MdevBridgeResult | null> {
 		if (nextRequestId > 1) return null;
 
 		const id = nextId();
 		const result = await sendRequest({
-			localTimeoutMs: requestTimeoutMs,
+			localTimeoutMs,
 			request: { id, type: 'hello' },
 			validate: (response) => {
 				const validation = validateHelloResponse(response, requiredOperations);
@@ -461,7 +465,8 @@ export function createMdevBridgeClient({
 		if (failedError) return errorResult(failedError);
 
 		try {
-			const helloResult = await ensureHello();
+			const localTimeoutMs = input.timeoutMs ?? requestTimeoutMs;
+			const helloResult = await ensureHello(localTimeoutMs);
 			if (helloResult) return helloResult;
 
 			if (disposed) return errorResult(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
@@ -472,11 +477,11 @@ export function createMdevBridgeClient({
 				type: 'operation',
 				operation: input.operation,
 				params: input.params,
-				timeoutMs: input.timeoutMs ?? requestTimeoutMs,
+				timeoutMs: localTimeoutMs,
 			};
 
 			return await sendRequest({
-				localTimeoutMs: input.timeoutMs ?? requestTimeoutMs,
+				localTimeoutMs,
 				request,
 				validate: (response) => validateOperationResponse(response),
 			});

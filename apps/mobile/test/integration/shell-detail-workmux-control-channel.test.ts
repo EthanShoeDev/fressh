@@ -25,10 +25,7 @@ function extractCreateWorkmuxControlChannelBlock(source: string): string {
 function extractWorkmuxControlChannelMemoBlock(source: string): string {
 	const memoStart = source.indexOf('const workmuxControlChannel = useMemo');
 	assert.notEqual(memoStart, -1);
-	const memoEnd = source.indexOf(
-		'const workmuxControlChannelRef',
-		memoStart,
-	);
+	const memoEnd = source.indexOf('const workmuxControlChannelRef', memoStart);
 	assert.notEqual(memoEnd, -1);
 	return source.slice(memoStart, memoEnd);
 }
@@ -77,9 +74,6 @@ void describe('shell detail Workmux control channel wiring', () => {
 		const source = readFileSync(detailSourcePath, 'utf8');
 		const block = extractWorkmuxControlChannelMemoBlock(source);
 
-		assert.match(
-			block,
-			/\[\s*connection\s*,\s*normalizedTmuxTarget\s*\]/,
-		);
+		assert.match(block, /\[\s*connection\s*,\s*normalizedTmuxTarget\s*\]/);
 	});
 });
