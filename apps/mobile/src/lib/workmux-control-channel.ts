@@ -117,6 +117,9 @@ export function createWorkmuxControlChannel({
 					failureResult('Workmux control channel disposed.'),
 				);
 			}
+			if (!connection) {
+				return Promise.resolve(failureResult('No SSH connection available.'));
+			}
 			try {
 				const { operation, params } =
 					buildMdevBridgeOperationFromWorkmuxArgv(argv);

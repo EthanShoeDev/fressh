@@ -4,6 +4,7 @@ import { type MdevBridgeClient } from '../../src/lib/mdev-bridge-client';
 import {
 	createWorkmuxControlChannel,
 	disposeWorkmuxControlChannelAfterCleanup,
+	type WorkmuxControlConnection,
 	type WorkmuxControlCommandResult,
 } from '../../src/lib/workmux-control-channel';
 
@@ -18,6 +19,19 @@ function deferred<T>() {
 }
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+function createFakeConnection(): WorkmuxControlConnection {
+	return {
+		startCommandStream: async () => {
+			throw new Error('Default bridge client should not be used');
+		},
+		startShell: async () => ({
+			channelId: 1,
+			sendData: async () => {},
+			close: async () => {},
+		}),
+	};
+}
 
 function createRecordingBridgeClient(
 	result: WorkmuxControlCommandResult = { success: true, output: 'ok\n' },
@@ -43,7 +57,7 @@ function createRecordingBridgeClient(
 void test('WorkmuxControlChannel.command routes mapped argv through bridge operations, preserving timeout', async () => {
 	const bridge = createRecordingBridgeClient();
 	const channel = createWorkmuxControlChannel({
-		connection: null,
+		connection: createFakeConnection(),
 		bridgeClient: bridge.bridgeClient,
 	});
 
@@ -65,7 +79,7 @@ void test('WorkmuxControlChannel.command routes mapped argv through bridge opera
 void test('WorkmuxControlChannel.command uses default bridge timeout', async () => {
 	const bridge = createRecordingBridgeClient();
 	const channel = createWorkmuxControlChannel({
-		connection: null,
+		connection: createFakeConnection(),
 		bridgeClient: bridge.bridgeClient,
 	});
 
@@ -81,8 +95,10 @@ void test('WorkmuxControlChannel.command uses default bridge timeout', async () 
 });
 
 void test('WorkmuxControlChannel.command rejects missing connection locally without default bridge', async () => {
+	const bridge = createRecordingBridgeClient();
 	const channel = createWorkmuxControlChannel({
 		connection: null,
+		bridgeClient: bridge.bridgeClient,
 		directTmuxTransport: {
 			send: async () => {
 				throw new Error('DirectMux transport should not be used');
@@ -99,12 +115,13 @@ void test('WorkmuxControlChannel.command rejects missing connection locally with
 			error: 'No SSH connection available.',
 		},
 	);
+	assert.deepEqual(bridge.calls, []);
 });
 
 void test('WorkmuxControlChannel.command rejects unsupported argv locally without bridge', async () => {
 	const bridge = createRecordingBridgeClient();
 	const channel = createWorkmuxControlChannel({
-		connection: null,
+		connection: createFakeConnection(),
 		bridgeClient: bridge.bridgeClient,
 	});
 
