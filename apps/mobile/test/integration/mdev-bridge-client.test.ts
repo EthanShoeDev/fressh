@@ -28,6 +28,16 @@ async function nextTick() {
 	await waitTimeout(0);
 }
 
+function createDeferred<T>() {
+	let resolve!: (value: T) => void;
+	let reject!: (error: unknown) => void;
+	const promise = new Promise<T>((promiseResolve, promiseReject) => {
+		resolve = promiseResolve;
+		reject = promiseReject;
+	});
+	return { promise, resolve, reject };
+}
+
 async function withTestTimeout<T>(promise: Promise<T>, timeoutMs = 100) {
 	return await Promise.race([
 		promise,
@@ -35,6 +45,25 @@ async function withTestTimeout<T>(promise: Promise<T>, timeoutMs = 100) {
 			throw new Error(`test timed out after ${timeoutMs}ms`);
 		}),
 	]);
+}
+
+async function withMockPerformanceNow<T>(
+	now: () => number,
+	run: () => Promise<T>,
+) {
+	const originalNow = globalThis.performance.now;
+	Object.defineProperty(globalThis.performance, 'now', {
+		configurable: true,
+		value: now,
+	});
+	try {
+		return await run();
+	} finally {
+		Object.defineProperty(globalThis.performance, 'now', {
+			configurable: true,
+			value: originalNow,
+		});
+	}
 }
 
 function parseWrite(write: string): unknown {
@@ -972,45 +1001,54 @@ void test('per-operation timeout override controls initial hello timeout', async
 });
 
 void test('per-operation timeout is a single deadline across cold startup and hello', async () => {
-	const writes: string[] = [];
-	const closeOptions: ({ signal?: AbortSignal } | undefined)[] = [];
-	const connection: MdevBridgeStreamConnection = {
-		startCommandStream: async () => {
-			await waitTimeout(80);
-			return {
-				sendData: async (data) => {
-					writes.push(text(data));
-				},
-				close: async (opts) => {
-					closeOptions.push(opts);
-				},
-			};
-		},
-	};
-	const client = createMdevBridgeClient({
-		connection,
-		requiredOperations: ['op.one'],
-		requestTimeoutMs: 500,
-	});
+	let currentNowMs = 1_000;
+	await withMockPerformanceNow(() => currentNowMs, async () => {
+		const writes: string[] = [];
+		const closeOptions: ({ signal?: AbortSignal } | undefined)[] = [];
+		const stream =
+			createDeferred<
+				Awaited<ReturnType<MdevBridgeStreamConnection['startCommandStream']>>
+			>();
+		const connection: MdevBridgeStreamConnection = {
+			startCommandStream: async () => await stream.promise,
+		};
+		const client = createMdevBridgeClient({
+			connection,
+			requiredOperations: ['op.one'],
+			requestTimeoutMs: 500,
+		});
 
-	const resultPromise = client.runOperation({
-		operation: 'op.one',
-		params: {},
-		timeoutMs: 100,
-	});
+		const resultPromise = client.runOperation({
+			operation: 'op.one',
+			params: {},
+			timeoutMs: 100,
+		});
+		await nextTick();
 
-	assert.deepEqual(await withTestTimeout(resultPromise, 150), {
-		success: false,
-		output: '',
-		error: 'mdev bridge request timed out.',
+		currentNowMs = 1_095;
+		stream.resolve({
+			sendData: async (data) => {
+				writes.push(text(data));
+			},
+			close: async (opts) => {
+				closeOptions.push(opts);
+			},
+		});
+		await nextTick();
+
+		assert.deepEqual(parseWrite(writes[0] ?? ''), {
+			id: 'mdev-bridge-1',
+			type: 'hello',
+		});
+		assert.deepEqual(await withTestTimeout(resultPromise, 100), {
+			success: false,
+			output: '',
+			error: 'mdev bridge request timed out.',
+		});
+		await nextTick();
+		assert.equal(closeOptions.length, 1);
+		assert.equal(closeOptions[0]?.signal instanceof AbortSignal, true);
 	});
-	assert.deepEqual(parseWrite(writes[0] ?? ''), {
-		id: 'mdev-bridge-1',
-		type: 'hello',
-	});
-	await nextTick();
-	assert.equal(closeOptions.length, 1);
-	assert.equal(closeOptions[0]?.signal instanceof AbortSignal, true);
 });
 
 void test('per-operation timeout override controls the local watchdog', async () => {
