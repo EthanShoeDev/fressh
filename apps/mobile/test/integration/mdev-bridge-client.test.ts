@@ -400,6 +400,39 @@ void test('synchronous hello write throw cleans up and preserves update failure'
 	);
 });
 
+void test('synchronous startup throw fails sticky with update message', async () => {
+	let starts = 0;
+	const connection: MdevBridgeStreamConnection = {
+		startCommandStream: () => {
+			starts += 1;
+			throw new Error('sync startup failed');
+		},
+	};
+	const client = createMdevBridgeClient({
+		connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 100,
+	});
+
+	assert.deepEqual(
+		await client.runOperation({ operation: 'op.one', params: {} }),
+		{
+			success: false,
+			output: '',
+			error: MDEV_BRIDGE_UPDATE_MESSAGE,
+		},
+	);
+	assert.deepEqual(
+		await client.runOperation({ operation: 'op.one', params: {} }),
+		{
+			success: false,
+			output: '',
+			error: MDEV_BRIDGE_UPDATE_MESSAGE,
+		},
+	);
+	assert.equal(starts, 1);
+});
+
 void test('operation write failure after hello is stream closed', async () => {
 	let onEvent: ((event: MdevBridgeStreamEvent) => void) | null = null;
 	const closeOptions: ({ signal?: AbortSignal } | undefined)[] = [];
@@ -520,6 +553,42 @@ void test('post-start request timeout closes the bridge stream', async () => {
 	await nextTick();
 	assert.equal(fixture.closeOptions.length, 1);
 	assert.equal(fixture.closeOptions[0]?.signal instanceof AbortSignal, true);
+});
+
+void test('operation serialization failure closes stream and preserves failed state', async () => {
+	const fixture = createBridgeFixture();
+	const client = createMdevBridgeClient({
+		connection: fixture.connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 10,
+	});
+	const cyclicParams: Record<string, unknown> = {};
+	cyclicParams.self = cyclicParams;
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: cyclicParams,
+	});
+	await nextTick();
+	fixture.emitJson(helloResponse());
+
+	assert.deepEqual(await withTestTimeout(resultPromise), {
+		success: false,
+		output: '',
+		error: 'mdev bridge protocol error.',
+	});
+	assert.equal(fixture.writes.length, 1);
+	await waitTimeout(20);
+	assert.equal(fixture.closeOptions.length, 1);
+	assert.equal(fixture.closeOptions[0]?.signal instanceof AbortSignal, true);
+	assert.deepEqual(
+		await client.runOperation({ operation: 'op.one', params: {} }),
+		{
+			success: false,
+			output: '',
+			error: 'mdev bridge protocol error.',
+		},
+	);
 });
 
 void test('queued operation behind protocol failure settles without another write', async () => {

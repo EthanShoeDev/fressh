@@ -301,12 +301,26 @@ export function createMdevBridgeClient({
 
 		const abortController = new AbortController();
 		startupAbortController = abortController;
-		const startedStreamPromise = connection
-			.startCommandStream({
+		let startCommandStreamPromise: Promise<MdevBridgeCommandStream>;
+		try {
+			startCommandStreamPromise = connection.startCommandStream({
 				command: MDEV_BRIDGE_COMMAND,
 				onEvent: handleEvent,
 				abortSignal: abortController.signal,
-			})
+			});
+		} catch {
+			if (startupAbortController === abortController) {
+				startupAbortController = null;
+				startupDisposeRejecters = [];
+			}
+			if (disposed) {
+				throw new Error(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
+			}
+			failedError = failedError ?? MDEV_BRIDGE_UPDATE_MESSAGE;
+			throw new Error(failedError);
+		}
+
+		const startedStreamPromise = startCommandStreamPromise
 			.then((startedStream) => {
 				if (startupAbortController === abortController) {
 					startupAbortController = null;
