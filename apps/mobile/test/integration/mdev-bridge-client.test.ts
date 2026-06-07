@@ -1110,7 +1110,7 @@ void test('queued operation timeout starts at public runOperation call', async (
 	const client = createMdevBridgeClient({
 		connection: fixture.connection,
 		requiredOperations: ['op.one', 'op.two'],
-		requestTimeoutMs: 100,
+		requestTimeoutMs: 500,
 	});
 
 	const firstResultPromise = client.runOperation({
@@ -1130,17 +1130,19 @@ void test('queued operation timeout starts at public runOperation call', async (
 	await waitTimeout(20);
 	assert.equal(fixture.writes.length, 2);
 
-	fixture.emitJson({ id: 'mdev-bridge-2', ok: true, result: { order: 1 } });
-	assert.deepEqual(await firstResultPromise, {
-		success: true,
-		output: '{"order":1}\n',
-	});
-
 	assert.deepEqual(await withTestTimeout(secondResultPromise, 100), {
 		success: false,
 		output: '',
 		error: 'mdev bridge request timed out.',
 	});
+	assert.equal(fixture.writes.length, 2);
+
+	fixture.emitJson({ id: 'mdev-bridge-2', ok: true, result: { order: 1 } });
+	assert.deepEqual(await firstResultPromise, {
+		success: true,
+		output: '{"order":1}\n',
+	});
+	await nextTick();
 	assert.equal(fixture.writes.length, 2);
 	assert.deepEqual(
 		await client.runOperation({ operation: 'op.two', params: {} }),

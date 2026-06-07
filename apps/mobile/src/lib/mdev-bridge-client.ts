@@ -87,6 +87,48 @@ function getRemainingTimeoutMs(deadline: MdevBridgeRequestDeadline): number {
 	return Math.max(0, Math.ceil(deadline.expiresAtMs - nowMs()));
 }
 
+function raceQueueWaitWithRequestDeadline(
+	queueWaitPromise: Promise<void>,
+	queuedResultPromise: Promise<MdevBridgeResult>,
+	deadline: MdevBridgeRequestDeadline,
+): Promise<MdevBridgeResult> {
+	const timeoutMs = getRemainingTimeoutMs(deadline);
+	if (timeoutMs <= 0) {
+		return Promise.resolve(errorResult(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR));
+	}
+
+	return new Promise((resolve) => {
+		let settled = false;
+		const timer = setTimeout(() => {
+			if (settled) return;
+			settled = true;
+			resolve(errorResult(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR));
+		}, timeoutMs);
+		const maybeNodeTimer = timer as ReturnType<typeof setTimeout> & {
+			unref?: () => void;
+		};
+		maybeNodeTimer.unref?.();
+
+		queueWaitPromise.then(
+			() => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
+				queuedResultPromise.then(
+					(result) => resolve(result),
+					() => resolve(errorResult(MDEV_BRIDGE_UPDATE_MESSAGE)),
+				);
+			},
+			() => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
+				resolve(errorResult(MDEV_BRIDGE_UPDATE_MESSAGE));
+			},
+		);
+	});
+}
+
 async function withBridgeTimeout<T>(
 	promise: Promise<T>,
 	timeoutMs: number,
@@ -529,12 +571,19 @@ export function createMdevBridgeClient({
 			const deadline = createRequestDeadline(
 				input.timeoutMs ?? requestTimeoutMs,
 			);
-			const resultPromise = queue.then(() => runOperationNow(input, deadline));
-			queue = resultPromise.then(
+			const queueWaitPromise = queue;
+			const queuedResultPromise = queueWaitPromise.then(() =>
+				runOperationNow(input, deadline),
+			);
+			queue = queuedResultPromise.then(
 				() => undefined,
 				() => undefined,
 			);
-			return resultPromise;
+			return raceQueueWaitWithRequestDeadline(
+				queueWaitPromise,
+				queuedResultPromise,
+				deadline,
+			);
 		},
 		dispose: async () => {
 			if (disposed) return;
