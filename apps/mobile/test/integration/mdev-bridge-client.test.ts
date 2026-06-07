@@ -12,12 +12,28 @@ function bytes(text: string): ArrayBuffer {
 	return new TextEncoder().encode(text).buffer as ArrayBuffer;
 }
 
+function bufferFromBytes(bytes: Uint8Array): ArrayBuffer {
+	return bytes.buffer.slice(
+		bytes.byteOffset,
+		bytes.byteOffset + bytes.byteLength,
+	) as ArrayBuffer;
+}
+
 function text(bytes: ArrayBuffer): string {
 	return new TextDecoder().decode(bytes);
 }
 
 async function nextTick() {
 	await waitTimeout(0);
+}
+
+async function withTestTimeout<T>(promise: Promise<T>, timeoutMs = 100) {
+	return await Promise.race([
+		promise,
+		waitTimeout(timeoutMs).then(() => {
+			throw new Error(`test timed out after ${timeoutMs}ms`);
+		}),
+	]);
 }
 
 function parseWrite(write: string): unknown {
@@ -389,6 +405,37 @@ void test('unanswered request times out and future requests fail', async () => {
 	);
 });
 
+void test('per-operation timeout override controls the local watchdog', async () => {
+	const fixture = createBridgeFixture();
+	const client = createMdevBridgeClient({
+		connection: fixture.connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 500,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+		timeoutMs: 10,
+	});
+	await nextTick();
+	fixture.emitJson(helloResponse());
+	await nextTick();
+
+	assert.deepEqual(parseWrite(fixture.writes[1] ?? ''), {
+		id: 'mdev-bridge-2',
+		type: 'operation',
+		operation: 'op.one',
+		params: {},
+		timeoutMs: 10,
+	});
+	assert.deepEqual(await withTestTimeout(resultPromise, 100), {
+		success: false,
+		output: '',
+		error: 'mdev bridge request timed out.',
+	});
+});
+
 void test('operations queue sequentially', async () => {
 	const fixture = createBridgeFixture();
 	const client = createMdevBridgeClient({
@@ -504,6 +551,49 @@ void test('partial stdout lines buffer until newline', async () => {
 	});
 });
 
+void test('split UTF-8 stdout chunks parse without corrupting JSON strings', async () => {
+	const fixture = createBridgeFixture();
+	const client = createMdevBridgeClient({
+		connection: fixture.connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 100,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+	});
+	await nextTick();
+	fixture.emitJson(helloResponse());
+	await nextTick();
+
+	const line = `${JSON.stringify({
+		id: 'mdev-bridge-2',
+		ok: true,
+		result: { word: 'café' },
+	})}\n`;
+	const encoded = new TextEncoder().encode(line);
+	const characterIndex = line.indexOf('é');
+	assert.notEqual(characterIndex, -1);
+	const splitIndex =
+		new TextEncoder().encode(line.slice(0, characterIndex)).length + 1;
+
+	fixture.emit({
+		type: 'stdout',
+		bytes: bufferFromBytes(encoded.slice(0, splitIndex)),
+	});
+	await nextTick();
+	fixture.emit({
+		type: 'stdout',
+		bytes: bufferFromBytes(encoded.slice(splitIndex)),
+	});
+
+	assert.deepEqual(await resultPromise, {
+		success: true,
+		output: '{"word":"café"}\n',
+	});
+});
+
 void test('dispose closes stream and future run returns disposed error', async () => {
 	const fixture = createBridgeFixture();
 	const client = createMdevBridgeClient({
@@ -535,4 +625,77 @@ void test('dispose closes stream and future run returns disposed error', async (
 			error: 'mdev bridge client disposed.',
 		},
 	);
+});
+
+void test('dispose during pending startup settles run and closes late stream', async () => {
+	const unhandledRejections: unknown[] = [];
+	const onUnhandledRejection = (reason: unknown) => {
+		unhandledRejections.push(reason);
+	};
+	let capturedStart:
+		| {
+				command: string;
+				abortSignal: AbortSignal | undefined;
+		  }
+		| undefined;
+	let resolveStart:
+		| ((stream: {
+				sendData: (data: ArrayBuffer) => Promise<void>;
+				close: (opts?: { signal?: AbortSignal }) => Promise<void>;
+		  }) => void)
+		| undefined;
+	const closeOptions: ({ signal?: AbortSignal } | undefined)[] = [];
+	const connection: MdevBridgeStreamConnection = {
+		startCommandStream: async (opts) => {
+			capturedStart = {
+				command: opts.command,
+				abortSignal: opts.abortSignal,
+			};
+			return await new Promise((resolve) => {
+				resolveStart = resolve;
+			});
+		},
+	};
+	const client = createMdevBridgeClient({
+		connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 100,
+	});
+
+	process.on('unhandledRejection', onUnhandledRejection);
+	try {
+		const resultPromise = client.runOperation({
+			operation: 'op.one',
+			params: {},
+		});
+		await nextTick();
+
+		const disposePromise = client.dispose();
+
+		assert.equal(capturedStart?.command, 'mdev bridge --jsonl');
+		assert.equal(capturedStart?.abortSignal instanceof AbortSignal, true);
+		assert.equal(capturedStart?.abortSignal?.aborted, true);
+		assert.deepEqual(await withTestTimeout(resultPromise), {
+			success: false,
+			output: '',
+			error: 'mdev bridge client disposed.',
+		});
+		await withTestTimeout(disposePromise);
+
+		assert.ok(resolveStart, 'start promise resolver was not captured');
+		resolveStart({
+			sendData: async () => {},
+			close: async (opts) => {
+				closeOptions.push(opts);
+				throw new Error('late startup close failed');
+			},
+		});
+		await waitTimeout(20);
+
+		assert.equal(closeOptions.length, 1);
+		assert.equal(closeOptions[0]?.signal instanceof AbortSignal, true);
+		assert.deepEqual(unhandledRejections, []);
+	} finally {
+		process.off('unhandledRejection', onUnhandledRejection);
+	}
 });

@@ -136,8 +136,11 @@ export function createMdevBridgeClient({
 	let nextRequestId = 1;
 	let stream: MdevBridgeCommandStream | null = null;
 	let streamPromise: Promise<MdevBridgeCommandStream> | null = null;
+	let startupAbortController: AbortController | null = null;
+	let startupDisposeRejecters: ((error: Error) => void)[] = [];
 	let pending: PendingRequest | null = null;
 	let stdoutBuffer = '';
+	const stdoutDecoder = new TextDecoder();
 	let queue: Promise<void> = Promise.resolve();
 
 	function nextId(): string {
@@ -158,6 +161,23 @@ export function createMdevBridgeClient({
 		if (disposed) return;
 		failedError = failedError ?? error;
 		finishPending(errorResult(failedError));
+	}
+
+	function rejectStartupWaiters(error: Error) {
+		const rejecters = startupDisposeRejecters;
+		startupDisposeRejecters = [];
+		for (const reject of rejecters) {
+			reject(error);
+		}
+	}
+
+	function waitForStartupDispose(): Promise<never> {
+		if (disposed) {
+			return Promise.reject(new Error(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR));
+		}
+		return new Promise((_, reject) => {
+			startupDisposeRejecters.push(reject);
+		});
 	}
 
 	function handleLine(line: string) {
@@ -195,7 +215,7 @@ export function createMdevBridgeClient({
 	}
 
 	function handleStdout(data: ArrayBuffer) {
-		stdoutBuffer += new TextDecoder().decode(data);
+		stdoutBuffer += stdoutDecoder.decode(data, { stream: true });
 		while (true) {
 			const newlineIndex = stdoutBuffer.indexOf('\n');
 			if (newlineIndex < 0) return;
@@ -225,25 +245,43 @@ export function createMdevBridgeClient({
 		if (streamPromise) return await streamPromise;
 
 		const abortController = new AbortController();
-		streamPromise = connection
+		startupAbortController = abortController;
+		const startedStreamPromise = connection
 			.startCommandStream({
 				command: MDEV_BRIDGE_COMMAND,
 				onEvent: handleEvent,
 				abortSignal: abortController.signal,
 			})
 			.then((startedStream) => {
+				if (startupAbortController === abortController) {
+					startupAbortController = null;
+					startupDisposeRejecters = [];
+				}
 				if (disposed) {
-					const abortController = new AbortController();
-					void startedStream.close({ signal: abortController.signal });
-					return startedStream;
+					const closeAbortController = new AbortController();
+					void startedStream
+						.close({ signal: closeAbortController.signal })
+						.catch(() => {});
+					throw new Error(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
 				}
 				stream = startedStream;
 				return startedStream;
 			})
 			.catch(() => {
+				if (startupAbortController === abortController) {
+					startupAbortController = null;
+				}
+				if (disposed) {
+					throw new Error(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
+				}
 				failedError = MDEV_BRIDGE_UPDATE_MESSAGE;
 				throw new Error(MDEV_BRIDGE_UPDATE_MESSAGE);
 			});
+
+		streamPromise = Promise.race([
+			startedStreamPromise,
+			waitForStartupDispose(),
+		]);
 
 		return await streamPromise;
 	}
@@ -257,9 +295,11 @@ export function createMdevBridgeClient({
 	}
 
 	async function sendRequest({
+		localTimeoutMs,
 		request,
 		validate,
 	}: {
+		localTimeoutMs: number;
 		request: Record<string, unknown>;
 		validate: PendingRequest['validate'];
 	}): Promise<MdevBridgeResult> {
@@ -277,7 +317,7 @@ export function createMdevBridgeClient({
 				pending = null;
 				failedError = MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR;
 				resolve(errorResult(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR));
-			}, requestTimeoutMs);
+			}, localTimeoutMs);
 
 			pending = { id, resolve, timer, validate };
 			startedStream.sendData(bytes(`${JSON.stringify(request)}\n`)).catch(() => {
@@ -293,6 +333,7 @@ export function createMdevBridgeClient({
 
 		const id = nextId();
 		const result = await sendRequest({
+			localTimeoutMs: requestTimeoutMs,
 			request: { id, type: 'hello' },
 			validate: (response) =>
 				validateHelloResponse(response, requiredOperations) ?? null,
@@ -326,10 +367,12 @@ export function createMdevBridgeClient({
 			};
 
 			return await sendRequest({
+				localTimeoutMs: input.timeoutMs ?? requestTimeoutMs,
 				request,
 				validate: (response) => validateOperationResponse(response),
 			});
 		} catch {
+			if (disposed) return errorResult(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
 			return errorResult(failedError ?? MDEV_BRIDGE_UPDATE_MESSAGE);
 		}
 	}
@@ -346,6 +389,9 @@ export function createMdevBridgeClient({
 		dispose: async () => {
 			if (disposed) return;
 			disposed = true;
+			startupAbortController?.abort();
+			startupAbortController = null;
+			rejectStartupWaiters(new Error(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR));
 			finishPending(errorResult(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR));
 			await closeStream();
 		},
