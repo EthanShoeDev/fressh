@@ -405,6 +405,72 @@ void test('unanswered request times out and future requests fail', async () => {
 	);
 });
 
+void test('unresolved startup times out, aborts startup, and fails future requests', async () => {
+	let capturedStart:
+		| {
+				command: string;
+				abortSignal: AbortSignal | undefined;
+		  }
+		| undefined;
+	let resolveStart:
+		| ((stream: {
+				sendData: (data: ArrayBuffer) => Promise<void>;
+				close: (opts?: { signal?: AbortSignal }) => Promise<void>;
+		  }) => void)
+		| undefined;
+	const closeOptions: ({ signal?: AbortSignal } | undefined)[] = [];
+	const connection: MdevBridgeStreamConnection = {
+		startCommandStream: async (opts) => {
+			capturedStart = {
+				command: opts.command,
+				abortSignal: opts.abortSignal,
+			};
+			return await new Promise((resolve) => {
+				resolveStart = resolve;
+			});
+		},
+	};
+	const client = createMdevBridgeClient({
+		connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 10,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+	});
+	await nextTick();
+
+	assert.equal(capturedStart?.command, 'mdev bridge --jsonl');
+	assert.deepEqual(await withTestTimeout(resultPromise), {
+		success: false,
+		output: '',
+		error: 'mdev bridge request timed out.',
+	});
+	assert.equal(capturedStart?.abortSignal?.aborted, true);
+	assert.deepEqual(
+		await client.runOperation({ operation: 'op.one', params: {} }),
+		{
+			success: false,
+			output: '',
+			error: 'mdev bridge request timed out.',
+		},
+	);
+
+	assert.ok(resolveStart, 'start promise resolver was not captured');
+	resolveStart({
+		sendData: async () => {},
+		close: async (opts) => {
+			closeOptions.push(opts);
+		},
+	});
+	await nextTick();
+
+	assert.equal(closeOptions.length, 1);
+	assert.equal(closeOptions[0]?.signal instanceof AbortSignal, true);
+});
+
 void test('per-operation timeout override controls the local watchdog', async () => {
 	const fixture = createBridgeFixture();
 	const client = createMdevBridgeClient({
@@ -551,6 +617,41 @@ void test('partial stdout lines buffer until newline', async () => {
 	});
 });
 
+void test('pre-hello stream exit asks user to update mdev', async () => {
+	for (const event of [
+		{ type: 'closed' } as const,
+		{ type: 'exitStatus', exitStatus: 127 } as const,
+	]) {
+		const fixture = createBridgeFixture();
+		const client = createMdevBridgeClient({
+			connection: fixture.connection,
+			requiredOperations: ['op.one'],
+			requestTimeoutMs: 100,
+		});
+
+		const resultPromise = client.runOperation({
+			operation: 'op.one',
+			params: {},
+		});
+		await nextTick();
+		fixture.emit(event);
+
+		assert.deepEqual(await resultPromise, {
+			success: false,
+			output: '',
+			error: MDEV_BRIDGE_UPDATE_MESSAGE,
+		});
+		assert.deepEqual(
+			await client.runOperation({ operation: 'op.one', params: {} }),
+			{
+				success: false,
+				output: '',
+				error: MDEV_BRIDGE_UPDATE_MESSAGE,
+			},
+		);
+	}
+});
+
 void test('split UTF-8 stdout chunks parse without corrupting JSON strings', async () => {
 	const fixture = createBridgeFixture();
 	const client = createMdevBridgeClient({
@@ -625,6 +726,45 @@ void test('dispose closes stream and future run returns disposed error', async (
 			error: 'mdev bridge client disposed.',
 		},
 	);
+});
+
+void test('dispose with hanging stream close resolves and aborts close signal', async () => {
+	let closeSignal: AbortSignal | undefined;
+	let onEvent: ((event: MdevBridgeStreamEvent) => void) | undefined;
+	const connection: MdevBridgeStreamConnection = {
+		startCommandStream: async (opts) => {
+			onEvent = opts.onEvent;
+			return {
+				sendData: async () => {},
+				close: async (opts) => {
+					closeSignal = opts?.signal;
+					await new Promise(() => {});
+				},
+			};
+		},
+	};
+	const client = createMdevBridgeClient({
+		connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 10,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+	});
+	await nextTick();
+
+	await withTestTimeout(client.dispose(), 100);
+
+	assert.equal(closeSignal instanceof AbortSignal, true);
+	assert.equal(closeSignal?.aborted, true);
+	assert.deepEqual(await withTestTimeout(resultPromise), {
+		success: false,
+		output: '',
+		error: 'mdev bridge client disposed.',
+	});
+	assert.equal(typeof onEvent, 'function');
 });
 
 void test('dispose during pending startup settles run and closes late stream', async () => {

@@ -65,6 +65,32 @@ function bytes(text: string): ArrayBuffer {
 	return new TextEncoder().encode(text).buffer as ArrayBuffer;
 }
 
+async function withBridgeTimeout<T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+	onTimeout: (error: Error) => void,
+): Promise<T> {
+	let timeoutId: ReturnType<typeof setTimeout> | null = null;
+	try {
+		return await Promise.race([
+			promise,
+			new Promise<T>((_, reject) => {
+				timeoutId = setTimeout(() => {
+					const error = new Error(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR);
+					reject(error);
+					onTimeout(error);
+				}, timeoutMs);
+				const maybeNodeTimer = timeoutId as ReturnType<typeof setTimeout> & {
+					unref?: () => void;
+				};
+				maybeNodeTimer.unref?.();
+			}),
+		]);
+	} finally {
+		if (timeoutId !== null) clearTimeout(timeoutId);
+	}
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -140,6 +166,7 @@ export function createMdevBridgeClient({
 	let startupDisposeRejecters: ((error: Error) => void)[] = [];
 	let pending: PendingRequest | null = null;
 	let stdoutBuffer = '';
+	let helloComplete = false;
 	const stdoutDecoder = new TextDecoder();
 	let queue: Promise<void> = Promise.resolve();
 
@@ -235,9 +262,22 @@ export function createMdevBridgeClient({
 			case 'exitStatus':
 			case 'exitSignal':
 			case 'closed':
-				markFailed(MDEV_BRIDGE_STREAM_CLOSED_ERROR);
+				markFailed(
+					helloComplete
+						? MDEV_BRIDGE_STREAM_CLOSED_ERROR
+						: MDEV_BRIDGE_UPDATE_MESSAGE,
+				);
 				break;
 		}
+	}
+
+	async function closeStreamWithTimeout(targetStream: MdevBridgeCommandStream) {
+		const abortController = new AbortController();
+		await withBridgeTimeout(
+			targetStream.close({ signal: abortController.signal }),
+			requestTimeoutMs,
+			(error) => abortController.abort(error),
+		).catch(() => {});
 	}
 
 	async function ensureStream(): Promise<MdevBridgeCommandStream> {
@@ -257,12 +297,13 @@ export function createMdevBridgeClient({
 					startupAbortController = null;
 					startupDisposeRejecters = [];
 				}
-				if (disposed) {
-					const closeAbortController = new AbortController();
-					void startedStream
-						.close({ signal: closeAbortController.signal })
-						.catch(() => {});
-					throw new Error(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
+				if (disposed || failedError) {
+					void closeStreamWithTimeout(startedStream);
+					throw new Error(
+						disposed
+							? MDEV_BRIDGE_CLIENT_DISPOSED_ERROR
+							: (failedError ?? MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR),
+					);
 				}
 				stream = startedStream;
 				return startedStream;
@@ -270,16 +311,27 @@ export function createMdevBridgeClient({
 			.catch(() => {
 				if (startupAbortController === abortController) {
 					startupAbortController = null;
+					startupDisposeRejecters = [];
 				}
 				if (disposed) {
 					throw new Error(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
+				}
+				if (failedError) {
+					throw new Error(failedError);
 				}
 				failedError = MDEV_BRIDGE_UPDATE_MESSAGE;
 				throw new Error(MDEV_BRIDGE_UPDATE_MESSAGE);
 			});
 
 		streamPromise = Promise.race([
-			startedStreamPromise,
+			withBridgeTimeout(startedStreamPromise, requestTimeoutMs, (error) => {
+				if (startupAbortController === abortController) {
+					failedError = MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR;
+					abortController.abort(error);
+					startupAbortController = null;
+					startupDisposeRejecters = [];
+				}
+			}),
 			waitForStartupDispose(),
 		]);
 
@@ -290,8 +342,7 @@ export function createMdevBridgeClient({
 		const startedStream = stream;
 		if (!startedStream) return;
 		stream = null;
-		const abortController = new AbortController();
-		await startedStream.close({ signal: abortController.signal });
+		await closeStreamWithTimeout(startedStream);
 	}
 
 	async function sendRequest({
@@ -340,6 +391,7 @@ export function createMdevBridgeClient({
 		});
 
 		if (!result.success || result.error) return result;
+		helloComplete = true;
 		return null;
 	}
 
