@@ -69,18 +69,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function hasStringArray(value: unknown, expected: string): boolean {
-	return Array.isArray(value) && value.some((item) => item === expected);
-}
-
 function includesAllRequiredOperations(
-	operations: unknown,
+	operations: unknown[],
 	requiredOperations: readonly string[],
 ): boolean {
-	return (
-		Array.isArray(operations) &&
-		requiredOperations.every((operation) => operations.includes(operation))
-	);
+	return requiredOperations.every((operation) => operations.includes(operation));
 }
 
 function validateHelloResponse(
@@ -94,7 +87,14 @@ function validateHelloResponse(
 	}
 
 	if (
-		!hasStringArray(response.supportedRequestTypes, 'operation') ||
+		!Array.isArray(response.supportedRequestTypes) ||
+		!Array.isArray(response.operations)
+	) {
+		return fatalResult(MDEV_BRIDGE_PROTOCOL_ERROR);
+	}
+
+	if (
+		!response.supportedRequestTypes.includes('operation') ||
 		!includesAllRequiredOperations(response.operations, requiredOperations)
 	) {
 		return fatalResult(MDEV_BRIDGE_UPDATE_MESSAGE);
@@ -322,10 +322,8 @@ export function createMdevBridgeClient({
 				type: 'operation',
 				operation: input.operation,
 				params: input.params,
+				timeoutMs: input.timeoutMs ?? requestTimeoutMs,
 			};
-			if (input.timeoutMs !== undefined) {
-				request.timeoutMs = input.timeoutMs;
-			}
 
 			return await sendRequest({
 				request,

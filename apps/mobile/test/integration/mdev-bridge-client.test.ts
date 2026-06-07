@@ -153,6 +153,29 @@ void test('missing operation capability fails with update message and does not s
 	assert.equal(fixture.writes.length, 1);
 });
 
+void test('missing request type capability fails with update message and does not send operation', async () => {
+	const fixture = createBridgeFixture();
+	const client = createMdevBridgeClient({
+		connection: fixture.connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 100,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+	});
+	await nextTick();
+	fixture.emitJson(helloResponse({ supportedRequestTypes: [] }));
+
+	assert.deepEqual(await resultPromise, {
+		success: false,
+		output: '',
+		error: MDEV_BRIDGE_UPDATE_MESSAGE,
+	});
+	assert.equal(fixture.writes.length, 1);
+});
+
 void test('ok false operation response surfaces bridge error', async () => {
 	const fixture = createBridgeFixture();
 	const client = createMdevBridgeClient({
@@ -190,6 +213,7 @@ void test('ok false operation response surfaces bridge error', async () => {
 		type: 'operation',
 		operation: 'op.one',
 		params: { retry: true },
+		timeoutMs: 100,
 	});
 
 	fixture.emitJson({
@@ -274,6 +298,47 @@ void test('malformed response and invalid hello fail with protocol error', async
 		error: 'mdev bridge protocol error.',
 	});
 
+	const invalidRequestTypesFixture = createBridgeFixture();
+	const invalidRequestTypesClient = createMdevBridgeClient({
+		connection: invalidRequestTypesFixture.connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 100,
+	});
+	const invalidRequestTypesResultPromise =
+		invalidRequestTypesClient.runOperation({
+			operation: 'op.one',
+			params: {},
+		});
+	await nextTick();
+	invalidRequestTypesFixture.emitJson(
+		helloResponse({ supportedRequestTypes: 'operation' }),
+	);
+
+	assert.deepEqual(await invalidRequestTypesResultPromise, {
+		success: false,
+		output: '',
+		error: 'mdev bridge protocol error.',
+	});
+
+	const invalidOperationsFixture = createBridgeFixture();
+	const invalidOperationsClient = createMdevBridgeClient({
+		connection: invalidOperationsFixture.connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 100,
+	});
+	const invalidOperationsResultPromise = invalidOperationsClient.runOperation({
+		operation: 'op.one',
+		params: {},
+	});
+	await nextTick();
+	invalidOperationsFixture.emitJson(helloResponse({ operations: 'op.one' }));
+
+	assert.deepEqual(await invalidOperationsResultPromise, {
+		success: false,
+		output: '',
+		error: 'mdev bridge protocol error.',
+	});
+
 	const mismatchFixture = createBridgeFixture();
 	const mismatchClient = createMdevBridgeClient({
 		connection: mismatchFixture.connection,
@@ -350,6 +415,7 @@ void test('operations queue sequentially', async () => {
 		type: 'operation',
 		operation: 'op.one',
 		params: { order: 1 },
+		timeoutMs: 100,
 	});
 
 	fixture.emitJson({ id: 'mdev-bridge-2', ok: true, result: { order: 1 } });
@@ -365,6 +431,7 @@ void test('operations queue sequentially', async () => {
 		type: 'operation',
 		operation: 'op.two',
 		params: { order: 2 },
+		timeoutMs: 100,
 	});
 
 	fixture.emitJson({ id: 'mdev-bridge-3', ok: true, result: { order: 2 } });
