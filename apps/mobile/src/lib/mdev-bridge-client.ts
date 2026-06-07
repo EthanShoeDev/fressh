@@ -49,6 +49,10 @@ type PendingRequest = {
 	validate: (response: unknown) => MdevBridgeValidationResult | null;
 };
 
+type MdevBridgeRequestDeadline = {
+	expiresAtMs: number;
+};
+
 const MDEV_BRIDGE_PROTOCOL_ERROR = 'mdev bridge protocol error.';
 const MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR = 'mdev bridge request timed out.';
 const MDEV_BRIDGE_STREAM_CLOSED_ERROR = 'mdev bridge stream closed.';
@@ -67,6 +71,20 @@ function fatalResult(error: string): MdevBridgeValidationResult {
 
 function bytes(text: string): ArrayBuffer {
 	return new TextEncoder().encode(text).buffer as ArrayBuffer;
+}
+
+function nowMs(): number {
+	return globalThis.performance?.now() ?? Date.now();
+}
+
+function createRequestDeadline(timeoutMs: number): MdevBridgeRequestDeadline {
+	return {
+		expiresAtMs: nowMs() + timeoutMs,
+	};
+}
+
+function getRemainingTimeoutMs(deadline: MdevBridgeRequestDeadline): number {
+	return Math.max(0, Math.ceil(deadline.expiresAtMs - nowMs()));
 }
 
 async function withBridgeTimeout<T>(
@@ -380,24 +398,36 @@ export function createMdevBridgeClient({
 		await closeStreamWithTimeout(startedStream);
 	}
 
+	function failRequestDeadline(): MdevBridgeResult {
+		markFailed(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR);
+		return errorResult(failedError ?? MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR);
+	}
+
 	async function sendRequest({
-		localTimeoutMs,
-		request,
+		buildRequest,
+		deadline,
+		id,
 		validate,
 	}: {
-		localTimeoutMs: number;
-		request: Record<string, unknown>;
+		buildRequest: (timeoutMs: number) => Record<string, unknown>;
+		deadline: MdevBridgeRequestDeadline;
+		id: string;
 		validate: PendingRequest['validate'];
 	}): Promise<MdevBridgeResult> {
 		if (disposed) return errorResult(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
 		if (failedError) return errorResult(failedError);
 
-		const startedStream = await ensureStream(localTimeoutMs);
+		const startupTimeoutMs = getRemainingTimeoutMs(deadline);
+		if (startupTimeoutMs <= 0) return failRequestDeadline();
+
+		const startedStream = await ensureStream(startupTimeoutMs);
 		if (disposed) return errorResult(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
 		if (failedError) return errorResult(failedError);
 
+		const localTimeoutMs = getRemainingTimeoutMs(deadline);
+		if (localTimeoutMs <= 0) return failRequestDeadline();
+
 		return await new Promise((resolve) => {
-			const id = String(request.id);
 			const timer = setTimeout(() => {
 				if (pending?.id !== id) return;
 				markFailed(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR);
@@ -406,7 +436,7 @@ export function createMdevBridgeClient({
 			pending = { id, resolve, timer, validate };
 			let requestLine: string;
 			try {
-				requestLine = `${JSON.stringify(request)}\n`;
+				requestLine = `${JSON.stringify(buildRequest(localTimeoutMs))}\n`;
 			} catch {
 				if (pending?.id !== id) return;
 				markFailed(MDEV_BRIDGE_PROTOCOL_ERROR);
@@ -436,14 +466,15 @@ export function createMdevBridgeClient({
 	}
 
 	async function ensureHello(
-		localTimeoutMs: number,
+		deadline: MdevBridgeRequestDeadline,
 	): Promise<MdevBridgeResult | null> {
 		if (nextRequestId > 1) return null;
 
 		const id = nextId();
 		const result = await sendRequest({
-			localTimeoutMs,
-			request: { id, type: 'hello' },
+			deadline,
+			id,
+			buildRequest: () => ({ id, type: 'hello' }),
 			validate: (response) => {
 				const validation = validateHelloResponse(response, requiredOperations);
 				if (validation) return validation;
@@ -465,24 +496,27 @@ export function createMdevBridgeClient({
 		if (failedError) return errorResult(failedError);
 
 		try {
-			const localTimeoutMs = input.timeoutMs ?? requestTimeoutMs;
-			const helloResult = await ensureHello(localTimeoutMs);
+			const deadline = createRequestDeadline(
+				input.timeoutMs ?? requestTimeoutMs,
+			);
+			const helloResult = await ensureHello(deadline);
 			if (helloResult) return helloResult;
 
 			if (disposed) return errorResult(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
 			if (failedError) return errorResult(failedError);
 
-			const request: Record<string, unknown> = {
-				id: nextId(),
-				type: 'operation',
-				operation: input.operation,
-				params: input.params,
-				timeoutMs: localTimeoutMs,
-			};
+			const id = nextId();
 
 			return await sendRequest({
-				localTimeoutMs,
-				request,
+				deadline,
+				id,
+				buildRequest: (timeoutMs) => ({
+					id,
+					type: 'operation',
+					operation: input.operation,
+					params: input.params,
+					timeoutMs,
+				}),
 				validate: (response) => validateOperationResponse(response),
 			});
 		} catch {

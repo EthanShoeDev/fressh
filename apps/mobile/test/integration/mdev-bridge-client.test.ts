@@ -42,6 +42,27 @@ function parseWrite(write: string): unknown {
 	return JSON.parse(write);
 }
 
+function assertOperationWrite(
+	write: string,
+	expected: Omit<Record<string, unknown>, 'timeoutMs'>,
+	maxTimeoutMs: number,
+) {
+	const parsed = parseWrite(write);
+	assert.equal(typeof parsed, 'object');
+	assert.notEqual(parsed, null);
+	assert.equal(Array.isArray(parsed), false);
+	const { timeoutMs, ...rest } = parsed as Record<string, unknown>;
+	assert.deepEqual(rest, expected);
+	if (typeof timeoutMs !== 'number') {
+		assert.fail('timeoutMs should be a number');
+	}
+	assert.ok(timeoutMs > 0, 'timeoutMs should be positive');
+	assert.ok(
+		timeoutMs <= maxTimeoutMs,
+		'timeoutMs should not exceed the command deadline',
+	);
+}
+
 function createBridgeFixture() {
 	let onEvent: ((event: MdevBridgeStreamEvent) => void) | null = null;
 	const starts: {
@@ -131,13 +152,16 @@ void test('starts bridge, sends hello before operation, validates capabilities, 
 	await nextTick();
 
 	assert.equal(fixture.writes.length, 2);
-	assert.deepEqual(parseWrite(fixture.writes[1] ?? ''), {
-		id: 'mdev-bridge-2',
-		type: 'operation',
-		operation: 'op.one',
-		params: { target: 'pane' },
-		timeoutMs: 250,
-	});
+	assertOperationWrite(
+		fixture.writes[1] ?? '',
+		{
+			id: 'mdev-bridge-2',
+			type: 'operation',
+			operation: 'op.one',
+			params: { target: 'pane' },
+		},
+		250,
+	);
 
 	fixture.emitJson({
 		id: 'mdev-bridge-2',
@@ -477,13 +501,16 @@ void test('operation write failure after hello is stream closed', async () => {
 	});
 	await nextTick();
 
-	assert.deepEqual(parseWrite(writes[1] ?? ''), {
-		id: 'mdev-bridge-2',
-		type: 'operation',
-		operation: 'op.one',
-		params: {},
-		timeoutMs: 100,
-	});
+	assertOperationWrite(
+		writes[1] ?? '',
+		{
+			id: 'mdev-bridge-2',
+			type: 'operation',
+			operation: 'op.one',
+			params: {},
+		},
+		100,
+	);
 	assert.deepEqual(await resultPromise, {
 		success: false,
 		output: '',
@@ -542,13 +569,16 @@ void test('post-start request timeout closes the bridge stream', async () => {
 	await nextTick();
 	fixture.emitJson(helloResponse());
 	await nextTick();
-	assert.deepEqual(parseWrite(fixture.writes[1] ?? ''), {
-		id: 'mdev-bridge-2',
-		type: 'operation',
-		operation: 'op.one',
-		params: {},
-		timeoutMs: 10,
-	});
+	assertOperationWrite(
+		fixture.writes[1] ?? '',
+		{
+			id: 'mdev-bridge-2',
+			type: 'operation',
+			operation: 'op.one',
+			params: {},
+		},
+		10,
+	);
 
 	assert.deepEqual(await resultPromise, {
 		success: false,
@@ -941,6 +971,48 @@ void test('per-operation timeout override controls initial hello timeout', async
 	assert.equal(fixture.writes.length, 1);
 });
 
+void test('per-operation timeout is a single deadline across cold startup and hello', async () => {
+	const writes: string[] = [];
+	const closeOptions: ({ signal?: AbortSignal } | undefined)[] = [];
+	const connection: MdevBridgeStreamConnection = {
+		startCommandStream: async () => {
+			await waitTimeout(80);
+			return {
+				sendData: async (data) => {
+					writes.push(text(data));
+				},
+				close: async (opts) => {
+					closeOptions.push(opts);
+				},
+			};
+		},
+	};
+	const client = createMdevBridgeClient({
+		connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 500,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+		timeoutMs: 100,
+	});
+
+	assert.deepEqual(await withTestTimeout(resultPromise, 150), {
+		success: false,
+		output: '',
+		error: 'mdev bridge request timed out.',
+	});
+	assert.deepEqual(parseWrite(writes[0] ?? ''), {
+		id: 'mdev-bridge-1',
+		type: 'hello',
+	});
+	await nextTick();
+	assert.equal(closeOptions.length, 1);
+	assert.equal(closeOptions[0]?.signal instanceof AbortSignal, true);
+});
+
 void test('per-operation timeout override controls the local watchdog', async () => {
 	const fixture = createBridgeFixture();
 	const client = createMdevBridgeClient({
@@ -958,13 +1030,16 @@ void test('per-operation timeout override controls the local watchdog', async ()
 	fixture.emitJson(helloResponse());
 	await nextTick();
 
-	assert.deepEqual(parseWrite(fixture.writes[1] ?? ''), {
-		id: 'mdev-bridge-2',
-		type: 'operation',
-		operation: 'op.one',
-		params: {},
-		timeoutMs: 10,
-	});
+	assertOperationWrite(
+		fixture.writes[1] ?? '',
+		{
+			id: 'mdev-bridge-2',
+			type: 'operation',
+			operation: 'op.one',
+			params: {},
+		},
+		10,
+	);
 	assert.deepEqual(await withTestTimeout(resultPromise, 100), {
 		success: false,
 		output: '',
@@ -993,13 +1068,16 @@ void test('operations queue sequentially', async () => {
 	await nextTick();
 
 	assert.equal(fixture.writes.length, 2);
-	assert.deepEqual(parseWrite(fixture.writes[1] ?? ''), {
-		id: 'mdev-bridge-2',
-		type: 'operation',
-		operation: 'op.one',
-		params: { order: 1 },
-		timeoutMs: 100,
-	});
+	assertOperationWrite(
+		fixture.writes[1] ?? '',
+		{
+			id: 'mdev-bridge-2',
+			type: 'operation',
+			operation: 'op.one',
+			params: { order: 1 },
+		},
+		100,
+	);
 
 	fixture.emitJson({ id: 'mdev-bridge-2', ok: true, result: { order: 1 } });
 	assert.deepEqual(await firstResultPromise, {
@@ -1009,13 +1087,16 @@ void test('operations queue sequentially', async () => {
 	await nextTick();
 
 	assert.equal(fixture.writes.length, 3);
-	assert.deepEqual(parseWrite(fixture.writes[2] ?? ''), {
-		id: 'mdev-bridge-3',
-		type: 'operation',
-		operation: 'op.two',
-		params: { order: 2 },
-		timeoutMs: 100,
-	});
+	assertOperationWrite(
+		fixture.writes[2] ?? '',
+		{
+			id: 'mdev-bridge-3',
+			type: 'operation',
+			operation: 'op.two',
+			params: { order: 2 },
+		},
+		100,
+	);
 
 	fixture.emitJson({ id: 'mdev-bridge-3', ok: true, result: { order: 2 } });
 	assert.deepEqual(await secondResultPromise, {
