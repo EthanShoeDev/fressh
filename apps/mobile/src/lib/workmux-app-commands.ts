@@ -64,6 +64,17 @@ export function prepareWorkmuxAppCommandForRemoteShell(
 	command: string,
 ): string {
 	if (!isWorkmuxAppCommand(command)) return command;
+	return prefixWorkmuxRemoteCommandEnv(command);
+}
+
+export function prepareWorkmuxBridgeCommandForRemoteShell(
+	command: string,
+): string {
+	if (command !== 'mdev bridge --jsonl') return command;
+	return prefixWorkmuxRemoteCommandEnv(command);
+}
+
+function prefixWorkmuxRemoteCommandEnv(command: string): string {
 	if (command.startsWith(`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} `)) {
 		return command;
 	}

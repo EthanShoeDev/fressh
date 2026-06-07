@@ -1,3 +1,5 @@
+import { prepareWorkmuxBridgeCommandForRemoteShell } from './workmux-app-commands';
+
 export const MDEV_BRIDGE_UPDATE_MESSAGE =
 	'Update mdev on the remote machine; this action requires mdev bridge --jsonl.';
 
@@ -51,7 +53,9 @@ const MDEV_BRIDGE_PROTOCOL_ERROR = 'mdev bridge protocol error.';
 const MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR = 'mdev bridge request timed out.';
 const MDEV_BRIDGE_STREAM_CLOSED_ERROR = 'mdev bridge stream closed.';
 const MDEV_BRIDGE_CLIENT_DISPOSED_ERROR = 'mdev bridge client disposed.';
-const MDEV_BRIDGE_COMMAND = 'mdev bridge --jsonl';
+const MDEV_BRIDGE_COMMAND = prepareWorkmuxBridgeCommandForRemoteShell(
+	'mdev bridge --jsonl',
+);
 
 function errorResult(error: string): MdevBridgeResult {
 	return { success: false, output: '', error };

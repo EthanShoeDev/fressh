@@ -7,6 +7,7 @@ import {
 	type MdevBridgeStreamConnection,
 	type MdevBridgeStreamEvent,
 } from '../../src/lib/mdev-bridge-client';
+import { WORKMUX_REMOTE_COMMAND_ENV_PREFIX } from '../../src/lib/workmux-app-commands';
 
 function bytes(text: string): ArrayBuffer {
 	return new TextEncoder().encode(text).buffer as ArrayBuffer;
@@ -83,6 +84,8 @@ function createBridgeFixture() {
 	};
 }
 
+const EXPECTED_MDEV_BRIDGE_COMMAND = `${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev bridge --jsonl`;
+
 function helloResponse(overrides?: Record<string, unknown>) {
 	return {
 		id: 'mdev-bridge-1',
@@ -111,10 +114,12 @@ void test('starts bridge, sends hello before operation, validates capabilities, 
 
 	assert.deepEqual(fixture.starts, [
 		{
-			command: 'mdev bridge --jsonl',
+			command: EXPECTED_MDEV_BRIDGE_COMMAND,
 			abortSignal: fixture.starts[0]?.abortSignal,
 		},
 	]);
+	assert.match(fixture.starts[0]?.command ?? '', /PATH="\$PATH:\$HOME\/bin"/);
+	assert.match(fixture.starts[0]?.command ?? '', /mdev bridge --jsonl/);
 	assert.equal(fixture.starts[0]?.abortSignal instanceof AbortSignal, true);
 	assert.equal(fixture.writes.length, 1);
 	assert.deepEqual(parseWrite(fixture.writes[0] ?? ''), {
@@ -842,7 +847,7 @@ void test('unresolved startup times out, aborts startup, and fails future reques
 	});
 	await nextTick();
 
-	assert.equal(capturedStart?.command, 'mdev bridge --jsonl');
+	assert.equal(capturedStart?.command, EXPECTED_MDEV_BRIDGE_COMMAND);
 	assert.deepEqual(await withTestTimeout(resultPromise), {
 		success: false,
 		output: '',
@@ -1212,7 +1217,7 @@ void test('dispose during pending startup settles run and closes late stream', a
 
 		const disposePromise = client.dispose();
 
-		assert.equal(capturedStart?.command, 'mdev bridge --jsonl');
+		assert.equal(capturedStart?.command, EXPECTED_MDEV_BRIDGE_COMMAND);
 		assert.equal(capturedStart?.abortSignal instanceof AbortSignal, true);
 		assert.equal(capturedStart?.abortSignal?.aborted, true);
 		assert.deepEqual(await withTestTimeout(resultPromise), {

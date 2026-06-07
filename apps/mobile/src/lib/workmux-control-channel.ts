@@ -17,6 +17,9 @@ import {
 } from './workmux-direct-tmux-control';
 import { type WorkmuxScrollDirection } from './workmux-app-commands';
 
+export type WorkmuxControlConnection = DirectTmuxConnectionLike &
+	MdevBridgeStreamConnection;
+
 export type WorkmuxControlCommandResult = {
 	success: boolean;
 	output: string;
@@ -72,19 +75,20 @@ export function createWorkmuxControlChannel({
 	bridgeClient,
 	directTmuxTransport = createDirectTmuxControlTransport({ connection }),
 }: {
-	connection: DirectTmuxConnectionLike | null;
+	connection: WorkmuxControlConnection | null;
 	bridgeClient?: MdevBridgeClient;
 	directTmuxTransport?: DirectTmuxControlTransport;
 }): WorkmuxControlChannel {
 	let disposed = false;
-	const bridgeConnection = connection as unknown as MdevBridgeStreamConnection | null;
 	const resolvedBridgeClient =
 		bridgeClient ??
-		createMdevBridgeClient({
-			connection: bridgeConnection as MdevBridgeStreamConnection,
-			requiredOperations: WORKMUX_REQUIRED_MDEV_BRIDGE_OPERATIONS,
-			requestTimeoutMs: DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS,
-		});
+		(connection
+			? createMdevBridgeClient({
+					connection,
+					requiredOperations: WORKMUX_REQUIRED_MDEV_BRIDGE_OPERATIONS,
+					requestTimeoutMs: DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS,
+				})
+			: null);
 
 	const runDirect = async (
 		command: string,
@@ -116,6 +120,11 @@ export function createWorkmuxControlChannel({
 			try {
 				const { operation, params } =
 					buildMdevBridgeOperationFromWorkmuxArgv(argv);
+				if (!resolvedBridgeClient) {
+					return Promise.resolve(
+						failureResult('No SSH connection available.'),
+					);
+				}
 				return resolvedBridgeClient.runOperation({
 					operation,
 					params,
@@ -140,7 +149,7 @@ export function createWorkmuxControlChannel({
 		dispose: async () => {
 			disposed = true;
 			await Promise.all([
-				resolvedBridgeClient.dispose(),
+				resolvedBridgeClient?.dispose() ?? Promise.resolve(),
 				directTmuxTransport.dispose(),
 			]);
 		},
