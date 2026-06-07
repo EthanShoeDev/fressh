@@ -1005,6 +1005,7 @@ function ShellDetail() {
 			payloadSegments: Uint8Array<ArrayBuffer>[],
 			opts?: {
 				interSegmentDelayMs?: number;
+				onAccepted?: () => void;
 			},
 		) => {
 			const plan = buildWorkmuxScrollbackLiveInputSendPlan({
@@ -1033,7 +1034,7 @@ function ShellDetail() {
 
 			const remoteCopyModeActive =
 				tmuxRemoteScrollbackCopyModeActiveRef.current;
-			const pendingCleanup = runWorkmuxScrollbackLiveInputSendPlan({
+			void runWorkmuxScrollbackLiveInputSendPlan({
 				plan,
 				currentCleanup: scrollbackCleanupBarrierRef.current.current(),
 				startCleanup: clearScrollbackState,
@@ -1044,14 +1045,8 @@ function ShellDetail() {
 						interSegmentDelayMs: options?.interSegmentDelayMs,
 						isCurrent: isLiveInputRequestCurrent,
 					}),
+				onPayloadAccepted: opts?.onAccepted,
 			});
-			return (
-				plan.segments.length > 0 &&
-				requestWriter != null &&
-				requestInstanceId != null &&
-				(pendingCleanup != null ||
-					(!remoteCopyModeActive && isLiveInputRequestCurrent()))
-			);
 		},
 		[clearScrollbackState],
 	);
@@ -1068,10 +1063,12 @@ function ShellDetail() {
 			payloadSegments: Uint8Array<ArrayBuffer>[],
 			opts?: {
 				interSegmentDelayMs?: number;
+				onAccepted?: () => void;
 			},
 		) => {
-			return sendLiveInputSegments(payloadSegments, {
+			sendLiveInputSegments(payloadSegments, {
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
+				onAccepted: opts?.onAccepted,
 			});
 		},
 		[sendLiveInputSegments],
@@ -1279,17 +1276,19 @@ function ShellDetail() {
 			if (selectionModeEnabled) {
 				exitSelectionMode();
 			}
-			const accepted = sendLiteralInputSegments(payload.segments, {
+			sendLiteralInputSegments(payload.segments, {
 				interSegmentDelayMs: scrollbackExitDelayMs,
+				onAccepted: () => {
+					const historyState = recordAcceptedTextEntryHistoryPaste({
+						accepted: true,
+						historyText: payload.historyText,
+						recordPaste: (text) => textEntryHistoryStore.recordPaste(text),
+					});
+					if (historyState) {
+						refreshTextEntryHistory(historyState);
+					}
+				},
 			});
-			const historyState = recordAcceptedTextEntryHistoryPaste({
-				accepted,
-				historyText: payload.historyText,
-				recordPaste: (text) => textEntryHistoryStore.recordPaste(text),
-			});
-			if (historyState) {
-				refreshTextEntryHistory(historyState);
-			}
 		},
 		[
 			exitSelectionMode,
