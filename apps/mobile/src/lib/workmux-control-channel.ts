@@ -1,4 +1,13 @@
 import {
+	createMdevBridgeClient,
+	type MdevBridgeClient,
+	type MdevBridgeStreamConnection,
+} from './mdev-bridge-client';
+import {
+	WORKMUX_REQUIRED_MDEV_BRIDGE_OPERATIONS,
+	buildMdevBridgeOperationFromWorkmuxArgv,
+} from './workmux-bridge-operations';
+import {
 	type DirectTmuxConnectionLike,
 	type DirectTmuxControlTransport,
 	buildDirectTmuxScrollEnterCommand,
@@ -50,22 +59,6 @@ export type WorkmuxControlChannelCleanupOptions = {
 
 const DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS = 10_000;
 
-function quoteShellValue(value: string): string {
-	return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function isMdevCommandToken(index: number, value: string): boolean {
-	return index < 4 && /^[A-Za-z][A-Za-z0-9_-]*$/.test(value);
-}
-
-export function formatMdevArgvCommand(argv: string[]): string {
-	return ['mdev', ...argv]
-		.map((value, index) =>
-			isMdevCommandToken(index, value) ? value : quoteShellValue(value),
-		)
-		.join(' ');
-}
-
 function successResult(): WorkmuxControlCommandResult {
 	return { success: true, output: '' };
 }
@@ -76,17 +69,22 @@ function failureResult(error: string): WorkmuxControlCommandResult {
 
 export function createWorkmuxControlChannel({
 	connection,
-	runRemoteCommand,
+	bridgeClient,
 	directTmuxTransport = createDirectTmuxControlTransport({ connection }),
 }: {
 	connection: DirectTmuxConnectionLike | null;
-	runRemoteCommand: (
-		command: string,
-		timeoutMs: number,
-	) => Promise<WorkmuxControlCommandResult>;
+	bridgeClient?: MdevBridgeClient;
 	directTmuxTransport?: DirectTmuxControlTransport;
 }): WorkmuxControlChannel {
 	let disposed = false;
+	const bridgeConnection = connection as unknown as MdevBridgeStreamConnection | null;
+	const resolvedBridgeClient =
+		bridgeClient ??
+		createMdevBridgeClient({
+			connection: bridgeConnection as MdevBridgeStreamConnection,
+			requiredOperations: WORKMUX_REQUIRED_MDEV_BRIDGE_OPERATIONS,
+			requestTimeoutMs: DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS,
+		});
 
 	const runDirect = async (
 		command: string,
@@ -115,10 +113,22 @@ export function createWorkmuxControlChannel({
 					failureResult('Workmux control channel disposed.'),
 				);
 			}
-			return runRemoteCommand(
-				formatMdevArgvCommand(argv),
-				options?.timeoutMs ?? DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS,
-			);
+			try {
+				const { operation, params } =
+					buildMdevBridgeOperationFromWorkmuxArgv(argv);
+				return resolvedBridgeClient.runOperation({
+					operation,
+					params,
+					timeoutMs:
+						options?.timeoutMs ?? DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS,
+				});
+			} catch (error) {
+				return Promise.resolve(
+					failureResult(
+						error instanceof Error ? error.message : String(error),
+					),
+				);
+			}
 		},
 		scroll: {
 			enter: (input) =>
@@ -129,7 +139,10 @@ export function createWorkmuxControlChannel({
 		},
 		dispose: async () => {
 			disposed = true;
-			await directTmuxTransport.dispose();
+			await Promise.all([
+				resolvedBridgeClient.dispose(),
+				directTmuxTransport.dispose(),
+			]);
 		},
 	};
 }

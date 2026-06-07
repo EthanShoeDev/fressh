@@ -70,10 +70,7 @@ import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { OrderedWriter } from '@/lib/ordered-writer';
-import {
-	executeRemoteCommand,
-	runRemoteTextCommand,
-} from '@/lib/remote-command-runner';
+import { runRemoteTextCommand } from '@/lib/remote-command-runner';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -482,22 +479,8 @@ function ShellDetail() {
 		() =>
 			createWorkmuxControlChannel({
 				connection: connection ?? null,
-				runRemoteCommand: (command, timeoutMs) => {
-					if (!connection) {
-						return Promise.resolve({
-							success: false,
-							output: '',
-							error: 'No SSH connection available.',
-						});
-					}
-					return executeRemoteCommand({
-						connection,
-						command,
-						timeoutMs,
-					});
-				},
 			}),
-		[connection, normalizedTmuxTarget],
+		[connection],
 	);
 	const workmuxControlChannelRef = useRef(workmuxControlChannel);
 	useLayoutEffect(() => {
