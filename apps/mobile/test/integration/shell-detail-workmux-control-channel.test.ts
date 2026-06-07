@@ -85,6 +85,41 @@ void describe('shell detail Workmux control channel wiring', () => {
 		);
 	});
 
+	void test('disables local xterm scrollback when touch scroll is routed through Workmux', () => {
+		const source = readFileSync(detailSourcePath, 'utf8');
+
+		assert.match(
+			source,
+			/import \{ resolveShellTouchScrollPolicy \} from '\.\/shell-touch-scroll'/,
+		);
+		assert.match(source, /const remoteTouchScrollPolicy\s*=\s*useMemo/);
+		assert.match(source, /resolveShellTouchScrollPolicy\(\{/);
+		assert.match(
+			source,
+			/scrollback:\s*remoteTouchScrollPolicy\.xtermScrollback/,
+		);
+		assert.match(
+			source,
+			/touchScrollConfig=\{remoteTouchScrollPolicy\.touchScrollConfig\}/,
+		);
+		assert.doesNotMatch(source, /\btouchScrollEnabled\b/);
+		assert.doesNotMatch(source, /const remoteTouchScrollOwnsViewport\s*=/);
+		assert.doesNotMatch(source, /Math\.min\(width,\s*height\)\s*>=\s*600/);
+	});
+
+	void test('enables WebView scroll telemetry when scroll tracing is enabled', () => {
+		const source = readFileSync(detailSourcePath, 'utf8');
+
+		assert.match(
+			source,
+			/import \{[^}]*configureScrollTraceEnabled[^}]*isScrollTraceEnabled[^}]*\} from '@\/lib\/scroll-trace'/s,
+		);
+		assert.match(source, /const scrollTraceEnabled\s*=\s*isConfiguredScrollTraceEnabled\(\)/);
+		assert.match(source, /configureScrollTraceEnabled\(scrollTraceEnabled\)/);
+		assert.match(source, /scrollTraceEnabled,\s*debug:\s*__DEV__/);
+		assert.doesNotMatch(source, /debugTelemetry:\s*__DEV__/);
+	});
+
 	void test('passes only the connection into WorkmuxControlChannel for Workmux control commands', () => {
 		const source = readFileSync(detailSourcePath, 'utf8');
 		const block = extractCreateWorkmuxControlChannelBlock(source);

@@ -57,6 +57,12 @@ export type ScrollTraceHealthOptions = {
 	maxAverageCommandDurationMs?: number;
 };
 
+let configuredScrollTraceEnabled: boolean | null = null;
+
+export function configureScrollTraceEnabled(enabled: boolean | null): void {
+	configuredScrollTraceEnabled = enabled;
+}
+
 function asNumber(value: unknown): number | null {
 	return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
@@ -69,7 +75,10 @@ function isNotInModeValue(value: unknown): boolean {
 }
 
 export function isScrollTraceEnabled(): boolean {
-	return process.env.EXPO_PUBLIC_FRESSH_ENABLE_SCROLL_TRACE === 'true';
+	return (
+		configuredScrollTraceEnabled ??
+		(process.env.EXPO_PUBLIC_FRESSH_ENABLE_SCROLL_TRACE === 'true')
+	);
 }
 
 export function buildScrollTraceLine(

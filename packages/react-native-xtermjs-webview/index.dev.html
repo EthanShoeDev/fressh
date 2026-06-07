@@ -6,6 +6,25 @@
 			name="viewport"
 			content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no"
 		/>
+		<style>
+			/* Keep dev and bundled terminal scroll ownership identical. */
+			.xterm {
+				height: 100% !important;
+			}
+			.xterm-viewport {
+				background-color: inherit !important;
+			}
+			.fressh-touch-scroll-enabled .xterm-viewport {
+				overflow-y: hidden !important;
+				scrollbar-width: none;
+			}
+			.fressh-touch-scroll-enabled .xterm-viewport::-webkit-scrollbar {
+				display: none;
+			}
+			.xterm-screen {
+				height: 100% !important;
+			}
+		</style>
 	</head>
 	<body style="margin: 0; padding: 0px; width: 100%; height: 100%">
 		<div

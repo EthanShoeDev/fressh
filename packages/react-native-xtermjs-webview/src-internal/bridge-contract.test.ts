@@ -1417,6 +1417,52 @@ void test('public dist artifacts keep the published touch scroll bridge contract
 	}
 });
 
+void test('WebView wrapper disables native scrolling only for touch-scroll ownership', () => {
+	const source = readFileSync(join(process.cwd(), 'src/index.tsx'), 'utf8');
+
+	assert.match(source, /const touchScrollWebViewProps/);
+	assert.match(
+		source,
+		/\.\.\.webViewOptions[\s\S]*\.\.\.\(touchScrollOwnsViewport \? touchScrollWebViewProps : \{\}\)/,
+	);
+	assert.match(
+		source,
+		/const defaultWebViewProps[\s\S]*setSupportMultipleWindows:\s*false/,
+	);
+	assert.doesNotMatch(
+		source,
+		/const defaultWebViewProps[\s\S]*scrollEnabled:\s*false[\s\S]*const touchScrollWebViewProps/,
+	);
+});
+
+void test('terminal HTML hides xterm viewport scroll only while touch-scroll owns gestures', () => {
+	const html = readFileSync(join(process.cwd(), 'index.html'), 'utf8');
+
+	assert.match(
+		html,
+		/\.fressh-touch-scroll-enabled \.xterm-viewport\s*\{[^}]*overflow-y:\s*hidden !important/s,
+	);
+	assert.match(
+		html,
+		/\.fressh-touch-scroll-enabled \.xterm-viewport::?-webkit-scrollbar\s*\{[^}]*display:\s*none/s,
+	);
+	assert.doesNotMatch(
+		html,
+		/(^|\n)\s*\.xterm-viewport\s*\{[^}]*overflow-y:\s*hidden !important/s,
+	);
+});
+
+void test('touch scroll controller disables browser touch handling on xterm layers', () => {
+	const source = readFileSync(
+		join(process.cwd(), 'src-internal/touch-scroll-controller.ts'),
+		'utf8',
+	);
+
+	assert.match(source, /querySelector<HTMLElement>\('\.xterm-viewport'\)/);
+	assert.match(source, /querySelector<HTMLElement>\('\.xterm-screen'\)/);
+	assert.match(source, /target\.style\.touchAction = value/);
+});
+
 void test('generated WebView artifacts are in sync with source', () => {
 	const packageRoot = process.cwd();
 	const beforeBuild = readGeneratedArtifactSnapshot(packageRoot);
