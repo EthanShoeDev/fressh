@@ -48,7 +48,7 @@ function createHarness() {
 		channelId: 7,
 		tmuxTarget: 'main',
 	};
-	const commands: { command: string; timeoutMs: number }[] = [];
+	const commands: { argv: string[]; timeoutMs: number }[] = [];
 	const acknowledgements: {
 		connectionId: string;
 		session: string;
@@ -68,7 +68,7 @@ function createHarness() {
 			requestId += 1;
 		},
 		options(
-			runCommand: (command: string, timeoutMs: number) => Promise<string>,
+			runWorkmuxCommand: (argv: string[], timeoutMs: number) => Promise<string>,
 		) {
 			return {
 				platformOS: 'android',
@@ -82,9 +82,9 @@ function createHarness() {
 					return requestId;
 				},
 				isCurrentRequest: (id: number) => id === requestId,
-				runCommand: async (command: string, timeoutMs: number) => {
-					commands.push({ command, timeoutMs });
-					return runCommand(command, timeoutMs);
+				runWorkmuxCommand: async (argv: string[], timeoutMs: number) => {
+					commands.push({ argv, timeoutMs });
+					return runWorkmuxCommand(argv, timeoutMs);
 				},
 				acknowledge: (
 					connectionId: string,
@@ -110,7 +110,7 @@ void test('acknowledgeVisibleAgentNotification acknowledges current visible wind
 
 	assert.deepEqual(harness.commands, [
 		{
-			command: "mdev tmux app window --session 'main'",
+			argv: ['tmux', 'app', 'window', '--session', 'main'],
 			timeoutMs: 10_000,
 		},
 	]);
@@ -239,7 +239,7 @@ void test('pending notification subscribers are notified until unsubscribed', ()
 });
 
 void test('handleAgentNotificationRoute selects and acknowledges routed agent alert', async () => {
-	const commands: { command: string; timeoutMs: number }[] = [];
+	const commands: { argv: string[]; timeoutMs: number }[] = [];
 	const acknowledgements: {
 		connectionId: string;
 		session: string;
@@ -268,8 +268,8 @@ void test('handleAgentNotificationRoute selects and acknowledges routed agent al
 		},
 		isRouteHandled: (key) => handled.has(key),
 		markRouteHandled: (key) => handled.add(key),
-		runCommand: async (command, timeoutMs) => {
-			commands.push({ command, timeoutMs });
+		runWorkmuxCommand: async (argv, timeoutMs) => {
+			commands.push({ argv, timeoutMs });
 			return '';
 		},
 		acknowledge: (connectionId, session, windowId) => {
@@ -282,8 +282,16 @@ void test('handleAgentNotificationRoute selects and acknowledges routed agent al
 	assert.deepEqual(consumedTokens, ['tap-token']);
 	assert.deepEqual(commands, [
 		{
-			command:
-				"mdev tmux app notification open --session 'work' --window-id '@12'",
+			argv: [
+				'tmux',
+				'app',
+				'notification',
+				'open',
+				'--session',
+				'work',
+				'--window-id',
+				'@12',
+			],
 			timeoutMs: 10_000,
 		},
 	]);
@@ -297,7 +305,7 @@ void test('handleAgentNotificationRoute selects and acknowledges routed agent al
 });
 
 void test('handleAgentNotificationRoute consumes tap tokens before async routing', async () => {
-	const commands: string[] = [];
+	const commands: string[][] = [];
 	const acknowledgements: string[] = [];
 	let tokenAvailable = true;
 	let resolveCommand: () => void = () => {
@@ -319,8 +327,8 @@ void test('handleAgentNotificationRoute consumes tap tokens before async routing
 		},
 		isRouteHandled: (key: string) => handled.has(key),
 		markRouteHandled: (key: string) => handled.add(key),
-		runCommand: (command: string) => {
-			commands.push(command);
+		runWorkmuxCommand: (argv: string[]) => {
+			commands.push(argv);
 			return new Promise<string>((resolve) => {
 				resolveCommand = () => resolve('');
 			});
@@ -344,7 +352,16 @@ void test('handleAgentNotificationRoute consumes tap tokens before async routing
 
 	assert.equal(await firstRoute, true);
 	assert.deepEqual(commands, [
-		"mdev tmux app notification open --session 'main' --window-id '@12'",
+		[
+			'tmux',
+			'app',
+			'notification',
+			'open',
+			'--session',
+			'main',
+			'--window-id',
+			'@12',
+		],
 	]);
 	assert.deepEqual(acknowledgements, ['@12']);
 });
@@ -373,7 +390,7 @@ void test('handleAgentNotificationRoute restores consumed token after failed rou
 		},
 		isRouteHandled: () => false,
 		markRouteHandled: () => {},
-		runCommand: async () => {
+		runWorkmuxCommand: async () => {
 			commands += 1;
 			throw error;
 		},
@@ -397,7 +414,7 @@ void test('handleAgentNotificationRoute restores consumed token after failed rou
 		restoreAuthorizedRouteToken: () => false,
 		isRouteHandled: () => false,
 		markRouteHandled: () => {},
-		runCommand: async () => {
+		runWorkmuxCommand: async () => {
 			commands += 1;
 			return '';
 		},
@@ -428,7 +445,7 @@ void test('handleAgentNotificationRoute falls back to stored connection id', asy
 		consumeAuthorizedRouteToken: () => true,
 		isRouteHandled: () => false,
 		markRouteHandled: () => {},
-		runCommand: async () => '',
+		runWorkmuxCommand: async () => '',
 		acknowledge: (connectionId, session, windowId) => {
 			acknowledgements.push({ connectionId, session, windowId });
 		},
@@ -457,7 +474,7 @@ void test('handleAgentNotificationRoute suppresses duplicate successful routes o
 		consumeAuthorizedRouteToken: () => true,
 		isRouteHandled: (key) => handled.has(key),
 		markRouteHandled: (key) => handled.add(key),
-		runCommand: async () => {
+		runWorkmuxCommand: async () => {
 			commands += 1;
 			return '';
 		},
@@ -473,7 +490,7 @@ void test('handleAgentNotificationRoute allows a later alert for the same window
 	const handled = new Set<string>([
 		'["saved-host","main","@12","main:@12:2000:waiting"]',
 	]);
-	const commands: string[] = [];
+	const commands: string[][] = [];
 	const acknowledgements: string[] = [];
 
 	const handledRoute = await handleAgentNotificationRoute({
@@ -487,8 +504,8 @@ void test('handleAgentNotificationRoute allows a later alert for the same window
 		consumeAuthorizedRouteToken: () => true,
 		isRouteHandled: (key) => handled.has(key),
 		markRouteHandled: (key) => handled.add(key),
-		runCommand: async (command) => {
-			commands.push(command);
+		runWorkmuxCommand: async (argv) => {
+			commands.push(argv);
 			return '';
 		},
 		acknowledge: (_connectionId, _session, windowId) => {
@@ -499,7 +516,16 @@ void test('handleAgentNotificationRoute allows a later alert for the same window
 
 	assert.equal(handledRoute, true);
 	assert.deepEqual(commands, [
-		"mdev tmux app notification open --session 'main' --window-id '@12'",
+		[
+			'tmux',
+			'app',
+			'notification',
+			'open',
+			'--session',
+			'main',
+			'--window-id',
+			'@12',
+		],
 	]);
 	assert.deepEqual(acknowledgements, ['@12']);
 	assert.equal(
@@ -526,7 +552,7 @@ void test('handleAgentNotificationRoute rejects forged routes without pending no
 		markRouteHandled: () => {
 			handledRoutes += 1;
 		},
-		runCommand: async () => {
+		runWorkmuxCommand: async () => {
 			commands += 1;
 			return '';
 		},
@@ -559,7 +585,7 @@ void test('handleAgentNotificationRoute treats pending-token lookup failures as 
 		},
 		isRouteHandled: () => false,
 		markRouteHandled: () => {},
-		runCommand: async () => {
+		runWorkmuxCommand: async () => {
 			commands += 1;
 			return '';
 		},
@@ -586,7 +612,7 @@ void test('handleAgentNotificationRoute ignores routes without a tap token', asy
 		consumeAuthorizedRouteToken: () => true,
 		isRouteHandled: () => false,
 		markRouteHandled: () => {},
-		runCommand: async () => {
+		runWorkmuxCommand: async () => {
 			commands += 1;
 			return '';
 		},
@@ -616,7 +642,7 @@ void test('handleAgentNotificationRoute rejects valid tokens for a different she
 		},
 		isRouteHandled: () => false,
 		markRouteHandled: () => {},
-		runCommand: async () => {
+		runWorkmuxCommand: async () => {
 			commands += 1;
 			return '';
 		},
@@ -646,7 +672,7 @@ void test('handleAgentNotificationRoute does not acknowledge or mark failed sele
 		consumeAuthorizedRouteToken: () => true,
 		isRouteHandled: (key) => handled.has(key),
 		markRouteHandled: (key) => handled.add(key),
-		runCommand: async () => {
+		runWorkmuxCommand: async () => {
 			throw error;
 		},
 		acknowledge: () => {

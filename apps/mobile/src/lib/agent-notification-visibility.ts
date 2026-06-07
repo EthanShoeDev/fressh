@@ -1,8 +1,8 @@
 import { createAgentNotificationRouteIdentityKey } from './agent-notification-route';
 import { rootLogger } from './logger';
 import {
-	buildWorkmuxAppNotificationOpenCommand,
-	buildWorkmuxAppWindowCommand,
+	buildWorkmuxAppNotificationOpenArgv,
+	buildWorkmuxAppWindowArgv,
 	parseWorkmuxAppWindowOutput,
 } from './workmux-app-commands';
 
@@ -25,7 +25,7 @@ export type VisibleAgentNotificationAcknowledgeOptions = {
 	getVisibility: () => VisibleAgentNotificationSnapshot;
 	nextRequestId: () => number;
 	isCurrentRequest: (requestId: number) => boolean;
-	runCommand: (command: string, timeoutMs: number) => Promise<string>;
+	runWorkmuxCommand: (argv: string[], timeoutMs: number) => Promise<string>;
 	acknowledge: (
 		connectionId: string,
 		session: string,
@@ -58,7 +58,7 @@ export type AgentNotificationRouteOptions = {
 		eventId: string,
 		tapToken: string,
 	) => boolean;
-	runCommand: (command: string, timeoutMs: number) => Promise<string>;
+	runWorkmuxCommand: (argv: string[], timeoutMs: number) => Promise<string>;
 	acknowledge: (
 		connectionId: string,
 		session: string,
@@ -106,7 +106,7 @@ export async function handleAgentNotificationRoute({
 	markRouteHandled,
 	consumeAuthorizedRouteToken,
 	restoreAuthorizedRouteToken,
-	runCommand,
+	runWorkmuxCommand,
 	acknowledge,
 	warn,
 }: AgentNotificationRouteOptions) {
@@ -150,8 +150,8 @@ export async function handleAgentNotificationRoute({
 	}
 
 	try {
-		await runCommand(
-			buildWorkmuxAppNotificationOpenCommand(session, agentWindowId),
+		await runWorkmuxCommand(
+			buildWorkmuxAppNotificationOpenArgv(session, agentWindowId),
 			10_000,
 		);
 		markRouteHandled(routeKey);
@@ -185,7 +185,7 @@ export async function acknowledgeVisibleAgentNotification({
 	getVisibility,
 	nextRequestId,
 	isCurrentRequest,
-	runCommand,
+	runWorkmuxCommand,
 	acknowledge,
 	warn,
 }: VisibleAgentNotificationAcknowledgeOptions) {
@@ -198,7 +198,7 @@ export async function acknowledgeVisibleAgentNotification({
 		getVisibility,
 		nextRequestId,
 		isCurrentRequest,
-		runCommand,
+		runWorkmuxCommand,
 		acknowledge,
 		warn,
 	};
@@ -245,7 +245,7 @@ async function acknowledgeVisibleAgentNotificationOnce({
 	getVisibility,
 	nextRequestId,
 	isCurrentRequest,
-	runCommand,
+	runWorkmuxCommand,
 	acknowledge,
 	warn,
 }: VisibleAgentNotificationAcknowledgeOptions) {
@@ -261,8 +261,8 @@ async function acknowledgeVisibleAgentNotificationOnce({
 		const connectionIdSnapshot = connectionId;
 		const channelIdSnapshot = channelId;
 		const sessionNameSnapshot = sessionName;
-		const output = await runCommand(
-			buildWorkmuxAppWindowCommand(sessionName),
+		const output = await runWorkmuxCommand(
+			buildWorkmuxAppWindowArgv(sessionName),
 			10_000,
 		);
 		const { windowId } = parseWorkmuxAppWindowOutput(output);

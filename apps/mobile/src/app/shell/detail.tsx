@@ -70,7 +70,6 @@ import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { OrderedWriter } from '@/lib/ordered-writer';
-import { runRemoteTextCommand } from '@/lib/remote-command-runner';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -1934,17 +1933,18 @@ function ShellDetail() {
 		handleCloseTextEntry,
 	]);
 
-	const executeBrowserActionsRemoteTextCommand = useCallback(
-		(
-			activeConnection: NonNullable<typeof connection>,
-			command: string,
-			timeoutMs: number,
-		) =>
-			runRemoteTextCommand({
-				connection: activeConnection,
-				command,
+	const runBrowserActionsWorkmuxCommand = useCallback(
+		async (_connection: unknown, argv: string[], timeoutMs: number) => {
+			const result = await workmuxControlChannelRef.current.command(argv, {
 				timeoutMs,
-			}),
+			});
+			if (!result.success) {
+				throw new Error(
+					result.error || result.output || 'Workmux command failed.',
+				);
+			}
+			return result.output;
+		},
 		[],
 	);
 
@@ -1952,21 +1952,16 @@ function ShellDetail() {
 		connection: connection ?? null,
 		tmuxEnabled,
 		tmuxTarget,
-		executeRemoteTextCommand: executeBrowserActionsRemoteTextCommand,
 		executeSideChannelCommand,
+		runWorkmuxCommand: runBrowserActionsWorkmuxCommand,
 		getErrorMessage,
 		closeOtherModals: closeBrowserActionsOtherModals,
 	});
 	const workmuxKeyboardTmuxEnabledRef = useRef(tmuxEnabled);
 	const workmuxKeyboardTmuxTargetRef = useRef(tmuxTarget);
-	const workmuxKeyboardRunHostCommandRef = useRef(
-		browserActions.runHostBrowserCommand,
-	);
 	const browserActionsInvalidateAllRef = useRef(browserActions.invalidateAll);
 	workmuxKeyboardTmuxEnabledRef.current = tmuxEnabled;
 	workmuxKeyboardTmuxTargetRef.current = tmuxTarget;
-	workmuxKeyboardRunHostCommandRef.current =
-		browserActions.runHostBrowserCommand;
 	browserActionsInvalidateAllRef.current = browserActions.invalidateAll;
 
 	const closeFeatureRequestOtherModals = useCallback(() => {
@@ -2258,7 +2253,8 @@ function ShellDetail() {
 			},
 			consumeAuthorizedRouteToken: consumeAuthorizedAgentNotificationRouteToken,
 			restoreAuthorizedRouteToken: restoreAuthorizedAgentNotificationRouteToken,
-			runCommand: browserActions.runHostBrowserCommand,
+			runWorkmuxCommand: (argv, timeoutMs) =>
+				runBrowserActionsWorkmuxCommand(null, argv, timeoutMs),
 			acknowledge: (connectionId, session, windowId) => {
 				acknowledgeRoutedAgentNotification(connectionId, session, windowId);
 			},
@@ -2272,8 +2268,8 @@ function ShellDetail() {
 		agentSession,
 		agentTapToken,
 		agentWindowId,
-		browserActions.runHostBrowserCommand,
 		connectionStoredConnectionId,
+		runBrowserActionsWorkmuxCommand,
 		tmuxTarget,
 	]);
 
@@ -2294,16 +2290,17 @@ function ShellDetail() {
 			nextRequestId: () => ++agentNotificationAckRequestIdRef.current,
 			isCurrentRequest: (requestId) =>
 				requestId === agentNotificationAckRequestIdRef.current,
-			runCommand: browserActions.runHostBrowserCommand,
+			runWorkmuxCommand: (argv, timeoutMs) =>
+				runBrowserActionsWorkmuxCommand(null, argv, timeoutMs),
 			acknowledge: acknowledgeRoutedAgentNotification,
 			warn: (message, error) => {
 				logger.warn(message, error);
 			},
 		});
 	}, [
-		browserActions.runHostBrowserCommand,
 		channelId,
 		connectionStoredConnectionId,
+		runBrowserActionsWorkmuxCommand,
 		tmuxEnabled,
 		tmuxTarget,
 	]);
@@ -2381,8 +2378,6 @@ function ShellDetail() {
 					}
 					return result.output;
 				},
-				runHostCommand: (command, timeoutMs) =>
-					workmuxKeyboardRunHostCommandRef.current(command, timeoutMs),
 				showFailure: (message) => {
 					if (
 						!shouldShowFocusedActiveFeedback({
