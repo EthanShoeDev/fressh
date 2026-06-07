@@ -440,11 +440,6 @@ export function createMdevBridgeClient({
 		await closeStreamWithTimeout(startedStream);
 	}
 
-	function failRequestDeadline(): MdevBridgeResult {
-		markFailed(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR);
-		return errorResult(failedError ?? MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR);
-	}
-
 	async function sendRequest({
 		buildRequest,
 		deadline,
@@ -460,14 +455,18 @@ export function createMdevBridgeClient({
 		if (failedError) return errorResult(failedError);
 
 		const startupTimeoutMs = getRemainingTimeoutMs(deadline);
-		if (startupTimeoutMs <= 0) return failRequestDeadline();
+		if (startupTimeoutMs <= 0) {
+			return errorResult(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR);
+		}
 
 		const startedStream = await ensureStream(startupTimeoutMs);
 		if (disposed) return errorResult(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
 		if (failedError) return errorResult(failedError);
 
 		const localTimeoutMs = getRemainingTimeoutMs(deadline);
-		if (localTimeoutMs <= 0) return failRequestDeadline();
+		if (localTimeoutMs <= 0) {
+			return errorResult(MDEV_BRIDGE_REQUEST_TIMEOUT_ERROR);
+		}
 
 		return await new Promise((resolve) => {
 			const timer = setTimeout(() => {
@@ -510,7 +509,7 @@ export function createMdevBridgeClient({
 	async function ensureHello(
 		deadline: MdevBridgeRequestDeadline,
 	): Promise<MdevBridgeResult | null> {
-		if (nextRequestId > 1) return null;
+		if (helloComplete) return null;
 
 		const id = nextId();
 		const result = await sendRequest({

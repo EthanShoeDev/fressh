@@ -1144,14 +1144,27 @@ void test('queued operation timeout starts at public runOperation call', async (
 	});
 	await nextTick();
 	assert.equal(fixture.writes.length, 2);
-	assert.deepEqual(
-		await client.runOperation({ operation: 'op.two', params: {} }),
+	const thirdResultPromise = client.runOperation({
+		operation: 'op.two',
+		params: { order: 3 },
+	});
+	await nextTick();
+	assert.equal(fixture.writes.length, 3);
+	assertOperationWrite(
+		fixture.writes[2] ?? '',
 		{
-			success: false,
-			output: '',
-			error: 'mdev bridge request timed out.',
+			id: 'mdev-bridge-4',
+			type: 'operation',
+			operation: 'op.two',
+			params: { order: 3 },
 		},
+		500,
 	);
+	fixture.emitJson({ id: 'mdev-bridge-4', ok: true, result: { order: 3 } });
+	assert.deepEqual(await thirdResultPromise, {
+		success: true,
+		output: '{"order":3}\n',
+	});
 });
 
 void test('stderr alone does not fail an operation', async () => {
