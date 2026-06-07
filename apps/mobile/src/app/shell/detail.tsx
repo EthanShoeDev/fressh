@@ -104,9 +104,16 @@ import { useSshStore } from '@/lib/ssh-store';
 import {
 	buildClipboardPasteSegments,
 	buildCommanderExecuteSegments,
-	buildTextEntryPasteSegments,
+	buildTextEntryPastePayload,
 } from '@/lib/terminal-input-payloads';
 import { detachTerminalShellListener } from '@/lib/terminal-shell-listener';
+import {
+	getTextEntryHistoryCycleEntries,
+	getTextEntryHistorySections,
+	type TextEntryHistoryState,
+} from '@/lib/text-entry-history';
+import { recordAcceptedTextEntryHistoryPaste } from '@/lib/text-entry-history-interactions';
+import { textEntryHistoryStore } from '@/lib/text-entry-history-store-native';
 import { useTheme } from '@/lib/theme';
 import {
 	disposeTmuxScrollbackRuntimeStateForUiReset,
@@ -677,6 +684,8 @@ function ShellDetail() {
 		textEntry: textEntryModal,
 		configure: configureModal,
 	} = useShellSimpleModals();
+	const [textEntryHistoryState, setTextEntryHistoryState] =
+		useState<TextEntryHistoryState>(() => textEntryHistoryStore.load());
 	const [autoWisprEnabled, setAutoWisprEnabled] = useState(false);
 	const [wisprTextEditorAvailability, setWisprTextEditorAvailability] =
 		useState<WisprTextEditorAvailability>({ type: 'ready' });
@@ -996,6 +1005,7 @@ function ShellDetail() {
 			payloadSegments: Uint8Array<ArrayBuffer>[],
 			opts?: {
 				interSegmentDelayMs?: number;
+				onAccepted?: () => void;
 			},
 		) => {
 			const plan = buildWorkmuxScrollbackLiveInputSendPlan({
@@ -1022,17 +1032,20 @@ function ShellDetail() {
 					currentGeneration: liveInputGenerationRef.current,
 				});
 
+			const remoteCopyModeActive =
+				tmuxRemoteScrollbackCopyModeActiveRef.current;
 			void runWorkmuxScrollbackLiveInputSendPlan({
 				plan,
 				currentCleanup: scrollbackCleanupBarrierRef.current.current(),
 				startCleanup: clearScrollbackState,
-				remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
+				remoteCopyModeActive,
 				isRequestCurrent: isLiveInputRequestCurrent,
 				sendSegments: (segments, options) =>
 					requestWriter?.sendBatch(segments, {
 						interSegmentDelayMs: options?.interSegmentDelayMs,
 						isCurrent: isLiveInputRequestCurrent,
 					}),
+				onPayloadAccepted: opts?.onAccepted,
 			});
 		},
 		[clearScrollbackState],
@@ -1050,13 +1063,63 @@ function ShellDetail() {
 			payloadSegments: Uint8Array<ArrayBuffer>[],
 			opts?: {
 				interSegmentDelayMs?: number;
+				onAccepted?: () => void;
 			},
 		) => {
 			sendLiveInputSegments(payloadSegments, {
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
+				onAccepted: opts?.onAccepted,
 			});
 		},
 		[sendLiveInputSegments],
+	);
+
+	const refreshTextEntryHistory = useCallback(
+		(nextState: TextEntryHistoryState) => {
+			setTextEntryHistoryState(nextState);
+		},
+		[],
+	);
+
+	const handlePinTextEntryHistoryText = useCallback(
+		(text: string) => {
+			refreshTextEntryHistory(textEntryHistoryStore.pinText(text));
+		},
+		[refreshTextEntryHistory],
+	);
+
+	const handlePinTextEntryHistoryEntry = useCallback(
+		(id: string) => {
+			refreshTextEntryHistory(textEntryHistoryStore.pinEntry(id));
+		},
+		[refreshTextEntryHistory],
+	);
+
+	const handleUnpinTextEntryHistoryEntry = useCallback(
+		(id: string) => {
+			refreshTextEntryHistory(textEntryHistoryStore.unpinEntry(id));
+		},
+		[refreshTextEntryHistory],
+	);
+
+	const handleDeleteTextEntryHistoryEntry = useCallback(
+		(id: string) => {
+			refreshTextEntryHistory(textEntryHistoryStore.deleteEntry(id));
+		},
+		[refreshTextEntryHistory],
+	);
+
+	const handleClearRecentTextEntryHistory = useCallback(() => {
+		refreshTextEntryHistory(textEntryHistoryStore.clearRecent());
+	}, [refreshTextEntryHistory]);
+
+	const textEntryHistorySections = useMemo(
+		() => getTextEntryHistorySections(textEntryHistoryState),
+		[textEntryHistoryState],
+	);
+	const textEntryHistoryCycleEntries = useMemo(
+		() => getTextEntryHistoryCycleEntries(textEntryHistoryState),
+		[textEntryHistoryState],
 	);
 
 	const sendBytesWithModifiers = useCallback(
@@ -1208,16 +1271,32 @@ function ShellDetail() {
 
 	const handlePasteTextEntry = useCallback(
 		(value: string) => {
-			const segments = buildTextEntryPasteSegments(value);
-			if (!segments.length) return;
+			const payload = buildTextEntryPastePayload(value);
+			if (!payload.segments.length) return;
 			if (selectionModeEnabled) {
 				exitSelectionMode();
 			}
-			sendLiteralInputSegments(segments, {
+			sendLiteralInputSegments(payload.segments, {
 				interSegmentDelayMs: scrollbackExitDelayMs,
+				onAccepted: () => {
+					const historyState = recordAcceptedTextEntryHistoryPaste({
+						accepted: true,
+						historyText: payload.historyText,
+						recordPaste: (text) => textEntryHistoryStore.recordPaste(text),
+					});
+					if (historyState) {
+						refreshTextEntryHistory(historyState);
+					}
+				},
 			});
 		},
-		[exitSelectionMode, selectionModeEnabled, sendLiteralInputSegments],
+		[
+			exitSelectionMode,
+			refreshTextEntryHistory,
+			scrollbackExitDelayMs,
+			selectionModeEnabled,
+			sendLiteralInputSegments,
+		],
 	);
 
 	const clearWisprOpeningTimeout = useCallback(() => {
@@ -3132,6 +3211,16 @@ function ShellDetail() {
 					onPaste={handlePasteTextEntry}
 					onWisprFocus={handleWisprTextEntryFocus}
 					onValueChange={handleWisprTextEntryValueChange}
+					history={{
+						cycleEntries: textEntryHistoryCycleEntries,
+						pinnedEntries: textEntryHistorySections.pinned,
+						recentEntries: textEntryHistorySections.recent,
+						onPinText: handlePinTextEntryHistoryText,
+						onPinEntry: handlePinTextEntryHistoryEntry,
+						onUnpinEntry: handleUnpinTextEntryHistoryEntry,
+						onDeleteEntry: handleDeleteTextEntryHistoryEntry,
+						onClearRecent: handleClearRecentTextEntryHistory,
+					}}
 				/>
 				<HostUrlModal
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
