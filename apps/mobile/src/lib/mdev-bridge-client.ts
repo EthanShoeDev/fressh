@@ -487,18 +487,17 @@ export function createMdevBridgeClient({
 		return null;
 	}
 
-	async function runOperationNow(input: {
-		operation: string;
-		params: Record<string, unknown>;
-		timeoutMs?: number;
-	}): Promise<MdevBridgeResult> {
+	async function runOperationNow(
+		input: {
+			operation: string;
+			params: Record<string, unknown>;
+		},
+		deadline: MdevBridgeRequestDeadline,
+	): Promise<MdevBridgeResult> {
 		if (disposed) return errorResult(MDEV_BRIDGE_CLIENT_DISPOSED_ERROR);
 		if (failedError) return errorResult(failedError);
 
 		try {
-			const deadline = createRequestDeadline(
-				input.timeoutMs ?? requestTimeoutMs,
-			);
 			const helloResult = await ensureHello(deadline);
 			if (helloResult) return helloResult;
 
@@ -527,7 +526,10 @@ export function createMdevBridgeClient({
 
 	return {
 		runOperation: (input) => {
-			const resultPromise = queue.then(() => runOperationNow(input));
+			const deadline = createRequestDeadline(
+				input.timeoutMs ?? requestTimeoutMs,
+			);
+			const resultPromise = queue.then(() => runOperationNow(input, deadline));
 			queue = resultPromise.then(
 				() => undefined,
 				() => undefined,
