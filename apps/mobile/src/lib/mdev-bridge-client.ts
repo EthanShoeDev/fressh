@@ -284,10 +284,14 @@ export function createMdevBridgeClient({
 
 	async function closeStreamWithTimeout(targetStream: MdevBridgeCommandStream) {
 		const abortController = new AbortController();
-		await withBridgeTimeout(
-			targetStream.close({ signal: abortController.signal }),
-			requestTimeoutMs,
-			(error) => abortController.abort(error),
+		let closePromise: Promise<void>;
+		try {
+			closePromise = targetStream.close({ signal: abortController.signal });
+		} catch {
+			return;
+		}
+		await withBridgeTimeout(closePromise, requestTimeoutMs, (error) =>
+			abortController.abort(error),
 		).catch(() => {});
 	}
 
@@ -380,15 +384,34 @@ export function createMdevBridgeClient({
 			}, localTimeoutMs);
 
 			pending = { id, resolve, timer, validate };
-			startedStream
-				.sendData(bytes(`${JSON.stringify(request)}\n`))
-				.catch(() => {
-					if (pending?.id !== id) return;
-					const error = helloComplete
-						? MDEV_BRIDGE_STREAM_CLOSED_ERROR
-						: MDEV_BRIDGE_UPDATE_MESSAGE;
-					markFailed(error);
-				});
+			let requestLine: string;
+			try {
+				requestLine = `${JSON.stringify(request)}\n`;
+			} catch {
+				if (pending?.id !== id) return;
+				markFailed(MDEV_BRIDGE_PROTOCOL_ERROR);
+				return;
+			}
+
+			let sendPromise: Promise<void>;
+			try {
+				sendPromise = startedStream.sendData(bytes(requestLine));
+			} catch {
+				if (pending?.id !== id) return;
+				const error = helloComplete
+					? MDEV_BRIDGE_STREAM_CLOSED_ERROR
+					: MDEV_BRIDGE_UPDATE_MESSAGE;
+				markFailed(error);
+				return;
+			}
+
+			sendPromise.catch(() => {
+				if (pending?.id !== id) return;
+				const error = helloComplete
+					? MDEV_BRIDGE_STREAM_CLOSED_ERROR
+					: MDEV_BRIDGE_UPDATE_MESSAGE;
+				markFailed(error);
+			});
 		});
 	}
 
