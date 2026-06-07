@@ -306,6 +306,106 @@ void test('stream closed immediately after valid hello is post-hello stream clos
 	);
 });
 
+void test('hello write failure asks user to update mdev', async () => {
+	const writes: string[] = [];
+	const connection: MdevBridgeStreamConnection = {
+		startCommandStream: async () => ({
+			sendData: async (data) => {
+				writes.push(text(data));
+				throw new Error('hello write failed');
+			},
+			close: async () => {},
+		}),
+	};
+	const client = createMdevBridgeClient({
+		connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 100,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+	});
+	await nextTick();
+
+	assert.deepEqual(parseWrite(writes[0] ?? ''), {
+		id: 'mdev-bridge-1',
+		type: 'hello',
+	});
+	assert.deepEqual(await resultPromise, {
+		success: false,
+		output: '',
+		error: MDEV_BRIDGE_UPDATE_MESSAGE,
+	});
+	assert.deepEqual(
+		await client.runOperation({ operation: 'op.one', params: {} }),
+		{
+			success: false,
+			output: '',
+			error: MDEV_BRIDGE_UPDATE_MESSAGE,
+		},
+	);
+});
+
+void test('operation write failure after hello is stream closed', async () => {
+	let onEvent: ((event: MdevBridgeStreamEvent) => void) | null = null;
+	const writes: string[] = [];
+	const connection: MdevBridgeStreamConnection = {
+		startCommandStream: async (opts) => {
+			onEvent = opts.onEvent;
+			return {
+				sendData: async (data) => {
+					writes.push(text(data));
+					if (writes.length === 2) {
+						throw new Error('operation write failed');
+					}
+				},
+				close: async () => {},
+			};
+		},
+	};
+	const client = createMdevBridgeClient({
+		connection,
+		requiredOperations: ['op.one'],
+		requestTimeoutMs: 100,
+	});
+
+	const resultPromise = client.runOperation({
+		operation: 'op.one',
+		params: {},
+	});
+	await nextTick();
+	const emit = onEvent as ((event: MdevBridgeStreamEvent) => void) | null;
+	assert.ok(emit, 'stream was not started');
+	emit({
+		type: 'stdout',
+		bytes: bytes(`${JSON.stringify(helloResponse())}\n`),
+	});
+	await nextTick();
+
+	assert.deepEqual(parseWrite(writes[1] ?? ''), {
+		id: 'mdev-bridge-2',
+		type: 'operation',
+		operation: 'op.one',
+		params: {},
+		timeoutMs: 100,
+	});
+	assert.deepEqual(await resultPromise, {
+		success: false,
+		output: '',
+		error: 'mdev bridge stream closed.',
+	});
+	assert.deepEqual(
+		await client.runOperation({ operation: 'op.one', params: {} }),
+		{
+			success: false,
+			output: '',
+			error: 'mdev bridge stream closed.',
+		},
+	);
+});
+
 void test('malformed response and invalid hello fail with protocol error', async () => {
 	const malformedFixture = createBridgeFixture();
 	const malformedClient = createMdevBridgeClient({

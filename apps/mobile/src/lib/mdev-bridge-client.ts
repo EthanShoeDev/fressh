@@ -99,7 +99,9 @@ function includesAllRequiredOperations(
 	operations: unknown[],
 	requiredOperations: readonly string[],
 ): boolean {
-	return requiredOperations.every((operation) => operations.includes(operation));
+	return requiredOperations.every((operation) =>
+		operations.includes(operation),
+	);
 }
 
 function validateHelloResponse(
@@ -371,11 +373,16 @@ export function createMdevBridgeClient({
 			}, localTimeoutMs);
 
 			pending = { id, resolve, timer, validate };
-			startedStream.sendData(bytes(`${JSON.stringify(request)}\n`)).catch(() => {
-				if (pending?.id !== id) return;
-				failedError = MDEV_BRIDGE_STREAM_CLOSED_ERROR;
-				finishPending(errorResult(MDEV_BRIDGE_STREAM_CLOSED_ERROR));
-			});
+			startedStream
+				.sendData(bytes(`${JSON.stringify(request)}\n`))
+				.catch(() => {
+					if (pending?.id !== id) return;
+					const error = helloComplete
+						? MDEV_BRIDGE_STREAM_CLOSED_ERROR
+						: MDEV_BRIDGE_UPDATE_MESSAGE;
+					failedError = error;
+					finishPending(errorResult(error));
+				});
 		});
 	}
 
