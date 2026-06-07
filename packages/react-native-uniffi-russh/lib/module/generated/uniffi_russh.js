@@ -2456,6 +2456,19 @@ export class CommandStreamSession extends UniffiAbstractObject {
       return nativeModule().ubrn_uniffi_uniffi_russh_fn_method_commandstreamsession_get_info(uniffiTypeCommandStreamSessionObjectFactory.clonePointer(this), callStatus);
     }, /*liftString:*/FfiConverterString.lift.bind(FfiConverterString)));
   }
+  async sendData(data, asyncOpts_) /*throws*/{
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+      return await uniffiRustCallAsync(/*rustCaller:*/uniffiCaller, /*rustFutureFunc:*/() => {
+        return nativeModule().ubrn_uniffi_uniffi_russh_fn_method_commandstreamsession_send_data(uniffiTypeCommandStreamSessionObjectFactory.clonePointer(this), FfiConverterArrayBuffer.lower(data, nativeModule().rustbuffer_alloc));
+      }, /*pollFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_poll_void, /*cancelFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_cancel_void, /*completeFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_complete_void, /*freeFunc:*/nativeModule().ubrn_ffi_uniffi_russh_rust_future_free_void, /*liftFunc:*/_v => {}, /*liftString:*/FfiConverterString.lift.bind(FfiConverterString), /*asyncOpts:*/asyncOpts_, /*errorHandler:*/FfiConverterTypeSshError.lift.bind(FfiConverterTypeSshError));
+    } catch (__error) {
+      if (uniffiIsDebug && __error instanceof Error) {
+        __error.stack = __stack;
+      }
+      throw __error;
+    }
+  }
   uniffiDestroy() {
     const ptr = this[destructorGuardSymbol];
     if (ptr !== undefined) {
@@ -3002,6 +3015,9 @@ function uniffiEnsureInitialized() {
   }
   if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_commandstreamsession_get_info() !== 27629) {
     throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_commandstreamsession_get_info');
+  }
+  if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_commandstreamsession_send_data() !== 38076) {
+    throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_commandstreamsession_send_data');
   }
   if (nativeModule().ubrn_uniffi_uniffi_russh_checksum_method_connectprogresscallback_on_change() !== 17699) {
     throw new UniffiInternalError.ApiChecksumMismatch('uniffi_uniffi_russh_checksum_method_connectprogresscallback_on_change');

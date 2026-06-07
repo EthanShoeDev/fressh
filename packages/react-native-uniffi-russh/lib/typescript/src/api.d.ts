@@ -167,6 +167,9 @@ export type SshCommandStream = {
     readonly channelId: number;
     readonly createdAtMs: number;
     readonly connectionId: string;
+    sendData: (data: ArrayBuffer, opts?: {
+        signal?: AbortSignal;
+    }) => Promise<void>;
     close: (opts?: {
         signal?: AbortSignal;
     }) => Promise<void>;

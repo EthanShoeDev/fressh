@@ -85,6 +85,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_uniffi_russh_fn_method_commandstreamcallback_on_event(uniffiSelf: bigint, event: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_uniffi_russh_fn_method_commandstreamsession_close(uniffiSelf: bigint): bigint;
     ubrn_uniffi_uniffi_russh_fn_method_commandstreamsession_get_info(uniffiSelf: bigint, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
+    ubrn_uniffi_uniffi_russh_fn_method_commandstreamsession_send_data(uniffiSelf: bigint, data: Uint8Array): bigint;
     ubrn_uniffi_uniffi_russh_fn_method_connectprogresscallback_on_change(uniffiSelf: bigint, status: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_uniffi_russh_fn_method_connectiondisconnectedcallback_on_change(uniffiSelf: bigint, connectionId: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_uniffi_russh_fn_method_serverkeycallback_on_change(uniffiSelf: bigint, serverKeyInfo: Uint8Array): bigint;
@@ -114,6 +115,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_uniffi_russh_checksum_method_commandstreamcallback_on_event(): number;
     ubrn_uniffi_uniffi_russh_checksum_method_commandstreamsession_close(): number;
     ubrn_uniffi_uniffi_russh_checksum_method_commandstreamsession_get_info(): number;
+    ubrn_uniffi_uniffi_russh_checksum_method_commandstreamsession_send_data(): number;
     ubrn_uniffi_uniffi_russh_checksum_method_connectprogresscallback_on_change(): number;
     ubrn_uniffi_uniffi_russh_checksum_method_connectiondisconnectedcallback_on_change(): number;
     ubrn_uniffi_uniffi_russh_checksum_method_serverkeycallback_on_change(): number;

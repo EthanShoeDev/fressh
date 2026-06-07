@@ -248,6 +248,12 @@ impl AcceptedExecStartup {
             buffered_messages: self.buffered_messages,
         })
     }
+
+    fn complete_without_eof(self) -> CompletedExecStartup {
+        CompletedExecStartup {
+            buffered_messages: self.buffered_messages,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -369,14 +375,30 @@ async fn wait_for_exec_request_success(
     }
 }
 
-async fn finish_accepted_exec_startup(
+async fn accept_exec_startup(
+    channel_guard: &mut StartupChannelCloseGuard,
+    max_buffer_bytes: usize,
+) -> Result<AcceptedExecStartup, SshError> {
+    Ok(AcceptedExecStartup::new(
+        wait_for_exec_request_success(channel_guard.channel_mut(), max_buffer_bytes).await?,
+    ))
+}
+
+async fn finish_run_command_exec_startup(
     channel_guard: &mut StartupChannelCloseGuard,
     max_buffer_bytes: usize,
 ) -> Result<CompletedExecStartup, SshError> {
-    let accepted = AcceptedExecStartup::new(
-        wait_for_exec_request_success(channel_guard.channel_mut(), max_buffer_bytes).await?,
-    );
+    let accepted = accept_exec_startup(channel_guard, max_buffer_bytes).await?;
     accepted.complete_after_eof(send_command_eof(channel_guard.channel()).await)
+}
+
+async fn finish_command_stream_exec_startup(
+    channel_guard: &mut StartupChannelCloseGuard,
+    max_buffer_bytes: usize,
+) -> Result<CompletedExecStartup, SshError> {
+    Ok(accept_exec_startup(channel_guard, max_buffer_bytes)
+        .await?
+        .complete_without_eof())
 }
 
 fn record_exec_request_message(
@@ -542,7 +564,7 @@ pub(crate) async fn run_command(
     let channel = open_command_session(connection).await?;
     let mut channel_guard = StartupChannelCloseGuard::new(channel);
     send_command_exec(channel_guard.channel(), options.command).await?;
-    let buffered_messages = finish_accepted_exec_startup(&mut channel_guard, max_output_bytes)
+    let buffered_messages = finish_run_command_exec_startup(&mut channel_guard, max_output_bytes)
         .await?
         .into_buffered_messages();
 
@@ -578,7 +600,7 @@ pub(crate) async fn start_command_stream(
     let mut channel_guard = StartupChannelCloseGuard::new(channel);
     let channel_id: u32 = channel_guard.channel().id().into();
     send_command_exec(channel_guard.channel(), options.command).await?;
-    let buffered_messages = finish_accepted_exec_startup(
+    let buffered_messages = finish_command_stream_exec_startup(
         &mut channel_guard,
         DEFAULT_RUN_COMMAND_MAX_OUTPUT_BYTES as usize,
     )
@@ -811,6 +833,15 @@ mod tests {
             SshError::Russh(message) => assert!(message.contains("EOF send timed out")),
             other => panic!("expected SshError::Russh, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn command_stream_exec_startup_completes_without_eof() {
+        let completed =
+            AcceptedExecStartup::new(vec![ChannelMsg::WindowAdjusted { new_size: 1 }])
+                .complete_without_eof();
+
+        assert_eq!(completed.into_buffered_messages().len(), 1);
     }
 
     #[test]
