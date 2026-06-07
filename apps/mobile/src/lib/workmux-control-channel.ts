@@ -3,6 +3,7 @@ import {
 	type MdevBridgeClient,
 	type MdevBridgeStreamConnection,
 } from './mdev-bridge-client';
+import { type WorkmuxScrollDirection } from './workmux-app-commands';
 import {
 	WORKMUX_REQUIRED_MDEV_BRIDGE_OPERATIONS,
 	buildMdevBridgeOperationFromWorkmuxArgv,
@@ -15,7 +16,6 @@ import {
 	buildDirectTmuxScrollMoveCommand,
 	createDirectTmuxControlTransport,
 } from './workmux-direct-tmux-control';
-import { type WorkmuxScrollDirection } from './workmux-app-commands';
 
 export type WorkmuxControlConnection = DirectTmuxConnectionLike &
 	MdevBridgeStreamConnection;

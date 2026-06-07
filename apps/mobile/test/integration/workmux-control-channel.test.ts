@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { type MdevBridgeClient } from '../../src/lib/mdev-bridge-client';
 import {
 	createWorkmuxControlChannel,
 	disposeWorkmuxControlChannelAfterCleanup,
 	type WorkmuxControlCommandResult,
 } from '../../src/lib/workmux-control-channel';
-import { type MdevBridgeClient } from '../../src/lib/mdev-bridge-client';
 
 function deferred<T>() {
 	let resolve!: (value: T) => void;
@@ -22,11 +22,11 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 function createRecordingBridgeClient(
 	result: WorkmuxControlCommandResult = { success: true, output: 'ok\n' },
 ) {
-	const calls: Array<{
+	const calls: {
 		operation: string;
 		params: Record<string, unknown>;
 		timeoutMs?: number;
-	}> = [];
+	}[] = [];
 	let disposeCount = 0;
 	const bridgeClient: MdevBridgeClient = {
 		runOperation: async (input) => {

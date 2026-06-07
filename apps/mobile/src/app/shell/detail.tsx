@@ -480,7 +480,7 @@ function ShellDetail() {
 			createWorkmuxControlChannel({
 				connection: connection ?? null,
 			}),
-		[connection],
+		[connection, normalizedTmuxTarget],
 	);
 	const workmuxControlChannelRef = useRef(workmuxControlChannel);
 	useLayoutEffect(() => {

@@ -1,7 +1,7 @@
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
-import assert from 'node:assert/strict';
 
 const detailSourcePath = join(process.cwd(), 'src/app/shell/detail.tsx');
 
@@ -22,8 +22,19 @@ function extractCreateWorkmuxControlChannelBlock(source: string): string {
 	assert.fail('createWorkmuxControlChannel block was not closed');
 }
 
-describe('shell detail Workmux control channel wiring', () => {
-	test('routes shell scrollback through WorkmuxControlChannel instead of one-shot mdev scroll commands', () => {
+function extractWorkmuxControlChannelMemoBlock(source: string): string {
+	const memoStart = source.indexOf('const workmuxControlChannel = useMemo');
+	assert.notEqual(memoStart, -1);
+	const memoEnd = source.indexOf(
+		'const workmuxControlChannelRef',
+		memoStart,
+	);
+	assert.notEqual(memoEnd, -1);
+	return source.slice(memoStart, memoEnd);
+}
+
+void describe('shell detail Workmux control channel wiring', () => {
+	void test('routes shell scrollback through WorkmuxControlChannel instead of one-shot mdev scroll commands', () => {
 		const source = readFileSync(detailSourcePath, 'utf8');
 
 		assert.match(source, /createWorkmuxControlChannel/);
@@ -34,7 +45,7 @@ describe('shell detail Workmux control channel wiring', () => {
 		assert.doesNotMatch(source, /buildWorkmuxAppScrollPageCommand/);
 	});
 
-	test('cleans up scrollback executor before disposing the control channel', () => {
+	void test('cleans up scrollback executor before disposing the control channel', () => {
 		const source = readFileSync(detailSourcePath, 'utf8');
 		const executorCleanupIndex = source.indexOf(
 			'const cleanup = disposeTmuxScrollbackRuntimeStateForUiReset',
@@ -53,12 +64,22 @@ describe('shell detail Workmux control channel wiring', () => {
 		);
 	});
 
-	test('passes only the connection into WorkmuxControlChannel for Workmux control commands', () => {
+	void test('passes only the connection into WorkmuxControlChannel for Workmux control commands', () => {
 		const source = readFileSync(detailSourcePath, 'utf8');
 		const block = extractCreateWorkmuxControlChannelBlock(source);
 
 		assert.match(block, /connection:\s*connection\s*\?\?\s*null/);
 		assert.doesNotMatch(block, /runRemoteCommand/);
 		assert.doesNotMatch(block, /executeRemoteCommand/);
+	});
+
+	void test('keeps WorkmuxControlChannel memo scoped to tmux target cleanup lifecycle', () => {
+		const source = readFileSync(detailSourcePath, 'utf8');
+		const block = extractWorkmuxControlChannelMemoBlock(source);
+
+		assert.match(
+			block,
+			/\[\s*connection\s*,\s*normalizedTmuxTarget\s*\]/,
+		);
 	});
 });
