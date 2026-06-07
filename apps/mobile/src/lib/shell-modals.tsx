@@ -614,16 +614,16 @@ export type BrowserActionsControllerDeps<TConnection> = {
 	connection: TConnection | null;
 	tmuxEnabled: boolean;
 	tmuxTarget: string;
-	executeRemoteTextCommand: (
-		connection: TConnection,
-		command: string,
-		timeoutMs: number,
-	) => Promise<string>;
 	executeSideChannelCommand: (
 		connection: TConnection,
 		command: string,
 		timeoutMs: number,
 	) => Promise<{ success: boolean; output: string; error?: string }>;
+	runWorkmuxCommand: (
+		connection: TConnection,
+		argv: string[],
+		timeoutMs: number,
+	) => Promise<string>;
 	getErrorMessage: (error: unknown) => string;
 	closeOtherModals: () => boolean;
 };
@@ -635,8 +635,8 @@ export function useBrowserActionsController<TConnection>(
 		connection,
 		tmuxEnabled,
 		tmuxTarget,
-		executeRemoteTextCommand,
 		executeSideChannelCommand,
+		runWorkmuxCommand,
 		getErrorMessage,
 		closeOtherModals,
 	} = deps;
@@ -668,11 +668,19 @@ export function useBrowserActionsController<TConnection>(
 				connection,
 				command,
 				timeoutMs,
-				executeRemoteTextCommand,
 				executeSideChannelCommand,
+				runWorkmuxCommand,
 			});
 		},
-		[connection, executeRemoteTextCommand, executeSideChannelCommand],
+		[connection, executeSideChannelCommand, runWorkmuxCommand],
+	);
+
+	const runWorkmuxBrowserCommand = useCallback(
+		async (argv: string[], timeoutMs: number) => {
+			if (!connection) throw new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
+			return runWorkmuxCommand(connection, argv, timeoutMs);
+		},
+		[connection, runWorkmuxCommand],
 	);
 
 	const resolveHostBrowserPanePath = useCallback(async () => {
@@ -680,18 +688,32 @@ export function useBrowserActionsController<TConnection>(
 			tmuxEnabled,
 			tmuxTarget,
 			runHostBrowserCommand,
+			runWorkmuxCommand: runWorkmuxBrowserCommand,
 			getErrorMessage,
 		});
-	}, [getErrorMessage, runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
+	}, [
+		getErrorMessage,
+		runHostBrowserCommand,
+		runWorkmuxBrowserCommand,
+		tmuxEnabled,
+		tmuxTarget,
+	]);
 
 	const resolveHostBrowserPaneContext = useCallback(async () => {
 		return resolveBrowserActionsPaneContext({
 			tmuxEnabled,
 			tmuxTarget,
 			runHostBrowserCommand,
+			runWorkmuxCommand: runWorkmuxBrowserCommand,
 			getErrorMessage,
 		});
-	}, [getErrorMessage, runHostBrowserCommand, tmuxEnabled, tmuxTarget]);
+	}, [
+		getErrorMessage,
+		runHostBrowserCommand,
+		runWorkmuxBrowserCommand,
+		tmuxEnabled,
+		tmuxTarget,
+	]);
 
 	const resolveCurrentGitHubRepository = useCallback(async () => {
 		const panePath = await resolveHostBrowserPanePath();
@@ -791,6 +813,7 @@ export function useBrowserActionsController<TConnection>(
 					tmuxEnabled,
 					tmuxTarget,
 					runHostBrowserCommand,
+					runWorkmuxCommand: runWorkmuxBrowserCommand,
 					getErrorMessage,
 				}),
 			openAndroidUrl,
@@ -802,6 +825,7 @@ export function useBrowserActionsController<TConnection>(
 		hostDiffityRequestId,
 		openAndroidUrl,
 		runHostBrowserCommand,
+		runWorkmuxBrowserCommand,
 		showError,
 		tmuxEnabled,
 		tmuxTarget,

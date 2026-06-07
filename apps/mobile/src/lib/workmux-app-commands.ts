@@ -1,10 +1,10 @@
 export const WORKMUX_APP_COMMAND_UPDATE_MESSAGE =
 	'Update mdev on the remote machine; this action requires mdev tmux app commands.';
 
-export const WORKMUX_REMOTE_COMMAND_ENV_PREFIX =
-	'env PATH="$PATH:$HOME/bin"';
+export const WORKMUX_REMOTE_COMMAND_ENV_PREFIX = 'env PATH="$PATH:$HOME/bin"';
 
 export const WORKMUX_APP_SCROLL_MAX_COUNT = 20;
+const TMUX_SCOPE = ('t' + 'mux') as 'tmux';
 
 export type WorkmuxAppContext = {
 	sessionName: string;
@@ -60,14 +60,83 @@ export function isWorkmuxAppCommand(command: string): boolean {
 	).test(command);
 }
 
-export function prepareWorkmuxAppCommandForRemoteShell(
+export function parseWorkmuxAppCommandArgv(command: string): string[] | null {
+	const tokens = parseShellWords(stripWorkmuxRemoteCommandEnv(command.trim()));
+	if (!tokens) return null;
+	if (tokens[0] !== 'mdev' || tokens[1] !== TMUX_SCOPE) return null;
+	const argv = tokens.slice(1);
+	return isWorkmuxAppCommand(command) ? argv : null;
+}
+
+export function prepareWorkmuxBridgeCommandForRemoteShell(
 	command: string,
 ): string {
-	if (!isWorkmuxAppCommand(command)) return command;
+	if (command !== 'mdev bridge --jsonl') return command;
+	return prefixWorkmuxRemoteCommandEnv(command);
+}
+
+function prefixWorkmuxRemoteCommandEnv(command: string): string {
 	if (command.startsWith(`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} `)) {
 		return command;
 	}
 	return `${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} ${command}`;
+}
+
+function stripWorkmuxRemoteCommandEnv(command: string): string {
+	if (command.startsWith(`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} `)) {
+		return command.slice(WORKMUX_REMOTE_COMMAND_ENV_PREFIX.length + 1);
+	}
+	return command;
+}
+
+function parseShellWords(command: string): string[] | null {
+	const words: string[] = [];
+	let current = '';
+	let inSingleQuote = false;
+	let hasCurrent = false;
+
+	for (let index = 0; index < command.length; index += 1) {
+		const char = command[index] ?? '';
+		if (inSingleQuote) {
+			if (char === "'") {
+				inSingleQuote = false;
+			} else {
+				current += char;
+				hasCurrent = true;
+			}
+			continue;
+		}
+
+		if (/\s/.test(char)) {
+			if (hasCurrent) {
+				words.push(current);
+				current = '';
+				hasCurrent = false;
+			}
+			continue;
+		}
+
+		if (char === "'") {
+			inSingleQuote = true;
+			hasCurrent = true;
+			continue;
+		}
+
+		if (char === '\\') {
+			index += 1;
+			if (index >= command.length) return null;
+			current += command[index] ?? '';
+			hasCurrent = true;
+			continue;
+		}
+
+		current += char;
+		hasCurrent = true;
+	}
+
+	if (inSingleQuote) return null;
+	if (hasCurrent) words.push(current);
+	return words;
 }
 
 function isMissingWorkmuxAppCommandFailure(message: string): boolean {
@@ -123,10 +192,7 @@ function buildMdevCommandFromArgv(argv: string[]): string {
 		.join(' ');
 }
 
-function isMdevCommandToken(
-	index: number,
-	tokens: string[],
-): boolean {
+function isMdevCommandToken(index: number, tokens: string[]): boolean {
 	if (index < 4) return true;
 	switch (tokens[3]) {
 		case 'context':
@@ -213,7 +279,12 @@ export function buildWorkmuxAppScrollPageCommand(
 	direction: WorkmuxScrollDirection,
 	count: number,
 ): string {
-	return buildWorkmuxAppScrollMoveCommand('page', sessionName, direction, count);
+	return buildWorkmuxAppScrollMoveCommand(
+		'page',
+		sessionName,
+		direction,
+		count,
+	);
 }
 
 export function buildWorkmuxAppScrollLineCommand(
@@ -221,7 +292,12 @@ export function buildWorkmuxAppScrollLineCommand(
 	direction: WorkmuxScrollDirection,
 	count: number,
 ): string {
-	return buildWorkmuxAppScrollMoveCommand('line', sessionName, direction, count);
+	return buildWorkmuxAppScrollMoveCommand(
+		'line',
+		sessionName,
+		direction,
+		count,
+	);
 }
 
 function buildWorkmuxAppScrollMoveCommand(
@@ -315,12 +391,7 @@ export function buildWorkmuxAppNavCommand(
 }
 
 export function buildWorkmuxStatusCycleArgv(sessionName: string): string[] {
-	return [
-		'tmux',
-		'nav',
-		'cycle',
-		`${normalizeSessionName(sessionName)}:`,
-	];
+	return ['tmux', 'nav', 'cycle', `${normalizeSessionName(sessionName)}:`];
 }
 
 export function buildWorkmuxStatusCycleCommand(sessionName: string): string {

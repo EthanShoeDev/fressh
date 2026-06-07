@@ -5,7 +5,7 @@ import {
 	type TmuxPaneContext,
 } from './host-browser-actions';
 import {
-	buildWorkmuxAppContextCommand,
+	buildWorkmuxAppContextArgv,
 	formatWorkmuxAppBoundaryFailureMessage,
 	parseWorkmuxAppContextOutput,
 } from './workmux-app-commands';
@@ -15,10 +15,16 @@ export type BrowserActionsRunHostBrowserCommand = (
 	timeoutMs: number,
 ) => Promise<string>;
 
+export type BrowserActionsRunWorkmuxCommand = (
+	argv: string[],
+	timeoutMs: number,
+) => Promise<string>;
+
 export type BrowserActionsContextDeps = {
 	tmuxEnabled: boolean;
 	tmuxTarget: string;
 	runHostBrowserCommand: BrowserActionsRunHostBrowserCommand;
+	runWorkmuxCommand: BrowserActionsRunWorkmuxCommand;
 	getErrorMessage: (error: unknown) => string;
 };
 
@@ -33,7 +39,7 @@ function getSessionName(tmuxTarget: string): string {
 async function runWorkmuxAppContextCommand({
 	tmuxEnabled,
 	tmuxTarget,
-	runHostBrowserCommand,
+	runWorkmuxCommand,
 }: BrowserActionsContextDeps): Promise<{
 	output: string;
 	sessionName: string;
@@ -44,10 +50,10 @@ async function runWorkmuxAppContextCommand({
 		);
 	}
 	const sessionName = getSessionName(tmuxTarget);
-	const command = buildWorkmuxAppContextCommand(sessionName);
+	const argv = buildWorkmuxAppContextArgv(sessionName);
 	try {
 		return {
-			output: await runHostBrowserCommand(command, 10_000),
+			output: await runWorkmuxCommand(argv, 10_000),
 			sessionName,
 		};
 	} catch (error) {

@@ -6,11 +6,8 @@ import { rootLogger } from '@/lib/logger';
 import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	buildWorkmuxAppFocusArgv,
-	buildWorkmuxAppFocusCommand,
 	buildWorkmuxAppNavArgv,
-	buildWorkmuxAppNavCommand,
 	buildWorkmuxStatusCycleArgv,
-	buildWorkmuxStatusCycleCommand,
 	formatWorkmuxAppCommandFailureMessage,
 	type WorkmuxFocusTarget,
 	type WorkmuxNavAction,
@@ -129,14 +126,12 @@ export function createWorkmuxKeyboardCommandRunner({
 	isTmuxEnabled,
 	getSessionName,
 	runWorkmuxCommand,
-	runHostCommand,
 	showFailure,
 	getErrorMessage,
 }: {
 	isTmuxEnabled: () => boolean;
 	getSessionName: () => string;
-	runWorkmuxCommand?: (argv: string[], timeoutMs: number) => Promise<unknown>;
-	runHostCommand: (command: string, timeoutMs: number) => Promise<unknown>;
+	runWorkmuxCommand: (argv: string[], timeoutMs: number) => Promise<unknown>;
 	showFailure: (message: string) => void;
 	getErrorMessage: (error: unknown) => string;
 }): WorkmuxKeyboardCommandRunner {
@@ -171,17 +166,7 @@ export function createWorkmuxKeyboardCommandRunner({
 					: command.type === 'nav'
 						? buildWorkmuxAppNavArgv(sessionName, command.action)
 						: buildWorkmuxStatusCycleArgv(sessionName);
-			if (runWorkmuxCommand) {
-				await runWorkmuxCommand(argv, 10_000);
-			} else {
-				const remoteCommand =
-					command.type === 'focus'
-						? buildWorkmuxAppFocusCommand(sessionName, command.target)
-						: command.type === 'nav'
-							? buildWorkmuxAppNavCommand(sessionName, command.action)
-							: buildWorkmuxStatusCycleCommand(sessionName);
-				await runHostCommand(remoteCommand, 10_000);
-			}
+			await runWorkmuxCommand(argv, 10_000);
 			return commandGeneration === generation
 				? { status: 'handled' }
 				: { status: 'superseded' };

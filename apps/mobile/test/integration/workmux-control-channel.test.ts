@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { type MdevBridgeClient } from '../../src/lib/mdev-bridge-client';
 import {
 	createWorkmuxControlChannel,
 	disposeWorkmuxControlChannelAfterCleanup,
-	formatMdevArgvCommand,
+	type WorkmuxControlConnection,
 	type WorkmuxControlCommandResult,
 } from '../../src/lib/workmux-control-channel';
 
@@ -19,89 +20,132 @@ function deferred<T>() {
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
-void test('formatMdevArgvCommand shell-quotes argv safely', () => {
-	assert.equal(
-		formatMdevArgvCommand(['tmux', 'app', 'focus', "co'dex"]),
-		"mdev tmux app focus 'co'\\''dex'",
-	);
-	assert.equal(
-		formatMdevArgvCommand([
-			'tmux',
-			'app',
-			'notification',
-			'open',
-			'--session',
-			'--looks-like-flag',
-			'--window-id',
-			'$(bad)',
-		]),
-		"mdev tmux app notification 'open' '--session' '--looks-like-flag' '--window-id' '$(bad)'",
-	);
-	assert.equal(
-		formatMdevArgvCommand(['tmux', '--bad', '$(bad)', 'next']),
-		"mdev tmux '--bad' '$(bad)' 'next'",
-	);
-});
-
-void test('WorkmuxControlChannel.command uses one-shot mdev fallback with default timeout', async () => {
-	const calls: Array<{ command: string; timeoutMs: number }> = [];
-	const channel = createWorkmuxControlChannel({
-		connection: null,
-		runRemoteCommand: async (command, timeoutMs) => {
-			calls.push({ command, timeoutMs });
-			return { success: true, output: 'ok\n' };
+function createFakeConnection(): WorkmuxControlConnection {
+	return {
+		startCommandStream: async () => {
+			throw new Error('Default bridge client should not be used');
 		},
+		startShell: async () => ({
+			channelId: 1,
+			sendData: async () => {},
+			close: async () => {},
+		}),
+	};
+}
+
+function createRecordingBridgeClient(
+	result: WorkmuxControlCommandResult = { success: true, output: 'ok\n' },
+) {
+	const calls: {
+		operation: string;
+		params: Record<string, unknown>;
+		timeoutMs?: number;
+	}[] = [];
+	let disposeCount = 0;
+	const bridgeClient: MdevBridgeClient = {
+		runOperation: async (input) => {
+			calls.push(input);
+			return result;
+		},
+		dispose: async () => {
+			disposeCount += 1;
+		},
+	};
+	return { bridgeClient, calls, getDisposeCount: () => disposeCount };
+}
+
+void test('WorkmuxControlChannel.command routes mapped argv through bridge operations, preserving timeout', async () => {
+	const bridge = createRecordingBridgeClient();
+	const channel = createWorkmuxControlChannel({
+		connection: createFakeConnection(),
+		bridgeClient: bridge.bridgeClient,
 	});
 
-	const result = await channel.command(['tmux', 'app', 'nav', 'next']);
+	const result = await channel.command(
+		['tmux', 'app', 'nav', 'next-all', '--session', 'main'],
+		{ timeoutMs: 1234 },
+	);
 
 	assert.deepEqual(result, { success: true, output: 'ok\n' });
-	assert.deepEqual(calls, [
-		{ command: "mdev tmux app nav 'next'", timeoutMs: 10_000 },
+	assert.deepEqual(bridge.calls, [
+		{
+			operation: 'tmux.app.nav',
+			params: { action: 'next-all', session: 'main' },
+			timeoutMs: 1234,
+		},
 	]);
 });
 
-void test('WorkmuxControlChannel.command uses custom timeout', async () => {
-	const calls: Array<{ command: string; timeoutMs: number }> = [];
+void test('WorkmuxControlChannel.command uses default bridge timeout', async () => {
+	const bridge = createRecordingBridgeClient();
 	const channel = createWorkmuxControlChannel({
-		connection: null,
-		runRemoteCommand: async (command, timeoutMs) => {
-			calls.push({ command, timeoutMs });
-			return { success: true, output: 'ok\n' };
-		},
-	});
-
-	await channel.command(['tmux', 'app', 'nav', 'next-all'], {
-		timeoutMs: 1234,
-	});
-
-	assert.deepEqual(calls, [
-		{ command: "mdev tmux app nav 'next-all'", timeoutMs: 1234 },
-	]);
-});
-
-void test('WorkmuxControlChannel.command formats status cycle argv fallback', async () => {
-	const calls: Array<{ command: string; timeoutMs: number }> = [];
-	const channel = createWorkmuxControlChannel({
-		connection: null,
-		runRemoteCommand: async (command, timeoutMs) => {
-			calls.push({ command, timeoutMs });
-			return { success: true, output: '' };
-		},
+		connection: createFakeConnection(),
+		bridgeClient: bridge.bridgeClient,
 	});
 
 	await channel.command(['tmux', 'nav', 'cycle', 'main:']);
 
-	assert.deepEqual(calls, [
-		{ command: "mdev tmux nav cycle 'main:'", timeoutMs: 10_000 },
+	assert.deepEqual(bridge.calls, [
+		{
+			operation: 'tmux.nav',
+			params: { action: 'cycle', target: 'main:' },
+			timeoutMs: 10_000,
+		},
 	]);
+});
+
+void test('WorkmuxControlChannel.command rejects missing connection locally without default bridge', async () => {
+	const bridge = createRecordingBridgeClient();
+	const channel = createWorkmuxControlChannel({
+		connection: null,
+		bridgeClient: bridge.bridgeClient,
+		directTmuxTransport: {
+			send: async () => {
+				throw new Error('DirectMux transport should not be used');
+			},
+			dispose: async () => {},
+		},
+	});
+
+	assert.deepEqual(
+		await channel.command(['tmux', 'app', 'nav', 'next', '--session', 'main']),
+		{
+			success: false,
+			output: '',
+			error: 'No SSH connection available.',
+		},
+	);
+	assert.deepEqual(bridge.calls, []);
+});
+
+void test('WorkmuxControlChannel.command rejects unsupported argv locally without bridge', async () => {
+	const bridge = createRecordingBridgeClient();
+	const channel = createWorkmuxControlChannel({
+		connection: createFakeConnection(),
+		bridgeClient: bridge.bridgeClient,
+	});
+
+	const result = await channel.command([
+		'tmux',
+		'app',
+		'scroll',
+		'line-down',
+		'--session',
+		'main',
+	]);
+
+	assert.equal(result.success, false);
+	assert.equal(result.output, '');
+	assert.match(result.error ?? '', /Unsupported Workmux bridge command/);
+	assert.deepEqual(bridge.calls, []);
 });
 
 void test('WorkmuxControlChannel.scroll delegates to DirectMux transport', async () => {
 	const sent: string[] = [];
+	const bridge = createRecordingBridgeClient();
 	const channel = createWorkmuxControlChannel({
 		connection: null,
-		runRemoteCommand: async () => ({ success: true, output: '' }),
+		bridgeClient: bridge.bridgeClient,
 		directTmuxTransport: {
 			send: async (command) => {
 				sent.push(command);
@@ -138,12 +182,13 @@ void test('WorkmuxControlChannel.scroll delegates to DirectMux transport', async
 		'tmux send-keys -t main -X cancel',
 		'__disposed__',
 	]);
+	assert.deepEqual(bridge.calls, []);
 });
 
 void test('WorkmuxControlChannel.scroll reports failed DirectMux send', async () => {
 	const channel = createWorkmuxControlChannel({
 		connection: null,
-		runRemoteCommand: async () => ({ success: true, output: '' }),
+		bridgeClient: createRecordingBridgeClient().bridgeClient,
 		directTmuxTransport: {
 			send: async () => false,
 			dispose: async () => {},
@@ -161,32 +206,31 @@ void test('WorkmuxControlChannel.scroll reports failed DirectMux send', async ()
 	});
 });
 
-void test('WorkmuxControlChannel.dispose delegates to DirectMux transport', async () => {
-	let disposeCount = 0;
+void test('WorkmuxControlChannel.dispose delegates to bridge and DirectMux transports', async () => {
+	const bridge = createRecordingBridgeClient();
+	let directMuxDisposeCount = 0;
 	const channel = createWorkmuxControlChannel({
 		connection: null,
-		runRemoteCommand: async () => ({ success: true, output: '' }),
+		bridgeClient: bridge.bridgeClient,
 		directTmuxTransport: {
 			send: async () => true,
 			dispose: async () => {
-				disposeCount += 1;
+				directMuxDisposeCount += 1;
 			},
 		},
 	});
 
 	await channel.dispose();
 
-	assert.equal(disposeCount, 1);
+	assert.equal(bridge.getDisposeCount(), 1);
+	assert.equal(directMuxDisposeCount, 1);
 });
 
 void test('WorkmuxControlChannel rejects commands after dispose', async () => {
-	const calls: string[] = [];
+	const bridge = createRecordingBridgeClient();
 	const channel = createWorkmuxControlChannel({
 		connection: null,
-		runRemoteCommand: async (command) => {
-			calls.push(command);
-			return { success: true, output: '' };
-		},
+		bridgeClient: bridge.bridgeClient,
 		directTmuxTransport: {
 			send: async () => true,
 			dispose: async () => {},
@@ -200,14 +244,14 @@ void test('WorkmuxControlChannel rejects commands after dispose', async () => {
 		output: '',
 		error: 'Workmux control channel disposed.',
 	});
-	assert.deepEqual(calls, []);
+	assert.deepEqual(bridge.calls, []);
 });
 
 void test('WorkmuxControlChannel rejects scroll after dispose', async () => {
 	const sent: string[] = [];
 	const channel = createWorkmuxControlChannel({
 		connection: null,
-		runRemoteCommand: async () => ({ success: true, output: '' }),
+		bridgeClient: createRecordingBridgeClient().bridgeClient,
 		directTmuxTransport: {
 			send: async (command) => {
 				sent.push(command);

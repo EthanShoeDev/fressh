@@ -215,9 +215,11 @@ test('runCommand wrapper maps options, abort signal, output, and limits', async 
 	expect(runCommand).toHaveBeenCalledTimes(successfulNativeCallCount);
 });
 
-test('startCommandStream wrapper maps stream events and close signal', async () => {
+test('startCommandStream wrapper maps stream events, sendData, and close signal', async () => {
 	const closeSignal = new AbortController().signal;
+	const sendSignal = new AbortController().signal;
 	let capturedCallback: { onEvent: (event: unknown) => void } | undefined;
+	const sendData = jest.fn();
 	const close = jest.fn();
 	const startCommandStream = jest.fn(async (opts) => {
 		capturedCallback = opts.onEventCallback;
@@ -227,6 +229,7 @@ test('startCommandStream wrapper maps stream events and close signal', async () 
 				createdAtMs: 8,
 				connectionId: 'conn-1',
 			}),
+			sendData,
 			close,
 		};
 	});
@@ -275,6 +278,14 @@ test('startCommandStream wrapper maps stream events and close signal', async () 
 	expect(stream.channelId).toBe(7);
 	expect(stream.createdAtMs).toBe(8);
 	expect(stream.connectionId).toBe('conn-1');
+
+	await stream.sendData(bytes('{"id":"hello-1","type":"hello"}\n'), {
+		signal: sendSignal,
+	});
+	expect(sendData).toHaveBeenCalledWith(
+		bytes('{"id":"hello-1","type":"hello"}\n'),
+		{ signal: sendSignal },
+	);
 
 	await stream.close({ signal: closeSignal });
 	expect(close).toHaveBeenCalledWith({ signal: closeSignal });

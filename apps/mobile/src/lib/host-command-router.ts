@@ -1,8 +1,9 @@
 import { HOST_BROWSER_NO_CONNECTION_MESSAGE } from './host-browser-actions';
 import {
+	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	formatWorkmuxAppCommandFailureMessage,
 	isWorkmuxAppCommand,
-	prepareWorkmuxAppCommandForRemoteShell,
+	parseWorkmuxAppCommandArgv,
 } from './workmux-app-commands';
 
 export type HostCommandSideChannelResult = {
@@ -15,22 +16,22 @@ export async function runHostCommandWithBoundary<TConnection>({
 	connection,
 	command,
 	timeoutMs,
-	executeRemoteTextCommand,
 	executeSideChannelCommand,
+	runWorkmuxCommand,
 }: {
 	connection: TConnection | null;
 	command: string;
 	timeoutMs: number;
-	executeRemoteTextCommand: (
-		connection: TConnection,
-		command: string,
-		timeoutMs: number,
-	) => Promise<string>;
 	executeSideChannelCommand: (
 		connection: TConnection,
 		command: string,
 		timeoutMs: number,
 	) => Promise<HostCommandSideChannelResult>;
+	runWorkmuxCommand?: (
+		connection: TConnection,
+		argv: string[],
+		timeoutMs: number,
+	) => Promise<string>;
 }): Promise<string> {
 	if (!connection) {
 		throw new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
@@ -38,11 +39,11 @@ export async function runHostCommandWithBoundary<TConnection>({
 
 	if (isWorkmuxAppCommand(command)) {
 		try {
-			return await executeRemoteTextCommand(
-				connection,
-				prepareWorkmuxAppCommandForRemoteShell(command),
-				timeoutMs,
-			);
+			const argv = parseWorkmuxAppCommandArgv(command);
+			if (!argv || !runWorkmuxCommand) {
+				throw new Error(WORKMUX_APP_COMMAND_UPDATE_MESSAGE);
+			}
+			return await runWorkmuxCommand(connection, argv, timeoutMs);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			throw new Error(formatWorkmuxAppCommandFailureMessage(message));

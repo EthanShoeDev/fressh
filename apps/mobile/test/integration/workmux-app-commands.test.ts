@@ -23,9 +23,10 @@ import {
 	formatWorkmuxAppCommandFailureMessage,
 	isWorkmuxAppCommand,
 	isWorkmuxScrollAlreadyInactiveFailureMessage,
+	parseWorkmuxAppCommandArgv,
 	parseWorkmuxAppContextOutput,
 	parseWorkmuxAppWindowOutput,
-	prepareWorkmuxAppCommandForRemoteShell,
+	prepareWorkmuxBridgeCommandForRemoteShell,
 	type WorkmuxAppContext,
 	type WorkmuxAppWindow,
 } from '../../src/lib/workmux-app-commands';
@@ -69,10 +70,7 @@ function serializeExpectedMdevCommand(argv: string[]): string {
 		.join(' ');
 }
 
-function isExpectedCommandToken(
-	index: number,
-	tokens: string[],
-): boolean {
+function isExpectedCommandToken(index: number, tokens: string[]): boolean {
 	if (index < 4) return true;
 	switch (tokens[3]) {
 		case 'context':
@@ -153,9 +151,7 @@ void test('workmux app command builders shell-quote app arguments', () => {
 });
 
 void test('workmux app command builders quote values that look like flags', () => {
-	const contextCommand = buildWorkmuxAppContextCommand(
-		'--x; echo injected',
-	);
+	const contextCommand = buildWorkmuxAppContextCommand('--x; echo injected');
 	assert.equal(
 		contextCommand,
 		"mdev tmux app context --session '--x; echo injected'",
@@ -282,27 +278,48 @@ void test('workmux app command predicate recognizes app-boundary commands', () =
 	assert.equal(isWorkmuxAppCommand('mdev tmux application context'), false);
 });
 
-void test('workmux app remote shell command preparation adds non-login PATH once', () => {
-	assert.equal(
-		prepareWorkmuxAppCommandForRemoteShell(
-			"mdev tmux app context --session 'main'",
+void test('workmux app command parser returns argv for bridge transport', () => {
+	assert.deepEqual(
+		parseWorkmuxAppCommandArgv("mdev tmux app context --session 'main'"),
+		['tmux', 'app', 'context', '--session', 'main'],
+	);
+	assert.deepEqual(
+		parseWorkmuxAppCommandArgv(
+			`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux nav cycle 'main:'`,
 		),
-		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session 'main'`,
+		['tmux', 'nav', 'cycle', 'main:'],
+	);
+	assert.deepEqual(
+		parseWorkmuxAppCommandArgv(
+			"mdev tmux app notification open --session 'main'\\''quoted' --window-id '@12'",
+		),
+		[
+			'tmux',
+			'app',
+			'notification',
+			'open',
+			'--session',
+			"main'quoted",
+			'--window-id',
+			'@12',
+		],
+	);
+	assert.equal(parseWorkmuxAppCommandArgv('git status'), null);
+});
+
+void test('workmux bridge remote shell command preparation adds non-login PATH once', () => {
+	assert.equal(
+		prepareWorkmuxBridgeCommandForRemoteShell('mdev bridge --jsonl'),
+		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev bridge --jsonl`,
 	);
 	assert.equal(
-		prepareWorkmuxAppCommandForRemoteShell(
-			"mdev tmux nav cycle 'main:'",
+		prepareWorkmuxBridgeCommandForRemoteShell(
+			`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev bridge --jsonl`,
 		),
-		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux nav cycle 'main:'`,
+		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev bridge --jsonl`,
 	);
 	assert.equal(
-		prepareWorkmuxAppCommandForRemoteShell(
-			`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session 'main'`,
-		),
-		`${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app context --session 'main'`,
-	);
-	assert.equal(
-		prepareWorkmuxAppCommandForRemoteShell('git status'),
+		prepareWorkmuxBridgeCommandForRemoteShell('git status'),
 		'git status',
 	);
 });
