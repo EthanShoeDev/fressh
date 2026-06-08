@@ -236,3 +236,43 @@ void test('runtime shell config rejects unknown action ids in long-press options
 
 	assert.throws(() => parseShellConfigData(config), /NOT_A_REAL_ACTION/);
 });
+
+void test('runtime shell config accepts command menu action entries', () => {
+	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
+	config.commandMenus = [
+		{
+			type: 'action',
+			label: 'Request a Feature',
+			actionId: 'OPEN_REPO_FEATURE_REQUEST',
+		},
+	];
+
+	const parsed = parseShellConfigData(config);
+
+	assert.deepEqual(parsed.commandMenus, [
+		{
+			type: 'action',
+			label: 'Request a Feature',
+			actionId: 'OPEN_REPO_FEATURE_REQUEST',
+		},
+	]);
+});
+
+void test('runtime shell config rejects unsupported command menu action ids', () => {
+	const config = JSON.parse(bundledConfigText) as Record<string, unknown>;
+	config.commandMenus = [
+		{
+			type: 'submenu',
+			label: 'mdev',
+			entries: [
+				{
+					type: 'action',
+					label: 'Broken',
+					actionId: 'NOT_A_REAL_ACTION',
+				},
+			],
+		},
+	];
+
+	assert.throws(() => parseShellConfigData(config), /NOT_A_REAL_ACTION/);
+});

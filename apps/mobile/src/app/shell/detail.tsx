@@ -6,6 +6,7 @@ import {
 import { useIsFocused } from '@react-navigation/native';
 
 import * as Clipboard from 'expo-clipboard';
+import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import {
 	Stack,
@@ -13,7 +14,6 @@ import {
 	useRouter,
 	useFocusEffect,
 } from 'expo-router';
-import Constants from 'expo-constants';
 import React, {
 	startTransition,
 	useCallback,
@@ -70,6 +70,12 @@ import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { OrderedWriter } from '@/lib/ordered-writer';
+import {
+	configureScrollTraceEnabled,
+	emitScrollTrace,
+	isScrollTraceEnabled,
+	type ScrollTraceSink,
+} from '@/lib/scroll-trace';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -88,12 +94,6 @@ import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
-import {
-	configureScrollTraceEnabled,
-	emitScrollTrace,
-	isScrollTraceEnabled,
-	type ScrollTraceSink,
-} from '@/lib/scroll-trace';
 import {
 	useBrowserActionsController,
 	useFeatureRequestController,
@@ -146,12 +146,12 @@ import {
 	type WisprTextEditorAvailability,
 } from '@/lib/wispr-automation';
 import { wisprAutomationNative } from '@/lib/wispr-automation-native';
-import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
 import {
 	createWorkmuxControlChannel,
 	disposeWorkmuxControlChannelAfterCleanup,
 	type WorkmuxControlChannel,
 } from '@/lib/workmux-control-channel';
+import { getWorkmuxAttachErrorCopy } from '@/lib/workmux-copy';
 import { createTmuxScrollbackLineAccumulator } from '@/lib/workmux-scrollback-batch';
 import {
 	createWorkmuxScrollbackCommandExecutor,
@@ -165,7 +165,7 @@ import {
 	runWorkmuxScrollbackLiveInputSendPlan,
 } from '@/lib/workmux-scrollback-live-input';
 import { BrowserActionsModal } from './components/BrowserActionsModal';
-import { CommandPresetsModal } from './components/CommandPresetsModal';
+import { CommandMenuModal } from './components/CommandMenuModal';
 import { ConfigureModal } from './components/ConfigureModal';
 import { FeatureRequestModal } from './components/FeatureRequestModal';
 import { HostUrlModal } from './components/HostUrlModal';
@@ -685,7 +685,7 @@ function ShellDetail() {
 	const appStateRef = useRef(AppState.currentState);
 	const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
 	const {
-		commandPresets: commandPresetsModal,
+		commandMenu: commandMenuModal,
 		commander: commanderModal,
 		textEntry: textEntryModal,
 		configure: configureModal,
@@ -1196,11 +1196,11 @@ function ShellDetail() {
 				}, scheduledDelay);
 				commandTimeoutsRef.current.push(timeoutId);
 			});
-			commandPresetsModal.onClose();
+			commandMenuModal.onClose();
 		},
 		[
 			clearCommandTimeouts,
-			commandPresetsModal,
+			commandMenuModal,
 			exitSelectionMode,
 			sendCommandStep,
 		],
@@ -1278,7 +1278,6 @@ function ShellDetail() {
 		[
 			exitSelectionMode,
 			refreshTextEntryHistory,
-			scrollbackExitDelayMs,
 			selectionModeEnabled,
 			sendLiteralInputSegments,
 		],
@@ -1922,7 +1921,7 @@ function ShellDetail() {
 	const featureRequestCloseRef = useRef<() => boolean>(() => true);
 
 	const closeBrowserActionsOtherModals = useCallback((): boolean => {
-		commandPresetsModal.onClose();
+		commandMenuModal.onClose();
 		commanderModal.onClose();
 		skillSelectorCloseRef.current();
 		handleCloseTextEntry();
@@ -1930,7 +1929,7 @@ function ShellDetail() {
 		if (!featureRequestCloseRef.current()) return false;
 		return true;
 	}, [
-		commandPresetsModal,
+		commandMenuModal,
 		commanderModal,
 		configureModal,
 		handleCloseTextEntry,
@@ -1985,7 +1984,7 @@ function ShellDetail() {
 	});
 
 	const closeSkillSelectorOtherModals = useCallback(() => {
-		commandPresetsModal.onClose();
+		commandMenuModal.onClose();
 		browserActions.close();
 		commanderModal.onClose();
 		configureModal.onClose();
@@ -1994,7 +1993,7 @@ function ShellDetail() {
 		return true;
 	}, [
 		browserActions,
-		commandPresetsModal,
+		commandMenuModal,
 		commanderModal,
 		configureModal,
 		handleCloseTextEntry,
@@ -2039,7 +2038,7 @@ function ShellDetail() {
 		browserActions.close();
 		if (Platform.OS !== 'android') {
 			commanderModal.onClose();
-			commandPresetsModal.onClose();
+			commandMenuModal.onClose();
 			setWisprTextEditorAvailability({
 				type: 'setup-required',
 				reason: 'service-disabled',
@@ -2064,7 +2063,7 @@ function ShellDetail() {
 				setWisprTextEditorAvailability(availability);
 				if (availability.type === 'setup-required') {
 					commanderModal.onClose();
-					commandPresetsModal.onClose();
+					commandMenuModal.onClose();
 					textEntryModal.onOpen();
 					applyWisprAutomationEvent({
 						type: 'failed',
@@ -2075,7 +2074,7 @@ function ShellDetail() {
 				}
 
 				commanderModal.onClose();
-				commandPresetsModal.onClose();
+				commandMenuModal.onClose();
 				textEntryModal.onOpen();
 				if (availability.type === 'ready' && autoWisprEnabledRef.current) {
 					startWisprTextEntryAutomation(requestId);
@@ -2083,7 +2082,7 @@ function ShellDetail() {
 			} catch (error) {
 				if (!isWisprAutomationRequestActive(requestId)) return;
 				commanderModal.onClose();
-				commandPresetsModal.onClose();
+				commandMenuModal.onClose();
 				setWisprTextEditorAvailability({
 					type: 'setup-required',
 					reason: 'service-disabled',
@@ -2104,7 +2103,7 @@ function ShellDetail() {
 		browserActions,
 		skillSelector,
 		commanderModal,
-		commandPresetsModal,
+		commandMenuModal,
 		failWisprAutomation,
 		isWisprAutomationRequestActive,
 		startWisprTextEntryAutomation,
@@ -2435,21 +2434,21 @@ function ShellDetail() {
 			sendBytes: sendBytesRaw,
 			pasteClipboard: handlePasteClipboard,
 			copySelection: handleCopySelection,
-			toggleCommandPresets: () => {
+			toggleCommandMenu: () => {
 				browserActions.invalidateHostUrlReads();
 				commanderModal.onClose();
 				browserActions.close();
 				skillSelector.close();
 				handleCloseTextEntry();
-				if (commandPresetsModal.open) {
-					commandPresetsModal.onClose();
+				if (commandMenuModal.open) {
+					commandMenuModal.onClose();
 				} else {
-					commandPresetsModal.onOpen();
+					commandMenuModal.onOpen();
 				}
 			},
 			openCommander: () => {
 				browserActions.invalidateHostUrlReads();
-				commandPresetsModal.onClose();
+				commandMenuModal.onClose();
 				browserActions.close();
 				skillSelector.close();
 				handleCloseTextEntry();
@@ -2472,7 +2471,7 @@ function ShellDetail() {
 			browserActions,
 			featureRequest.open,
 			skillSelector,
-			commandPresetsModal,
+			commandMenuModal,
 			commanderModal,
 			handleCopySelection,
 			handleCloseTextEntry,
@@ -3150,12 +3149,13 @@ function ShellDetail() {
 					selectionModeEnabled={selectionModeEnabled}
 					onCopySelection={handleCopySelection}
 				/>
-				<CommandPresetsModal
-					open={commandPresetsModal.open}
-					presets={shellConfig.commandMenus}
+				<CommandMenuModal
+					open={commandMenuModal.open}
+					entries={shellConfig.commandMenus}
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}
-					onClose={commandPresetsModal.onClose}
+					onClose={commandMenuModal.onClose}
 					onSelect={runCommandPreset}
+					onAction={handleAction}
 				/>
 				<BrowserActionsModal
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}

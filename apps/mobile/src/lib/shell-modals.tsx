@@ -38,8 +38,8 @@ import {
 	type GitHubRepositoryTarget,
 } from './repo-feature-request';
 import { useRequestId } from './request-id';
-import { skillDiscoveryCache } from './skill-discovery-cache-native';
 import { type DiscoveredSkill } from './skill-discovery';
+import { skillDiscoveryCache } from './skill-discovery-cache-native';
 import { loadSkillSelectorProject } from './skill-selector-loader';
 
 export type SimpleModalHandle = {
@@ -53,14 +53,14 @@ export type TextEntryModalHandle = SimpleModalHandle & {
 };
 
 export type ShellSimpleModalsHandle = {
-	commandPresets: SimpleModalHandle;
+	commandMenu: SimpleModalHandle;
 	commander: SimpleModalHandle;
 	textEntry: TextEntryModalHandle;
 	configure: SimpleModalHandle;
 };
 
 export function useShellSimpleModals(): ShellSimpleModalsHandle {
-	const [commandPresetsOpen, setCommandPresetsOpen] = useState(false);
+	const [commandMenuOpen, setCommandMenuOpen] = useState(false);
 	const [commanderOpen, setCommanderOpen] = useState(false);
 	const [textEntryOpen, setTextEntryOpen] = useState(false);
 	const [configureOpen, setConfigureOpen] = useState(false);
@@ -70,11 +70,11 @@ export function useShellSimpleModals(): ShellSimpleModalsHandle {
 	// it inside callbacks see the latest value without going through deps.
 	textEntryOpenRef.current = textEntryOpen;
 
-	const openCommandPresets = useCallback(() => {
-		setCommandPresetsOpen(true);
+	const openCommandMenu = useCallback(() => {
+		setCommandMenuOpen(true);
 	}, []);
-	const closeCommandPresets = useCallback(() => {
-		setCommandPresetsOpen(false);
+	const closeCommandMenu = useCallback(() => {
+		setCommandMenuOpen(false);
 	}, []);
 
 	const openCommander = useCallback(() => {
@@ -100,13 +100,13 @@ export function useShellSimpleModals(): ShellSimpleModalsHandle {
 		setConfigureOpen(false);
 	}, []);
 
-	const commandPresets = useMemo<SimpleModalHandle>(
+	const commandMenu = useMemo<SimpleModalHandle>(
 		() => ({
-			open: commandPresetsOpen,
-			onOpen: openCommandPresets,
-			onClose: closeCommandPresets,
+			open: commandMenuOpen,
+			onOpen: openCommandMenu,
+			onClose: closeCommandMenu,
 		}),
-		[commandPresetsOpen, openCommandPresets, closeCommandPresets],
+		[commandMenuOpen, openCommandMenu, closeCommandMenu],
 	);
 
 	const commander = useMemo<SimpleModalHandle>(
@@ -137,7 +137,7 @@ export function useShellSimpleModals(): ShellSimpleModalsHandle {
 		[configureOpen, openConfigure, closeConfigure],
 	);
 
-	return { commandPresets, commander, textEntry, configure };
+	return { commandMenu, commander, textEntry, configure };
 }
 
 export type SkillSelectorModalProps = {

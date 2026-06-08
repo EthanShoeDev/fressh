@@ -1,6 +1,6 @@
 {
-	"version": "2026-06-06.3",
-	"updatedAt": "2026-06-06T18:12:29Z",
+	"version": "2026-06-08.4",
+	"updatedAt": "2026-06-08T10:45:00.000Z",
 	"defaultKeyboardId": "phone_base",
 	"activeKeyboardIds": [
 		"phone_base",
@@ -139,7 +139,7 @@
 					null,
 					{
 						"type": "action",
-						"actionId": "TOGGLE_COMMAND_PRESETS",
+						"actionId": "TOGGLE_COMMAND_MENU",
 						"label": "Cmds",
 						"icon": "Command",
 						"span": 2
@@ -723,19 +723,6 @@
 	"commandMenus": [
 		{
 			"type": "preset",
-			"label": "/clear",
-			"steps": [
-				{
-					"type": "text",
-					"data": "/clear"
-				},
-				{
-					"type": "enter"
-				}
-			]
-		},
-		{
-			"type": "preset",
 			"label": "/new",
 			"steps": [
 				{
@@ -748,48 +735,9 @@
 			]
 		},
 		{
-			"type": "preset",
-			"label": "/work-step-by-step",
-			"steps": [
-				{
-					"type": "text",
-					"data": "/work-step-by-step"
-				},
-				{
-					"type": "enter"
-				}
-			]
-		},
-		{
-			"type": "preset",
-			"label": "/rloop-review",
-			"steps": [
-				{
-					"type": "text",
-					"data": "/rloop-review"
-				},
-				{
-					"type": "space"
-				}
-			]
-		},
-		{
-			"type": "preset",
-			"label": "$tldr",
-			"steps": [
-				{
-					"type": "text",
-					"data": "$tldr"
-				},
-				{
-					"type": "enter"
-				}
-			]
-		},
-		{
 			"type": "submenu",
 			"label": "superpower",
-			"presets": [
+			"entries": [
 				{
 					"type": "preset",
 					"label": "$test-driven-development",
@@ -862,6 +810,26 @@
 				},
 				{
 					"type": "preset",
+					"label": "$subagent-driven-development",
+					"steps": [
+						{
+							"type": "text",
+							"data": "$subagent-driven-development"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "$subagent-driven-development-ce1",
+					"steps": [
+						{
+							"type": "text",
+							"data": "$subagent-driven-development-ce1"
+						}
+					]
+				},
+				{
+					"type": "preset",
 					"label": "$requesting-code-review",
 					"steps": [
 						{
@@ -913,110 +881,89 @@
 			]
 		},
 		{
-			"type": "preset",
-			"label": "approve",
-			"steps": [
-				{
-					"type": "text",
-					"data": "approve"
-				},
-				{
-					"type": "enter"
-				}
-			]
-		},
-		{
 			"type": "submenu",
 			"label": "features",
-			"presets": [
+			"entries": [
 				{
 					"type": "preset",
-					"label": "/review",
+					"label": "$work-on-bug",
 					"steps": [
 						{
 							"type": "text",
-							"data": "/review"
-						},
-						{
-							"type": "enter",
-							"delayMs": 280
-						},
-						{
-							"type": "arrowDown",
-							"delayMs": 280
-						},
-						{
-							"type": "enter",
-							"delayMs": 280
+							"data": "$work-on-bug"
 						}
 					]
 				},
 				{
 					"type": "preset",
-					"label": "/feature-design-step1",
+					"label": "$work-on-bug-reflect",
 					"steps": [
 						{
 							"type": "text",
-							"data": "/feature-design-step1"
+							"data": "$work-on-bug-reflect"
 						}
 					]
 				},
 				{
 					"type": "preset",
-					"label": "/feature-design-step2",
+					"label": "$work-on-issue",
 					"steps": [
 						{
 							"type": "text",
-							"data": "/feature-design-step2"
+							"data": "$work-on-issue"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "$dev-work-on-commission-bug",
+					"steps": [
+						{
+							"type": "text",
+							"data": "$dev-work-on-commission-bug"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "$work-step-by-step",
+					"steps": [
+						{
+							"type": "text",
+							"data": "$work-step-by-step"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "$tldr",
+					"steps": [
+						{
+							"type": "text",
+							"data": "$tldr"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "/rloop-review",
+					"steps": [
+						{
+							"type": "text",
+							"data": "/rloop-review"
 						},
 						{
-							"type": "enter"
+							"type": "space"
 						}
 					]
 				},
 				{
 					"type": "preset",
-					"label": "/feature-design-step3",
+					"label": "$oracle-ask",
 					"steps": [
 						{
 							"type": "text",
-							"data": "/feature-design-step3"
-						},
-						{
-							"type": "enter"
-						}
-					]
-				},
-				{
-					"type": "preset",
-					"label": "/work-on-bug",
-					"steps": [
-						{
-							"type": "text",
-							"data": "/work-on-bug"
-						}
-					]
-				},
-				{
-					"type": "preset",
-					"label": "/work-on-bug-reflect",
-					"steps": [
-						{
-							"type": "text",
-							"data": "/work-on-bug-reflect"
-						},
-						{
-							"type": "enter"
-						}
-					]
-				},
-				{
-					"type": "preset",
-					"label": "$oracle",
-					"steps": [
-						{
-							"type": "text",
-							"data": "$oracle"
+							"data": "$oracle-ask"
 						}
 					]
 				}
@@ -1025,7 +972,7 @@
 		{
 			"type": "submenu",
 			"label": "Git",
-			"presets": [
+			"entries": [
 				{
 					"type": "preset",
 					"label": "$git-pr",
@@ -1033,19 +980,6 @@
 						{
 							"type": "text",
 							"data": "$git-pr"
-						},
-						{
-							"type": "enter"
-						}
-					]
-				},
-				{
-					"type": "preset",
-					"label": "$diff",
-					"steps": [
-						{
-							"type": "text",
-							"data": "$diff"
 						},
 						{
 							"type": "enter"
@@ -1120,6 +1054,101 @@
 				},
 				{
 					"type": "preset",
+					"label": "clear",
+					"steps": [
+						{
+							"type": "text",
+							"data": "clear"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				}
+			]
+		},
+		{
+			"type": "submenu",
+			"label": "mdev",
+			"entries": [
+				{
+					"type": "action",
+					"label": "Request a Feature",
+					"actionId": "OPEN_REPO_FEATURE_REQUEST"
+				},
+				{
+					"type": "preset",
+					"label": "Open Workspace",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev tmux open-workspace"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "Close Workspace",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev tmux workspace close"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "Rename Workspace",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev tmux workspace prompt-rename"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "codex auth refresh",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev codex auth refresh"
+						},
+						{
+							"type": "enter"
+						}
+					]
+				},
+				{
+					"type": "preset",
+					"label": "restart codex",
+					"steps": [
+						{
+							"type": "text",
+							"data": "mdev codex restart \"$(mdev tmux app context --session main | sed -n 's/.*\"target\":\"\\([^\"]*\\)\".*/\\1/p')\""
+						},
+						{
+							"type": "enter"
+						}
+					]
+				}
+			]
+		},
+		{
+			"type": "submenu",
+			"label": "core8",
+			"entries": [
+				{
+					"type": "preset",
 					"label": "yarn cq",
 					"steps": [
 						{
@@ -1146,70 +1175,6 @@
 				},
 				{
 					"type": "preset",
-					"label": "clear",
-					"steps": [
-						{
-							"type": "text",
-							"data": "clear"
-						},
-						{
-							"type": "enter"
-						}
-					]
-				}
-			]
-		},
-		{
-			"type": "submenu",
-			"label": "mdev",
-			"presets": [
-				{
-					"type": "preset",
-					"label": "codex auth refresh",
-					"steps": [
-						{
-							"type": "text",
-							"data": "mdev codex auth refresh"
-						},
-						{
-							"type": "enter"
-						}
-					]
-				},
-				{
-					"type": "preset",
-					"label": "workspace close",
-					"steps": [
-						{
-							"type": "text",
-							"data": "mdev tmux workspace close"
-						},
-						{
-							"type": "enter"
-						}
-					]
-				},
-				{
-					"type": "preset",
-					"label": "workspace open",
-					"steps": [
-						{
-							"type": "text",
-							"data": "mdev tmux open-workspace"
-						},
-						{
-							"type": "enter"
-						}
-					]
-				}
-			]
-		},
-		{
-			"type": "submenu",
-			"label": "core8",
-			"presets": [
-				{
-					"type": "preset",
 					"label": "core8 env fix",
 					"steps": [
 						{
@@ -1223,11 +1188,11 @@
 				},
 				{
 					"type": "preset",
-					"label": "core8 jobs switch F0",
+					"label": "core8 jobs switch T0",
 					"steps": [
 						{
 							"type": "text",
-							"data": "./bin/core8 jobs switch F0"
+							"data": "./bin/core8 jobs switch T0"
 						}
 					]
 				},
