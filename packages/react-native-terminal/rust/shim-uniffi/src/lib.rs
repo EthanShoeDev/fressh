@@ -66,9 +66,11 @@ impl From<Security> for fressh_core::Security {
 	fn from(s: Security) -> Self {
 		match s {
 			Security::Password { password } => fressh_core::Security::Password { password },
-			Security::Key { private_key_content } => {
-				fressh_core::Security::Key { private_key_content }
-			}
+			Security::Key {
+				private_key_content,
+			} => fressh_core::Security::Key {
+				private_key_content,
+			},
 		}
 	}
 }
@@ -185,25 +187,73 @@ impl From<fressh_core::SshConnectionProgressEvent> for SshConnectionProgressEven
 
 #[derive(uniffi::Enum)]
 pub enum FresshEvent {
-	ConnectProgress { connection_id: String, event: SshConnectionProgressEvent },
-	HostKeyPending { connection_id: String, info: ServerPublicKeyInfo },
-	ConnectionClosed { connection_id: String },
-	ShellClosed { shell_id: String },
+	ConnectProgress {
+		connection_id: String,
+		event: SshConnectionProgressEvent,
+	},
+	HostKeyPending {
+		connection_id: String,
+		info: ServerPublicKeyInfo,
+	},
+	ConnectionClosed {
+		connection_id: String,
+	},
+	ShellClosed {
+		shell_id: String,
+	},
+	// Shell-integration semantic events (OSC 7 + OSC 133); see fressh-core::osc.
+	WorkingDirectoryChanged {
+		shell_id: String,
+		path: String,
+	},
+	PromptStart {
+		shell_id: String,
+	},
+	CommandStart {
+		shell_id: String,
+	},
+	CommandFinished {
+		shell_id: String,
+		exit_code: Option<i32>,
+		duration_ms: Option<u64>,
+	},
 }
 impl From<fressh_core::CoreEvent> for FresshEvent {
 	fn from(ev: fressh_core::CoreEvent) -> Self {
 		use fressh_core::CoreEvent as E;
 		match ev {
-			E::ConnectProgress { connection_id, event } => {
-				FresshEvent::ConnectProgress { connection_id, event: event.into() }
-			}
-			E::HostKeyPending { connection_id, info } => {
-				FresshEvent::HostKeyPending { connection_id, info: info.into() }
-			}
+			E::ConnectProgress {
+				connection_id,
+				event,
+			} => FresshEvent::ConnectProgress {
+				connection_id,
+				event: event.into(),
+			},
+			E::HostKeyPending {
+				connection_id,
+				info,
+			} => FresshEvent::HostKeyPending {
+				connection_id,
+				info: info.into(),
+			},
 			E::ConnectionClosed { connection_id } => {
 				FresshEvent::ConnectionClosed { connection_id }
 			}
 			E::ShellClosed { shell_id } => FresshEvent::ShellClosed { shell_id },
+			E::WorkingDirectoryChanged { shell_id, path } => {
+				FresshEvent::WorkingDirectoryChanged { shell_id, path }
+			}
+			E::PromptStart { shell_id } => FresshEvent::PromptStart { shell_id },
+			E::CommandStart { shell_id } => FresshEvent::CommandStart { shell_id },
+			E::CommandFinished {
+				shell_id,
+				exit_code,
+				duration_ms,
+			} => FresshEvent::CommandFinished {
+				shell_id,
+				exit_code,
+				duration_ms,
+			},
 		}
 	}
 }
@@ -235,7 +285,9 @@ pub fn set_event_listener(listener: Arc<dyn FresshEventListener>) {
 /// emitted mid-handshake; answer it with [`respond_to_host_key`].
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn connect(details: ConnectionDetails) -> Result<String, SshError> {
-	fressh_core::connect(details.into()).await.map_err(Into::into)
+	fressh_core::connect(details.into())
+		.await
+		.map_err(Into::into)
 }
 
 /// Resume a parked host-key decision (accept/reject the server key).
@@ -246,10 +298,7 @@ pub fn respond_to_host_key(connection_id: String, accept: bool) {
 
 /// Open a PTY + shell, returning the new shell id. Render with `<Terminal shellId=…/>`.
 #[uniffi::export(async_runtime = "tokio")]
-pub async fn start_shell(
-	connection_id: String,
-	options: ShellOptions,
-) -> Result<String, SshError> {
+pub async fn start_shell(connection_id: String, options: ShellOptions) -> Result<String, SshError> {
 	let cols = options.cols as usize;
 	let rows = options.rows as usize;
 	let scrollback = options.scrollback_lines as usize;
@@ -286,13 +335,17 @@ pub async fn close_preview(preview_id: String) {
 /// Send user input (stdin) to a shell. (Also available on the render plane.)
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn send_data(shell_id: String, data: Vec<u8>) -> Result<(), SshError> {
-	fressh_core::send_data(shell_id, data).await.map_err(Into::into)
+	fressh_core::send_data(shell_id, data)
+		.await
+		.map_err(Into::into)
 }
 
 /// Resize a shell's terminal.
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn resize(shell_id: String, cols: u32, rows: u32) -> Result<(), SshError> {
-	fressh_core::resize(shell_id, cols as usize, rows as usize).await.map_err(Into::into)
+	fressh_core::resize(shell_id, cols as usize, rows as usize)
+		.await
+		.map_err(Into::into)
 }
 
 // ─────────────────────── touch interaction (scroll + selection) ──────────────
@@ -319,7 +372,9 @@ impl From<SelectionKind> for fressh_core::SelectionKind {
 /// scrollback viewport. Touch gestures live in JS and call this by `shellId`.
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn scroll(shell_id: String, delta_px: f32) -> Result<(), SshError> {
-	fressh_core::scroll(shell_id, delta_px).await.map_err(Into::into)
+	fressh_core::scroll(shell_id, delta_px)
+		.await
+		.map_err(Into::into)
 }
 
 /// Begin a selection at a touch point (physical px, surface-relative).
@@ -355,7 +410,9 @@ pub async fn close_shell(shell_id: String) -> Result<(), SshError> {
 /// Disconnect a connection (closes its shells first).
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn disconnect(connection_id: String) -> Result<(), SshError> {
-	fressh_core::disconnect(connection_id).await.map_err(Into::into)
+	fressh_core::disconnect(connection_id)
+		.await
+		.map_err(Into::into)
 }
 
 /// Generate a new key pair (OpenSSH private-key string).

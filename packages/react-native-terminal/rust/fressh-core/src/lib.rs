@@ -17,6 +17,7 @@
 pub mod control;
 pub mod events;
 pub mod host_key;
+pub mod osc;
 pub mod registry;
 pub mod runtime;
 pub mod session;
@@ -24,7 +25,7 @@ pub mod source;
 
 // --- control plane (wrapped by the binding shim) --------------------------
 pub use control::{
-	close_shell, connect, create_preview, close_preview, disconnect, generate_key_pair, resize,
+	close_preview, close_shell, connect, create_preview, disconnect, generate_key_pair, resize,
 	respond_to_host_key, scroll, selection_clear, selection_start, selection_text,
 	selection_update, send_data, set_cursor_default_blinking, set_render_metrics, start_shell,
 	validate_private_key, SelectionKind,
@@ -39,6 +40,7 @@ pub use session::{CoreListener, SharedTerm};
 
 // --- re-exported SSH value types crossing the shim/render boundary --------
 pub use fressh_ssh::{
-	ConnectionDetails, KeyType, Security, ServerPublicKeyInfo, SshConnectionProgressEvent, SshError,
-	StartShellOptions, StreamKind, TerminalMode, TerminalPixelSize, TerminalSize, TerminalType,
+	ConnectionDetails, KeyType, Security, ServerPublicKeyInfo, SshConnectionProgressEvent,
+	SshError, StartShellOptions, StreamKind, TerminalMode, TerminalPixelSize, TerminalSize,
+	TerminalType,
 };

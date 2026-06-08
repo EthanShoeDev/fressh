@@ -10,6 +10,7 @@ use alacritty_terminal::event::{Event, EventListener};
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::term::Config as TermConfig;
 use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor};
+use alacritty_terminal::vte::Parser as OscParser;
 use alacritty_terminal::Term;
 use once_cell::sync::Lazy;
 use tokio::sync::mpsc;
@@ -18,6 +19,7 @@ use tokio::task::JoinHandle;
 use fressh_ssh::{Connection as SshConnection, SshError, TerminalType};
 
 use crate::events::{self, CoreEvent};
+use crate::osc::OscScanner;
 use crate::source::{ShellBackend, WriteSink};
 use crate::{registry, runtime};
 
@@ -113,25 +115,48 @@ impl ShellSession {
 		let (pty_tx, mut pty_rx) = mpsc::unbounded_channel::<Vec<u8>>();
 		let listener = CoreListener { pty_tx };
 
-		let dims = GridDims { columns: cols.max(1), screen_lines: rows.max(1) };
-		let config = TermConfig { scrolling_history: scrollback_lines, ..Default::default() };
+		let dims = GridDims {
+			columns: cols.max(1),
+			screen_lines: rows.max(1),
+		};
+		let config = TermConfig {
+			scrolling_history: scrollback_lines,
+			..Default::default()
+		};
 		let term: SharedTerm = Arc::new(Mutex::new(Term::new(config, &dims, listener)));
 
-		let ShellBackend { channel_id, term_type, created_at_ms, mut reader, writer } = backend;
+		let ShellBackend {
+			channel_id,
+			term_type,
+			created_at_ms,
+			mut reader,
+			writer,
+		} = backend;
 
 		// Reader loop: parse incoming bytes into the durable Term until EOF.
 		let term_for_reader = term.clone();
 		let shell_id_for_reader = shell_id.clone();
 		let reader_task = runtime::handle().spawn(async move {
 			let mut processor: Processor = Processor::new();
+			// Second, low-level vte pass for shell-integration OSCs (7/133). It
+			// touches no `Term` state — only emits `CoreEvent`s — so it runs
+			// OUTSIDE the term lock to keep that critical section tight. See
+			// osc.rs / docs/projects/terminal-semantic-events.md.
+			let mut osc_parser = OscParser::new();
+			let mut osc_scanner = OscScanner::new(shell_id_for_reader.clone());
 			while let Some(bytes) = reader.recv().await {
-				let mut term = term_for_reader.lock().unwrap_or_else(|p| p.into_inner());
-				processor.advance(&mut *term, &bytes);
+				{
+					let mut term = term_for_reader.lock().unwrap_or_else(|p| p.into_inner());
+					processor.advance(&mut *term, &bytes);
+				}
+				osc_parser.advance(&mut osc_scanner, &bytes);
 			}
 			// EOF → the source closed; drop the session and notify JS. (The canned
 			// preview source never reaches here — it parks after its one snippet.)
 			registry::remove_shell(&shell_id_for_reader);
-			events::emit(CoreEvent::ShellClosed { shell_id: shell_id_for_reader });
+			events::emit(CoreEvent::ShellClosed {
+				shell_id: shell_id_for_reader,
+			});
 		});
 
 		// PTY-response drain: write terminal query responses back to the server.
@@ -169,13 +194,20 @@ impl ShellSession {
 	/// just new ones. Cheap and idempotent: a no-op unless the value changes, since
 	/// `set_options` fires events + a full redamage. Preserves `scrolling_history`.
 	pub fn set_cursor_default_blinking(&self, blinking: bool) {
-		if self.default_cursor_blinking.swap(blinking, Ordering::Relaxed) == blinking {
+		if self
+			.default_cursor_blinking
+			.swap(blinking, Ordering::Relaxed)
+			== blinking
+		{
 			return;
 		}
 		let mut term = self.term.lock().unwrap_or_else(|p| p.into_inner());
 		term.set_options(TermConfig {
 			scrolling_history: self.scrollback_lines,
-			default_cursor_style: CursorStyle { shape: CursorShape::Block, blinking },
+			default_cursor_style: CursorStyle {
+				shape: CursorShape::Block,
+				blinking,
+			},
 			..Default::default()
 		});
 	}
@@ -197,7 +229,10 @@ impl ShellSession {
 	pub async fn resize(&self, cols: usize, rows: usize) -> Result<(), SshError> {
 		{
 			let mut term = self.term.lock().unwrap_or_else(|p| p.into_inner());
-			term.resize(GridDims { columns: cols.max(1), screen_lines: rows.max(1) });
+			term.resize(GridDims {
+				columns: cols.max(1),
+				screen_lines: rows.max(1),
+			});
 		}
 		self.writer.resize(cols as u32, rows as u32).await
 	}
@@ -247,7 +282,10 @@ mod tests {
 	fn pty_write_is_forwarded_to_response_channel() {
 		let (pty_tx, mut pty_rx) = mpsc::unbounded_channel::<Vec<u8>>();
 		let listener = CoreListener { pty_tx };
-		let dims = GridDims { columns: 80, screen_lines: 24 };
+		let dims = GridDims {
+			columns: 80,
+			screen_lines: 24,
+		};
 		let mut term = Term::new(TermConfig::default(), &dims, listener);
 
 		// CSI 6 n = report cursor position → Term replies via Event::PtyWrite.
@@ -255,7 +293,13 @@ mod tests {
 		processor.advance(&mut term, b"\x1b[6n");
 
 		let resp = pty_rx.try_recv().expect("expected a PTY response");
-		assert!(resp.starts_with(b"\x1b["), "expected a CSI response, got {resp:?}");
-		assert!(resp.ends_with(b"R"), "expected a cursor-position report ending in 'R'");
+		assert!(
+			resp.starts_with(b"\x1b["),
+			"expected a CSI response, got {resp:?}"
+		);
+		assert!(
+			resp.ends_with(b"R"),
+			"expected a cursor-position report ending in 'R'"
+		);
 	}
 }

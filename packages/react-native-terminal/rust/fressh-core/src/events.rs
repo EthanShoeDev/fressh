@@ -14,10 +14,46 @@ use fressh_ssh::{ServerPublicKeyInfo, SshConnectionProgressEvent};
 /// Events emitted from the core to the binding shim (uniffi callback / craby Signal).
 #[derive(Debug, Clone)]
 pub enum CoreEvent {
-	ConnectProgress { connection_id: String, event: SshConnectionProgressEvent },
-	HostKeyPending { connection_id: String, info: ServerPublicKeyInfo },
-	ConnectionClosed { connection_id: String },
-	ShellClosed { shell_id: String },
+	ConnectProgress {
+		connection_id: String,
+		event: SshConnectionProgressEvent,
+	},
+	HostKeyPending {
+		connection_id: String,
+		info: ServerPublicKeyInfo,
+	},
+	ConnectionClosed {
+		connection_id: String,
+	},
+	ShellClosed {
+		shell_id: String,
+	},
+
+	// ── Shell-integration semantic events (OSC 7 + OSC 133). ──────────────
+	// Lifted out of the byte stream by the `OscScanner` (`osc.rs`), which runs a
+	// second low-level `vte::Parser` in the reader loop. Only emitted when the
+	// remote shell has shell integration enabled. See
+	// docs/projects/terminal-semantic-events.md.
+	/// OSC 7: the interactive shell's cwd changed (path percent-decoded).
+	WorkingDirectoryChanged {
+		shell_id: String,
+		path: String,
+	},
+	/// OSC 133;A: a new prompt is being drawn.
+	PromptStart {
+		shell_id: String,
+	},
+	/// OSC 133;B/C: a command began running (output region starts).
+	CommandStart {
+		shell_id: String,
+	},
+	/// OSC 133;D: the command finished. `exit_code` is absent when the shell
+	/// omits it; `duration_ms` is measured from the matching `CommandStart`.
+	CommandFinished {
+		shell_id: String,
+		exit_code: Option<i32>,
+		duration_ms: Option<u64>,
+	},
 }
 
 /// Implemented by the binding shim; receives [`CoreEvent`]s on a background thread.

@@ -41,6 +41,7 @@ import { useCSSVariable } from 'uniwind';
 import { rootLogger } from '@/lib/logger';
 import { preferences, useTerminalRenderConfig } from '@/lib/preferences';
 import { useSshStore } from '@/lib/ssh-store';
+import { TerminalSemanticsDebugPanel } from '@/components/TerminalSemanticsDebugPanel';
 import { ThemedText } from '@/components/themed/ThemedText';
 import { JS_TAB_BAR_HEIGHT } from '@/lib/tab-bar-config';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
@@ -451,6 +452,7 @@ function TerminalSurface({
 					/>
 				</View>
 			</GestureDetector>
+			<TerminalSemanticsDebugPanel shellId={shellId} />
 			{pendingCopy ? (
 				<Pressable
 					accessibilityLabel='Copy selection'
