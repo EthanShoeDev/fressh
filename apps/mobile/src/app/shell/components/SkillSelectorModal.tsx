@@ -22,19 +22,31 @@ export function SkillSelectorModal({
 	open,
 	bottomOffset,
 	skills,
+	projectName,
+	projectRoot,
+	updatedAt,
 	isLoading,
+	isRefreshing,
 	error,
+	refreshError,
 	onClose,
 	onRetry,
+	onRefresh,
 	onSelect,
 }: {
 	open: boolean;
 	bottomOffset: number;
 	skills: readonly DiscoveredSkill[];
+	projectName: string | null;
+	projectRoot: string | null;
+	updatedAt: string | null;
 	isLoading: boolean;
+	isRefreshing: boolean;
 	error: string | null;
+	refreshError: string | null;
 	onClose: () => void;
 	onRetry: () => void;
+	onRefresh: () => void;
 	onSelect: (skill: DiscoveredSkill) => void;
 }) {
 	const theme = useTheme();
@@ -84,6 +96,11 @@ export function SkillSelectorModal({
 		() => filterDiscoveredSkills(skills, query),
 		[query, skills],
 	);
+	const cachedLabel = useMemo(() => {
+		if (updatedAt === null) return null;
+		return `Cached ${new Date(updatedAt).toLocaleTimeString()}`;
+	}, [updatedAt]);
+	const refreshDisabled = isLoading || isRefreshing;
 
 	const handleClose = useCallback(() => {
 		setQuery('');
@@ -133,36 +150,96 @@ export function SkillSelectorModal({
 							marginBottom: bottomOffset + androidBottomInset,
 						}}
 					>
-						<View
-							style={{
-								flexDirection: 'row',
-								alignItems: 'center',
-								justifyContent: 'space-between',
-								marginBottom: 12,
-							}}
-						>
-							<Text
+						<View style={{ marginBottom: 12 }}>
+							<View
 								style={{
-									color: theme.colors.textPrimary,
-									fontSize: 18,
-									fontWeight: '700',
+									flexDirection: 'row',
+									alignItems: 'flex-start',
+									justifyContent: 'space-between',
 								}}
 							>
-								Skills
-							</Text>
-							<Pressable
-								accessibilityRole="button"
-								onPress={handleClose}
-								style={{
-									paddingHorizontal: 10,
-									paddingVertical: 10,
-									borderRadius: 8,
-									borderWidth: 1,
-									borderColor: theme.colors.border,
-								}}
-							>
-								<Text style={{ color: theme.colors.textSecondary }}>Close</Text>
-							</Pressable>
+								<View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+									<Text
+										style={{
+											color: theme.colors.textPrimary,
+											fontSize: 18,
+											fontWeight: '700',
+										}}
+									>
+										Skills
+									</Text>
+									{projectName !== null ? (
+										<Text
+											numberOfLines={1}
+											style={{
+												color: theme.colors.textSecondary,
+												fontSize: 12,
+												marginTop: 2,
+											}}
+										>
+											{projectName}
+										</Text>
+									) : null}
+								</View>
+								<View style={{ flexDirection: 'row' }}>
+									<Pressable
+										accessibilityRole="button"
+										disabled={refreshDisabled}
+										onPress={onRefresh}
+										style={{
+											paddingHorizontal: 10,
+											paddingVertical: 10,
+											borderRadius: 8,
+											borderWidth: 1,
+											borderColor: theme.colors.border,
+											marginRight: 8,
+											opacity: refreshDisabled ? 0.5 : 1,
+										}}
+									>
+										<Text style={{ color: theme.colors.textSecondary }}>
+											Refresh
+										</Text>
+									</Pressable>
+									<Pressable
+										accessibilityRole="button"
+										onPress={handleClose}
+										style={{
+											paddingHorizontal: 10,
+											paddingVertical: 10,
+											borderRadius: 8,
+											borderWidth: 1,
+											borderColor: theme.colors.border,
+										}}
+									>
+										<Text style={{ color: theme.colors.textSecondary }}>
+											Close
+										</Text>
+									</Pressable>
+								</View>
+							</View>
+							{projectRoot !== null ? (
+								<Text
+									numberOfLines={1}
+									style={{
+										color: theme.colors.textSecondary,
+										fontSize: 12,
+										marginTop: 8,
+									}}
+								>
+									{projectRoot}
+								</Text>
+							) : null}
+							{cachedLabel !== null ? (
+								<Text
+									style={{
+										color: theme.colors.muted,
+										fontSize: 12,
+										marginTop: 2,
+									}}
+								>
+									{cachedLabel}
+								</Text>
+							) : null}
 						</View>
 
 						<TextInput
@@ -184,6 +261,38 @@ export function SkillSelectorModal({
 								marginBottom: 12,
 							}}
 						/>
+
+						{isRefreshing ? (
+							<View
+								style={{
+									flexDirection: 'row',
+									alignItems: 'center',
+									marginBottom: 12,
+								}}
+							>
+								<ActivityIndicator
+									size="small"
+									color={theme.colors.textPrimary}
+									style={{ marginRight: 8 }}
+								/>
+								<Text style={{ color: theme.colors.textSecondary }}>
+									Refreshing skills...
+								</Text>
+							</View>
+						) : null}
+
+						{refreshError !== null ? (
+							<Text
+								style={{
+									color: theme.colors.danger,
+									fontSize: 12,
+									fontWeight: '600',
+									marginBottom: 12,
+								}}
+							>
+								{refreshError}
+							</Text>
+						) : null}
 
 						{error !== null ? (
 							<View>

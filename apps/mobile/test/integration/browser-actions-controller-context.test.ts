@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
 	runBrowserActionsDetectedOpen,
 	runBrowserActionsDiffityShare,
+	resolveBrowserActionsWorkspace,
 } from '../../src/lib/browser-actions-controller-actions';
 import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
@@ -118,6 +119,31 @@ void test('browser actions detected open resolves pane context through Workmux a
 			timeoutMs: 60_000,
 		},
 	]);
+});
+
+void test('browser actions resolves workspace through Workmux app context', async () => {
+	const harness = createRemoteHarness();
+
+	const workspace = await resolveBrowserActionsWorkspace({
+		tmuxEnabled: true,
+		tmuxTarget: 'main',
+		runHostBrowserCommand: harness.runHostBrowserCommand,
+		runWorkmuxCommand: harness.runWorkmuxCommand,
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	assert.deepEqual(harness.workmuxCommands, [
+		{
+			argv: ['tmux', 'app', 'context', '--session', 'main'],
+			timeoutMs: 10_000,
+		},
+	]);
+	assert.deepEqual(workspace, {
+		panePath: "/home/muly/fressh/apps/mobile's",
+		projectRoot: '/home/muly/fressh',
+		projectName: 'fressh',
+	});
 });
 
 void test('browser actions format old mdev Workmux app context failures', async () => {

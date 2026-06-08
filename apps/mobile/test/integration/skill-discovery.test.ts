@@ -8,12 +8,13 @@ import { promisify } from 'node:util';
 import {
 	buildSkillDiscoveryCommand,
 	filterDiscoveredSkills,
-	parseSkillDiscoveryOutput,
+	parseSkillDiscoveryResult,
+	type DiscoveredSkill,
 } from '../../src/lib/skill-discovery';
 
 const execFileAsync = promisify(execFile);
 
-const discoveryPayload = JSON.stringify([
+const discoveryRecords = [
 	{
 		path: '/repo/.codex/skills/brainstorming/SKILL.md',
 		content:
@@ -38,10 +39,18 @@ const discoveryPayload = JSON.stringify([
 		content:
 			'---\nname: systematic-debugging\ndescription: Debug with root cause evidence.\n---\n',
 	},
-]);
+];
+const discoveryPayload = JSON.stringify({
+	projectRoot: '/repo',
+	records: discoveryRecords,
+});
 
-void test('parseSkillDiscoveryOutput reads skill frontmatter and falls back to directory names', () => {
-	assert.deepEqual(parseSkillDiscoveryOutput(discoveryPayload), [
+function parseSkills(output: string): DiscoveredSkill[] {
+	return parseSkillDiscoveryResult(output)?.skills ?? [];
+}
+
+void test('parseSkillDiscoveryResult reads skill frontmatter and falls back to directory names', () => {
+	assert.deepEqual(parseSkills(discoveryPayload), [
 		{
 			name: 'brainstorming',
 			path: '/repo/.codex/skills/brainstorming/SKILL.md',
@@ -70,16 +79,16 @@ void test('parseSkillDiscoveryOutput reads skill frontmatter and falls back to d
 	]);
 });
 
-void test('parseSkillDiscoveryOutput treats empty and malformed command output as no skills', () => {
-	assert.deepEqual(parseSkillDiscoveryOutput(''), []);
-	assert.deepEqual(parseSkillDiscoveryOutput('not json'), []);
-	assert.deepEqual(
-		parseSkillDiscoveryOutput(JSON.stringify({ path: 'nope' })),
-		[],
+void test('parseSkillDiscoveryResult rejects empty and malformed command output', () => {
+	assert.equal(parseSkillDiscoveryResult(''), null);
+	assert.equal(parseSkillDiscoveryResult('not json'), null);
+	assert.equal(
+		parseSkillDiscoveryResult(JSON.stringify({ path: 'nope' })),
+		null,
 	);
 });
 
-void test('parseSkillDiscoveryOutput extracts framed JSON from noisy terminal output', () => {
+void test('parseSkillDiscoveryResult extracts framed JSON from noisy terminal output', () => {
 	const noisyOutput = [
 		'\u001b[?2004h(base) muly@dev-remote-machine:~$ python3 -c ...',
 		'__FRESSH_SKILL_DISCOVERY_JSON_BEGIN__',
@@ -88,7 +97,7 @@ void test('parseSkillDiscoveryOutput extracts framed JSON from noisy terminal ou
 	].join('\n');
 
 	assert.deepEqual(
-		parseSkillDiscoveryOutput(noisyOutput).map((skill) => skill.name),
+		parseSkills(noisyOutput).map((skill) => skill.name),
 		[
 			'brainstorming',
 			'broken',
@@ -99,7 +108,7 @@ void test('parseSkillDiscoveryOutput extracts framed JSON from noisy terminal ou
 	);
 });
 
-void test('parseSkillDiscoveryOutput prefers framed JSON when noisy output starts with bracket prompt', () => {
+void test('parseSkillDiscoveryResult prefers framed JSON when noisy output starts with bracket prompt', () => {
 	const noisyOutput = [
 		'[muly@dev-remote-machine repo]$ python3 -c ...',
 		'__FRESSH_SKILL_DISCOVERY_JSON_BEGIN__',
@@ -108,7 +117,7 @@ void test('parseSkillDiscoveryOutput prefers framed JSON when noisy output start
 	].join('\n');
 
 	assert.deepEqual(
-		parseSkillDiscoveryOutput(noisyOutput).map((skill) => skill.name),
+		parseSkills(noisyOutput).map((skill) => skill.name),
 		[
 			'brainstorming',
 			'broken',
@@ -119,21 +128,24 @@ void test('parseSkillDiscoveryOutput prefers framed JSON when noisy output start
 	);
 });
 
-void test('parseSkillDiscoveryOutput keeps the first local root when skill names duplicate', () => {
-	const duplicatePayload = JSON.stringify([
-		{
-			path: '/repo/.agents/skills/brainstorming/SKILL.md',
-			content:
-				'---\nname: brainstorming\ndescription: Preferred pane-local skill.\n---\n',
-		},
-		{
-			path: '/repo/.codex/skills/brainstorming/SKILL.md',
-			content:
-				'---\nname: brainstorming\ndescription: Duplicate root skill.\n---\n',
-		},
-	]);
+void test('parseSkillDiscoveryResult keeps the first local root when skill names duplicate', () => {
+	const duplicatePayload = JSON.stringify({
+		projectRoot: '/repo',
+		records: [
+			{
+				path: '/repo/.agents/skills/brainstorming/SKILL.md',
+				content:
+					'---\nname: brainstorming\ndescription: Preferred pane-local skill.\n---\n',
+			},
+			{
+				path: '/repo/.codex/skills/brainstorming/SKILL.md',
+				content:
+					'---\nname: brainstorming\ndescription: Duplicate root skill.\n---\n',
+			},
+		],
+	});
 
-	assert.deepEqual(parseSkillDiscoveryOutput(duplicatePayload), [
+	assert.deepEqual(parseSkills(duplicatePayload), [
 		{
 			name: 'brainstorming',
 			path: '/repo/.agents/skills/brainstorming/SKILL.md',
@@ -143,7 +155,7 @@ void test('parseSkillDiscoveryOutput keeps the first local root when skill names
 });
 
 void test('filterDiscoveredSkills matches names and descriptions', () => {
-	const skills = parseSkillDiscoveryOutput(discoveryPayload);
+	const skills = parseSkills(discoveryPayload);
 
 	assert.deepEqual(
 		filterDiscoveredSkills(skills, 'expo').map((skill) => skill.name),
@@ -285,7 +297,7 @@ void test('buildSkillDiscoveryCommand executes and discovers repo-local skills',
 			{ cwd: tempRepo },
 		);
 
-		const skills = parseSkillDiscoveryOutput(stdout);
+		const skills = parseSkills(stdout);
 		assert.deepEqual(skills, [
 			{
 				name: 'agent-demo',
@@ -303,8 +315,8 @@ void test('buildSkillDiscoveryCommand executes and discovers repo-local skills',
 	}
 });
 
-void test('buildSkillDiscoveryCommand resolves skills from a git repo root', async () => {
-	const tempRepo = await mkdtemp(join(tmpdir(), 'skill-discovery-git-root-'));
+void test('buildSkillDiscoveryCommand resolves skills from the workspace root', async () => {
+	const tempRepo = await mkdtemp(join(tmpdir(), 'skill-discovery-workspace-'));
 	try {
 		const nestedCwd = join(tempRepo, 'apps', 'mobile');
 		const demoSkill = join(tempRepo, '.codex', 'skills', 'demo', 'SKILL.md');
@@ -312,7 +324,6 @@ void test('buildSkillDiscoveryCommand resolves skills from a git repo root', asy
 		await mkdir(join(tempRepo, '.codex', 'skills', 'demo'), {
 			recursive: true,
 		});
-		await execFileAsync('git', ['init'], { cwd: tempRepo });
 		await writeFile(
 			demoSkill,
 			'---\nname: demo\ndescription: repo root\n---\n# Demo\n',
@@ -320,11 +331,11 @@ void test('buildSkillDiscoveryCommand resolves skills from a git repo root', asy
 
 		const { stdout } = await execFileAsync(
 			'bash',
-			['-lc', buildSkillDiscoveryCommand(nestedCwd)],
+			['-lc', buildSkillDiscoveryCommand(tempRepo)],
 			{ cwd: nestedCwd },
 		);
 
-		assert.deepEqual(parseSkillDiscoveryOutput(stdout), [
+		assert.deepEqual(parseSkills(stdout), [
 			{
 				name: 'demo',
 				path: demoSkill,
@@ -336,8 +347,10 @@ void test('buildSkillDiscoveryCommand resolves skills from a git repo root', asy
 	}
 });
 
-void test('buildSkillDiscoveryCommand discovers skills from pane path and git root', async () => {
-	const tempRepo = await mkdtemp(join(tmpdir(), 'skill-discovery-pane-path-'));
+void test('buildSkillDiscoveryCommand only discovers skills under the workspace root', async () => {
+	const tempRepo = await mkdtemp(
+		join(tmpdir(), 'skill-discovery-workspace-only-'),
+	);
 	try {
 		const panePath = join(tempRepo, 'app', 'mobile');
 		const rootSkill = join(tempRepo, '.codex', 'skills', 'root', 'SKILL.md');
@@ -375,7 +388,6 @@ void test('buildSkillDiscoveryCommand discovers skills from pane path and git ro
 		await mkdir(join(tempRepo, '.codex', 'skills', 'duplicate'), {
 			recursive: true,
 		});
-		await execFileAsync('git', ['init'], { cwd: tempRepo });
 		await writeFile(
 			rootSkill,
 			'---\nname: root-skill\ndescription: root skill\n---\n',
@@ -395,20 +407,15 @@ void test('buildSkillDiscoveryCommand discovers skills from pane path and git ro
 
 		const { stdout } = await execFileAsync(
 			'bash',
-			['-lc', buildSkillDiscoveryCommand(panePath)],
+			['-lc', buildSkillDiscoveryCommand(tempRepo)],
 			{ cwd: panePath },
 		);
 
-		assert.deepEqual(parseSkillDiscoveryOutput(stdout), [
+		assert.deepEqual(parseSkills(stdout), [
 			{
 				name: 'duplicate-skill',
-				path: paneSkill,
-				description: 'pane-local duplicate',
-			},
-			{
-				name: 'intermediate-skill',
-				path: intermediateSkill,
-				description: 'intermediate skill',
+				path: rootDuplicateSkill,
+				description: 'root duplicate',
 			},
 			{
 				name: 'root-skill',
@@ -421,7 +428,7 @@ void test('buildSkillDiscoveryCommand discovers skills from pane path and git ro
 	}
 });
 
-void test('buildSkillDiscoveryCommand falls back to cwd when git is unavailable', async () => {
+void test('buildSkillDiscoveryCommand does not require git', async () => {
 	const tempRepo = await mkdtemp(join(tmpdir(), 'skill-discovery-no-git-'));
 	const tempBin = await mkdtemp(join(tmpdir(), 'skill-discovery-bin-'));
 	try {
@@ -452,7 +459,7 @@ void test('buildSkillDiscoveryCommand falls back to cwd when git is unavailable'
 			{ cwd: tempRepo, env: { ...process.env, PATH: tempBin } },
 		);
 
-		assert.deepEqual(parseSkillDiscoveryOutput(stdout), [
+		assert.deepEqual(parseSkills(stdout), [
 			{
 				name: 'demo',
 				path: demoSkill,
@@ -497,7 +504,7 @@ void test('buildSkillDiscoveryCommand works with side-channel completion suffix'
 
 		assert.ok(markerLineIndex > 0);
 		assert.equal(exitCode, 'EXIT_CODE:0');
-		assert.deepEqual(parseSkillDiscoveryOutput(cleanOutput), [
+		assert.deepEqual(parseSkills(cleanOutput), [
 			{
 				name: 'demo',
 				path: demoSkill,

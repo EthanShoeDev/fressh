@@ -2004,9 +2004,11 @@ function ShellDetail() {
 		connection,
 		tmuxEnabled,
 		runHostBrowserCommand: browserActions.runHostBrowserCommand,
-		resolveHostBrowserPanePath: browserActions.resolveHostBrowserPanePath,
+		resolveHostBrowserWorkspace: browserActions.resolveHostBrowserWorkspace,
 		sendTextRaw,
 		sourceKey: skillSelectorSourceKey,
+		stableConnectionId: connectionStoredConnectionId ?? connectionId,
+		tmuxTarget: activeTmuxSessionName,
 		getErrorMessage,
 		closeOtherModals: closeSkillSelectorOtherModals,
 	});

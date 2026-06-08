@@ -12,7 +12,9 @@ import { Alert } from 'react-native';
 import {
 	resolveBrowserActionsPaneContext,
 	resolveBrowserActionsPanePath,
+	resolveBrowserActionsWorkspace,
 	runBrowserActionsDiffityShare,
+	type BrowserActionsWorkspace,
 } from '@/lib/browser-actions-controller-actions';
 import { cleanupBrowserActionRequests } from '@/lib/browser-actions-request-cleanup';
 import { runDetectedOpenControllerRequest } from '@/lib/detected-open-actions';
@@ -36,11 +38,9 @@ import {
 	type GitHubRepositoryTarget,
 } from './repo-feature-request';
 import { useRequestId } from './request-id';
-import {
-	buildSkillDiscoveryCommand,
-	parseSkillDiscoveryOutput,
-	type DiscoveredSkill,
-} from './skill-discovery';
+import { skillDiscoveryCache } from './skill-discovery-cache-native';
+import { type DiscoveredSkill } from './skill-discovery';
+import { loadSkillSelectorProject } from './skill-selector-loader';
 
 export type SimpleModalHandle = {
 	open: boolean;
@@ -143,10 +143,16 @@ export function useShellSimpleModals(): ShellSimpleModalsHandle {
 export type SkillSelectorModalProps = {
 	open: boolean;
 	skills: DiscoveredSkill[];
+	projectName: string | null;
+	projectRoot: string | null;
+	updatedAt: string | null;
 	isLoading: boolean;
+	isRefreshing: boolean;
 	error: string | null;
+	refreshError: string | null;
 	onClose: () => void;
 	onRetry: () => void;
+	onRefresh: () => void;
 	onSelect: (skill: DiscoveredSkill) => void;
 };
 
@@ -163,9 +169,11 @@ export function useSkillSelectorController<TConnection>(deps: {
 		command: string,
 		timeoutMs?: number,
 	) => Promise<string>;
-	resolveHostBrowserPanePath: () => Promise<string>;
+	resolveHostBrowserWorkspace: () => Promise<BrowserActionsWorkspace>;
 	sendTextRaw: (text: string) => void;
 	sourceKey: string;
+	stableConnectionId: string;
+	tmuxTarget: string;
 	getErrorMessage: (error: unknown) => string;
 	closeOtherModals: () => boolean;
 }): SkillSelectorControllerHandle {
@@ -173,23 +181,32 @@ export function useSkillSelectorController<TConnection>(deps: {
 		connection,
 		tmuxEnabled,
 		runHostBrowserCommand,
-		resolveHostBrowserPanePath,
+		resolveHostBrowserWorkspace,
 		sendTextRaw,
 		sourceKey,
+		stableConnectionId,
+		tmuxTarget,
 		getErrorMessage,
 		closeOtherModals,
 	} = deps;
 
 	const [open, setOpen] = useState(false);
 	const [skills, setSkills] = useState<DiscoveredSkill[]>([]);
+	const [projectName, setProjectName] = useState<string | null>(null);
+	const [projectRoot, setProjectRoot] = useState<string | null>(null);
+	const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
+	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [refreshError, setRefreshError] = useState<string | null>(null);
 
 	const requestId = useRequestId();
 	const activeSourceKeyRef = useRef<string | null>(null);
 	const lastSourceKeyRef = useRef(sourceKey);
 	const currentSourceKeyRef = useRef(sourceKey);
 	currentSourceKeyRef.current = sourceKey;
+	const visibleSkillsRef = useRef<DiscoveredSkill[]>([]);
+	visibleSkillsRef.current = skills;
 
 	const visible = open && activeSourceKeyRef.current === sourceKey;
 
@@ -198,70 +215,110 @@ export function useSkillSelectorController<TConnection>(deps: {
 		activeSourceKeyRef.current = null;
 		setOpen(false);
 		setIsLoading(false);
+		setIsRefreshing(false);
 		setError(null);
+		setRefreshError(null);
 		setSkills([]);
+		setProjectName(null);
+		setProjectRoot(null);
+		setUpdatedAt(null);
 	}, [requestId]);
 
-	const load = useCallback(async () => {
-		const requestSourceKey = currentSourceKeyRef.current;
-		const id = requestId.next();
-		activeSourceKeyRef.current = requestSourceKey;
-		setIsLoading(true);
-		setError(null);
-		setSkills([]);
+	const load = useCallback(
+		async (options?: { forceRefresh?: boolean }) => {
+			const forceRefresh = options?.forceRefresh ?? false;
+			const requestSourceKey = currentSourceKeyRef.current;
+			const id = requestId.next();
+			const refreshVisibleSkills =
+				forceRefresh && visibleSkillsRef.current.length > 0;
+			activeSourceKeyRef.current = requestSourceKey;
+			setError(null);
+			setRefreshError(null);
+			if (refreshVisibleSkills) {
+				setIsRefreshing(true);
+			} else {
+				setIsLoading(true);
+				setSkills([]);
+				setProjectName(null);
+				setProjectRoot(null);
+				setUpdatedAt(null);
+			}
 
-		try {
-			if (!connection) {
-				throw new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
+			try {
+				if (!connection) {
+					throw new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
+				}
+				if (!tmuxEnabled) {
+					throw new Error('Skill selector requires a tmux-enabled connection.');
+				}
+				const result = await loadSkillSelectorProject({
+					cache: skillDiscoveryCache,
+					stableConnectionId,
+					tmuxTarget,
+					resolveWorkspace: async () => {
+						const workspace = await resolveHostBrowserWorkspace();
+						if (currentSourceKeyRef.current !== requestSourceKey) {
+							throw new Error('Skill selector source changed.');
+						}
+						return workspace;
+					},
+					runCommand: (command) => runHostBrowserCommand(command, 10_000),
+					forceRefresh,
+				});
+				if (
+					requestId.isCurrent(id) &&
+					activeSourceKeyRef.current === requestSourceKey &&
+					currentSourceKeyRef.current === requestSourceKey
+				) {
+					setProjectName(result.projectName);
+					setProjectRoot(result.projectRoot);
+					setUpdatedAt(result.updatedAt);
+					setSkills(result.skills);
+				}
+			} catch (err) {
+				if (
+					requestId.isCurrent(id) &&
+					activeSourceKeyRef.current === requestSourceKey &&
+					currentSourceKeyRef.current === requestSourceKey
+				) {
+					if (refreshVisibleSkills) {
+						setRefreshError(getErrorMessage(err));
+					} else {
+						setError(getErrorMessage(err));
+					}
+				}
+			} finally {
+				if (
+					requestId.isCurrent(id) &&
+					activeSourceKeyRef.current === requestSourceKey &&
+					currentSourceKeyRef.current === requestSourceKey
+				) {
+					setIsLoading(false);
+					setIsRefreshing(false);
+				}
 			}
-			if (!tmuxEnabled) {
-				throw new Error('Skill selector requires a tmux-enabled connection.');
-			}
-			const panePath = await resolveHostBrowserPanePath();
-			if (currentSourceKeyRef.current !== requestSourceKey) return;
-			const output = await runHostBrowserCommand(
-				buildSkillDiscoveryCommand(panePath),
-				10_000,
-			);
-			const parsed = parseSkillDiscoveryOutput(output);
-			if (
-				requestId.isCurrent(id) &&
-				activeSourceKeyRef.current === requestSourceKey &&
-				currentSourceKeyRef.current === requestSourceKey
-			) {
-				setSkills(parsed);
-			}
-		} catch (err) {
-			if (
-				requestId.isCurrent(id) &&
-				activeSourceKeyRef.current === requestSourceKey &&
-				currentSourceKeyRef.current === requestSourceKey
-			) {
-				setError(getErrorMessage(err));
-			}
-		} finally {
-			if (
-				requestId.isCurrent(id) &&
-				activeSourceKeyRef.current === requestSourceKey &&
-				currentSourceKeyRef.current === requestSourceKey
-			) {
-				setIsLoading(false);
-			}
-		}
-	}, [
-		connection,
-		getErrorMessage,
-		requestId,
-		resolveHostBrowserPanePath,
-		runHostBrowserCommand,
-		tmuxEnabled,
-	]);
+		},
+		[
+			connection,
+			getErrorMessage,
+			requestId,
+			resolveHostBrowserWorkspace,
+			runHostBrowserCommand,
+			stableConnectionId,
+			tmuxEnabled,
+			tmuxTarget,
+		],
+	);
 
 	const openController = useCallback(() => {
 		if (!closeOtherModals()) return;
 		setOpen(true);
 		void load();
 	}, [closeOtherModals, load]);
+
+	const refresh = useCallback(() => {
+		void load({ forceRefresh: true });
+	}, [load]);
 
 	const handleSelect = useCallback(
 		(skill: DiscoveredSkill) => {
@@ -293,13 +350,32 @@ export function useSkillSelectorController<TConnection>(deps: {
 		() => ({
 			open: visible,
 			skills,
+			projectName,
+			projectRoot,
+			updatedAt,
 			isLoading,
+			isRefreshing,
 			error,
+			refreshError,
 			onClose: close,
-			onRetry: load,
+			onRetry: refresh,
+			onRefresh: refresh,
 			onSelect: handleSelect,
 		}),
-		[close, error, handleSelect, isLoading, load, skills, visible],
+		[
+			close,
+			error,
+			handleSelect,
+			isLoading,
+			isRefreshing,
+			projectName,
+			projectRoot,
+			refresh,
+			refreshError,
+			skills,
+			updatedAt,
+			visible,
+		],
 	);
 
 	return useMemo<SkillSelectorControllerHandle>(
@@ -601,6 +677,7 @@ export type BrowserActionsControllerHandle = {
 	open: () => void;
 	close: () => void;
 	resolveHostBrowserPanePath: () => Promise<string>;
+	resolveHostBrowserWorkspace: () => Promise<BrowserActionsWorkspace>;
 	resolveCurrentGitHubRepository: () => Promise<string>;
 	runHostBrowserCommand: (
 		command: string,
@@ -701,6 +778,22 @@ export function useBrowserActionsController<TConnection>(
 
 	const resolveHostBrowserPaneContext = useCallback(async () => {
 		return resolveBrowserActionsPaneContext({
+			tmuxEnabled,
+			tmuxTarget,
+			runHostBrowserCommand,
+			runWorkmuxCommand: runWorkmuxBrowserCommand,
+			getErrorMessage,
+		});
+	}, [
+		getErrorMessage,
+		runHostBrowserCommand,
+		runWorkmuxBrowserCommand,
+		tmuxEnabled,
+		tmuxTarget,
+	]);
+
+	const resolveHostBrowserWorkspace = useCallback(async () => {
+		return resolveBrowserActionsWorkspace({
 			tmuxEnabled,
 			tmuxTarget,
 			runHostBrowserCommand,
@@ -1116,6 +1209,7 @@ export function useBrowserActionsController<TConnection>(
 			open: openController,
 			close,
 			resolveHostBrowserPanePath,
+			resolveHostBrowserWorkspace,
 			resolveCurrentGitHubRepository,
 			runHostBrowserCommand,
 			invalidateHostUrlReads,
@@ -1130,6 +1224,7 @@ export function useBrowserActionsController<TConnection>(
 			openController,
 			resolveCurrentGitHubRepository,
 			resolveHostBrowserPanePath,
+			resolveHostBrowserWorkspace,
 			runHostBrowserCommand,
 		],
 	);

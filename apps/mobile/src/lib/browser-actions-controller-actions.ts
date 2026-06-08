@@ -8,6 +8,7 @@ import {
 	buildWorkmuxAppContextArgv,
 	formatWorkmuxAppBoundaryFailureMessage,
 	parseWorkmuxAppContextOutput,
+	type WorkmuxAppContext,
 } from './workmux-app-commands';
 
 export type BrowserActionsRunHostBrowserCommand = (
@@ -31,6 +32,10 @@ export type BrowserActionsContextDeps = {
 export type BrowserActionsDetectedOpenDeps = BrowserActionsContextDeps & {
 	mode: HostBrowserOpenMode;
 };
+export type BrowserActionsWorkspace = Pick<
+	WorkmuxAppContext,
+	'panePath' | 'projectRoot' | 'projectName'
+>;
 
 function getSessionName(tmuxTarget: string): string {
 	return tmuxTarget.trim() || 'main';
@@ -71,6 +76,24 @@ export async function resolveBrowserActionsPanePath(
 	} catch (error) {
 		throw new Error(
 			`Could not resolve pane path for Workmux-enabled connection ${sessionName}: ${deps.getErrorMessage(error)}`,
+		);
+	}
+}
+
+export async function resolveBrowserActionsWorkspace(
+	deps: BrowserActionsContextDeps,
+): Promise<BrowserActionsWorkspace> {
+	const { output, sessionName } = await runWorkmuxAppContextCommand(deps);
+	try {
+		const context = parseWorkmuxAppContextOutput(output);
+		return {
+			panePath: context.panePath,
+			projectRoot: context.projectRoot,
+			projectName: context.projectName,
+		};
+	} catch (error) {
+		throw new Error(
+			`Could not resolve workspace for Workmux-enabled connection ${sessionName}: ${deps.getErrorMessage(error)}`,
 		);
 	}
 }
