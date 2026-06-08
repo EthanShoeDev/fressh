@@ -33,6 +33,7 @@ export {
 	selectionUpdate,
 	sendData,
 	SshConnectionProgressEvent,
+	SshError_Tags,
 	startShell,
 	TerminalType,
 	validatePrivateKey,

@@ -38,6 +38,7 @@ import generatedModule, {
 	Security,
 	type ShellOptions,
 	SshConnectionProgressEvent,
+	SshError_Tags,
 	TerminalType,
 } from './generated/shim_uniffi';
 
@@ -49,6 +50,7 @@ export {
 	Security,
 	SelectionKind,
 	SshConnectionProgressEvent,
+	SshError_Tags,
 	TerminalType,
 };
 // Records + the event union are plain object types — re-export as types.

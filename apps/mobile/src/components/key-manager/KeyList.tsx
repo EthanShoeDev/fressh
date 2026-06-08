@@ -556,6 +556,11 @@ function ImportKeyCard({ onImported }: { onImported?: () => void }) {
 	const importErrorMessage = asyncResultErrorMessage(importResult);
 
 	const onImport = async () => {
+		// Guard against a double-tap importing the same key twice before the first
+		// resolves (and before the sheet closes).
+		if (importPending) {
+			return;
+		}
 		const trimmed = content.trim();
 		if (!trimmed) {
 			return;

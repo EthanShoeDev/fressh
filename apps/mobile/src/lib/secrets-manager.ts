@@ -74,8 +74,12 @@ function makeKeychainStore<Metadata, Value = string>(params: {
 			Keychain.getGenericPassword({ service: metaService(id) }),
 			Keychain.getGenericPassword({ service: valueService(id) }),
 		]);
-		if (!metaCreds || !valueCreds) {
-			throw new Error(`Entry not found: ${id}`);
+		// An entry whose secret didn't persist (value service present but empty)
+		// must be treated as not-found. Returning `{ value: undefined }` here is
+		// what produced the cryptic "Value is undefined, expected a String" at the
+		// native boundary; fail clearly instead.
+		if (!metaCreds || !valueCreds || !valueCreds.password) {
+			throw new Error(`Entry not found or value missing: ${id}`);
 		}
 		return {
 			...parseMetadata(metaCreds),
@@ -145,12 +149,18 @@ async function upsertPrivateKey(params: {
 	metadata: StrictOmit<KeyMetadata, 'createdAtMs'>;
 	value: string;
 }) {
+	// Throws SshError on invalid input; returns the canonical OpenSSH form. We
+	// persist the CANONICAL form (not the raw paste) so what round-trips is
+	// always a key russh can actually use.
+	let canonical: string;
 	try {
-		// Throws SshError on invalid input; returns the canonical OpenSSH form.
-		validatePrivateKey(params.value);
+		canonical = validatePrivateKey(params.value);
 	} catch (error) {
 		logger.info('Invalid private key', error);
 		throw new Error('Invalid private key', { cause: error });
+	}
+	if (!canonical) {
+		throw new Error('Private key validation produced an empty key');
 	}
 	const keyId = params.keyId ?? `key_${Crypto.randomUUID()}`;
 	logger.info(`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`);
@@ -161,8 +171,51 @@ async function upsertPrivateKey(params: {
 	await keyStore.upsertEntry({
 		id: keyId,
 		metadata: { ...params.metadata, createdAtMs },
-		value: params.value,
+		value: canonical,
 	});
+
+	// Read-after-write: the keychain has silently dropped values before (entries
+	// that list but whose secret is missing → a cryptic "Value is undefined,
+	// expected a String" at connect time). Verify the secret round-trips so a
+	// broken write fails HERE, loudly, instead of creating an unusable key. The
+	// log records only the LENGTH, never the key material.
+	const stored = await keyStore.getEntry(keyId).catch(() => undefined);
+	logger.info(
+		`Key ${keyId} round-trip: stored length ${stored?.value?.length ?? 'MISSING'}`,
+	);
+	if (!stored?.value) {
+		await keyStore.deleteEntry(keyId).catch(() => undefined);
+		throw new Error(
+			'Keychain failed to persist the private key (value did not round-trip). The key was not saved.',
+		);
+	}
+
+	return keyId;
+}
+
+/**
+ * Enforce the invariant that AT MOST ONE key is the default. Rewrites only the
+ * entries whose `isDefault` disagrees with `defaultId` (pass `undefined` to
+ * clear all defaults). Writes are serialized on purpose — concurrent keychain
+ * writes to the shared DataStore can clobber one another.
+ */
+async function enforceSingleDefault(defaultId: string | undefined) {
+	const entries = await keyStore.listEntries();
+	for (const entry of entries) {
+		const shouldBeDefault = entry.id === defaultId;
+		if (!!entry.metadata.isDefault === shouldBeDefault) {
+			continue;
+		}
+		const full = await keyStore.getEntry(entry.id).catch(() => undefined);
+		if (!full) {
+			continue;
+		}
+		await keyStore.upsertEntry({
+			id: entry.id,
+			value: full.value,
+			metadata: { ...full.metadata, isDefault: shouldBeDefault },
+		});
+	}
 }
 
 async function deletePrivateKey(keyId: string) {
@@ -259,6 +312,23 @@ const listKeysAtom = runtime
 	.atom(
 		Effect.gen(function* () {
 			const results = yield* Effect.tryPromise(() => keyStore.listEntries());
+			const defaults = results.filter((r) => r.metadata.isDefault);
+			if (defaults.length > 1) {
+				// Invariant repair: at most one key may be default. Collapse an
+				// already-corrupted state (e.g. the old double-import-as-default bug)
+				// to a single default — the most recently created — and persist it.
+				const keep = defaults.reduce((a, b) =>
+					(a.metadata.createdAtMs ?? 0) >= (b.metadata.createdAtMs ?? 0)
+						? a
+						: b,
+				);
+				yield* Effect.tryPromise(() => enforceSingleDefault(keep.id));
+				logger.warn(`Repaired ${defaults.length} default keys → kept ${keep.id}`);
+				return results.map((r) => ({
+					...r,
+					metadata: { ...r.metadata, isDefault: r.id === keep.id },
+				}));
+			}
 			logger.info(`Listed ${results.length} private keys`);
 			return results;
 		}),
@@ -290,7 +360,7 @@ const importKeyAtom = runtime.fn(
 		label: string;
 		isDefault: boolean;
 	}) {
-		yield* Effect.tryPromise(() =>
+		const keyId = yield* Effect.tryPromise(() =>
 			upsertPrivateKey({
 				metadata: {
 					priority: 0,
@@ -300,6 +370,13 @@ const importKeyAtom = runtime.fn(
 				value: input.value,
 			}),
 		);
+		// Setting this key default means UN-setting every other one.
+		if (input.isDefault) {
+			yield* Effect.tryPromise(() => enforceSingleDefault(keyId));
+		}
+		// Returning the id (not void) lets the import sheet detect success and
+		// close itself.
+		return keyId;
 	}),
 	{ reactivityKeys: KEYS },
 );
@@ -336,24 +413,7 @@ const deleteKeyAtom = Atom.family((entryId: string) =>
 const setDefaultKeyAtom = Atom.family((entryId: string) =>
 	runtime.fn(
 		Effect.fnUntraced(function* () {
-			const entries = yield* Effect.tryPromise(() =>
-				keyStore.listEntriesWithValues(),
-			);
-			yield* Effect.tryPromise(() =>
-				Promise.all(
-					entries.map((e) =>
-						upsertPrivateKey({
-							keyId: e.id,
-							value: e.value,
-							metadata: {
-								priority: e.metadata.priority,
-								label: e.metadata.label,
-								isDefault: e.id === entryId,
-							},
-						}),
-					),
-				),
-			);
+			yield* Effect.tryPromise(() => enforceSingleDefault(entryId));
 		}),
 		{ reactivityKeys: KEYS },
 	),

@@ -4,10 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 import { rootLogger } from '@/lib/logger';
-import {
-	useShellEventLog,
-	useShellSemantics,
-} from '@/lib/terminal-semantics';
+import { useShellEventLog, useShellSemantics } from '@/lib/terminal-semantics';
 
 const logger = rootLogger.extend('SemanticsDebug');
 
@@ -43,7 +40,7 @@ export function TerminalSemanticsDebugPanel({ shellId }: { shellId: string }) {
 		// non-zero. `\033`/`\007` are octal escapes bash's printf expands to
 		// ESC / BEL; `%s` consumes "$PWD" so the reported path is the actual one.
 		const cmd =
-			'printf \'\\033]7;file://h%s\\007\' "$PWD"; printf \'\\033]133;C\\007\'; sleep 0.3; printf \'\\033]133;D;0\\007\'\r';
+			"printf '\\033]7;file://h%s\\007' \"$PWD\"; printf '\\033]133;C\\007'; sleep 0.3; printf '\\033]133;D;0\\007'\r";
 		const bytes = new Uint8Array(cmd.length);
 		for (let i = 0; i < cmd.length; i++) bytes[i] = cmd.codePointAt(i) ?? 0;
 		void sendData(shellId, bytes.buffer).catch((error: unknown) =>
@@ -56,7 +53,11 @@ export function TerminalSemanticsDebugPanel({ shellId }: { shellId: string }) {
 			<Pressable
 				onPress={() => setCollapsed(false)}
 				className='absolute right-2 top-2 flex-row items-center gap-1 rounded-lg px-2.5 py-1'
-				style={{ backgroundColor: surface, borderWidth: 1, borderColor: border }}
+				style={{
+					backgroundColor: surface,
+					borderWidth: 1,
+					borderColor: border,
+				}}
 			>
 				<Ionicons name='pulse-outline' size={14} color={primary} />
 				<Text className='text-text-secondary text-xs'>OSC {log.length}</Text>
@@ -104,7 +105,9 @@ export function TerminalSemanticsDebugPanel({ shellId }: { shellId: string }) {
 				</Text>
 				<Text className='text-xs' style={{ color: exitColor }}>
 					exit: {sem?.lastExitCode ?? '—'}
-					{sem?.lastDurationMs !== undefined ? ` (${sem.lastDurationMs}ms)` : ''}
+					{sem?.lastDurationMs !== undefined
+						? ` (${sem.lastDurationMs}ms)`
+						: ''}
 				</Text>
 				<Text className='text-text-secondary text-xs'>
 					cmds: {sem?.commandCount ?? 0}

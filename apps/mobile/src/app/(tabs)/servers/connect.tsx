@@ -7,11 +7,12 @@ import React from 'react';
 import {
 	Modal,
 	Pressable,
+	ScrollView,
 	type TextInput as RNTextInput,
 	TextInput,
 	View,
 } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useCSSVariable } from 'uniwind';
 import { Button } from '@/components/themed/Button';
 import { ScreenHeader } from '@/components/themed/ScreenHeader';
@@ -120,11 +121,15 @@ export default function ConnectScreen() {
 		<ThemedScreen edges={['top', 'bottom']}>
 			<ScreenHeader onBack={() => router.back()} title='New server' />
 			<connectionForm.AppForm>
-				<View className='flex-1'>
-					<KeyboardAwareScrollView
+				{/* `padding` behavior shrinks this container by the keyboard's overlap
+				    with its own frame (so the tab bar / safe-area inset is accounted for
+				    — no phantom gap). The footer below the ScrollView then rises to sit
+				    right on top of the keyboard, while the fields scroll. */}
+				<KeyboardAvoidingView behavior='padding' style={{ flex: 1 }}>
+					<ScrollView
 						className='flex-1'
 						keyboardShouldPersistTaps='handled'
-						bottomOffset={24}
+						showsVerticalScrollIndicator={false}
 						contentContainerStyle={{ padding: 18, gap: 16 }}
 					>
 						<View className='flex-row gap-3'>
@@ -219,14 +224,23 @@ export default function ConnectScreen() {
 
 						<SaveToggle on={saveToServers} onChange={setSaveToServers} />
 
-						{sshConnMutation.isError ? (
-							<ThemedText className='text-danger'>
-								{sshConnMutation.error?.message ?? 'Failed to connect'}
-							</ThemedText>
+						{sshConnMutation.isError && sshConnMutation.error ? (
+							<View className='gap-1'>
+								<ThemedText className='font-semibold text-danger'>
+									{sshConnMutation.error.title}
+								</ThemedText>
+								{sshConnMutation.error.hint ? (
+									<ThemedText className='text-sm text-text-secondary'>
+										{sshConnMutation.error.hint}
+									</ThemedText>
+								) : null}
+							</View>
 						) : null}
-					</KeyboardAwareScrollView>
+					</ScrollView>
 
-					<View className='px-[18px] pb-2 pt-3'>
+					{/* Pinned footer — rides up with the KeyboardAvoidingView so Connect
+					    sits right above the keyboard, never covered. */}
+					<View className='bg-background px-[18px] pb-2 pt-3'>
 						<Button
 							title='Connect'
 							loadingTitle={buttonLabel}
@@ -236,7 +250,7 @@ export default function ConnectScreen() {
 							onPress={submit}
 						/>
 					</View>
-				</View>
+				</KeyboardAvoidingView>
 			</connectionForm.AppForm>
 
 			<ConnectingOverlay
