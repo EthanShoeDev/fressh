@@ -1,6 +1,6 @@
 {
-	"version": "2026-06-08.2",
-	"updatedAt": "2026-06-08T10:10:00.000Z",
+	"version": "2026-06-08.4",
+	"updatedAt": "2026-06-08T10:45:00.000Z",
 	"defaultKeyboardId": "phone_base",
 	"activeKeyboardIds": [
 		"phone_base",
@@ -1134,7 +1134,7 @@
 					"steps": [
 						{
 							"type": "text",
-							"data": "mdev codex restart"
+							"data": "mdev codex restart \"$(mdev tmux app context --session main | sed -n 's/.*\"target\":\"\\([^\"]*\\)\".*/\\1/p')\""
 						},
 						{
 							"type": "enter"

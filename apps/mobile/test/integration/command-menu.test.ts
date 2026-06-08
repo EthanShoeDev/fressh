@@ -183,7 +183,10 @@ void test('mdev codex presets expose auth refresh and restart commands', () => {
 		type: 'preset',
 		label: 'restart codex',
 		steps: [
-			{ type: 'text', data: 'mdev codex restart' },
+			{
+				type: 'text',
+				data: `mdev codex restart "$(mdev tmux app context --session main | sed -n 's/.*"target":"\\([^"]*\\)".*/\\1/p')"`,
+			},
 			{ type: 'enter' },
 		],
 	});
