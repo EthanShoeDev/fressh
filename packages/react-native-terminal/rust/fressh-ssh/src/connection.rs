@@ -180,7 +180,18 @@ impl Connection {
 			&modes,
 		)
 		.await?;
-		ch.request_shell(true).await?;
+
+		if opts.shell_integration {
+			// Launch the interactive shell with OSC 633 shell integration injected
+			// (cwd / command lifecycle / exit code / command text), nothing touched
+			// permanently on the host. The bootstrap self-falls-back to a plain login
+			// shell for shells it can't inject. See crate::shell_integration.
+			let nonce = crate::shell_integration::generate_nonce();
+			let exec_command = crate::shell_integration::build_exec_command(&nonce);
+			ch.exec(true, exec_command).await?;
+		} else {
+			ch.request_shell(true).await?;
+		}
 
 		let (reader, writer) = ch.split();
 		Ok(Shell {

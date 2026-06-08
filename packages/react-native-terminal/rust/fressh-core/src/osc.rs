@@ -80,6 +80,13 @@ impl OscScanner {
 			duration_ms,
 		});
 	}
+
+	fn on_command_text(&mut self, command: String) {
+		events::emit(CoreEvent::CommandText {
+			shell_id: self.shell_id.clone(),
+			command,
+		});
+	}
 }
 
 impl vte::Perform for OscScanner {
@@ -95,10 +102,36 @@ impl vte::Perform for OscScanner {
 				}
 			}
 			// OSC 133 ; {A|B|C|D} [; ...]  — FinalTerm / iTerm2 semantic prompt.
+			// Legacy/tolerant: B and C both coalesce to CommandStart (some emitters
+			// only send one). See the 633 arm for the precise C-only treatment.
 			Some(b"133") => match params.get(1).copied() {
 				Some(b"A") => self.on_prompt_start(),
 				Some(b"B") | Some(b"C") => self.on_command_start(),
 				Some(b"D") => self.on_command_finished(parse_exit_code(params.get(2).copied())),
+				_ => {}
+			},
+			// OSC 633 ; {A|B|C|D|E|P} [; ...]  — VS Code's private superset, emitted
+			// by the scripts fressh auto-injects. A=prompt start, B=prompt end (idle,
+			// ignored), C=command executed, D=finished+exit, E=command line text,
+			// P;Cwd=cwd. Unlike 133, B does NOT mean "running" here (it fires at every
+			// idle prompt), so only C drives CommandStart.
+			Some(b"633") => match params.get(1).copied() {
+				Some(b"A") => self.on_prompt_start(),
+				Some(b"C") => self.on_command_start(),
+				Some(b"D") => self.on_command_finished(parse_exit_code(params.get(2).copied())),
+				Some(b"E") => {
+					if let Some(cmd) = params.get(2).copied() {
+						self.on_command_text(unescape_osc633(cmd));
+					}
+				}
+				Some(b"P") => {
+					if let Some(path) = parse_osc633_cwd(params.get(2).copied()) {
+						events::emit(CoreEvent::WorkingDirectoryChanged {
+							shell_id: self.shell_id.clone(),
+							path,
+						});
+					}
+				}
 				_ => {}
 			},
 			_ => {}
@@ -127,6 +160,48 @@ fn parse_osc7_path(params: &[&[u8]]) -> Option<String> {
 		return None;
 	}
 	Some(percent_decode(path))
+}
+
+/// Parse `633;P` payload `Cwd=<escaped-path>` → the unescaped path. Other `P`
+/// properties (`IsWindows=…`, `Prompt=…`, …) are ignored. vte split the params on
+/// `;`, but VS Code escapes any `;` inside the value as `\x3b`, so the whole
+/// `Cwd=…` stays in one param.
+fn parse_osc633_cwd(param: Option<&[u8]>) -> Option<String> {
+	let value = param?.strip_prefix(b"Cwd=")?;
+	if value.is_empty() {
+		return None;
+	}
+	Some(unescape_osc633(value))
+}
+
+/// Reverse VS Code's `633` value escaping (`__vsc_escape_value`): `\\`→`\`,
+/// `\xHH`→the byte `0xHH` (used for `;` as `\x3b` and any control char). Unknown
+/// escapes pass through verbatim. Result is UTF-8 where valid, else lossy.
+fn unescape_osc633(bytes: &[u8]) -> String {
+	let mut out = Vec::with_capacity(bytes.len());
+	let mut i = 0;
+	while i < bytes.len() {
+		if bytes[i] == b'\\' && i + 1 < bytes.len() {
+			match bytes[i + 1] {
+				b'\\' => {
+					out.push(b'\\');
+					i += 2;
+					continue;
+				}
+				b'x' | b'X' if i + 3 < bytes.len() => {
+					if let (Some(h), Some(l)) = (hex_val(bytes[i + 2]), hex_val(bytes[i + 3])) {
+						out.push((h << 4) | l);
+						i += 4;
+						continue;
+					}
+				}
+				_ => {}
+			}
+		}
+		out.push(bytes[i]);
+		i += 1;
+	}
+	String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Parse the optional `133;D` exit-code param. Absent or unparseable → `None`.
@@ -217,7 +292,8 @@ mod tests {
 			CoreEvent::WorkingDirectoryChanged { shell_id, .. }
 			| CoreEvent::PromptStart { shell_id }
 			| CoreEvent::CommandStart { shell_id }
-			| CoreEvent::CommandFinished { shell_id, .. } => Some(shell_id),
+			| CoreEvent::CommandFinished { shell_id, .. }
+			| CoreEvent::CommandText { shell_id, .. } => Some(shell_id),
 			_ => None,
 		}
 	}
@@ -295,6 +371,62 @@ mod tests {
 	#[test]
 	fn plain_text_emits_nothing() {
 		let evs = run("s-plain", &[b"hello \x1b[31mworld\x1b[0m\r\n$ "]);
+		assert!(evs.is_empty());
+	}
+
+	#[test]
+	fn osc633_full_lifecycle() {
+		// A (prompt) → E (cmdline) → C (running) → D;0 (done). B is the idle
+		// prompt-end and must NOT produce a CommandStart.
+		let evs = run(
+			"s-633",
+			&[
+				b"\x1b]633;A\x07",
+				b"\x1b]633;B\x07",
+				b"\x1b]633;E;ls -la;abc123\x07",
+				b"\x1b]633;C\x07",
+				b"\x1b]633;D;0\x07",
+			],
+		);
+		assert!(matches!(evs[0], CoreEvent::PromptStart { .. }));
+		assert!(matches!(
+			&evs[1],
+			CoreEvent::CommandText { command, .. } if command == "ls -la"
+		));
+		assert!(matches!(evs[2], CoreEvent::CommandStart { .. }));
+		assert!(matches!(
+			evs[3],
+			CoreEvent::CommandFinished {
+				exit_code: Some(0),
+				..
+			}
+		));
+		assert_eq!(evs.len(), 4, "633;B must not emit an event");
+	}
+
+	#[test]
+	fn osc633_cwd_property() {
+		let evs = run("s-633cwd", &[b"\x1b]633;P;Cwd=/home/ethan/proj\x07"]);
+		assert!(matches!(
+			evs.as_slice(),
+			[CoreEvent::WorkingDirectoryChanged { path, .. }] if path == "/home/ethan/proj"
+		));
+	}
+
+	#[test]
+	fn osc633_e_unescapes_semicolon_and_backslash() {
+		// VS Code escapes `;` as `\x3b` (so it stays in one vte param) and `\` as
+		// `\\`. A command `echo a;b\c` is sent escaped; we must restore it.
+		let evs = run("s-633esc", &[b"\x1b]633;E;echo a\\x3bb\\\\c;nonce\x07"]);
+		assert!(matches!(
+			evs.as_slice(),
+			[CoreEvent::CommandText { command, .. }] if command == "echo a;b\\c"
+		));
+	}
+
+	#[test]
+	fn osc633_p_non_cwd_property_ignored() {
+		let evs = run("s-633p", &[b"\x1b]633;P;IsWindows=False\x07"]);
 		assert!(evs.is_empty());
 	}
 }

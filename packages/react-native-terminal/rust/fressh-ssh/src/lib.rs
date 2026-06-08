@@ -9,6 +9,7 @@
 pub mod connection;
 pub mod private_key;
 pub mod shell;
+pub mod shell_integration;
 pub mod utils;
 
 pub use connection::{

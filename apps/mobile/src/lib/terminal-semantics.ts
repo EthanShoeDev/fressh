@@ -27,6 +27,9 @@ export interface ShellSemantics {
 	lastExitCode?: number;
 	/** Wall-clock duration of the most recent command, ms. */
 	lastDurationMs?: number;
+	/** Literal command line of the most recent command (OSC 633;E only — present
+	 *  when fressh's auto-injected integration is active, absent for plain 133). */
+	lastCommand?: string;
 	/** How many commands have finished in this shell (cheap "did anything run?"). */
 	commandCount: number;
 }
@@ -113,6 +116,12 @@ addFresshEventListener((event) => {
 		case FresshEvent_Tags.CommandStart: {
 			patch(event.inner.shellId, { running: true });
 			pushLog(event.inner.shellId, 'cmd-start', 'running');
+			break;
+		}
+		case FresshEvent_Tags.CommandText: {
+			const { shellId, command } = event.inner;
+			patch(shellId, { lastCommand: command });
+			pushLog(shellId, 'cmd-text', command);
 			break;
 		}
 		case FresshEvent_Tags.CommandFinished: {

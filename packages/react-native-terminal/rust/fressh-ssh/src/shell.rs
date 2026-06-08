@@ -77,6 +77,12 @@ pub struct StartShellOptions {
 	pub terminal_mode: Option<Vec<TerminalMode>>,
 	pub terminal_size: Option<TerminalSize>,
 	pub terminal_pixel_size: Option<TerminalPixelSize>,
+	/// Auto-inject OSC 633 shell integration (cwd / command lifecycle / exit code /
+	/// command text) by launching the interactive shell via an `exec` bootstrap
+	/// instead of a bare `request_shell`. Touches nothing permanent on the host;
+	/// falls back to a plain login shell for shells it can't inject. See
+	/// [`crate::shell_integration`]. Off ⇒ behave like a plain SSH client.
+	pub shell_integration: bool,
 }
 
 impl Default for StartShellOptions {
@@ -86,6 +92,7 @@ impl Default for StartShellOptions {
 			terminal_mode: None,
 			terminal_size: None,
 			terminal_pixel_size: None,
+			shell_integration: true,
 		}
 	}
 }

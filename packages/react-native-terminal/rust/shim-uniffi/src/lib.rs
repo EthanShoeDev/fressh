@@ -141,6 +141,10 @@ pub struct ShellOptions {
 	pub cols: u32,
 	pub rows: u32,
 	pub scrollback_lines: u32,
+	/// Auto-inject OSC 633 shell integration on connect (cwd / command lifecycle /
+	/// exit code / command text). `None` ⇒ default on. Set `false` from the app's
+	/// global kill-switch / per-host toggle to behave like a plain SSH client.
+	pub shell_integration: Option<bool>,
 }
 
 #[derive(uniffi::Record)]
@@ -217,6 +221,10 @@ pub enum FresshEvent {
 		exit_code: Option<i32>,
 		duration_ms: Option<u64>,
 	},
+	CommandText {
+		shell_id: String,
+		command: String,
+	},
 }
 impl From<fressh_core::CoreEvent> for FresshEvent {
 	fn from(ev: fressh_core::CoreEvent) -> Self {
@@ -254,6 +262,9 @@ impl From<fressh_core::CoreEvent> for FresshEvent {
 				exit_code,
 				duration_ms,
 			},
+			E::CommandText { shell_id, command } => {
+				FresshEvent::CommandText { shell_id, command }
+			}
 		}
 	}
 }
@@ -310,6 +321,7 @@ pub async fn start_shell(connection_id: String, options: ShellOptions) -> Result
 			row_height: Some(options.rows),
 		}),
 		terminal_pixel_size: None,
+		shell_integration: options.shell_integration.unwrap_or(true),
 	};
 	fressh_core::start_shell(connection_id, core_opts, cols, rows, scrollback)
 		.await

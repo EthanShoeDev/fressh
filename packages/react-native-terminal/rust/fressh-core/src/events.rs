@@ -29,30 +29,37 @@ pub enum CoreEvent {
 		shell_id: String,
 	},
 
-	// ── Shell-integration semantic events (OSC 7 + OSC 133). ──────────────
+	// ── Shell-integration semantic events (OSC 7 + OSC 133 + OSC 633). ─────
 	// Lifted out of the byte stream by the `OscScanner` (`osc.rs`), which runs a
-	// second low-level `vte::Parser` in the reader loop. Only emitted when the
-	// remote shell has shell integration enabled. See
-	// docs/projects/terminal-semantic-events.md.
-	/// OSC 7: the interactive shell's cwd changed (path percent-decoded).
+	// second low-level `vte::Parser` in the reader loop. Emitted when the remote
+	// shell has shell integration enabled — either the user's own setup (which
+	// typically emits 7/133) or fressh's auto-injected scripts (which emit 633,
+	// VS Code's superset). See docs/projects/terminal-semantic-events.md.
+	/// OSC 7 / OSC 633;P;Cwd: the interactive shell's cwd changed.
 	WorkingDirectoryChanged {
 		shell_id: String,
 		path: String,
 	},
-	/// OSC 133;A: a new prompt is being drawn.
+	/// OSC 133;A / OSC 633;A: a new prompt is being drawn.
 	PromptStart {
 		shell_id: String,
 	},
-	/// OSC 133;B/C: a command began running (output region starts).
+	/// OSC 133;C / OSC 633;C: a command began running (output region starts).
 	CommandStart {
 		shell_id: String,
 	},
-	/// OSC 133;D: the command finished. `exit_code` is absent when the shell
-	/// omits it; `duration_ms` is measured from the matching `CommandStart`.
+	/// OSC 133;D / OSC 633;D: the command finished. `exit_code` is absent when the
+	/// shell omits it; `duration_ms` is measured from the matching `CommandStart`.
 	CommandFinished {
 		shell_id: String,
 		exit_code: Option<i32>,
 		duration_ms: Option<u64>,
+	},
+	/// OSC 633;E: the literal command line that ran. The 633 superset carries this;
+	/// plain 133 does not. Powers command history / per-command scrollback / AI.
+	CommandText {
+		shell_id: String,
+		command: String,
 	},
 }
 
