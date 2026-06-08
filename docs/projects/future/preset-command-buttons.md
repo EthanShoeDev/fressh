@@ -146,8 +146,9 @@ interface Preset {
     `RunCommandSheet` runs on a **currently-live** connection (sibling channel, shell
     untouched), with preset quick-fill chips + a result panel (exit pill, stdout/stderr).
   - *Still pending:* **connect-fresh for a one-off** (host not currently connected) — needs
-    the connect-without-shell + host-key/credential flow; today the runner only lists live
-    connections. And the per-run **working-dir** field (see the cwd open question).
+    the connect-without-shell + credential flow (and rides on the app-wide host-key
+    auto-accept until [host-key-verification.md](host-key-verification.md) lands). And the
+    per-run **working-dir** field (see the cwd open question).
 - **v2 — per-host presets + polish.** Per-host scope via connection metadata; reorder;
   icons; "save last command as preset"; "open a shell here" from a result.
 

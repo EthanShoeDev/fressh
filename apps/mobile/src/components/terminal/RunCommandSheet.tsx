@@ -1,4 +1,8 @@
-import { type CommandResult, runCommand } from '@fressh/react-native-terminal';
+import {
+	type CommandResult,
+	disconnect,
+	runCommand,
+} from '@fressh/react-native-terminal';
 import React from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
@@ -7,21 +11,26 @@ import { Button } from '@/components/themed/Button';
 import { ThemedText } from '@/components/themed/ThemedText';
 import { rootLogger } from '@/lib/logger';
 import { usePresets } from '@/lib/presets';
+import { ensureConnection } from '@/lib/query-fns';
+import type { InputConnectionDetails } from '@/lib/secrets-manager';
 import { useThemeSkin } from '@/lib/theme-skin';
 
 const logger = rootLogger.extend('RunCommand');
 
+type Phase = 'idle' | 'connecting' | 'running';
+
 /**
- * Run a one-off command on a *live* connection (a sibling no-PTY `exec` channel —
- * the interactive shell is untouched). Runs in the login/home dir; `cd … && …` in
- * the command if you need a directory. See preset-command-buttons.md.
+ * Run a one-off command on a saved host without a persistent shell. Reuses a live
+ * connection if one exists, otherwise connects fresh (and disconnects it when the
+ * sheet closes — we only tear down what we opened). The command runs on a no-PTY
+ * `exec` channel in the login/home dir. See preset-command-buttons.md.
  */
 export function RunCommandSheet({
-	connectionId,
+	details,
 	title,
 	onClose,
 }: {
-	connectionId: string;
+	details: InputConnectionDetails;
 	title: string;
 	onClose: () => void;
 }) {
@@ -34,25 +43,50 @@ export function RunCommandSheet({
 		skin.mono && skin.monoFamily ? { fontFamily: skin.monoFamily } : undefined;
 
 	const [command, setCommand] = React.useState('');
-	const [running, setRunning] = React.useState(false);
+	const [phase, setPhase] = React.useState<Phase>('idle');
 	const [result, setResult] = React.useState<CommandResult | null>(null);
 	const [error, setError] = React.useState<string | null>(null);
+	// The connection we're using; `fresh` = we opened it, so disconnect on unmount.
+	const [conn, setConn] = React.useState<{
+		connectionId: string;
+		fresh: boolean;
+	} | null>(null);
+
+	// Tear down a fresh connection when the sheet goes away (ref so the unmount
+	// cleanup sees the latest connection, not a stale closure).
+	const connRef = React.useRef(conn);
+	connRef.current = conn;
+	React.useEffect(
+		() => () => {
+			const c = connRef.current;
+			if (c?.fresh) {
+				void disconnect(c.connectionId).catch(() => undefined);
+			}
+		},
+		[],
+	);
 
 	const run = async () => {
 		const cmd = command.trim();
-		if (!cmd || running) {
+		if (!cmd || phase !== 'idle') {
 			return;
 		}
-		setRunning(true);
 		setResult(null);
 		setError(null);
 		try {
-			setResult(await runCommand(connectionId, cmd));
+			let c = conn;
+			if (!c) {
+				setPhase('connecting');
+				c = await ensureConnection(details);
+				setConn(c);
+			}
+			setPhase('running');
+			setResult(await runCommand(c.connectionId, cmd));
 		} catch (error) {
 			logger.warn('run command failed', error);
 			setError(error instanceof Error ? error.message : String(error));
 		} finally {
-			setRunning(false);
+			setPhase('idle');
 		}
 	};
 
@@ -64,8 +98,8 @@ export function RunCommandSheet({
 						Run on {title}
 					</ThemedText>
 					<ThemedText className='mt-1 text-xs text-muted'>
-						Runs in your home directory, no shell opened. Use “cd … &&” for a
-						different folder.
+						Connects if needed (disconnects on close), runs in your home
+						directory — no shell. Use “cd … &&” for a different folder.
 					</ThemedText>
 				</View>
 
@@ -118,8 +152,8 @@ export function RunCommandSheet({
 
 				<Button
 					title='Run'
-					loading={running}
-					loadingTitle='Running…'
+					loading={phase !== 'idle'}
+					loadingTitle={phase === 'connecting' ? 'Connecting…' : 'Running…'}
 					disabled={command.trim().length === 0}
 					onPress={run}
 				/>

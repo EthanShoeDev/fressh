@@ -155,6 +155,60 @@ function describeSshError(error: unknown) {
 	return String(error);
 }
 
+/** Credential resolution shared by the connect form and the one-off runner:
+ *  password passes through; a `keyId` is resolved to its stored private key. */
+type ResolvedSecurity =
+	| { type: 'password'; password: string }
+	| { type: 'key'; privateKey: string };
+
+async function resolveSecurity(
+	details: InputConnectionDetails,
+): Promise<ResolvedSecurity> {
+	if (details.security.type === 'password') {
+		return { type: 'password', password: details.security.password };
+	}
+	const { keyId } = details.security;
+	const entry = await secretsManager.keys.utils.getPrivateKey(keyId);
+	// Length only — never log key material.
+	logger.info(
+		`Resolved key ${keyId}: value length ${entry.value?.length ?? 'MISSING'}`,
+	);
+	if (!entry.value) {
+		throw new Error(
+			`The selected key (${keyId}) has no stored private key. Re-import it in the Keys tab.`,
+		);
+	}
+	return { type: 'key', privateKey: entry.value };
+}
+
+/**
+ * Ensure there is a live connection to `details`'s host, reusing one if present.
+ * Returns the `connectionId` and `fresh` — true when WE opened it (the caller
+ * should disconnect it when done; a reused connection is left alone). No shell is
+ * opened. Host-key is auto-accepted app-wide for now (see host-key-verification.md).
+ */
+export async function ensureConnection(
+	details: InputConnectionDetails,
+): Promise<{ connectionId: string; fresh: boolean }> {
+	const existing = Object.values(useSshStore.getState().connections).find(
+		(c) =>
+			c.connectionDetails.host === details.host &&
+			c.connectionDetails.port === details.port &&
+			c.connectionDetails.username === details.username,
+	);
+	if (existing) {
+		return { connectionId: existing.connectionId, fresh: false };
+	}
+	const security = await resolveSecurity(details);
+	const conn = await useSshStore.getState().connect({
+		host: details.host,
+		port: details.port,
+		username: details.username,
+		security,
+	});
+	return { connectionId: conn.connectionId, fresh: true };
+}
+
 type ConnectInput = {
 	connectionDetails: InputConnectionDetails;
 	/** Persist the connection to the saved-servers list on success (default true). */
@@ -197,28 +251,7 @@ const connectAtom = atomRuntime.fn(
 
 				try {
 					logger.info('Connecting to SSH server...');
-					let security:
-						| { type: 'password'; password: string }
-						| { type: 'key'; privateKey: string };
-					if (connectionDetails.security.type === 'password') {
-						security = {
-							type: 'password',
-							password: connectionDetails.security.password,
-						};
-					} else {
-						const { keyId } = connectionDetails.security;
-						const entry = await secretsManager.keys.utils.getPrivateKey(keyId);
-						// Length only — never log key material.
-						logger.info(
-							`Resolved key ${keyId}: value length ${entry.value?.length ?? 'MISSING'}`,
-						);
-						if (!entry.value) {
-							throw new Error(
-								`The selected key (${keyId}) has no stored private key. Re-import it in the Keys tab.`,
-							);
-						}
-						security = { type: 'key', privateKey: entry.value };
-					}
+					const security = await resolveSecurity(connectionDetails);
 
 					const sshConnection = await useSshStore.getState().connect({
 						host: connectionDetails.host,
