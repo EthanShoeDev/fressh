@@ -5,18 +5,18 @@
 //!
 //! The GL context must be current on the calling thread for every method here.
 
-use std::ffi::{CStr, c_void};
+use std::ffi::{c_void, CStr};
 use std::time::Instant;
 
 use alacritty_renderer::config::font::Font;
 use alacritty_renderer::display::SizeInfo;
 use alacritty_renderer::renderer::rects::RenderRect;
 use alacritty_renderer::renderer::{GlyphCache, Renderer};
-use alacritty_terminal::Term;
 use alacritty_terminal::event::EventListener;
 use alacritty_terminal::grid::Dimensions; // brings SizeInfo::{columns, screen_lines} into scope
 use alacritty_terminal::term::TermMode;
 use alacritty_terminal::vte::ansi::NamedColor;
+use alacritty_terminal::Term;
 use crossfont::{Rasterize, Rasterizer};
 
 use crate::config::{CursorStyle, Palette, TerminalConfig, MIN_BLINK_INTERVAL_MS};
@@ -99,7 +99,11 @@ impl TerminalRenderer {
 		// DECSCUSR / `CSI ? 12 h/l` state (seeded with the On/Always default at
 		// shell creation). Gate on SHOW_CURSOR like upstream.
 		let program_blink = term.cursor_style().blinking;
-		let active = self.config.cursor_blink.blinking_override().unwrap_or(program_blink)
+		let active = self
+			.config
+			.cursor_blink
+			.blinking_override()
+			.unwrap_or(program_blink)
 			&& term.mode().contains(TermMode::SHOW_CURSOR);
 
 		// Restart the phase (cursor shows now) on a fresh keystroke (idle dropped)
@@ -159,7 +163,9 @@ impl TerminalRenderer {
 	/// `input_idle_ms` is the time since the bound shell last received user input
 	/// (drives the cursor blink timeout + reset; see [`Self::cursor_blink_on`]).
 	pub fn draw<T: EventListener>(&mut self, term: &Term<T>, input_idle_ms: u64) {
-		let background = self.palette.color(term.colors(), NamedColor::Background as usize);
+		let background = self
+			.palette
+			.color(term.colors(), NamedColor::Background as usize);
 		self.renderer.clear(background, 1.0);
 
 		let blink_on = self.cursor_blink_on(term, input_idle_ms);
@@ -170,7 +176,8 @@ impl TerminalRenderer {
 			self.config.cursor_style,
 			blink_on,
 		);
-		self.renderer.draw_cells(&self.size_info, &mut self.glyph_cache, cells.into_iter());
+		self.renderer
+			.draw_cells(&self.size_info, &mut self.glyph_cache, cells.into_iter());
 
 		// Non-block cursors (beam/underline/hollow) overlay as rects after cells.
 		if let Some(cursor) = cursor {
@@ -197,7 +204,9 @@ impl TerminalRenderer {
 	/// instead of uninitialized GL memory.
 	pub fn present_clear(&mut self) {
 		use alacritty_terminal::term::color::Colors;
-		let background = self.palette.color(&Colors::default(), NamedColor::Background as usize);
+		let background = self
+			.palette
+			.color(&Colors::default(), NamedColor::Background as usize);
 		self.renderer.clear(background, 1.0);
 		self.renderer.finish();
 	}
@@ -268,7 +277,14 @@ fn cursor_rects(cursor: &CursorRender, size: &SizeInfo) -> Vec<RenderRect> {
 				RenderRect::new(x, y, width, thickness, color, 1.0),
 				RenderRect::new(x, y + height - thickness, width, thickness, color, 1.0),
 				RenderRect::new(x, vertical_y, thickness, vertical_height, color, 1.0),
-				RenderRect::new(x + width - thickness, vertical_y, thickness, vertical_height, color, 1.0),
+				RenderRect::new(
+					x + width - thickness,
+					vertical_y,
+					thickness,
+					vertical_height,
+					color,
+					1.0,
+				),
 			]
 		}
 		// Block cursors are rendered as inverted cells in `content`, not rects.

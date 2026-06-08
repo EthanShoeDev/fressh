@@ -91,13 +91,13 @@ impl Default for StartShellOptions {
 }
 
 pub static DEFAULT_TERMINAL_MODES: &[(russh::Pty, u32)] = &[
-	(russh::Pty::ECHO, 1), // Echo characters back to the client.
-	(russh::Pty::ECHOK, 1), // After the line-kill character, echo a newline.
-	(russh::Pty::ECHOE, 1), // Visually erase on backspace.
-	(russh::Pty::ICANON, 1), // Canonical (cooked) mode: line editing.
-	(russh::Pty::ISIG, 1), // Generate signals on special chars (Ctrl+C, Ctrl+Z).
-	(russh::Pty::ICRNL, 1), // Convert CR to NL on input.
-	(russh::Pty::ONLCR, 1), // Convert NL to CR+NL on output.
+	(russh::Pty::ECHO, 1),              // Echo characters back to the client.
+	(russh::Pty::ECHOK, 1),             // After the line-kill character, echo a newline.
+	(russh::Pty::ECHOE, 1),             // Visually erase on backspace.
+	(russh::Pty::ICANON, 1),            // Canonical (cooked) mode: line editing.
+	(russh::Pty::ISIG, 1),              // Generate signals on special chars (Ctrl+C, Ctrl+Z).
+	(russh::Pty::ICRNL, 1),             // Convert CR to NL on input.
+	(russh::Pty::ONLCR, 1),             // Convert NL to CR+NL on output.
 	(russh::Pty::TTY_OP_ISPEED, 38400), // Input baud rate.
 	(russh::Pty::TTY_OP_OSPEED, 38400), // Output baud rate.
 ];
@@ -151,7 +151,9 @@ pub struct ShellWriter {
 
 impl ShellWriter {
 	pub(crate) fn new(inner: ChannelWriteHalf<client::Msg>) -> Self {
-		Self { inner: Arc::new(AsyncMutex::new(inner)) }
+		Self {
+			inner: Arc::new(AsyncMutex::new(inner)),
+		}
 	}
 
 	/// Send bytes to the shell (stdin).
@@ -168,7 +170,11 @@ impl ShellWriter {
 		pixel_width: u32,
 		pixel_height: u32,
 	) -> Result<(), SshError> {
-		self.inner.lock().await.window_change(cols, rows, pixel_width, pixel_height).await?;
+		self.inner
+			.lock()
+			.await
+			.window_change(cols, rows, pixel_width, pixel_height)
+			.await?;
 		Ok(())
 	}
 

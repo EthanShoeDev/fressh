@@ -35,5 +35,8 @@ where
 	F: std::future::Future<Output = T> + Send + 'static,
 	T: Send + 'static,
 {
-	handle().spawn(fut).await.expect("core runtime task panicked")
+	handle()
+		.spawn(fut)
+		.await
+		.expect("core runtime task panicked")
 }

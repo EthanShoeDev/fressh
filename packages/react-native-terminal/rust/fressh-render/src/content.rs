@@ -57,8 +57,11 @@ pub fn renderable_cells<T: EventListener>(
 	// Non-block cursors are overlaid as rects after the cells are drawn. Resolve
 	// the cursor's viewport position once (None if scrolled out of view).
 	let cursor_render = if cursor_visible && cursor_style != CursorStyle::Block {
-		point_to_viewport(display_offset, cursor.point)
-			.map(|point| CursorRender { style: cursor_style, point, color: cursor_color })
+		point_to_viewport(display_offset, cursor.point).map(|point| CursorRender {
+			style: cursor_style,
+			point,
+			color: cursor_color,
+		})
 	} else {
 		None
 	};
@@ -107,7 +110,9 @@ pub fn renderable_cells<T: EventListener>(
 		};
 
 		let is_cursor = cursor_visible && indexed.point == cursor.point;
-		let selected = selection.as_ref().is_some_and(|s| s.contains(indexed.point));
+		let selected = selection
+			.as_ref()
+			.is_some_and(|s| s.contains(indexed.point));
 		if is_cursor && cursor_style == CursorStyle::Block {
 			// Paint a block cursor: fill the cell with the cursor color and draw
 			// the glyph in the cell's background color.
@@ -198,11 +203,11 @@ fn is_empty(cell: &RenderableCell) -> bool {
 
 #[cfg(test)]
 mod tests {
-	use alacritty_terminal::Term;
 	use alacritty_terminal::event::EventListener;
 	use alacritty_terminal::grid::Dimensions;
 	use alacritty_terminal::term::Config;
 	use alacritty_terminal::vte::ansi::Processor;
+	use alacritty_terminal::Term;
 
 	use super::renderable_cells;
 	use crate::config::{ColorScheme, CursorStyle, Palette};
@@ -229,7 +234,10 @@ mod tests {
 	/// End-to-end (GL-free) proof of the data path: bytes -> Term -> cells.
 	#[test]
 	fn bytes_to_cells() {
-		let dims = Dims { columns: 20, screen_lines: 5 };
+		let dims = Dims {
+			columns: 20,
+			screen_lines: 5,
+		};
 		let mut term = Term::new(Config::default(), &dims, NoopListener);
 
 		// "hi" in default fg, then SGR 31 (red) "X".
@@ -239,8 +247,11 @@ mod tests {
 		let palette = Palette::new(&ColorScheme::default());
 		let (cells, _cursor) = renderable_cells(&term, &palette, true, CursorStyle::Block, true);
 
-		let row0: String =
-			cells.iter().filter(|c| c.point.line == 0).map(|c| c.character).collect();
+		let row0: String = cells
+			.iter()
+			.filter(|c| c.point.line == 0)
+			.map(|c| c.character)
+			.collect();
 		assert!(row0.contains('h'), "expected 'h' in {row0:?}");
 		assert!(row0.contains('i'), "expected 'i' in {row0:?}");
 		assert!(row0.contains('X'), "expected 'X' in {row0:?}");

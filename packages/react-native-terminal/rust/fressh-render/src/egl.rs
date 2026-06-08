@@ -34,7 +34,8 @@ impl EglContext {
 		let egl = unsafe { Egl::load_required() }.map_err(|e| format!("load libEGL: {e}"))?;
 
 		let display = unsafe { egl.get_display(egl::DEFAULT_DISPLAY) }.ok_or("no EGL display")?;
-		egl.initialize(display).map_err(|e| format!("eglInitialize: {e:?}"))?;
+		egl.initialize(display)
+			.map_err(|e| format!("eglInitialize: {e:?}"))?;
 
 		let config_attribs = [
 			egl::SURFACE_TYPE,
@@ -80,7 +81,13 @@ impl EglContext {
 		let renderer = TerminalRenderer::new(get_proc, true, config)
 			.map_err(|e| format!("renderer init: {e}"))?;
 
-		let mut ctx = Self { egl, display, surface, context, renderer };
+		let mut ctx = Self {
+			egl,
+			display,
+			surface,
+			context,
+			renderer,
+		};
 		ctx.resize();
 		Ok(ctx)
 	}
@@ -99,8 +106,14 @@ impl EglContext {
 	/// geometry by a frame — callers should poll it from the draw loop (which swaps
 	/// every frame) rather than trusting a one-shot read in `surfaceChanged`.
 	pub fn surface_size(&self) -> (i32, i32) {
-		let width = self.egl.query_surface(self.display, self.surface, egl::WIDTH).unwrap_or(0);
-		let height = self.egl.query_surface(self.display, self.surface, egl::HEIGHT).unwrap_or(0);
+		let width = self
+			.egl
+			.query_surface(self.display, self.surface, egl::WIDTH)
+			.unwrap_or(0);
+		let height = self
+			.egl
+			.query_surface(self.display, self.surface, egl::HEIGHT)
+			.unwrap_or(0);
 		(width, height)
 	}
 

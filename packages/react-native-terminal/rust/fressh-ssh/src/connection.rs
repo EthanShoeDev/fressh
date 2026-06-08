@@ -115,8 +115,12 @@ impl client::Handler for Handler {
 		server_public_key: &russh::keys::PublicKey,
 	) -> impl std::future::Future<Output = Result<bool, Self::Error>> + Send {
 		let verifier = self.verifier.clone();
-		let info =
-			server_public_key_to_info(&self.host, self.port, self.remote_ip.clone(), server_public_key);
+		let info = server_public_key_to_info(
+			&self.host,
+			self.port,
+			self.remote_ip.clone(),
+			server_public_key,
+		);
 		async move { Ok(verifier.verify(info).await) }
 	}
 }
@@ -149,19 +153,33 @@ impl Connection {
 			}
 		}
 
-		let row_height =
-			opts.terminal_size.and_then(|s| s.row_height).unwrap_or(DEFAULT_TERM_ROW_HEIGHT);
-		let col_width =
-			opts.terminal_size.and_then(|s| s.col_width).unwrap_or(DEFAULT_TERM_COL_WIDTH);
-		let pixel_width =
-			opts.terminal_pixel_size.and_then(|s| s.pixel_width).unwrap_or(DEFAULT_TERM_PIXEL_WIDTH);
+		let row_height = opts
+			.terminal_size
+			.and_then(|s| s.row_height)
+			.unwrap_or(DEFAULT_TERM_ROW_HEIGHT);
+		let col_width = opts
+			.terminal_size
+			.and_then(|s| s.col_width)
+			.unwrap_or(DEFAULT_TERM_COL_WIDTH);
+		let pixel_width = opts
+			.terminal_pixel_size
+			.and_then(|s| s.pixel_width)
+			.unwrap_or(DEFAULT_TERM_PIXEL_WIDTH);
 		let pixel_height = opts
 			.terminal_pixel_size
 			.and_then(|s| s.pixel_height)
 			.unwrap_or(DEFAULT_TERM_PIXEL_HEIGHT);
 
-		ch.request_pty(true, opts.term.as_ssh_name(), col_width, row_height, pixel_width, pixel_height, &modes)
-			.await?;
+		ch.request_pty(
+			true,
+			opts.term.as_ssh_name(),
+			col_width,
+			row_height,
+			pixel_width,
+			pixel_height,
+			&modes,
+		)
+		.await?;
 		ch.request_shell(true).await?;
 
 		let (reader, writer) = ch.split();
@@ -177,7 +195,9 @@ impl Connection {
 	/// Disconnect the SSH session (closes all channels server-side).
 	pub async fn disconnect(&self) -> Result<(), SshError> {
 		let handle = self.client_handle.lock().await;
-		handle.disconnect(Disconnect::ByApplication, "bye", "").await?;
+		handle
+			.disconnect(Disconnect::ByApplication, "bye", "")
+			.await?;
 		Ok(())
 	}
 }
@@ -218,12 +238,18 @@ pub async fn connect(opts: ConnectOptions) -> Result<Connection, SshError> {
 
 	let auth_result = match &details.security {
 		Security::Password { password } => {
-			handle.authenticate_password(details.username.clone(), password.clone()).await?
+			handle
+				.authenticate_password(details.username.clone(), password.clone())
+				.await?
 		}
-		Security::Key { private_key_content } => {
+		Security::Key {
+			private_key_content,
+		} => {
 			let (_canonical, parsed) = normalize_openssh_ed25519_seed_key(private_key_content)?;
 			let pk_with_hash = PrivateKeyWithHashAlg::new(Arc::new(parsed), None);
-			handle.authenticate_publickey(details.username.clone(), pk_with_hash).await?
+			handle
+				.authenticate_publickey(details.username.clone(), pk_with_hash)
+				.await?
 		}
 	};
 	if !matches!(auth_result, client::AuthResult::Success) {

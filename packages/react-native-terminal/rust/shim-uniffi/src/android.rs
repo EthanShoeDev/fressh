@@ -14,9 +14,7 @@
 use std::ffi::{c_char, c_void, CStr};
 use std::slice;
 
-use fressh_core::{
-	runtime, send_data, set_render_metrics, shell_input_idle_ms, shell_term,
-};
+use fressh_core::{runtime, send_data, set_render_metrics, shell_input_idle_ms, shell_term};
 use fressh_render::{ColorScheme, CursorBlink, CursorStyle, EglContext, TerminalConfig};
 use serde::Deserialize;
 
@@ -104,7 +102,10 @@ fn build_config(font_path: String, config_json: *const c_char) -> TerminalConfig
 		})
 		.unwrap_or_default();
 
-	let mut config = TerminalConfig { font_path, ..TerminalConfig::default() };
+	let mut config = TerminalConfig {
+		font_path,
+		..TerminalConfig::default()
+	};
 	if wire.font_size_px > 0.0 {
 		config.font_size_pt = wire.font_size_px;
 	}
@@ -137,7 +138,9 @@ fn cstr_opt(ptr: *const c_char) -> Option<String> {
 		return None;
 	}
 	// SAFETY: caller guarantees `ptr` is a valid NUL-terminated C string.
-	let s = unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned();
+	let s = unsafe { CStr::from_ptr(ptr) }
+		.to_string_lossy()
+		.into_owned();
 	if s.is_empty() {
 		None
 	} else {
@@ -170,7 +173,10 @@ pub unsafe extern "C" fn fressh_terminal_attach(
 	log::info!("fressh_terminal_attach: shell_id={shell_id:?} config={config:?}");
 	match EglContext::create(window, config) {
 		Ok(egl) => {
-			log::info!("fressh_terminal_attach: created, grid={:?}", egl.grid_size());
+			log::info!(
+				"fressh_terminal_attach: created, grid={:?}",
+				egl.grid_size()
+			);
 			if let Some(id) = shell_id.as_deref() {
 				fressh_core::set_cursor_default_blinking(id, cursor_default_blinking);
 			}
@@ -205,11 +211,14 @@ pub unsafe extern "C" fn fressh_terminal_set_shell(
 	if let Some(attached) = unsafe { ptr.as_mut() } {
 		attached.shell_id = cstr_opt(shell_id);
 		attached.last_state = None; // force a fresh transition log
-		// Seed the newly-bound shell's default blink from the current render config.
+							  // Seed the newly-bound shell's default blink from the current render config.
 		if let Some(id) = attached.shell_id.as_deref() {
 			fressh_core::set_cursor_default_blinking(id, attached.cursor_default_blinking);
 		}
-		log::info!("fressh_terminal_set_shell: shell_id={:?}", attached.shell_id);
+		log::info!(
+			"fressh_terminal_set_shell: shell_id={:?}",
+			attached.shell_id
+		);
 	}
 }
 

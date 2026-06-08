@@ -13,7 +13,7 @@ use alacritty_terminal::term::{viewport_to_point, TermMode};
 use alacritty_terminal::Term;
 
 use fressh_ssh::{
-	ConnectOptions, ConnectionDetails, KeyType, ProgressCallback, StartShellOptions, SshError,
+	ConnectOptions, ConnectionDetails, KeyType, ProgressCallback, SshError, StartShellOptions,
 };
 
 use crate::events::{self, CoreEvent};
@@ -36,7 +36,10 @@ static CONN_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 fn next_connection_id(details: &ConnectionDetails) -> String {
 	let n = CONN_COUNTER.fetch_add(1, Ordering::Relaxed);
-	format!("{}@{}:{}#{}", details.username, details.host, details.port, n)
+	format!(
+		"{}@{}:{}#{}",
+		details.username, details.host, details.port, n
+	)
 }
 
 /// Establish + authenticate a connection. The connection id is assigned up front
@@ -46,7 +49,9 @@ pub async fn connect(details: ConnectionDetails) -> Result<String, SshError> {
 	runtime::run(async move {
 		let connection_id = next_connection_id(&details);
 
-		let verifier = Arc::new(ParkingVerifier { connection_id: connection_id.clone() });
+		let verifier = Arc::new(ParkingVerifier {
+			connection_id: connection_id.clone(),
+		});
 
 		let progress_conn_id = connection_id.clone();
 		let on_progress: ProgressCallback = Arc::new(move |event| {
@@ -138,15 +143,13 @@ pub async fn close_preview(preview_id: String) {
 
 /// Send user input (stdin) to a shell.
 pub async fn send_data(shell_id: String, data: Vec<u8>) -> Result<(), SshError> {
-	let shell =
-		registry::shell(&shell_id).ok_or_else(|| SshError::NotFound(shell_id.clone()))?;
+	let shell = registry::shell(&shell_id).ok_or_else(|| SshError::NotFound(shell_id.clone()))?;
 	runtime::run(async move { shell.send_data(&data).await }).await
 }
 
 /// Resize a shell's terminal (reflow `Term` + SSH window-change).
 pub async fn resize(shell_id: String, cols: usize, rows: usize) -> Result<(), SshError> {
-	let shell =
-		registry::shell(&shell_id).ok_or_else(|| SshError::NotFound(shell_id.clone()))?;
+	let shell = registry::shell(&shell_id).ok_or_else(|| SshError::NotFound(shell_id.clone()))?;
 	runtime::run(async move { shell.resize(cols, rows).await }).await
 }
 
@@ -190,8 +193,12 @@ pub fn set_render_metrics(
 	padding_y: f32,
 ) {
 	if let Some(shell) = registry::shell(shell_id) {
-		*shell.metrics.lock().unwrap_or_else(|p| p.into_inner()) =
-			RenderMetrics { cell_width, cell_height, padding_x, padding_y };
+		*shell.metrics.lock().unwrap_or_else(|p| p.into_inner()) = RenderMetrics {
+			cell_width,
+			cell_height,
+			padding_x,
+			padding_y,
+		};
 	}
 }
 
@@ -200,14 +207,16 @@ pub fn set_render_metrics(
 /// rows (× screen_lines), carrying the sub-row remainder forward for smooth slow
 /// drags. Honors mouse-reporting / alt-screen modes; else moves scrollback.
 pub async fn scroll(shell_id: String, dy_frac: f32) -> Result<(), SshError> {
-	let shell =
-		registry::shell(&shell_id).ok_or_else(|| SshError::NotFound(shell_id.clone()))?;
+	let shell = registry::shell(&shell_id).ok_or_else(|| SshError::NotFound(shell_id.clone()))?;
 
 	let bytes = {
 		let mut term = shell.term.lock().unwrap_or_else(|p| p.into_inner());
 		let screen_lines = term.grid().screen_lines().max(1) as f32;
 		let lines = {
-			let mut rem = shell.scroll_remainder.lock().unwrap_or_else(|p| p.into_inner());
+			let mut rem = shell
+				.scroll_remainder
+				.lock()
+				.unwrap_or_else(|p| p.into_inner());
 			let total = *rem + dy_frac * screen_lines;
 			let whole = total.trunc();
 			*rem = total - whole;
@@ -250,7 +259,10 @@ pub fn selection_start(shell_id: &str, fx: f32, fy: f32, kind: SelectionKind) {
 	term.selection = Some(Selection::new(ty, point, side));
 	// A following drag extends the selection — don't let leftover scroll remainder
 	// bleed into it.
-	*shell.scroll_remainder.lock().unwrap_or_else(|p| p.into_inner()) = 0.0;
+	*shell
+		.scroll_remainder
+		.lock()
+		.unwrap_or_else(|p| p.into_inner()) = 0.0;
 }
 
 /// Extend the active selection to a normalized view point. No-op if none.
@@ -268,7 +280,11 @@ pub fn selection_update(shell_id: &str, fx: f32, fy: f32) {
 /// Clear any active selection.
 pub fn selection_clear(shell_id: &str) {
 	if let Some(shell) = registry::shell(shell_id) {
-		shell.term.lock().unwrap_or_else(|p| p.into_inner()).selection = None;
+		shell
+			.term
+			.lock()
+			.unwrap_or_else(|p| p.into_inner())
+			.selection = None;
 	}
 }
 
@@ -291,7 +307,11 @@ fn frac_to_point(term: &Term<CoreListener>, fx: f32, fy: f32) -> (Point, Side) {
 	let col_f = fx * columns as f32;
 	let col = (col_f as usize).min(columns - 1);
 	let viewport_line = ((fy * screen_lines as f32) as usize).min(screen_lines - 1);
-	let side = if (col_f - col as f32) < 0.5 { Side::Left } else { Side::Right };
+	let side = if (col_f - col as f32) < 0.5 {
+		Side::Left
+	} else {
+		Side::Right
+	};
 	let point = viewport_to_point(display_offset, Point::new(viewport_line, Column(col)));
 	(point, side)
 }
@@ -342,7 +362,9 @@ pub async fn disconnect(connection_id: String) -> Result<(), SshError> {
 		for shell in registry::shells_for_connection(&connection_id) {
 			registry::remove_shell(&shell.shell_id);
 			shell.close().await;
-			events::emit(CoreEvent::ShellClosed { shell_id: shell.shell_id.clone() });
+			events::emit(CoreEvent::ShellClosed {
+				shell_id: shell.shell_id.clone(),
+			});
 		}
 		if let Some(conn) = registry::remove_connection(&connection_id) {
 			let _ = conn.inner.disconnect().await;

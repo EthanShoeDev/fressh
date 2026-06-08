@@ -8,7 +8,9 @@ use thiserror::Error;
 /// Milliseconds since the unix epoch (wall clock). Used for connection/shell
 /// timestamps surfaced to the app.
 pub fn now_ms() -> f64 {
-	let d = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+	let d = SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.unwrap_or_default();
 	d.as_millis() as f64
 }
 

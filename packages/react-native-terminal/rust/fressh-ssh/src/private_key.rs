@@ -33,12 +33,16 @@ pub fn generate_key_pair(key_type: KeyType) -> Result<String, SshError> {
 		KeyType::Rsa => russh_keys::PrivateKey::random(&mut rng, Algorithm::Rsa { hash: None })?,
 		KeyType::Ecdsa => russh_keys::PrivateKey::random(
 			&mut rng,
-			Algorithm::Ecdsa { curve: EcdsaCurve::NistP256 },
+			Algorithm::Ecdsa {
+				curve: EcdsaCurve::NistP256,
+			},
 		)?,
 		KeyType::Ed25519 => russh_keys::PrivateKey::random(&mut rng, Algorithm::Ed25519)?,
 		KeyType::Ed448 => return Err(SshError::UnsupportedKeyType),
 	};
-	Ok(key.to_openssh(russh_keys::ssh_key::LineEnding::LF)?.to_string())
+	Ok(key
+		.to_openssh(russh_keys::ssh_key::LineEnding::LF)?
+		.to_string())
 }
 
 // Best-effort fix for OpenSSH ed25519 keys that store only a 32-byte seed in
@@ -58,7 +62,10 @@ pub fn normalize_openssh_ed25519_seed_key(
 
 	// If it already parses, return canonical string and parsed key.
 	if let Ok(parsed) = russh::keys::PrivateKey::from_openssh(input) {
-		let canonical = parsed.to_openssh(ssh_key::LineEnding::LF).map_err(key_err)?.to_string();
+		let canonical = parsed
+			.to_openssh(ssh_key::LineEnding::LF)
+			.map_err(key_err)?
+			.to_string();
 		return Ok((canonical, parsed));
 	}
 
@@ -172,7 +179,10 @@ pub fn normalize_openssh_ed25519_seed_key(
 
 	let candidate = try_fix_seed_only_ed25519(input).unwrap_or_else(|| input.to_string());
 	let parsed = russh::keys::PrivateKey::from_openssh(&candidate).map_err(key_err)?;
-	let canonical = parsed.to_openssh(ssh_key::LineEnding::LF).map_err(key_err)?.to_string();
+	let canonical = parsed
+		.to_openssh(ssh_key::LineEnding::LF)
+		.map_err(key_err)?
+		.to_string();
 	Ok((canonical, parsed))
 }
 

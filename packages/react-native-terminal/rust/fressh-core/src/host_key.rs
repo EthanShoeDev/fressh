@@ -27,7 +27,10 @@ impl HostKeyVerifier for ParkingVerifier {
 			let (tx, rx) = oneshot::channel();
 			// If a previous attempt for this id is still parked, drop it.
 			WAITERS.insert(connection_id.clone(), tx);
-			events::emit(CoreEvent::HostKeyPending { connection_id, info });
+			events::emit(CoreEvent::HostKeyPending {
+				connection_id,
+				info,
+			});
 			// JS resolves via respond_to_host_key; default to reject if dropped.
 			rx.await.unwrap_or(false)
 		})
