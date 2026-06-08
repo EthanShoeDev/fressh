@@ -98,8 +98,8 @@ void test('bundled command menu exposes the approved Issue 91 tree', () => {
 				{ label: 'Open Workspace', type: 'preset' },
 				{ label: 'Close Workspace', type: 'preset' },
 				{ label: 'Rename Workspace', type: 'preset' },
-				{ label: 'codex auth refresh new', type: 'preset' },
 				{ label: 'codex auth refresh', type: 'preset' },
+				{ label: 'restart codex', type: 'preset' },
 			],
 		},
 		{
@@ -159,21 +159,34 @@ void test('mdev workspace presets run existing tmux workspace commands', () => {
 	});
 });
 
-void test('codex auth refresh variants intentionally share the same command for now', () => {
+void test('mdev codex presets expose auth refresh and restart commands', () => {
 	const commandMenus = getBundledShellConfig().commandMenus;
-	const expected = [
-		{ type: 'text', data: 'mdev codex auth refresh' },
-		{ type: 'enter' },
-	];
+	const mdev = commandMenus.find(
+		(entry) => entry.type === 'submenu' && entry.label === 'mdev',
+	);
+	assert.ok(mdev);
+	assert.equal(mdev.type, 'submenu');
+	assert.equal(
+		mdev.entries.some((entry) => entry.label === 'codex auth refresh new'),
+		false,
+	);
 
-	assert.deepEqual(
-		findPreset(commandMenus, ['mdev', 'codex auth refresh new']).steps,
-		expected,
-	);
-	assert.deepEqual(
-		findPreset(commandMenus, ['mdev', 'codex auth refresh']).steps,
-		expected,
-	);
+	assert.deepEqual(findPreset(commandMenus, ['mdev', 'codex auth refresh']), {
+		type: 'preset',
+		label: 'codex auth refresh',
+		steps: [
+			{ type: 'text', data: 'mdev codex auth refresh' },
+			{ type: 'enter' },
+		],
+	});
+	assert.deepEqual(findPreset(commandMenus, ['mdev', 'restart codex']), {
+		type: 'preset',
+		label: 'restart codex',
+		steps: [
+			{ type: 'text', data: 'mdev codex restart' },
+			{ type: 'enter' },
+		],
+	});
 });
 
 void test('core8 submenu owns repo quality commands', () => {
