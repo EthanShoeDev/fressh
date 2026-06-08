@@ -328,6 +328,38 @@ pub async fn start_shell(connection_id: String, options: ShellOptions) -> Result
 		.map_err(Into::into)
 }
 
+/// Output of a one-off [`run_command`]: stdout/stderr decoded UTF-8-lossy (for
+/// display) + the exit code (absent if killed by a signal).
+#[derive(uniffi::Record)]
+pub struct CommandResult {
+	pub stdout: String,
+	pub stderr: String,
+	pub exit_code: Option<i32>,
+}
+impl From<fressh_core::CommandOutput> for CommandResult {
+	fn from(o: fressh_core::CommandOutput) -> Self {
+		CommandResult {
+			stdout: String::from_utf8_lossy(&o.stdout).into_owned(),
+			stderr: String::from_utf8_lossy(&o.stderr).into_owned(),
+			exit_code: o.exit_code,
+		}
+	}
+}
+
+/// Run a one-off command on an existing connection without a PTY/shell. The
+/// interactive shell (if any) is untouched. Note: runs in the login/home dir — an
+/// `exec` channel does NOT inherit a live shell's cwd (use `cd … && …` if needed).
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn run_command(
+	connection_id: String,
+	command: String,
+) -> Result<CommandResult, SshError> {
+	fressh_core::run_command(connection_id, command)
+		.await
+		.map(Into::into)
+		.map_err(Into::into)
+}
+
 /// Create a non-SSH preview shell fed a canned snippet, bound by `previewId`.
 /// Render it with `<Terminal shellId={previewId} />` — the live config still flows
 /// through, so it reflows as Terminal settings change. Tear down with

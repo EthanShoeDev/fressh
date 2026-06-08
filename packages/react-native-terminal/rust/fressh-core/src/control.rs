@@ -13,7 +13,8 @@ use alacritty_terminal::term::{viewport_to_point, TermMode};
 use alacritty_terminal::Term;
 
 use fressh_ssh::{
-	ConnectOptions, ConnectionDetails, KeyType, ProgressCallback, SshError, StartShellOptions,
+	CommandOutput, ConnectOptions, ConnectionDetails, KeyType, ProgressCallback, SshError,
+	StartShellOptions,
 };
 
 use crate::events::{self, CoreEvent};
@@ -106,6 +107,20 @@ pub async fn start_shell(
 		);
 		registry::insert_shell(session);
 		Ok(shell_id)
+	})
+	.await
+}
+
+/// Run a one-off command on a connection **without** a PTY/shell, returning the
+/// captured stdout/stderr/exit code. Powers the Commands tab's one-off runner.
+pub async fn run_command(
+	connection_id: String,
+	command: String,
+) -> Result<CommandOutput, SshError> {
+	runtime::run(async move {
+		let conn = registry::connection(&connection_id)
+			.ok_or_else(|| SshError::NotFound(connection_id.clone()))?;
+		conn.inner.exec_command(&command).await
 	})
 	.await
 }

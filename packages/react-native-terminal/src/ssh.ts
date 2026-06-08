@@ -22,12 +22,14 @@ import generatedModule, {
 	scroll as _scroll,
 	selectionClear as _selectionClear,
 	selectionStart as _selectionStart,
+	runCommand as _runCommand,
 	selectionText as _selectionText,
 	selectionUpdate as _selectionUpdate,
 	sendData as _sendData,
 	setEventListener as _setEventListener,
 	startShell as _startShell,
 	validatePrivateKey as _validatePrivateKey,
+	type CommandResult,
 	type ConnectionDetails,
 	type FresshEvent,
 	FresshEvent_Tags,
@@ -55,6 +57,7 @@ export {
 };
 // Records + the event union are plain object types — re-export as types.
 export type {
+	CommandResult,
 	ConnectionDetails,
 	FresshEvent,
 	FresshEventListener,
@@ -116,6 +119,14 @@ export const startShell = (
 	connectionId: ConnectionId,
 	options: ShellOptions,
 ): Promise<ShellId> => _startShell(connectionId, options);
+
+/** Run a one-off command on an existing connection without opening a PTY/shell.
+ *  Resolves to `{ stdout, stderr, exitCode }`. Runs in the login/home dir — an
+ *  `exec` channel does NOT inherit a live shell's cwd (use `cd … && …` if needed). */
+export const runCommand = (
+	connectionId: ConnectionId,
+	command: string,
+): Promise<CommandResult> => _runCommand(connectionId, command);
 
 /** Send user input (stdin). Also reachable on the render plane (the view forwards
  *  key/IME input straight to native), so most apps won't call this directly. */

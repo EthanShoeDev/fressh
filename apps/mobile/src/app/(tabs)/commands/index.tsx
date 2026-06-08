@@ -3,6 +3,7 @@ import React from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 import { PresetEditDialog } from '@/components/terminal/PresetEditDialog';
+import { RunCommandSheet } from '@/components/terminal/RunCommandSheet';
 import { Button } from '@/components/themed/Button';
 import { ScreenHeader } from '@/components/themed/ScreenHeader';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
 import { type Preset, usePresets } from '@/lib/presets';
+import { useSshStore } from '@/lib/ssh-store';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
 import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 
@@ -26,6 +28,11 @@ export default function CommandsScreen() {
 	const marginBottom = useBottomTabSpacing();
 	const primary = useCSSVariable('--color-primary') as string;
 	const [editing, setEditing] = React.useState<Preset | 'new' | null>(null);
+	const [runHost, setRunHost] = React.useState<{
+		connectionId: string;
+		label: string;
+	} | null>(null);
+	const liveConnections = useSshStore((s) => s.connections);
 
 	return (
 		<ThemedScreen edges={['top']}>
@@ -72,12 +79,13 @@ export default function CommandsScreen() {
 						</View>
 					)}
 
-					<ThemedText className='mt-6 text-center text-xs text-muted'>
-						{applyCase(
-							skin,
-							'Running one-off commands on a host (no shell) is coming next.',
-						)}
+					<ThemedText className='mb-2 mt-8 text-xs font-semibold uppercase tracking-wider text-muted'>
+						{applyCase(skin, 'Run on a host · no shell')}
 					</ThemedText>
+					<RunSection
+						connections={Object.values(liveConnections)}
+						onPick={setRunHost}
+					/>
 				</ScrollView>
 
 				{editing ? (
@@ -86,8 +94,75 @@ export default function CommandsScreen() {
 						onClose={() => setEditing(null)}
 					/>
 				) : null}
+				{runHost ? (
+					<RunCommandSheet
+						connectionId={runHost.connectionId}
+						title={runHost.label}
+						onClose={() => setRunHost(null)}
+					/>
+				) : null}
 			</View>
 		</ThemedScreen>
+	);
+}
+
+function RunSection({
+	connections,
+	onPick,
+}: {
+	connections: {
+		connectionId: string;
+		connectionDetails: { host: string; username: string };
+	}[];
+	onPick: (host: { connectionId: string; label: string }) => void;
+}) {
+	if (connections.length === 0) {
+		return (
+			<ThemedText className='text-sm text-muted'>
+				Connect to a host (from the Servers tab) to run a one-off command here
+				without opening another shell. Connecting fresh for a one-off is coming.
+			</ThemedText>
+		);
+	}
+	return (
+		<View className='gap-2.5'>
+			{connections.map((conn) => {
+				const label = `${conn.connectionDetails.username}@${conn.connectionDetails.host}`;
+				return (
+					<HostRow
+						key={conn.connectionId}
+						label={label}
+						onPress={() => onPick({ connectionId: conn.connectionId, label })}
+					/>
+				);
+			})}
+		</View>
+	);
+}
+
+function HostRow({ label, onPress }: { label: string; onPress: () => void }) {
+	const skin = useThemeSkin();
+	const cardStyle = useSurfaceStyle();
+	const muted = useCSSVariable('--color-muted') as string;
+	const monoFamily = skin.mono ? skin.monoFamily : undefined;
+	return (
+		<Pressable
+			onPress={onPress}
+			className='flex-row items-center gap-3 px-4 py-3'
+			style={cardStyle}
+		>
+			<FontAwesome6 name='server' size={13} color={muted} />
+			<ThemedText
+				className='flex-1 text-[15px] font-semibold text-text-primary'
+				numberOfLines={1}
+				style={monoFamily ? { fontFamily: monoFamily } : undefined}
+			>
+				{label}
+			</ThemedText>
+			<ThemedText className='text-[13px] font-bold text-primary'>
+				{applyCase(skin, 'Run')} ›
+			</ThemedText>
+		</Pressable>
 	);
 }
 

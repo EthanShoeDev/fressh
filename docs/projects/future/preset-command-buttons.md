@@ -138,16 +138,31 @@ interface Preset {
   global `definePref`-backed store (`lib/presets.ts`) + add/edit/delete (`+` to add,
   long-press to edit, `autoRun` toggle). Pure `sendBytes`. Shipped with the surface doc's
   v1 paged toolbar.
-- **v1 — the Commands tab.** New bottom tab with **both jobs**: (1) the preset manager
-  (list + add/edit/delete, reusing the store + editor shipped in v0), and (2) the one-off
-  runner — add the `exec` helper to `fressh-ssh`, host pick → preset/ad-hoc → result panel,
-  reusing the saved-host list. The runner is the bigger, more-novel half (needs the native
-  addition); the manager is mostly UI over the existing store.
+- **v1 — the Commands tab. ✅ MOSTLY DONE.** New bottom tab with both jobs:
+  - **Manager** (shipped): list + add/edit/delete over the shared store/editor.
+  - **One-off runner** (shipped for live connections): the `exec` helper landed —
+    `Connection::exec_command` (no-PTY `channel.exec`, collects stdout/stderr + exit code,
+    256 KiB cap) → `fressh_core::run_command` → shim `CommandResult` → JS `runCommand`. The
+    `RunCommandSheet` runs on a **currently-live** connection (sibling channel, shell
+    untouched), with preset quick-fill chips + a result panel (exit pill, stdout/stderr).
+  - *Still pending:* **connect-fresh for a one-off** (host not currently connected) — needs
+    the connect-without-shell + host-key/credential flow; today the runner only lists live
+    connections. And the per-run **working-dir** field (see the cwd open question).
 - **v2 — per-host presets + polish.** Per-host scope via connection metadata; reorder;
   icons; "save last command as preset"; "open a shell here" from a result.
 
 ## Open questions
 
+- ~~**cwd for one-off commands.**~~ Resolved (2026-06-08): an SSH `exec` channel starts
+  in the **login/home dir** and does NOT inherit any live shell's cwd (true even when we
+  reuse a live connection — exec is a sibling channel, not the shell). So: **presets stay
+  `label`+`command`, no `cwd` field** (a per-preset cwd would fight the in-shell use and
+  split presets into two categories). v1 runner runs in `$HOME`; the user can
+  `cd /path && cmd` in the command body (works identically in-shell and one-off).
+  *Fast-follow:* a per-**run** working-dir field on the runner screen (a property of the
+  run, not the preset), defaulting to home — and, when the host has a live shell, offering
+  that shell's known cwd from the `ShellContext` store. Same cwd-tracking story as the git
+  doc.
 - **Global vs per-host scope.** v1 global; is per-host worth the metadata + merge
   complexity, or do tags/folders serve better? Most presets are global.
 - **Auto-run vs insert.** Default to send-with-Enter, or insert-and-let-user-confirm?

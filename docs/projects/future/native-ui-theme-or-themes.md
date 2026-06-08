@@ -173,3 +173,7 @@ Unlike [terminal-semantic-events.md](../complete/terminal-semantic-events.md) /
 (byte-source / renderer), this one is purely **app-shell UI** — it touches the theme
 system and settings controls, not the `Term`/SSH/render stack at all. It's the most
 self-contained of the future projects and could ship independently.
+
+
+IDEALLY:
+If the native theme is applied the app is faster. Like we should not use the skia background if this is applied.

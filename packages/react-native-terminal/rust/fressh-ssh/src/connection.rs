@@ -125,6 +125,29 @@ impl client::Handler for Handler {
 	}
 }
 
+/// Captured output of a one-off [`Connection::exec_command`] run.
+#[derive(Debug, Clone)]
+pub struct CommandOutput {
+	pub stdout: Vec<u8>,
+	pub stderr: Vec<u8>,
+	/// Exit code, or `None` if the command was killed by a signal / the server
+	/// omitted it.
+	pub exit_code: Option<i32>,
+}
+
+/// Soft cap on captured stdout/stderr (each) for a one-off command, so a runaway
+/// command (`cat huge`, `yes`) can't OOM the app. Excess is dropped; the channel is
+/// still drained so it closes cleanly.
+const EXEC_OUTPUT_CAP: usize = 256 * 1024;
+
+fn append_capped(buf: &mut Vec<u8>, data: &[u8]) {
+	if buf.len() >= EXEC_OUTPUT_CAP {
+		return;
+	}
+	let room = EXEC_OUTPUT_CAP - buf.len();
+	buf.extend_from_slice(&data[..data.len().min(room)]);
+}
+
 /// A live, authenticated SSH connection. Lifetime is owned by `fressh-core`'s
 /// registry, not by a JS handle. (§7)
 pub struct Connection {
@@ -200,6 +223,47 @@ impl Connection {
 			created_at_ms: started_at_ms,
 			reader: ShellReader::new(reader),
 			writer: ShellWriter::new(writer),
+		})
+	}
+
+	/// Run a single command on this connection **without a PTY or shell** (the russh
+	/// `exec` request): open a sibling session channel, `exec` the command, collect
+	/// stdout/stderr until the channel closes, and return them with the exit code.
+	/// The interactive shell (if any) is untouched — this is just another channel on
+	/// the same multiplexed transport. Powers the Commands tab's one-off runner and
+	/// (later) out-of-band `git status`.
+	pub async fn exec_command(&self, command: &str) -> Result<CommandOutput, SshError> {
+		// Hold the client-handle lock only long enough to OPEN the channel; the
+		// returned channel is owned, so the read loop below doesn't block the shell's
+		// writes (which use their own channel write-half, not this lock).
+		let mut ch = {
+			let handle = self.client_handle.lock().await;
+			handle.channel_open_session().await?
+		};
+		ch.exec(true, command.as_bytes().to_vec()).await?;
+
+		let mut stdout = Vec::new();
+		let mut stderr = Vec::new();
+		let mut exit_code = None;
+		while let Some(msg) = ch.wait().await {
+			match msg {
+				russh::ChannelMsg::Data { data } => append_capped(&mut stdout, &data),
+				russh::ChannelMsg::ExtendedData { data, ext } => {
+					// ext == 1 is stderr (SSH_EXTENDED_DATA_STDERR); fold anything else
+					// into stdout rather than dropping it.
+					append_capped(if ext == 1 { &mut stderr } else { &mut stdout }, &data);
+				}
+				russh::ChannelMsg::ExitStatus { exit_status } => {
+					exit_code = Some(exit_status as i32);
+				}
+				// Eof/Close end the stream; the loop exits when `wait` returns None.
+				_ => {}
+			}
+		}
+		Ok(CommandOutput {
+			stdout,
+			stderr,
+			exit_code,
 		})
 	}
 

@@ -13,9 +13,9 @@ pub mod shell_integration;
 pub mod utils;
 
 pub use connection::{
-	connect, ConnectOptions, Connection, ConnectionDetails, HostKeyVerifier, ProgressCallback,
-	Security, ServerPublicKeyInfo, SshConnectionInfo, SshConnectionInfoProgressTimings,
-	SshConnectionProgressEvent,
+	connect, CommandOutput, ConnectOptions, Connection, ConnectionDetails, HostKeyVerifier,
+	ProgressCallback, Security, ServerPublicKeyInfo, SshConnectionInfo,
+	SshConnectionInfoProgressTimings, SshConnectionProgressEvent,
 };
 pub use private_key::{generate_key_pair, validate_private_key, KeyType};
 pub use shell::{

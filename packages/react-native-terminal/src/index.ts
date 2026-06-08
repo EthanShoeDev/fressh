@@ -24,6 +24,7 @@ export {
 	KeyType,
 	resize,
 	respondToHostKey,
+	runCommand,
 	scroll,
 	Security,
 	selectionClear,
@@ -39,6 +40,7 @@ export {
 	validatePrivateKey,
 } from './ssh';
 export type {
+	CommandResult,
 	ConnectionDetails,
 	ConnectionId,
 	FresshEvent,
