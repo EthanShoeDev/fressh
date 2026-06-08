@@ -7,7 +7,10 @@ export type DirectTmuxShellLike = {
 		options: { cursor: { mode: 'live' } },
 	) => bigint;
 	removeListener?: (listenerId: bigint) => void;
-	sendData: (bytes: ArrayBuffer, opts?: { signal?: AbortSignal }) => Promise<void>;
+	sendData: (
+		bytes: ArrayBuffer,
+		opts?: { signal?: AbortSignal },
+	) => Promise<void>;
 	close: (opts?: { signal?: AbortSignal }) => Promise<void>;
 };
 
@@ -97,13 +100,6 @@ export function buildDirectTmuxScrollMoveCommand({
 	].join(' ');
 }
 
-export function buildDirectTmuxSelectWindowCommand(
-	sessionName: string,
-	windowId: string,
-): string {
-	return `tmux select-window -t ${quoteTmuxTarget(`${sessionName}:${windowId}`)}`;
-}
-
 export function createDirectTmuxControlTransport({
 	connection,
 }: {
@@ -137,7 +133,9 @@ export function createDirectTmuxControlTransport({
 	const sendNow = async (command: string) => {
 		try {
 			const shell = await getShell();
-			await shell.sendData(encoder.encode(`${command}\n`).buffer as ArrayBuffer);
+			await shell.sendData(
+				encoder.encode(`${command}\n`).buffer as ArrayBuffer,
+			);
 			return true;
 		} catch {
 			await closeCachedShell();

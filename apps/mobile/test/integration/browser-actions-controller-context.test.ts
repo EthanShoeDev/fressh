@@ -3,10 +3,10 @@ import test from 'node:test';
 import {
 	runBrowserActionsDetectedOpen,
 	runBrowserActionsDiffityShare,
+	resolveBrowserActionsWorkspace,
 } from '../../src/lib/browser-actions-controller-actions';
 import {
 	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
-	isWorkmuxAppCommand,
 	type WorkmuxAppContext,
 } from '../../src/lib/workmux-app-commands';
 
@@ -36,27 +36,33 @@ function createRemoteHarness(options?: {
 	contextFailure?: { output?: string; error?: string };
 }) {
 	const commands: BrowserActionsRemoteCommand[] = [];
+	const workmuxCommands: { argv: string[]; timeoutMs: number }[] = [];
 
 	return {
 		commands,
+		workmuxCommands,
 		runHostBrowserCommand: async (
 			command: string,
 			timeoutMs: number,
 		): Promise<string> => {
 			commands.push({ command, timeoutMs });
-			if (isWorkmuxAppCommand(command) && command.includes(' context ')) {
-				const failure = options?.contextFailure;
-				if (failure) {
-					throw new Error(
-						failure.error ?? failure.output ?? 'Remote command failed.',
-					);
-				}
-				return JSON.stringify(context);
-			}
 			if (command.includes('mdev diffity share')) {
 				return 'https://example.test/diff';
 			}
 			return '';
+		},
+		runWorkmuxCommand: async (
+			argv: string[],
+			timeoutMs: number,
+		): Promise<string> => {
+			workmuxCommands.push({ argv, timeoutMs });
+			const failure = options?.contextFailure;
+			if (failure) {
+				throw new Error(
+					failure.error ?? failure.output ?? 'Remote command failed.',
+				);
+			}
+			return JSON.stringify(context);
 		},
 	};
 }
@@ -68,15 +74,18 @@ void test('browser actions diffity resolves pane path through Workmux app contex
 		tmuxEnabled: true,
 		tmuxTarget: "main'quoted",
 		runHostBrowserCommand: harness.runHostBrowserCommand,
+		runWorkmuxCommand: harness.runWorkmuxCommand,
 		getErrorMessage: (error) =>
 			error instanceof Error ? error.message : String(error),
 	});
 
-	assert.deepEqual(harness.commands, [
+	assert.deepEqual(harness.workmuxCommands, [
 		{
-			command: "mdev tmux app context --session 'main'\\''quoted'",
+			argv: ['tmux', 'app', 'context', '--session', "main'quoted"],
 			timeoutMs: 10_000,
 		},
+	]);
+	assert.deepEqual(harness.commands, [
 		{
 			command: "cd '/home/muly/fressh/apps/mobile'\\''s' && mdev diffity share",
 			timeoutMs: 60_000,
@@ -92,21 +101,49 @@ void test('browser actions detected open resolves pane context through Workmux a
 		tmuxEnabled: true,
 		tmuxTarget: 'main',
 		runHostBrowserCommand: harness.runHostBrowserCommand,
+		runWorkmuxCommand: harness.runWorkmuxCommand,
 		getErrorMessage: (error) =>
 			error instanceof Error ? error.message : String(error),
 	});
 
-	assert.deepEqual(harness.commands, [
+	assert.deepEqual(harness.workmuxCommands, [
 		{
-			command: "mdev tmux app context --session 'main'",
+			argv: ['tmux', 'app', 'context', '--session', 'main'],
 			timeoutMs: 10_000,
 		},
+	]);
+	assert.deepEqual(harness.commands, [
 		{
 			command:
 				"TMUX_PANE='%34' TMUX_PANE_TTY='/dev/pts/12' TMUX_PANE_PATH='/home/muly/fressh/apps/mobile'\\''s' mdev open pick",
 			timeoutMs: 60_000,
 		},
 	]);
+});
+
+void test('browser actions resolves workspace through Workmux app context', async () => {
+	const harness = createRemoteHarness();
+
+	const workspace = await resolveBrowserActionsWorkspace({
+		tmuxEnabled: true,
+		tmuxTarget: 'main',
+		runHostBrowserCommand: harness.runHostBrowserCommand,
+		runWorkmuxCommand: harness.runWorkmuxCommand,
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	assert.deepEqual(harness.workmuxCommands, [
+		{
+			argv: ['tmux', 'app', 'context', '--session', 'main'],
+			timeoutMs: 10_000,
+		},
+	]);
+	assert.deepEqual(workspace, {
+		panePath: "/home/muly/fressh/apps/mobile's",
+		projectRoot: '/home/muly/fressh',
+		projectName: 'fressh',
+	});
 });
 
 void test('browser actions format old mdev Workmux app context failures', async () => {
@@ -119,6 +156,7 @@ void test('browser actions format old mdev Workmux app context failures', async 
 			tmuxEnabled: true,
 			tmuxTarget: 'main',
 			runHostBrowserCommand: harness.runHostBrowserCommand,
+			runWorkmuxCommand: harness.runWorkmuxCommand,
 			getErrorMessage: (error) =>
 				error instanceof Error ? error.message : String(error),
 		}),

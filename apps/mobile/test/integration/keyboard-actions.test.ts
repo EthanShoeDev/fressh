@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { HOST_BROWSER_NO_CONNECTION_MESSAGE } from '../../src/lib/host-browser-actions';
 import {
@@ -286,13 +287,13 @@ void test('Workmux keyboard actions delegate semantic commands without sending b
 });
 
 void test('Workmux status keyboard action runs mdev-backed status cycle', async () => {
-	const calls: string[] = [];
+	const calls: string[][] = [];
 	const failures: string[] = [];
 	const runner = createWorkmuxKeyboardCommandRunner({
 		isTmuxEnabled: () => true,
 		getSessionName: () => 'main',
-		runHostCommand: async (command) => {
-			calls.push(command);
+		runWorkmuxCommand: async (argv) => {
+			calls.push(argv);
 		},
 		showFailure: (message) => failures.push(message),
 		getErrorMessage: (error) =>
@@ -311,7 +312,7 @@ void test('Workmux status keyboard action runs mdev-backed status cycle', async 
 			runner.run(command),
 	} as Parameters<typeof runAction>[1]);
 
-	assert.deepEqual(calls, ["mdev tmux nav cycle 'main:'"]);
+	assert.deepEqual(calls, [['tmux', 'nav', 'cycle', 'main:']]);
 	assert.deepEqual(failures, []);
 	assert.deepEqual(WORKMUX_KEYBOARD_COMPATIBILITY_ACTION_IDS, [
 		'CYCLE_WORKMUX_STATUS',
@@ -336,17 +337,13 @@ void test('Workmux status keyboard action runs mdev-backed status cycle', async 
 	);
 });
 
-void test('Workmux keyboard runner prefers argv command transport', async () => {
+void test('Workmux keyboard runner uses required argv command transport', async () => {
 	const argvCalls: { argv: string[]; timeoutMs: number }[] = [];
-	const hostCalls: string[] = [];
 	const runner = createWorkmuxKeyboardCommandRunner({
 		isTmuxEnabled: () => true,
 		getSessionName: () => 'main',
 		runWorkmuxCommand: async (argv, timeoutMs) => {
 			argvCalls.push({ argv, timeoutMs });
-		},
-		runHostCommand: async (command) => {
-			hostCalls.push(command);
 		},
 		showFailure: () => {},
 		getErrorMessage: (error) =>
@@ -362,20 +359,15 @@ void test('Workmux keyboard runner prefers argv command transport', async () => 
 			timeoutMs: 10_000,
 		},
 	]);
-	assert.deepEqual(hostCalls, []);
 });
 
-void test('Workmux status cycle prefers argv command transport', async () => {
+void test('Workmux status cycle uses required argv command transport', async () => {
 	const argvCalls: { argv: string[]; timeoutMs: number }[] = [];
-	const hostCalls: string[] = [];
 	const runner = createWorkmuxKeyboardCommandRunner({
 		isTmuxEnabled: () => true,
 		getSessionName: () => 'main',
 		runWorkmuxCommand: async (argv, timeoutMs) => {
 			argvCalls.push({ argv, timeoutMs });
-		},
-		runHostCommand: async (command) => {
-			hostCalls.push(command);
 		},
 		showFailure: () => {},
 		getErrorMessage: (error) =>
@@ -391,7 +383,6 @@ void test('Workmux status cycle prefers argv command transport', async () => {
 			timeoutMs: 10_000,
 		},
 	]);
-	assert.deepEqual(hostCalls, []);
 });
 
 void test('Workmux status cycle normalizes old mdev argv failures', async () => {
@@ -401,9 +392,6 @@ void test('Workmux status cycle normalizes old mdev argv failures', async () => 
 		getSessionName: () => 'main',
 		runWorkmuxCommand: async () => {
 			throw new Error('Unknown tmux command: nav');
-		},
-		runHostCommand: async () => {
-			throw new Error('host command should not run');
 		},
 		showFailure: (message) => failures.push(message),
 		getErrorMessage: (error) =>
@@ -416,28 +404,12 @@ void test('Workmux status cycle normalizes old mdev argv failures', async () => 
 	assert.deepEqual(failures, [WORKMUX_APP_COMMAND_UPDATE_MESSAGE]);
 });
 
-void test('Workmux keyboard runner keeps host command fallback', async () => {
-	const hostCalls: { command: string; timeoutMs: number }[] = [];
-	const runner = createWorkmuxKeyboardCommandRunner({
-		isTmuxEnabled: () => true,
-		getSessionName: () => 'main',
-		runHostCommand: async (command, timeoutMs) => {
-			hostCalls.push({ command, timeoutMs });
-		},
-		showFailure: () => {},
-		getErrorMessage: (error) =>
-			error instanceof Error ? error.message : String(error),
-	});
-
-	assert.deepEqual(await runner.run({ type: 'focus', target: 'codex' }), {
-		status: 'handled',
-	});
-	assert.deepEqual(hostCalls, [
-		{
-			command: "mdev tmux app focus 'codex' --session 'main'",
-			timeoutMs: 10_000,
-		},
-	]);
+void test('Workmux keyboard runner has no host command fallback', () => {
+	const source = readFileSync('src/lib/keyboard-actions.ts', 'utf8');
+	assert.doesNotMatch(source, /runHostCommand/);
+	assert.doesNotMatch(source, /buildWorkmuxAppFocusCommand/);
+	assert.doesNotMatch(source, /buildWorkmuxAppNavCommand/);
+	assert.doesNotMatch(source, /buildWorkmuxStatusCycleCommand/);
 });
 
 void test('Workmux runAction waits for command handling and preserves Promise<void>', async () => {
@@ -490,12 +462,12 @@ void test('Workmux keyboard failure copy preserves local precondition failures',
 
 void test('Workmux keyboard command runner builds app commands and serializes execution', async () => {
 	const firstBlock = deferred<void>();
-	const calls: { command: string; timeoutMs: number }[] = [];
+	const calls: { argv: string[]; timeoutMs: number }[] = [];
 	const runner = createWorkmuxKeyboardCommandRunner({
 		isTmuxEnabled: () => true,
 		getSessionName: () => ' work ',
-		runHostCommand: async (command, timeoutMs) => {
-			calls.push({ command, timeoutMs });
+		runWorkmuxCommand: async (argv, timeoutMs) => {
+			calls.push({ argv, timeoutMs });
 			if (calls.length === 1) await firstBlock.promise;
 		},
 		showFailure: () => {},
@@ -508,7 +480,7 @@ void test('Workmux keyboard command runner builds app commands and serializes ex
 	await Promise.resolve();
 	assert.deepEqual(calls, [
 		{
-			command: "mdev tmux app focus 'claude' --session 'work'",
+			argv: ['tmux', 'app', 'focus', 'claude', '--session', 'work'],
 			timeoutMs: 10_000,
 		},
 	]);
@@ -521,11 +493,11 @@ void test('Workmux keyboard command runner builds app commands and serializes ex
 
 	assert.deepEqual(calls, [
 		{
-			command: "mdev tmux app focus 'claude' --session 'work'",
+			argv: ['tmux', 'app', 'focus', 'claude', '--session', 'work'],
 			timeoutMs: 10_000,
 		},
 		{
-			command: "mdev tmux app nav 'next' --session 'work'",
+			argv: ['tmux', 'app', 'nav', 'next', '--session', 'work'],
 			timeoutMs: 10_000,
 		},
 	]);
@@ -533,12 +505,12 @@ void test('Workmux keyboard command runner builds app commands and serializes ex
 
 void test('Workmux keyboard command runner bounds pending repeated commands to the latest command', async () => {
 	const firstBlock = deferred<void>();
-	const calls: string[] = [];
+	const calls: string[][] = [];
 	const runner = createWorkmuxKeyboardCommandRunner({
 		isTmuxEnabled: () => true,
 		getSessionName: () => 'main',
-		runHostCommand: async (command) => {
-			calls.push(command);
+		runWorkmuxCommand: async (argv) => {
+			calls.push(argv);
 			if (calls.length === 1) await firstBlock.promise;
 		},
 		showFailure: () => {},
@@ -559,14 +531,16 @@ void test('Workmux keyboard command runner bounds pending repeated commands to t
 	}
 
 	await Promise.resolve();
-	assert.deepEqual(calls, ["mdev tmux app nav 'prev' --session 'main'"]);
+	assert.deepEqual(calls, [
+		['tmux', 'app', 'nav', 'prev', '--session', 'main'],
+	]);
 
 	firstBlock.resolve(undefined);
 	const results = await Promise.all([first, ...queued]);
 
 	assert.deepEqual(calls, [
-		"mdev tmux app nav 'prev' --session 'main'",
-		"mdev tmux app focus 'bash' --session 'main'",
+		['tmux', 'app', 'nav', 'prev', '--session', 'main'],
+		['tmux', 'app', 'focus', 'bash', '--session', 'main'],
 	]);
 	assert.deepEqual(results, [
 		{ status: 'handled' },
@@ -577,16 +551,16 @@ void test('Workmux keyboard command runner bounds pending repeated commands to t
 
 void test('Workmux keyboard command runner reads live dependencies for pending commands', async () => {
 	const firstBlock = deferred<void>();
-	const calls: { source: string; command: string }[] = [];
+	const calls: { source: string; argv: string[] }[] = [];
 	let sessionName = 'old';
-	let runHostCommand = async (command: string) => {
-		calls.push({ source: 'old', command });
+	let runWorkmuxCommand = async (argv: string[]) => {
+		calls.push({ source: 'old', argv });
 		if (calls.length === 1) await firstBlock.promise;
 	};
 	const runner = createWorkmuxKeyboardCommandRunner({
 		isTmuxEnabled: () => true,
 		getSessionName: () => sessionName,
-		runHostCommand: (command) => runHostCommand(command),
+		runWorkmuxCommand: (argv) => runWorkmuxCommand(argv),
 		showFailure: () => {},
 		getErrorMessage: (error) =>
 			error instanceof Error ? error.message : String(error),
@@ -596,8 +570,8 @@ void test('Workmux keyboard command runner reads live dependencies for pending c
 	const second = runner.run({ type: 'focus', target: 'bash' });
 	await Promise.resolve();
 	sessionName = 'new';
-	runHostCommand = async (command: string) => {
-		calls.push({ source: 'new', command });
+	runWorkmuxCommand = async (argv: string[]) => {
+		calls.push({ source: 'new', argv });
 	};
 	firstBlock.resolve(undefined);
 	assert.deepEqual(await Promise.all([first, second]), [
@@ -608,11 +582,11 @@ void test('Workmux keyboard command runner reads live dependencies for pending c
 	assert.deepEqual(calls, [
 		{
 			source: 'old',
-			command: "mdev tmux app focus 'git' --session 'old'",
+			argv: ['tmux', 'app', 'focus', 'git', '--session', 'old'],
 		},
 		{
 			source: 'new',
-			command: "mdev tmux app focus 'bash' --session 'new'",
+			argv: ['tmux', 'app', 'focus', 'bash', '--session', 'new'],
 		},
 	]);
 });
@@ -625,8 +599,8 @@ void test('Workmux keyboard command runner reads live enabled state for pending 
 	const runner = createWorkmuxKeyboardCommandRunner({
 		isTmuxEnabled: () => tmuxEnabled,
 		getSessionName: () => 'main',
-		runHostCommand: async (command) => {
-			calls.push(command);
+		runWorkmuxCommand: async (argv) => {
+			calls.push(argv.join(' '));
 			if (calls.length === 1) await firstBlock.promise;
 		},
 		showFailure: (message) => failures.push(message),
@@ -644,7 +618,7 @@ void test('Workmux keyboard command runner reads live enabled state for pending 
 		{ status: 'handled' },
 		{ status: 'handled' },
 	]);
-	assert.deepEqual(calls, ["mdev tmux app focus 'git' --session 'main'"]);
+	assert.deepEqual(calls, ['tmux app focus git --session main']);
 	assert.deepEqual(failures, [WORKMUX_KEYBOARD_COMMAND_DISABLED_MESSAGE]);
 });
 
@@ -655,8 +629,8 @@ void test('Workmux keyboard command runner invalidates pending commands and stal
 	const runner = createWorkmuxKeyboardCommandRunner({
 		isTmuxEnabled: () => true,
 		getSessionName: () => 'main',
-		runHostCommand: async (command) => {
-			calls.push(command);
+		runWorkmuxCommand: async (argv) => {
+			calls.push(argv.join(' '));
 			if (calls.length === 1) {
 				await firstBlock.promise;
 				throw new Error('mdev: command not found');
@@ -677,7 +651,7 @@ void test('Workmux keyboard command runner invalidates pending commands and stal
 		{ status: 'superseded' },
 		{ status: 'superseded' },
 	]);
-	assert.deepEqual(calls, ["mdev tmux app nav 'prev' --session 'main'"]);
+	assert.deepEqual(calls, ['tmux app nav prev --session main']);
 	assert.deepEqual(failures, []);
 });
 
@@ -688,7 +662,7 @@ void test('Workmux keyboard command runner preserves local failures and maps rem
 	const runner = createWorkmuxKeyboardCommandRunner({
 		isTmuxEnabled: () => tmuxEnabled,
 		getSessionName: () => '',
-		runHostCommand: async () => {
+		runWorkmuxCommand: async () => {
 			if (error) throw error;
 		},
 		showFailure: (message) => failures.push(message),

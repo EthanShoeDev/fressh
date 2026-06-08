@@ -14,6 +14,13 @@
 			.xterm-viewport {
 				background-color: inherit !important;
 			}
+			.fressh-touch-scroll-enabled .xterm-viewport {
+				overflow-y: hidden !important;
+				scrollbar-width: none;
+			}
+			.fressh-touch-scroll-enabled .xterm-viewport::-webkit-scrollbar {
+				display: none;
+			}
 			.xterm-screen {
 				height: 100% !important;
 			}

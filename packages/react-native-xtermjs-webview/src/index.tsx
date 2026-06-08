@@ -90,6 +90,12 @@ const defaultWebViewProps: WebViewOptions = {
 	scalesPageToFit: false,
 	contentMode: 'mobile',
 };
+const touchScrollWebViewProps: WebViewOptions = {
+	scrollEnabled: false,
+	nestedScrollEnabled: false,
+	showsVerticalScrollIndicator: false,
+	showsHorizontalScrollIndicator: false,
+};
 
 const defaultXtermOptions = createDefaultXtermOptions();
 
@@ -539,6 +545,7 @@ export function XtermJsWebView({
 		},
 		[logger, webViewOptions],
 	);
+	const touchScrollOwnsViewport = touchScrollConfig?.enabled === true;
 	const onLoadStart = useCallback<NonNullable<WebViewOptions['onLoadStart']>>(
 		(e) => {
 			if (remountingForBridgeLoadRef.current) {
@@ -575,6 +582,7 @@ export function XtermJsWebView({
 		() => ({
 			...defaultWebViewProps,
 			...webViewOptions,
+			...(touchScrollOwnsViewport ? touchScrollWebViewProps : {}),
 			onLoadStart,
 			onContentProcessDidTerminate,
 			onRenderProcessGone,
@@ -586,6 +594,7 @@ export function XtermJsWebView({
 			onContentProcessDidTerminate,
 			onRenderProcessGone,
 			onLoadEnd,
+			touchScrollOwnsViewport,
 		],
 	);
 

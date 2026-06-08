@@ -6,30 +6,69 @@ export type DiscoveredSkill = {
 	description: string | null;
 };
 
+export type SkillProject = {
+	projectRoot: string;
+	projectName: string;
+};
+
+export type SkillDiscoveryResult = SkillProject & {
+	skills: DiscoveredSkill[];
+};
+
 type SkillDiscoveryRecord = {
 	path: string;
 	content: string;
+};
+
+type SkillDiscoveryEnvelope = {
+	projectRoot: string;
+	records: SkillDiscoveryRecord[];
 };
 
 const skillDiscoveryJsonBeginMarker = '__FRESSH_SKILL_DISCOVERY_JSON_BEGIN__';
 const skillDiscoveryJsonEndMarker = '__FRESSH_SKILL_DISCOVERY_JSON_END__';
 const skillPathPattern = /\/\.(?:agents|codex)\/skills\/([^/]+)\/SKILL\.md$/;
 
-export function parseSkillDiscoveryOutput(output: string): DiscoveredSkill[] {
+export function getSkillProjectName(projectRoot: string): string {
+	const normalized = projectRoot.replace(/\/+$/, '');
+	if (!normalized) return '/';
+	return normalized.split('/').at(-1) || normalized || '/';
+}
+
+export function parseSkillDiscoveryResult(
+	output: string,
+): SkillDiscoveryResult | null {
 	const jsonPayload = extractSkillDiscoveryJsonPayload(output);
-	if (!jsonPayload) return [];
+	if (!jsonPayload) return null;
 
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(jsonPayload);
 	} catch {
-		return [];
+		return null;
 	}
-	if (!Array.isArray(parsed)) return [];
 
+	if (
+		typeof parsed !== 'object' ||
+		parsed === null ||
+		typeof (parsed as SkillDiscoveryEnvelope).projectRoot !== 'string' ||
+		!Array.isArray((parsed as SkillDiscoveryEnvelope).records)
+	) {
+		return null;
+	}
+
+	const envelope = parsed as SkillDiscoveryEnvelope;
+	return {
+		projectRoot: envelope.projectRoot,
+		projectName: getSkillProjectName(envelope.projectRoot),
+		skills: parseSkillDiscoveryRecords(envelope.records),
+	};
+}
+
+function parseSkillDiscoveryRecords(records: unknown[]): DiscoveredSkill[] {
 	const skills: DiscoveredSkill[] = [];
 	const seenNames = new Set<string>();
-	for (const record of parsed) {
+	for (const record of records) {
 		if (!isSkillDiscoveryRecord(record)) continue;
 
 		const pathMatch = record.path.match(skillPathPattern);
@@ -87,48 +126,24 @@ function getSkillSearchRank(
 	return null;
 }
 
-export function buildSkillDiscoveryCommand(panePath: string): string {
+export function buildSkillDiscoveryCommand(projectRoot: string): string {
 	const scriptBody = [
-		'import json,pathlib,subprocess,sys',
-		'start=pathlib.Path(sys.argv[1])',
-		'try:',
-		"    git=subprocess.run(['git','-C',str(start),'rev-parse','--show-toplevel'], text=True, capture_output=True)",
-		'except OSError:',
-		'    git=None',
-		'base=pathlib.Path(git.stdout.strip()) if git and git.returncode == 0 and git.stdout.strip() else start',
-		'start=start.resolve()',
+		'import json,pathlib,sys',
+		'base=pathlib.Path(sys.argv[1])',
 		'base=base.resolve()',
-		'candidates=[]',
-		'current=start',
-		'while True:',
-		'    candidates.append(current)',
-		'    if current == base or current.parent == current: break',
-		'    current=current.parent',
-		'if base not in candidates: candidates.append(base)',
-		'roots=[]',
-		'seen_roots=set()',
-		'for candidate in candidates:',
-		"    for root in [candidate/'.agents'/'skills',candidate/'.codex'/'skills']:",
-		'        key=str(root)',
-		'        if key in seen_roots: continue',
-		'        seen_roots.add(key)',
-		'        roots.append(root)',
+		"roots=[base/'.agents'/'skills',base/'.codex'/'skills']",
 		'records=[]',
-		'seen_records=set()',
 		'for root in roots:',
 		"    for skill_file in sorted(root.glob('*/SKILL.md')):",
-		'        record_key=str(skill_file)',
-		'        if record_key in seen_records: continue',
-		'        seen_records.add(record_key)',
 		"        try: content=skill_file.read_text(encoding='utf-8', errors='replace')",
 		'        except OSError: continue',
 		"        records.append({'path': str(skill_file), 'content': content})",
 		`print(${JSON.stringify(skillDiscoveryJsonBeginMarker)})`,
-		'print(json.dumps(records))',
+		"print(json.dumps({'projectRoot': str(base), 'records': records}))",
 		`print(${JSON.stringify(skillDiscoveryJsonEndMarker)})`,
 	].join('\n');
 	const script = `exec(${JSON.stringify(scriptBody)})`;
-	return `python3 -c ${quoteShell(script)} ${quoteShell(panePath)}`;
+	return `python3 -c ${quoteShell(script)} ${quoteShell(projectRoot)}`;
 }
 
 function extractSkillDiscoveryJsonPayload(output: string): string | null {
@@ -139,7 +154,9 @@ function extractSkillDiscoveryJsonPayload(output: string): string | null {
 	const beginIndex = lines.findIndex(
 		(line) => stripAnsi(line).trim() === skillDiscoveryJsonBeginMarker,
 	);
-	if (beginIndex < 0) return trimmed.startsWith('[') ? trimmed : null;
+	if (beginIndex < 0) {
+		return trimmed.startsWith('[') || trimmed.startsWith('{') ? trimmed : null;
+	}
 	const endIndex = lines.findIndex(
 		(line, index) =>
 			index > beginIndex &&

@@ -224,6 +224,9 @@ function wrapCommandStream(stream) {
     channelId: info.channelId,
     createdAtMs: info.createdAtMs,
     connectionId: info.connectionId,
+    sendData: (data, opts) => stream.sendData(data, opts?.signal ? {
+      signal: opts.signal
+    } : undefined),
     close: opts => stream.close(opts?.signal ? {
       signal: opts.signal
     } : undefined)

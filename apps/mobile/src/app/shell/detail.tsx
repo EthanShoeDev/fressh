@@ -2,7 +2,6 @@ import { type ListenerEvent } from '@fressh/react-native-uniffi-russh';
 import {
 	XtermJsWebView,
 	type XtermWebViewHandle,
-	type TouchScrollConfig,
 } from '@fressh/react-native-xtermjs-webview';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -14,6 +13,7 @@ import {
 	useRouter,
 	useFocusEffect,
 } from 'expo-router';
+import Constants from 'expo-constants';
 import React, {
 	startTransition,
 	useCallback,
@@ -70,10 +70,6 @@ import { runMacro } from '@/lib/keyboard-runtime';
 import { rootLogger } from '@/lib/logger';
 import { resolveLucideIcon } from '@/lib/lucide-utils';
 import { OrderedWriter } from '@/lib/ordered-writer';
-import {
-	executeRemoteCommand,
-	runRemoteTextCommand,
-} from '@/lib/remote-command-runner';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	getActiveKeyboardIds,
@@ -92,7 +88,12 @@ import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
-import { emitScrollTrace, type ScrollTraceSink } from '@/lib/scroll-trace';
+import {
+	configureScrollTraceEnabled,
+	emitScrollTrace,
+	isScrollTraceEnabled,
+	type ScrollTraceSink,
+} from '@/lib/scroll-trace';
 import {
 	useBrowserActionsController,
 	useFeatureRequestController,
@@ -104,9 +105,16 @@ import { useSshStore } from '@/lib/ssh-store';
 import {
 	buildClipboardPasteSegments,
 	buildCommanderExecuteSegments,
-	buildTextEntryPasteSegments,
+	buildTextEntryPastePayload,
 } from '@/lib/terminal-input-payloads';
 import { detachTerminalShellListener } from '@/lib/terminal-shell-listener';
+import {
+	getTextEntryHistoryCycleEntries,
+	getTextEntryHistorySections,
+	type TextEntryHistoryState,
+} from '@/lib/text-entry-history';
+import { recordAcceptedTextEntryHistoryPaste } from '@/lib/text-entry-history-interactions';
+import { textEntryHistoryStore } from '@/lib/text-entry-history-store-native';
 import { useTheme } from '@/lib/theme';
 import {
 	disposeTmuxScrollbackRuntimeStateForUiReset,
@@ -174,8 +182,27 @@ import {
 	runShellScrollbackInactiveCleanup,
 	shouldTreatShellWorkmuxScrollbackFailureAsAlreadyInactive,
 } from './shell-scrollback-policy';
+import { resolveShellTouchScrollPolicy } from './shell-touch-scroll';
 
 const logger = rootLogger.extend('TabsShellDetail');
+
+type ExpoConstantsWithManifestExtra = typeof Constants & {
+	manifest2?: {
+		extra?: Record<string, unknown>;
+	};
+};
+
+const isConfiguredScrollTraceEnabled = () => {
+	const constants = Constants as ExpoConstantsWithManifestExtra;
+	const extra =
+		(Constants.expoConfig?.extra as Record<string, unknown> | undefined) ??
+		constants.manifest2?.extra;
+	return (
+		extra?.fresshEnableScrollTrace === true ||
+		extra?.fresshEnableScrollTrace === 'true' ||
+		isScrollTraceEnabled()
+	);
+};
 
 const sleep = (ms: number) =>
 	new Promise<void>((resolve) => {
@@ -475,20 +502,6 @@ function ShellDetail() {
 		() =>
 			createWorkmuxControlChannel({
 				connection: connection ?? null,
-				runRemoteCommand: (command, timeoutMs) => {
-					if (!connection) {
-						return Promise.resolve({
-							success: false,
-							output: '',
-							error: 'No SSH connection available.',
-						});
-					}
-					return executeRemoteCommand({
-						connection,
-						command,
-						timeoutMs,
-					});
-				},
 			}),
 		[connection, normalizedTmuxTarget],
 	);
@@ -677,6 +690,8 @@ function ShellDetail() {
 		textEntry: textEntryModal,
 		configure: configureModal,
 	} = useShellSimpleModals();
+	const [textEntryHistoryState, setTextEntryHistoryState] =
+		useState<TextEntryHistoryState>(() => textEntryHistoryStore.load());
 	const [autoWisprEnabled, setAutoWisprEnabled] = useState(false);
 	const [wisprTextEditorAvailability, setWisprTextEditorAvailability] =
 		useState<WisprTextEditorAvailability>({ type: 'ready' });
@@ -745,42 +760,21 @@ function ShellDetail() {
 	const lastSelectionRef = useRef<{ text: string; at: number } | null>(null);
 	const { width, height } = useWindowDimensions();
 	autoWisprEnabledRef.current = autoWisprEnabled;
-	const touchScrollEnabled =
-		Platform.OS === 'android' &&
-		Math.min(width, height) >= 600 &&
-		tmuxEnabled &&
-		Boolean(connection);
-	const touchScrollConfig = useMemo<TouchScrollConfig>(
+	const scrollTraceEnabled = isConfiguredScrollTraceEnabled();
+	configureScrollTraceEnabled(scrollTraceEnabled);
+	const hasConnection = Boolean(connection);
+	const remoteTouchScrollPolicy = useMemo(
 		() =>
-			touchScrollEnabled
-				? {
-						enabled: true,
-						pxPerLine: 10,
-						slopPx: 10,
-						maxLinesPerFrame: 12,
-						flickVelocity: 1.2,
-						coalesceMs: 24,
-						minFlushMs: 16,
-						maxFlushMs: 80,
-						maxPagesPerFlush: 12,
-						maxExtraLines: 999,
-						maxBacklogPages: 50,
-						velocityMultiplierEnabled: true,
-						velocityThreshold: 0.3,
-						velocityBoost: 2.5,
-						velocityBoostMax: 20,
-						velocitySmoothing: 0.2,
-						backlogMultiplierEnabled: true,
-						backlogBoostRefPages: 2,
-						backlogBoostMax: 2,
-						rttEwmaAlpha: 0.2,
-						debug: __DEV__,
-						debugOverlay: false,
-						debugTelemetry: __DEV__,
-						debugTelemetryIntervalMs: 120,
-					}
-				: { enabled: false },
-		[touchScrollEnabled],
+			resolveShellTouchScrollPolicy({
+				platformOS: Platform.OS,
+				width,
+				height,
+				tmuxEnabled,
+				hasConnection,
+				scrollTraceEnabled,
+				debug: __DEV__,
+			}),
+		[hasConnection, height, scrollTraceEnabled, tmuxEnabled, width],
 	);
 	const exitSelectionMode = useCallback(() => {
 		setSelectionModeEnabled(false);
@@ -996,6 +990,7 @@ function ShellDetail() {
 			payloadSegments: Uint8Array<ArrayBuffer>[],
 			opts?: {
 				interSegmentDelayMs?: number;
+				onAccepted?: () => void;
 			},
 		) => {
 			const plan = buildWorkmuxScrollbackLiveInputSendPlan({
@@ -1022,17 +1017,20 @@ function ShellDetail() {
 					currentGeneration: liveInputGenerationRef.current,
 				});
 
+			const remoteCopyModeActive =
+				tmuxRemoteScrollbackCopyModeActiveRef.current;
 			void runWorkmuxScrollbackLiveInputSendPlan({
 				plan,
 				currentCleanup: scrollbackCleanupBarrierRef.current.current(),
 				startCleanup: clearScrollbackState,
-				remoteCopyModeActive: tmuxRemoteScrollbackCopyModeActiveRef.current,
+				remoteCopyModeActive,
 				isRequestCurrent: isLiveInputRequestCurrent,
 				sendSegments: (segments, options) =>
 					requestWriter?.sendBatch(segments, {
 						interSegmentDelayMs: options?.interSegmentDelayMs,
 						isCurrent: isLiveInputRequestCurrent,
 					}),
+				onPayloadAccepted: opts?.onAccepted,
 			});
 		},
 		[clearScrollbackState],
@@ -1050,13 +1048,63 @@ function ShellDetail() {
 			payloadSegments: Uint8Array<ArrayBuffer>[],
 			opts?: {
 				interSegmentDelayMs?: number;
+				onAccepted?: () => void;
 			},
 		) => {
 			sendLiveInputSegments(payloadSegments, {
 				interSegmentDelayMs: opts?.interSegmentDelayMs,
+				onAccepted: opts?.onAccepted,
 			});
 		},
 		[sendLiveInputSegments],
+	);
+
+	const refreshTextEntryHistory = useCallback(
+		(nextState: TextEntryHistoryState) => {
+			setTextEntryHistoryState(nextState);
+		},
+		[],
+	);
+
+	const handlePinTextEntryHistoryText = useCallback(
+		(text: string) => {
+			refreshTextEntryHistory(textEntryHistoryStore.pinText(text));
+		},
+		[refreshTextEntryHistory],
+	);
+
+	const handlePinTextEntryHistoryEntry = useCallback(
+		(id: string) => {
+			refreshTextEntryHistory(textEntryHistoryStore.pinEntry(id));
+		},
+		[refreshTextEntryHistory],
+	);
+
+	const handleUnpinTextEntryHistoryEntry = useCallback(
+		(id: string) => {
+			refreshTextEntryHistory(textEntryHistoryStore.unpinEntry(id));
+		},
+		[refreshTextEntryHistory],
+	);
+
+	const handleDeleteTextEntryHistoryEntry = useCallback(
+		(id: string) => {
+			refreshTextEntryHistory(textEntryHistoryStore.deleteEntry(id));
+		},
+		[refreshTextEntryHistory],
+	);
+
+	const handleClearRecentTextEntryHistory = useCallback(() => {
+		refreshTextEntryHistory(textEntryHistoryStore.clearRecent());
+	}, [refreshTextEntryHistory]);
+
+	const textEntryHistorySections = useMemo(
+		() => getTextEntryHistorySections(textEntryHistoryState),
+		[textEntryHistoryState],
+	);
+	const textEntryHistoryCycleEntries = useMemo(
+		() => getTextEntryHistoryCycleEntries(textEntryHistoryState),
+		[textEntryHistoryState],
 	);
 
 	const sendBytesWithModifiers = useCallback(
@@ -1208,16 +1256,32 @@ function ShellDetail() {
 
 	const handlePasteTextEntry = useCallback(
 		(value: string) => {
-			const segments = buildTextEntryPasteSegments(value);
-			if (!segments.length) return;
+			const payload = buildTextEntryPastePayload(value);
+			if (!payload.segments.length) return;
 			if (selectionModeEnabled) {
 				exitSelectionMode();
 			}
-			sendLiteralInputSegments(segments, {
+			sendLiteralInputSegments(payload.segments, {
 				interSegmentDelayMs: scrollbackExitDelayMs,
+				onAccepted: () => {
+					const historyState = recordAcceptedTextEntryHistoryPaste({
+						accepted: true,
+						historyText: payload.historyText,
+						recordPaste: (text) => textEntryHistoryStore.recordPaste(text),
+					});
+					if (historyState) {
+						refreshTextEntryHistory(historyState);
+					}
+				},
 			});
 		},
-		[exitSelectionMode, selectionModeEnabled, sendLiteralInputSegments],
+		[
+			exitSelectionMode,
+			refreshTextEntryHistory,
+			scrollbackExitDelayMs,
+			selectionModeEnabled,
+			sendLiteralInputSegments,
+		],
 	);
 
 	const clearWisprOpeningTimeout = useCallback(() => {
@@ -1872,39 +1936,35 @@ function ShellDetail() {
 		handleCloseTextEntry,
 	]);
 
-	const executeBrowserActionsRemoteTextCommand = useCallback(
-		(
-			activeConnection: NonNullable<typeof connection>,
-			command: string,
-			timeoutMs: number,
-		) =>
-			runRemoteTextCommand({
-				connection: activeConnection,
-				command,
+	const runBrowserActionsWorkmuxCommand = useCallback(
+		async (_connection: unknown, argv: string[], timeoutMs: number) => {
+			const result = await workmuxControlChannel.command(argv, {
 				timeoutMs,
-			}),
-		[],
+			});
+			if (!result.success) {
+				throw new Error(
+					result.error || result.output || 'Workmux command failed.',
+				);
+			}
+			return result.output;
+		},
+		[workmuxControlChannel],
 	);
 
 	const browserActions = useBrowserActionsController({
 		connection: connection ?? null,
 		tmuxEnabled,
 		tmuxTarget,
-		executeRemoteTextCommand: executeBrowserActionsRemoteTextCommand,
 		executeSideChannelCommand,
+		runWorkmuxCommand: runBrowserActionsWorkmuxCommand,
 		getErrorMessage,
 		closeOtherModals: closeBrowserActionsOtherModals,
 	});
 	const workmuxKeyboardTmuxEnabledRef = useRef(tmuxEnabled);
 	const workmuxKeyboardTmuxTargetRef = useRef(tmuxTarget);
-	const workmuxKeyboardRunHostCommandRef = useRef(
-		browserActions.runHostBrowserCommand,
-	);
 	const browserActionsInvalidateAllRef = useRef(browserActions.invalidateAll);
 	workmuxKeyboardTmuxEnabledRef.current = tmuxEnabled;
 	workmuxKeyboardTmuxTargetRef.current = tmuxTarget;
-	workmuxKeyboardRunHostCommandRef.current =
-		browserActions.runHostBrowserCommand;
 	browserActionsInvalidateAllRef.current = browserActions.invalidateAll;
 
 	const closeFeatureRequestOtherModals = useCallback(() => {
@@ -1944,9 +2004,11 @@ function ShellDetail() {
 		connection,
 		tmuxEnabled,
 		runHostBrowserCommand: browserActions.runHostBrowserCommand,
-		resolveHostBrowserPanePath: browserActions.resolveHostBrowserPanePath,
+		resolveHostBrowserWorkspace: browserActions.resolveHostBrowserWorkspace,
 		sendTextRaw,
 		sourceKey: skillSelectorSourceKey,
+		stableConnectionId: connectionStoredConnectionId ?? connectionId,
+		tmuxTarget: activeTmuxSessionName,
 		getErrorMessage,
 		closeOtherModals: closeSkillSelectorOtherModals,
 	});
@@ -2196,7 +2258,8 @@ function ShellDetail() {
 			},
 			consumeAuthorizedRouteToken: consumeAuthorizedAgentNotificationRouteToken,
 			restoreAuthorizedRouteToken: restoreAuthorizedAgentNotificationRouteToken,
-			runCommand: browserActions.runHostBrowserCommand,
+			runWorkmuxCommand: (argv, timeoutMs) =>
+				runBrowserActionsWorkmuxCommand(null, argv, timeoutMs),
 			acknowledge: (connectionId, session, windowId) => {
 				acknowledgeRoutedAgentNotification(connectionId, session, windowId);
 			},
@@ -2210,8 +2273,8 @@ function ShellDetail() {
 		agentSession,
 		agentTapToken,
 		agentWindowId,
-		browserActions.runHostBrowserCommand,
 		connectionStoredConnectionId,
+		runBrowserActionsWorkmuxCommand,
 		tmuxTarget,
 	]);
 
@@ -2232,16 +2295,17 @@ function ShellDetail() {
 			nextRequestId: () => ++agentNotificationAckRequestIdRef.current,
 			isCurrentRequest: (requestId) =>
 				requestId === agentNotificationAckRequestIdRef.current,
-			runCommand: browserActions.runHostBrowserCommand,
+			runWorkmuxCommand: (argv, timeoutMs) =>
+				runBrowserActionsWorkmuxCommand(null, argv, timeoutMs),
 			acknowledge: acknowledgeRoutedAgentNotification,
 			warn: (message, error) => {
 				logger.warn(message, error);
 			},
 		});
 	}, [
-		browserActions.runHostBrowserCommand,
 		channelId,
 		connectionStoredConnectionId,
+		runBrowserActionsWorkmuxCommand,
 		tmuxEnabled,
 		tmuxTarget,
 	]);
@@ -2319,8 +2383,6 @@ function ShellDetail() {
 					}
 					return result.output;
 				},
-				runHostCommand: (command, timeoutMs) =>
-					workmuxKeyboardRunHostCommandRef.current(command, timeoutMs),
 				showFailure: (message) => {
 					if (
 						!shouldShowFocusedActiveFeedback({
@@ -3030,6 +3092,7 @@ function ShellDetail() {
 								error: logger.error,
 							}}
 							xtermOptions={{
+								scrollback: remoteTouchScrollPolicy.xtermScrollback,
 								theme: {
 									background: theme.colors.background,
 									foreground: theme.colors.textPrimary,
@@ -3046,7 +3109,7 @@ function ShellDetail() {
 											}),
 								},
 							}}
-							touchScrollConfig={touchScrollConfig}
+							touchScrollConfig={remoteTouchScrollPolicy.touchScrollConfig}
 							onResize={handleTerminalResize}
 							onSelection={handleSelectionChanged}
 							onSelectionModeChange={handleSelectionModeChange}
@@ -3132,6 +3195,16 @@ function ShellDetail() {
 					onPaste={handlePasteTextEntry}
 					onWisprFocus={handleWisprTextEntryFocus}
 					onValueChange={handleWisprTextEntryValueChange}
+					history={{
+						cycleEntries: textEntryHistoryCycleEntries,
+						pinnedEntries: textEntryHistorySections.pinned,
+						recentEntries: textEntryHistorySections.recent,
+						onPinText: handlePinTextEntryHistoryText,
+						onPinEntry: handlePinTextEntryHistoryEntry,
+						onUnpinEntry: handleUnpinTextEntryHistoryEntry,
+						onDeleteEntry: handleDeleteTextEntryHistoryEntry,
+						onClearRecent: handleClearRecentTextEntryHistory,
+					}}
 				/>
 				<HostUrlModal
 					bottomOffset={Platform.OS === 'android' ? insets.bottom + 24 : 24}

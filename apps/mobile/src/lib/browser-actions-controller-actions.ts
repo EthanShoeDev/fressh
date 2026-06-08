@@ -5,9 +5,10 @@ import {
 	type TmuxPaneContext,
 } from './host-browser-actions';
 import {
-	buildWorkmuxAppContextCommand,
+	buildWorkmuxAppContextArgv,
 	formatWorkmuxAppBoundaryFailureMessage,
 	parseWorkmuxAppContextOutput,
+	type WorkmuxAppContext,
 } from './workmux-app-commands';
 
 export type BrowserActionsRunHostBrowserCommand = (
@@ -15,16 +16,26 @@ export type BrowserActionsRunHostBrowserCommand = (
 	timeoutMs: number,
 ) => Promise<string>;
 
+export type BrowserActionsRunWorkmuxCommand = (
+	argv: string[],
+	timeoutMs: number,
+) => Promise<string>;
+
 export type BrowserActionsContextDeps = {
 	tmuxEnabled: boolean;
 	tmuxTarget: string;
 	runHostBrowserCommand: BrowserActionsRunHostBrowserCommand;
+	runWorkmuxCommand: BrowserActionsRunWorkmuxCommand;
 	getErrorMessage: (error: unknown) => string;
 };
 
 export type BrowserActionsDetectedOpenDeps = BrowserActionsContextDeps & {
 	mode: HostBrowserOpenMode;
 };
+export type BrowserActionsWorkspace = Pick<
+	WorkmuxAppContext,
+	'panePath' | 'projectRoot' | 'projectName'
+>;
 
 function getSessionName(tmuxTarget: string): string {
 	return tmuxTarget.trim() || 'main';
@@ -33,7 +44,7 @@ function getSessionName(tmuxTarget: string): string {
 async function runWorkmuxAppContextCommand({
 	tmuxEnabled,
 	tmuxTarget,
-	runHostBrowserCommand,
+	runWorkmuxCommand,
 }: BrowserActionsContextDeps): Promise<{
 	output: string;
 	sessionName: string;
@@ -44,10 +55,10 @@ async function runWorkmuxAppContextCommand({
 		);
 	}
 	const sessionName = getSessionName(tmuxTarget);
-	const command = buildWorkmuxAppContextCommand(sessionName);
+	const argv = buildWorkmuxAppContextArgv(sessionName);
 	try {
 		return {
-			output: await runHostBrowserCommand(command, 10_000),
+			output: await runWorkmuxCommand(argv, 10_000),
 			sessionName,
 		};
 	} catch (error) {
@@ -65,6 +76,24 @@ export async function resolveBrowserActionsPanePath(
 	} catch (error) {
 		throw new Error(
 			`Could not resolve pane path for Workmux-enabled connection ${sessionName}: ${deps.getErrorMessage(error)}`,
+		);
+	}
+}
+
+export async function resolveBrowserActionsWorkspace(
+	deps: BrowserActionsContextDeps,
+): Promise<BrowserActionsWorkspace> {
+	const { output, sessionName } = await runWorkmuxAppContextCommand(deps);
+	try {
+		const context = parseWorkmuxAppContextOutput(output);
+		return {
+			panePath: context.panePath,
+			projectRoot: context.projectRoot,
+			projectName: context.projectName,
+		};
+	} catch (error) {
+		throw new Error(
+			`Could not resolve workspace for Workmux-enabled connection ${sessionName}: ${deps.getErrorMessage(error)}`,
 		);
 	}
 }

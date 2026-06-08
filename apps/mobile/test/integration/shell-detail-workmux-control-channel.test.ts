@@ -1,12 +1,61 @@
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
-import assert from 'node:assert/strict';
 
 const detailSourcePath = join(process.cwd(), 'src/app/shell/detail.tsx');
 
-describe('shell detail Workmux control channel wiring', () => {
-	test('routes shell scrollback through WorkmuxControlChannel instead of one-shot mdev scroll commands', () => {
+function extractCreateWorkmuxControlChannelBlock(source: string): string {
+	const callStart = source.indexOf('createWorkmuxControlChannel({');
+	assert.notEqual(callStart, -1);
+
+	let depth = 0;
+	for (let index = callStart; index < source.length; index += 1) {
+		const char = source[index];
+		if (char === '(' || char === '{') depth += 1;
+		if (char === ')' || char === '}') {
+			depth -= 1;
+			if (depth === 0) return source.slice(callStart, index + 1);
+		}
+	}
+
+	assert.fail('createWorkmuxControlChannel block was not closed');
+}
+
+function extractWorkmuxControlChannelMemoBlock(source: string): string {
+	const memoStart = source.indexOf('const workmuxControlChannel = useMemo');
+	assert.notEqual(memoStart, -1);
+	const memoEnd = source.indexOf('const workmuxControlChannelRef', memoStart);
+	assert.notEqual(memoEnd, -1);
+	return source.slice(memoStart, memoEnd);
+}
+
+function extractAgentNotificationRouteEffectBlock(source: string): string {
+	const effectStart = source.indexOf('void handleAgentNotificationRoute({');
+	assert.notEqual(effectStart, -1);
+	const effectEnd = source.indexOf(
+		'const acknowledgeVisibleAgentNotification',
+		effectStart,
+	);
+	assert.notEqual(effectEnd, -1);
+	return source.slice(effectStart, effectEnd);
+}
+
+function extractRunBrowserActionsWorkmuxCommandBlock(source: string): string {
+	const callbackStart = source.indexOf(
+		'const runBrowserActionsWorkmuxCommand = useCallback',
+	);
+	assert.notEqual(callbackStart, -1);
+	const callbackEnd = source.indexOf(
+		'const browserActions = useBrowserActionsController',
+		callbackStart,
+	);
+	assert.notEqual(callbackEnd, -1);
+	return source.slice(callbackStart, callbackEnd);
+}
+
+void describe('shell detail Workmux control channel wiring', () => {
+	void test('routes shell scrollback through WorkmuxControlChannel instead of one-shot mdev scroll commands', () => {
 		const source = readFileSync(detailSourcePath, 'utf8');
 
 		assert.match(source, /createWorkmuxControlChannel/);
@@ -17,7 +66,7 @@ describe('shell detail Workmux control channel wiring', () => {
 		assert.doesNotMatch(source, /buildWorkmuxAppScrollPageCommand/);
 	});
 
-	test('cleans up scrollback executor before disposing the control channel', () => {
+	void test('cleans up scrollback executor before disposing the control channel', () => {
 		const source = readFileSync(detailSourcePath, 'utf8');
 		const executorCleanupIndex = source.indexOf(
 			'const cleanup = disposeTmuxScrollbackRuntimeStateForUiReset',
@@ -33,6 +82,70 @@ describe('shell detail Workmux control channel wiring', () => {
 		assert.doesNotMatch(
 			source,
 			/void workmuxControlChannel\.dispose\(\)\.catch/,
+		);
+	});
+
+	void test('disables local xterm scrollback when touch scroll is routed through Workmux', () => {
+		const source = readFileSync(detailSourcePath, 'utf8');
+
+		assert.match(
+			source,
+			/import \{ resolveShellTouchScrollPolicy \} from '\.\/shell-touch-scroll'/,
+		);
+		assert.match(source, /const remoteTouchScrollPolicy\s*=\s*useMemo/);
+		assert.match(source, /resolveShellTouchScrollPolicy\(\{/);
+		assert.match(
+			source,
+			/scrollback:\s*remoteTouchScrollPolicy\.xtermScrollback/,
+		);
+		assert.match(
+			source,
+			/touchScrollConfig=\{remoteTouchScrollPolicy\.touchScrollConfig\}/,
+		);
+		assert.doesNotMatch(source, /\btouchScrollEnabled\b/);
+		assert.doesNotMatch(source, /const remoteTouchScrollOwnsViewport\s*=/);
+		assert.doesNotMatch(source, /Math\.min\(width,\s*height\)\s*>=\s*600/);
+	});
+
+	void test('enables WebView scroll telemetry when scroll tracing is enabled', () => {
+		const source = readFileSync(detailSourcePath, 'utf8');
+
+		assert.match(
+			source,
+			/import \{[^}]*configureScrollTraceEnabled[^}]*isScrollTraceEnabled[^}]*\} from '@\/lib\/scroll-trace'/s,
+		);
+		assert.match(source, /const scrollTraceEnabled\s*=\s*isConfiguredScrollTraceEnabled\(\)/);
+		assert.match(source, /configureScrollTraceEnabled\(scrollTraceEnabled\)/);
+		assert.match(source, /scrollTraceEnabled,\s*debug:\s*__DEV__/);
+		assert.doesNotMatch(source, /debugTelemetry:\s*__DEV__/);
+	});
+
+	void test('passes only the connection into WorkmuxControlChannel for Workmux control commands', () => {
+		const source = readFileSync(detailSourcePath, 'utf8');
+		const block = extractCreateWorkmuxControlChannelBlock(source);
+
+		assert.match(block, /connection:\s*connection\s*\?\?\s*null/);
+		assert.doesNotMatch(block, /runRemoteCommand/);
+		assert.doesNotMatch(block, /executeRemoteCommand/);
+	});
+
+	void test('keeps WorkmuxControlChannel memo scoped to tmux target cleanup lifecycle', () => {
+		const source = readFileSync(detailSourcePath, 'utf8');
+		const block = extractWorkmuxControlChannelMemoBlock(source);
+
+		assert.match(block, /\[\s*connection\s*,\s*normalizedTmuxTarget\s*\]/);
+	});
+
+	void test('retries routed agent notifications when the Workmux command channel changes', () => {
+		const source = readFileSync(detailSourcePath, 'utf8');
+		const callbackBlock = extractRunBrowserActionsWorkmuxCommandBlock(source);
+		const effectBlock = extractAgentNotificationRouteEffectBlock(source);
+
+		assert.match(callbackBlock, /workmuxControlChannel\.command/);
+		assert.match(callbackBlock, /\[\s*workmuxControlChannel\s*\]/);
+		assert.match(
+			effectBlock,
+			/\[\s*agentConnectionId[\s\S]*runBrowserActionsWorkmuxCommand[\s\S]*\]/,
 		);
 	});
 });

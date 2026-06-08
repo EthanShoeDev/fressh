@@ -1362,6 +1362,9 @@ export interface CommandStreamSessionLike {
         signal: AbortSignal;
     }): Promise<void>;
     getInfo(): CommandStreamInfo;
+    sendData(data: ArrayBuffer, asyncOpts_?: {
+        signal: AbortSignal;
+    }): Promise<void>;
 }
 /**
  * @deprecated Use `CommandStreamSessionLike` instead.
@@ -1376,6 +1379,9 @@ export declare class CommandStreamSession extends UniffiAbstractObject implement
         signal: AbortSignal;
     }): Promise<void>;
     getInfo(): CommandStreamInfo;
+    sendData(data: ArrayBuffer, asyncOpts_?: {
+        signal: AbortSignal;
+    }): Promise<void>;
     uniffiDestroy(): void;
     static instanceOf(obj_: any): obj_ is CommandStreamSession;
 }

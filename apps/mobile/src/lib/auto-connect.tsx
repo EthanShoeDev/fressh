@@ -5,7 +5,7 @@ import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { AgentNotificationBridgeManager } from './AgentNotificationBridgeManager';
-import { shouldSkipInitialAutoConnectForUrl } from './auto-connect-launch';
+import { getAutoConnectLaunchActionForUrl } from './auto-connect-launch';
 import {
 	getStoredConnectionId,
 	pickLatestConnection,
@@ -128,6 +128,7 @@ export function AutoConnectManager() {
 	);
 	const allowBackgroundRef = React.useRef(false);
 	const didInitRef = React.useRef(false);
+	const launchUrlSuppressAutoConnectRef = React.useRef(false);
 
 	const setForegroundServiceStarted = React.useCallback((started: boolean) => {
 		useForegroundServiceRuntimeStore.getState().setStarted(started);
@@ -218,6 +219,24 @@ export function AutoConnectManager() {
 		[router],
 	);
 
+	const applyLaunchUrlAction = React.useCallback(
+		(url: string | null) => {
+			const action = getAutoConnectLaunchActionForUrl(url);
+			if (!action.skipAutoConnect && !action.routeToConnectionForm) {
+				return false;
+			}
+			if (action.skipAutoConnect) {
+				launchUrlSuppressAutoConnectRef.current = true;
+				stopReconnectCycle('launch-url-disabled-auto-connect');
+			}
+			if (action.routeToConnectionForm) {
+				router.replace('/(tabs)');
+			}
+			return action.skipAutoConnect;
+		},
+		[router, stopReconnectCycle],
+	);
+
 	const loadLatestSavedConnection = React.useCallback(async () => {
 		const entries = await queryClient.fetchQuery(
 			secretsManager.connections.query.list,
@@ -228,6 +247,7 @@ export function AutoConnectManager() {
 
 	// Single attempt: use an active shell if present; otherwise connect silently.
 	const attemptAutoConnect = React.useCallback(async () => {
+		if (launchUrlSuppressAutoConnectRef.current) return false;
 		if (inFlightRef.current) return false;
 		inFlightRef.current = true;
 		setAutoConnecting(true);
@@ -350,6 +370,7 @@ export function AutoConnectManager() {
 	]);
 
 	const runAutoConnectOnce = React.useCallback(async () => {
+		if (launchUrlSuppressAutoConnectRef.current) return;
 		if (
 			!isActiveRef.current &&
 			!(Platform.OS === 'android' && allowBackgroundRef.current)
@@ -582,13 +603,25 @@ export function AutoConnectManager() {
 				return null;
 			})
 			.then((initialUrl) => {
-				if (shouldSkipInitialAutoConnectForUrl(initialUrl)) {
+				if (applyLaunchUrlAction(initialUrl)) {
 					logger.info('Initial auto-connect skipped by launch URL');
 					return;
 				}
 				void runAutoConnectOnce();
 			});
-	}, [runAutoConnectOnce]);
+	}, [applyLaunchUrlAction, runAutoConnectOnce]);
+
+	React.useEffect(() => {
+		// eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener -- Expo Linking returns a subscription removed by the cleanup below
+		const subscription = Linking.addEventListener('url', ({ url }) => {
+			if (applyLaunchUrlAction(url)) {
+				logger.info('Warm auto-connect skipped by launch URL');
+			}
+		});
+		return () => {
+			subscription.remove();
+		};
+	}, [applyLaunchUrlAction]);
 
 	React.useEffect(() => {
 		// Trigger on warm resumes; pause retries when backgrounded.

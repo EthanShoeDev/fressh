@@ -1,4 +1,14 @@
 import {
+	createMdevBridgeClient,
+	type MdevBridgeClient,
+	type MdevBridgeStreamConnection,
+} from './mdev-bridge-client';
+import { type WorkmuxScrollDirection } from './workmux-app-commands';
+import {
+	WORKMUX_REQUIRED_MDEV_BRIDGE_OPERATIONS,
+	buildMdevBridgeOperationFromWorkmuxArgv,
+} from './workmux-bridge-operations';
+import {
 	type DirectTmuxConnectionLike,
 	type DirectTmuxControlTransport,
 	buildDirectTmuxScrollEnterCommand,
@@ -6,7 +16,9 @@ import {
 	buildDirectTmuxScrollMoveCommand,
 	createDirectTmuxControlTransport,
 } from './workmux-direct-tmux-control';
-import { type WorkmuxScrollDirection } from './workmux-app-commands';
+
+export type WorkmuxControlConnection = DirectTmuxConnectionLike &
+	MdevBridgeStreamConnection;
 
 export type WorkmuxControlCommandResult = {
 	success: boolean;
@@ -50,22 +62,6 @@ export type WorkmuxControlChannelCleanupOptions = {
 
 const DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS = 10_000;
 
-function quoteShellValue(value: string): string {
-	return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function isMdevCommandToken(index: number, value: string): boolean {
-	return index < 4 && /^[A-Za-z][A-Za-z0-9_-]*$/.test(value);
-}
-
-export function formatMdevArgvCommand(argv: string[]): string {
-	return ['mdev', ...argv]
-		.map((value, index) =>
-			isMdevCommandToken(index, value) ? value : quoteShellValue(value),
-		)
-		.join(' ');
-}
-
 function successResult(): WorkmuxControlCommandResult {
 	return { success: true, output: '' };
 }
@@ -76,17 +72,23 @@ function failureResult(error: string): WorkmuxControlCommandResult {
 
 export function createWorkmuxControlChannel({
 	connection,
-	runRemoteCommand,
+	bridgeClient,
 	directTmuxTransport = createDirectTmuxControlTransport({ connection }),
 }: {
-	connection: DirectTmuxConnectionLike | null;
-	runRemoteCommand: (
-		command: string,
-		timeoutMs: number,
-	) => Promise<WorkmuxControlCommandResult>;
+	connection: WorkmuxControlConnection | null;
+	bridgeClient?: MdevBridgeClient;
 	directTmuxTransport?: DirectTmuxControlTransport;
 }): WorkmuxControlChannel {
 	let disposed = false;
+	const resolvedBridgeClient =
+		bridgeClient ??
+		(connection
+			? createMdevBridgeClient({
+					connection,
+					requiredOperations: WORKMUX_REQUIRED_MDEV_BRIDGE_OPERATIONS,
+					requestTimeoutMs: DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS,
+				})
+			: null);
 
 	const runDirect = async (
 		command: string,
@@ -115,10 +117,26 @@ export function createWorkmuxControlChannel({
 					failureResult('Workmux control channel disposed.'),
 				);
 			}
-			return runRemoteCommand(
-				formatMdevArgvCommand(argv),
-				options?.timeoutMs ?? DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS,
-			);
+			if (!connection) {
+				return Promise.resolve(failureResult('No SSH connection available.'));
+			}
+			try {
+				const { operation, params } =
+					buildMdevBridgeOperationFromWorkmuxArgv(argv);
+				if (!resolvedBridgeClient) {
+					return Promise.resolve(failureResult('No SSH connection available.'));
+				}
+				return resolvedBridgeClient.runOperation({
+					operation,
+					params,
+					timeoutMs:
+						options?.timeoutMs ?? DEFAULT_WORKMUX_CONTROL_COMMAND_TIMEOUT_MS,
+				});
+			} catch (error) {
+				return Promise.resolve(
+					failureResult(error instanceof Error ? error.message : String(error)),
+				);
+			}
 		},
 		scroll: {
 			enter: (input) =>
@@ -129,7 +147,10 @@ export function createWorkmuxControlChannel({
 		},
 		dispose: async () => {
 			disposed = true;
-			await directTmuxTransport.dispose();
+			await Promise.all([
+				resolvedBridgeClient?.dispose() ?? Promise.resolve(),
+				directTmuxTransport.dispose(),
+			]);
 		},
 	};
 }

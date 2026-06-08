@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-	buildDirectTmuxSelectWindowCommand,
 	buildDirectTmuxScrollEnterCommand,
 	buildDirectTmuxScrollExitCommand,
 	buildDirectTmuxScrollMoveCommand,
@@ -60,10 +59,6 @@ void test('DirectMux command builders escape targets and counts', () => {
 	assert.equal(
 		buildDirectTmuxScrollExitCommand('main'),
 		'tmux send-keys -t main -X cancel',
-	);
-	assert.equal(
-		buildDirectTmuxSelectWindowCommand('main', '@12'),
-		"tmux select-window -t 'main:@12'",
 	);
 });
 

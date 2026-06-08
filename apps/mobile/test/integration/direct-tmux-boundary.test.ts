@@ -24,12 +24,10 @@ const scannedRoots = [
 
 const directMuxBoundaryPath =
 	'apps/mobile/src/lib/workmux-direct-tmux-control.ts';
-const workmuxAppCommandsPath =
-	'apps/mobile/src/lib/workmux-app-commands.ts';
+const workmuxAppCommandsPath = 'apps/mobile/src/lib/workmux-app-commands.ts';
 const allowedDirectMuxCommandPrefixes = new Set([
 	'tmux copy-mode',
 	'tmux send-keys',
-	'tmux select-window',
 ]);
 
 function listSourceFiles(root: string): string[] {

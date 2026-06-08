@@ -191,6 +191,10 @@ export type SshCommandStream = {
 	readonly channelId: number;
 	readonly createdAtMs: number;
 	readonly connectionId: string;
+	sendData: (
+		data: ArrayBuffer,
+		opts?: { signal?: AbortSignal },
+	) => Promise<void>;
 	close: (opts?: { signal?: AbortSignal }) => Promise<void>;
 };
 
@@ -422,6 +426,8 @@ function wrapCommandStream(
 		channelId: info.channelId,
 		createdAtMs: info.createdAtMs,
 		connectionId: info.connectionId,
+		sendData: (data, opts) =>
+			stream.sendData(data, opts?.signal ? { signal: opts.signal } : undefined),
 		close: (opts) =>
 			stream.close(opts?.signal ? { signal: opts.signal } : undefined),
 	};

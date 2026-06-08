@@ -84,6 +84,7 @@ export function runWorkmuxScrollbackLiveInputSendPlan({
 	startCleanup,
 	remoteCopyModeActive,
 	sendSegments,
+	onPayloadAccepted,
 	isRequestCurrent = () => true,
 }: {
 	plan: WorkmuxScrollbackLiveInputSendPlan;
@@ -95,6 +96,7 @@ export function runWorkmuxScrollbackLiveInputSendPlan({
 		segments: Uint8Array<ArrayBuffer>[],
 		options?: { interSegmentDelayMs?: number },
 	) => void | Promise<unknown> | undefined;
+	onPayloadAccepted?: () => void;
 }): Promise<boolean> | null {
 	const cleanupBarrier = resolveWorkmuxScrollbackLiveInputCleanup({
 		clearScrollback: plan.clearScrollback,
@@ -103,10 +105,12 @@ export function runWorkmuxScrollbackLiveInputSendPlan({
 	});
 	if (!plan.segments.length) return cleanupBarrier ?? null;
 
-	const send = () =>
-		sendSegments(plan.segments, {
+	const send = () => {
+		onPayloadAccepted?.();
+		return sendSegments(plan.segments, {
 			interSegmentDelayMs: plan.interSegmentDelayMs,
 		});
+	};
 	if (!cleanupBarrier && remoteCopyModeActive) return null;
 	if (cleanupBarrier) {
 		void cleanupBarrier

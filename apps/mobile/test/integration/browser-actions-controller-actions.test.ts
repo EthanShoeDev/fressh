@@ -13,6 +13,9 @@ void test('browser actions preserve local no-connection errors while resolving W
 				runHostBrowserCommand: async () => {
 					throw new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
 				},
+				runWorkmuxCommand: async () => {
+					throw new Error(HOST_BROWSER_NO_CONNECTION_MESSAGE);
+				},
 				getErrorMessage: (error) =>
 					error instanceof Error ? error.message : String(error),
 			}),

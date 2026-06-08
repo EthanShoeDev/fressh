@@ -4,10 +4,7 @@ import {
 	executeRemoteCommand,
 	runRemoteTextCommand,
 } from '../../src/lib/remote-command-runner';
-import {
-	WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
-	WORKMUX_REMOTE_COMMAND_ENV_PREFIX,
-} from '../../src/lib/workmux-app-commands';
+import { WORKMUX_APP_COMMAND_UPDATE_MESSAGE } from '../../src/lib/workmux-app-commands';
 
 function bytes(text: string): ArrayBuffer {
 	return new TextEncoder().encode(text).buffer as ArrayBuffer;
@@ -50,13 +47,13 @@ void test('executeRemoteCommand returns decoded stdout on zero exit', async () =
 
 	const result = await executeRemoteCommand({
 		connection: fixture.connection,
-		command: 'mdev tmux app window --session main',
+		command: 'printf hello',
 		timeoutMs: 500,
 	});
 
 	assert.deepEqual(fixture.calls, [
 		{
-			command: `${WORKMUX_REMOTE_COMMAND_ENV_PREFIX} mdev tmux app window --session main`,
+			command: 'printf hello',
 			signal: fixture.calls[0]?.signal,
 		},
 	]);
@@ -102,6 +99,33 @@ void test('runRemoteTextCommand trims stdout and maps old mdev failures', async 
 			error instanceof Error &&
 			error.message === WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
 	);
+	assert.deepEqual(fixture.calls, []);
+});
+
+void test('executeRemoteCommand blocks Workmux app command strings', async () => {
+	const fixture = createConnection({
+		stdout: 'should not run',
+		stderr: '',
+		exitStatus: 0,
+	});
+
+	assert.deepEqual(
+		await executeRemoteCommand({
+			connection: fixture.connection,
+			command: 'mdev tmux app window --session main',
+			timeoutMs: 500,
+		}),
+		{
+			success: false,
+			output: '',
+			error: WORKMUX_APP_COMMAND_UPDATE_MESSAGE,
+			failureKind: 'blocked-command',
+			stderr: '',
+			exitStatus: null,
+			exitSignal: null,
+		},
+	);
+	assert.deepEqual(fixture.calls, []);
 });
 
 void test('executeRemoteCommand reports exit signals and missing exit status', async () => {
@@ -210,7 +234,7 @@ void test('executeRemoteCommand reports native command rejections distinctly', a
 	assert.deepEqual(
 		await executeRemoteCommand({
 			connection,
-			command: 'mdev tmux app window --session main',
+			command: 'git status',
 			timeoutMs: 500,
 		}),
 		{
@@ -236,7 +260,7 @@ void test('executeRemoteCommand does not classify native timeout text as wrapper
 	assert.deepEqual(
 		await executeRemoteCommand({
 			connection,
-			command: 'mdev tmux app window --session main',
+			command: 'git status',
 			timeoutMs: 500,
 		}),
 		{

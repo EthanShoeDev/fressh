@@ -33,6 +33,8 @@ function resolveUpdateChannel(): UpdateChannel {
 const versionCode = semverToCode(packageJson.version);
 const projectId = '5e4aaebd-05a4-4032-adad-f3c27cc7ab71';
 const updateChannel = resolveUpdateChannel();
+const fresshEnableScrollTrace =
+	process.env.EXPO_PUBLIC_FRESSH_ENABLE_SCROLL_TRACE === 'true';
 
 const config: ExpoConfig = {
 	name: 'Fressh',
@@ -98,6 +100,7 @@ const config: ExpoConfig = {
 	],
 	experiments: { typedRoutes: true, reactCompiler: true },
 	extra: {
+		fresshEnableScrollTrace: fresshEnableScrollTrace,
 		eas: {
 			projectId,
 		},

@@ -109,6 +109,7 @@ void test('live input runner starts cleanup for exit-key-only payload without se
 void test('live input runner sends non-empty payload after successful cleanup', async () => {
 	const cleanup = deferred<boolean>();
 	const sentSegments: number[][][] = [];
+	let acceptedCount = 0;
 	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		payloadSegments: [bytes([0x68, 0x69])],
@@ -125,19 +126,25 @@ void test('live input runner sends non-empty payload after successful cleanup', 
 		sendSegments: (segments) => {
 			sentSegments.push(segmentValues(segments));
 		},
+		onPayloadAccepted: () => {
+			acceptedCount += 1;
+		},
 	});
 
 	assert.equal(result, cleanup.promise);
 	assert.deepEqual(sentSegments, []);
+	assert.equal(acceptedCount, 0);
 	cleanup.resolve(true);
 	await cleanup.promise;
 	await Promise.resolve();
 	assert.deepEqual(sentSegments, [[[0x68, 0x69]]]);
+	assert.equal(acceptedCount, 1);
 });
 
 void test('live input runner suppresses deferred payload after request invalidation', async () => {
 	const cleanup = deferred<boolean>();
 	const sentSegments: number[][][] = [];
+	let acceptedCount = 0;
 	let requestCurrent = true;
 	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
@@ -156,6 +163,9 @@ void test('live input runner suppresses deferred payload after request invalidat
 		sendSegments: (segments) => {
 			sentSegments.push(segmentValues(segments));
 		},
+		onPayloadAccepted: () => {
+			acceptedCount += 1;
+		},
 	});
 
 	assert.equal(result, cleanup.promise);
@@ -164,6 +174,7 @@ void test('live input runner suppresses deferred payload after request invalidat
 	await cleanup.promise;
 	await Promise.resolve();
 	assert.deepEqual(sentSegments, []);
+	assert.equal(acceptedCount, 0);
 });
 
 void test('live input freshness requires the same terminal instance and writer', () => {
@@ -215,6 +226,7 @@ void test('live input freshness requires the same terminal instance and writer',
 void test('live input runner blocks non-empty payload after failed cleanup', async () => {
 	const cleanup = Promise.resolve(false);
 	const sentSegments: number[][][] = [];
+	let acceptedCount = 0;
 	const plan = buildWorkmuxScrollbackLiveInputSendPlan({
 		scrollbackActive: true,
 		payloadSegments: [bytes([0x68, 0x69])],
@@ -229,12 +241,16 @@ void test('live input runner blocks non-empty payload after failed cleanup', asy
 		sendSegments: (segments) => {
 			sentSegments.push(segmentValues(segments));
 		},
+		onPayloadAccepted: () => {
+			acceptedCount += 1;
+		},
 	});
 
 	assert.equal(result, cleanup);
 	await cleanup;
 	await Promise.resolve();
 	assert.deepEqual(sentSegments, []);
+	assert.equal(acceptedCount, 0);
 });
 
 void test('live input runner blocks non-empty payload while remote copy mode is active without cleanup', () => {
