@@ -4,14 +4,14 @@ These scripts are vendored **verbatim** from Visual Studio Code
 (`src/vs/workbench/contrib/terminal/common/scripts/`) and are licensed under the
 MIT License, Copyright (c) 2015 - present Microsoft Corporation.
 
-| file here | upstream |
-| --- | --- |
-| `bash.sh` | `shellIntegration-bash.sh` |
-| `zsh-rc.zsh` | `shellIntegration-rc.zsh` |
-| `zsh-env.zsh` | `shellIntegration-env.zsh` |
+| file here         | upstream                       |
+| ----------------- | ------------------------------ |
+| `bash.sh`         | `shellIntegration-bash.sh`     |
+| `zsh-rc.zsh`      | `shellIntegration-rc.zsh`      |
+| `zsh-env.zsh`     | `shellIntegration-env.zsh`     |
 | `zsh-profile.zsh` | `shellIntegration-profile.zsh` |
-| `zsh-login.zsh` | `shellIntegration-login.zsh` |
-| `fish.fish` | `shellIntegration.fish` |
+| `zsh-login.zsh`   | `shellIntegration-login.zsh`   |
+| `fish.fish`       | `shellIntegration.fish`        |
 
 They emit VS Code's `OSC 633` shell-integration protocol, which fressh's
 `OscScanner` (`fressh-core/src/osc.rs`) parses. fressh delivers them per-session

@@ -264,6 +264,16 @@ export const preferences = {
 		kind: 'boolean',
 		resolve: (raw) => raw ?? true,
 	}),
+	// App-wide kill-switch for shell integration (OSC 633 auto-injection). When
+	// off, fressh injects nothing on connect and behaves like a plain SSH client,
+	// regardless of any per-host toggle. Default on. The per-host choice (stored in
+	// connection metadata) is ANDed with this at connect time. See
+	// docs/projects/terminal-semantic-events.md.
+	shellIntegrationEnabled: definePref({
+		key: 'shellIntegrationEnabled',
+		kind: 'boolean',
+		resolve: (raw) => raw ?? true,
+	}),
 };
 
 /**

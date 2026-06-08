@@ -12,6 +12,7 @@ import {
 	useSurfaceStyle,
 } from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
+import { RenameDialog } from '@/components/RenameDialog';
 import { secretsManager } from '@/lib/secrets-manager';
 import {
 	useServerLiveStatus,
@@ -161,7 +162,12 @@ function ServerRow({ id, index }: { id: string; index: number }) {
 	const deleteConnection = useAtomSet(
 		secretsManager.connections.atoms.delete(id),
 	);
+	const renameConnection = useAtomSet(
+		secretsManager.connections.atoms.updateMetadata(id),
+		{ mode: 'promise' },
+	);
 	const [actionsOpen, setActionsOpen] = React.useState(false);
+	const [renaming, setRenaming] = React.useState(false);
 
 	const entry = AsyncResult.isSuccess(detailsResult)
 		? detailsResult.value
@@ -270,28 +276,49 @@ function ServerRow({ id, index }: { id: string; index: number }) {
 				</Pressable>
 			)}
 
-			<DeleteSheet
+			<ActionsSheet
 				open={actionsOpen}
 				title={rawTitle}
 				onClose={() => setActionsOpen(false)}
+				onRename={() => {
+					setActionsOpen(false);
+					setRenaming(true);
+				}}
 				onDelete={() => {
 					setActionsOpen(false);
 					deleteConnection();
 				}}
 			/>
+
+			{renaming ? (
+				<RenameDialog
+					title='Rename server'
+					description='A local label only — it doesn’t change the connection.'
+					initial={label ?? ''}
+					placeholder={host || 'Server name'}
+					onClose={() => setRenaming(false)}
+					onSave={async (next) => {
+						// Empty ⇒ clear the label and fall back to user@host.
+						await renameConnection({ label: next || undefined });
+						setRenaming(false);
+					}}
+				/>
+			) : null}
 		</>
 	);
 }
 
-function DeleteSheet({
+function ActionsSheet({
 	open,
 	title,
 	onClose,
+	onRename,
 	onDelete,
 }: {
 	open: boolean;
 	title: string;
 	onClose: () => void;
+	onRename: () => void;
 	onDelete: () => void;
 }) {
 	return (
@@ -306,6 +333,7 @@ function DeleteSheet({
 					<ThemedText className='mb-1 text-base font-bold text-text-primary'>
 						{title}
 					</ThemedText>
+					<Button variant='outline' title='Rename' onPress={onRename} />
 					<Button variant='danger' title='Delete server' onPress={onDelete} />
 					<Button variant='outline' title='Cancel' onPress={onClose} />
 				</View>

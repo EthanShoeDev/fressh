@@ -10,6 +10,7 @@ import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
 import { rootLogger } from './logger';
+import { preferences } from './preferences';
 import {
 	atomRuntime,
 	secretsManager,
@@ -158,6 +159,9 @@ type ConnectInput = {
 	connectionDetails: InputConnectionDetails;
 	/** Persist the connection to the saved-servers list on success (default true). */
 	save?: boolean;
+	/** Per-host shell-integration choice from the connect form (default true).
+	 *  ANDed with the global kill-switch to get the effective value. */
+	shellIntegration?: boolean;
 	onProgress?: (progressEvent: SshConnectionProgress) => void;
 };
 
@@ -165,7 +169,16 @@ type ConnectInput = {
 // connections list once a connect succeeds (it upserts the connection).
 const connectAtom = atomRuntime.fn(
 	Effect.fnUntraced(function* (input: ConnectInput) {
-		const { connectionDetails, onProgress, save = true } = input;
+		const {
+			connectionDetails,
+			onProgress,
+			save = true,
+			shellIntegration: perHostShellIntegration = true,
+		} = input;
+		// Effective value = app-wide kill-switch ∧ this host's choice. Global off
+		// disables it everywhere regardless of the per-host toggle.
+		const shellIntegration =
+			preferences.shellIntegrationEnabled.get() && perHostShellIntegration;
 		return yield* Effect.tryPromise({
 			try: async () => {
 				// Progress events are global (the connectionId isn't known until connect
@@ -219,10 +232,15 @@ const connectAtom = atomRuntime.fn(
 							label: `${connectionDetails.username}@${connectionDetails.host}:${connectionDetails.port}`,
 							details: connectionDetails,
 							priority: 0,
+							// Store the per-host CHOICE (not the global-gated effective
+							// value) so toggling the global setting later still honors it.
+							shellIntegration: perHostShellIntegration,
 						});
 					}
 
-					const shellHandle = await sshConnection.startShell();
+					const shellHandle = await sshConnection.startShell({
+						shellIntegration,
+					});
 
 					logger.info(
 						'Connected to SSH server',
@@ -266,11 +284,12 @@ export const useSshConnMutation = (opts?: {
 	// the connect form replaces itself with the resulting terminal.
 	const mutateAsync = async (
 		connectionDetails: InputConnectionDetails,
-		options?: { save?: boolean },
+		options?: { save?: boolean; shellIntegration?: boolean },
 	) => {
 		const success = await trigger({
 			connectionDetails,
 			save: options?.save,
+			shellIntegration: options?.shellIntegration,
 			onProgress: opts?.onConnectionProgress,
 		});
 		return success;

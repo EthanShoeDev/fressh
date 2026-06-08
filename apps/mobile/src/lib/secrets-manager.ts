@@ -243,16 +243,24 @@ export const connectionDetailsStandardSchema = Schema.toStandardSchemaV1(
 	connectionDetailsSchema,
 );
 
+const connectionMetadataSchema = Schema.Struct({
+	priority: Schema.Number,
+	createdAtMs: Schema.Int,
+	modifiedAtMs: Schema.Int,
+	label: Schema.optional(Schema.String),
+	// Per-host shell-integration preference (OSC 633 auto-injection). Absent ⇒
+	// inherit the default (on). ANDed with the global kill-switch at connect time.
+	// See docs/projects/terminal-semantic-events.md.
+	shellIntegration: Schema.optional(Schema.Boolean),
+});
+
+export type ConnectionMetadata = Schema.Schema.Type<
+	typeof connectionMetadataSchema
+>;
+
 const connectionStore = makeKeychainStore({
 	prefix: 'fressh.connection',
-	decodeMetadata: Schema.decodeUnknownSync(
-		Schema.Struct({
-			priority: Schema.Number,
-			createdAtMs: Schema.Int,
-			modifiedAtMs: Schema.Int,
-			label: Schema.optional(Schema.String),
-		}),
-	),
+	decodeMetadata: Schema.decodeUnknownSync(connectionMetadataSchema),
 	parseValue: (value) =>
 		Schema.decodeUnknownSync(connectionDetailsSchema)(JSON.parse(value)),
 });
@@ -265,23 +273,43 @@ async function upsertConnection(params: {
 	details: InputConnectionDetails;
 	priority: number;
 	label?: string;
+	/** Per-host shell-integration preference. Omit to inherit the default. */
+	shellIntegration?: boolean;
 }) {
 	const id =
 		`${params.details.username}-${params.details.host}-${params.details.port}`.replaceAll(
 			'.',
 			'_',
 		);
+	// Preserve the original creation time across re-saves (reconnect re-upserts).
+	const existing = await connectionStore.getEntry(id).catch(() => undefined);
 	await connectionStore.upsertEntry({
 		id,
 		metadata: {
 			priority: params.priority,
 			modifiedAtMs: Date.now(),
-			createdAtMs: Date.now(),
+			createdAtMs: existing?.metadata.createdAtMs ?? Date.now(),
 			label: params.label,
+			shellIntegration: params.shellIntegration,
 		},
 		value: JSON.stringify(params.details),
 	});
 	return params.details;
+}
+
+/** Patch one or more metadata fields of a saved connection without touching its
+ *  secret value or the untouched metadata fields. Used by rename + the per-host
+ *  shell-integration toggle. No-op (throws) if the connection doesn't exist. */
+async function updateConnectionMetadata(
+	id: string,
+	patch: Partial<Pick<ConnectionMetadata, 'label' | 'shellIntegration' | 'priority'>>,
+) {
+	const entry = await connectionStore.getEntry(id);
+	await connectionStore.upsertEntry({
+		id,
+		metadata: { ...entry.metadata, ...patch, modifiedAtMs: Date.now() },
+		value: JSON.stringify(entry.value),
+	});
 }
 
 async function deleteConnection(id: string) {
@@ -449,6 +477,19 @@ const upsertConnectionAtom = runtime.fn(
 	{ reactivityKeys: CONNECTIONS },
 );
 
+const updateConnectionMetadataAtom = Atom.family((id: string) =>
+	runtime.fn(
+		Effect.fnUntraced(function* (
+			patch: Partial<
+				Pick<ConnectionMetadata, 'label' | 'shellIntegration' | 'priority'>
+			>,
+		) {
+			yield* Effect.tryPromise(() => updateConnectionMetadata(id, patch));
+		}),
+		{ reactivityKeys: CONNECTIONS },
+	),
+);
+
 export const secretsManager = {
 	/** Invalidate query atoms after a non-atom mutation (e.g. the connect flow). */
 	reactivityKeys: { keys: KEYS, connections: CONNECTIONS },
@@ -470,12 +511,14 @@ export const secretsManager = {
 	connections: {
 		utils: {
 			upsertConnection,
+			updateConnectionMetadata,
 		},
 		atoms: {
 			list: listConnectionsAtom,
 			get: getConnectionAtom,
 			delete: deleteConnectionAtom,
 			upsert: upsertConnectionAtom,
+			updateMetadata: updateConnectionMetadataAtom,
 		},
 	},
 };

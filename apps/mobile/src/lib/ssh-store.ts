@@ -34,7 +34,13 @@ export interface StoreConnection {
 	connectionDetails: StoreConnectionDetails;
 	createdAtMs: number;
 	disconnect: () => Promise<void>;
-	startShell: (opts?: { cols?: number; rows?: number }) => Promise<StoreShell>;
+	startShell: (opts?: {
+		cols?: number;
+		rows?: number;
+		/** Inject OSC 633 shell integration for this shell. Omit ⇒ native default
+		 *  (on). Pass the effective global∧per-host value here. */
+		shellIntegration?: boolean;
+	}) => Promise<StoreShell>;
 }
 
 export interface StoreShell {
@@ -43,6 +49,9 @@ export interface StoreShell {
 	channelId: number;
 	createdAtMs: number;
 	pty: string;
+	/** Optional user-set local name for this session (runtime-only, set via the
+	 *  detail screen's long-press rename). Falls back to `pty` when unset. */
+	label?: string;
 	sendData: (data: ArrayBuffer) => Promise<void>;
 	resize: (cols: number, rows: number) => Promise<void>;
 	close: () => Promise<void>;
@@ -64,6 +73,8 @@ interface SshRegistryStore {
 	connections: Record<string, StoreConnection>;
 	shells: Record<string, StoreShell>;
 	connect: (args: ConnectArgs) => Promise<StoreConnection>;
+	/** Set (or clear, with '') a session's local name. Runtime-only. */
+	renameShell: (shellId: string, label: string) => void;
 }
 
 function channelIdFromShellId(shellId: string): number {
@@ -102,6 +113,9 @@ export const useSshStore = create<SshRegistryStore>((set) => {
 					// Read at shell-creation time: scrollback is a control-plane,
 						// creation-only knob (ring buffer allocated in fressh-core).
 						scrollbackLines: preferences.terminalScrollback.get(),
+					// undefined ⇒ native default (on); the connect flow passes the
+					// effective global∧per-host value. See terminal-semantic-events.md.
+					shellIntegration: opts?.shellIntegration,
 				});
 				const shell = makeShell(shellId, connectionId);
 				set((s) => ({ shells: { ...s.shells, [shellId]: shell } }));
@@ -135,6 +149,19 @@ export const useSshStore = create<SshRegistryStore>((set) => {
 			}));
 			return connection;
 		},
+		renameShell: (shellId, label) =>
+			set((s) => {
+				const shell = s.shells[shellId];
+				if (!shell) {
+					return s;
+				}
+				return {
+					shells: {
+						...s.shells,
+						[shellId]: { ...shell, label: label || undefined },
+					},
+				};
+			}),
 	};
 });
 

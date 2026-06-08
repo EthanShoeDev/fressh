@@ -1,4 +1,4 @@
-import { useAtomValue } from '@effect/atom-react';
+import { useAtomSet, useAtomValue } from '@effect/atom-react';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -13,11 +13,14 @@ import {
 	useSurfaceStyle,
 } from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
+import { RenameDialog } from '@/components/RenameDialog';
+import { Section, ToggleRow } from '@/components/settings-controls';
 import { rootLogger } from '@/lib/logger';
+import { preferences } from '@/lib/preferences';
 import { useSshConnMutation } from '@/lib/query-fns';
 import { secretsManager } from '@/lib/secrets-manager';
 import { useConnectionShells, useLiveConnection } from '@/lib/server-status';
-import type { StoreShell } from '@/lib/ssh-store';
+import { useSshStore, type StoreShell } from '@/lib/ssh-store';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
 import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 
@@ -70,6 +73,30 @@ function ServerDetailContent({ id }: { id: string }) {
 		[router],
 	);
 
+	// This host's stored shell-integration choice (absent ⇒ inherit default on),
+	// with an optimistic override so the toggle flips instantly before the keychain
+	// write + reactivity round-trip settles.
+	const storedShellIntegration = entry?.metadata.shellIntegration ?? true;
+	const [siOverride, setSiOverride] = React.useState<boolean | null>(null);
+	const shellIntegration = siOverride ?? storedShellIntegration;
+
+	const setShellIntegrationMeta = useAtomSet(
+		secretsManager.connections.atoms.updateMetadata(id),
+		{ mode: 'promise' },
+	);
+	const onToggleShellIntegration = React.useCallback(
+		(next: boolean) => {
+			setSiOverride(next);
+			void setShellIntegrationMeta({ shellIntegration: next }).catch(
+				(error: unknown) => {
+					logger.warn('Failed to save shell-integration preference', error);
+					setSiOverride(null); // revert the optimistic flip
+				},
+			);
+		},
+		[setShellIntegrationMeta],
+	);
+
 	const onNewShell = React.useCallback(async () => {
 		if (busy || !details) {
 			return;
@@ -77,10 +104,18 @@ function ServerDetailContent({ id }: { id: string }) {
 		setBusy(true);
 		try {
 			if (live) {
-				const shell = await live.startShell();
+				// New shell on an already-live connection calls the store directly, so
+				// it gets the EFFECTIVE value (global kill-switch ∧ this host's choice).
+				const effective =
+					preferences.shellIntegrationEnabled.get() && shellIntegration;
+				const shell = await live.startShell({ shellIntegration: effective });
 				openTerminal(live.connectionId, shell.channelId);
 			} else {
-				const success = await sshConnMutation.mutateAsync(details);
+				// Reconnect goes through the mutation, which ANDs the global setting in
+				// itself — pass the per-host CHOICE.
+				const success = await sshConnMutation.mutateAsync(details, {
+					shellIntegration,
+				});
 				openTerminal(success.connectionId, success.channelId);
 			}
 		} catch (error) {
@@ -88,7 +123,7 @@ function ServerDetailContent({ id }: { id: string }) {
 		} finally {
 			setBusy(false);
 		}
-	}, [busy, details, live, openTerminal, sshConnMutation]);
+	}, [busy, details, live, openTerminal, sshConnMutation, shellIntegration]);
 
 	const monoFamily = skin.mono ? skin.monoFamily : undefined;
 
@@ -129,6 +164,21 @@ function ServerDetailContent({ id }: { id: string }) {
 					}}
 					icon={<FontAwesome6 name='plus' size={15} color={onPrimaryColor} />}
 				/>
+
+				{/* Per-host settings */}
+				<View className='mt-6'>
+					<Section title='Smart terminal'>
+						<ToggleRow
+							label='Shell integration'
+							value={shellIntegration}
+							onChange={onToggleShellIntegration}
+						/>
+						<ThemedText className='mt-1.5 px-1 text-xs text-muted'>
+							Track folder, command status & timing for this host. Set up
+							automatically on connect — nothing changed on your server.
+						</ThemedText>
+					</Section>
+				</View>
 
 				{/* Active shells */}
 				<ThemedText
@@ -210,31 +260,52 @@ function ShellRow({
 	const skin = useThemeSkin();
 	const cardStyle = useSurfaceStyle();
 	const primaryColor = useCSSVariable('--color-primary') as string;
+	const renameShell = useSshStore((s) => s.renameShell);
+	const [renaming, setRenaming] = React.useState(false);
 	const since = formatDistanceToNow(new Date(shell.createdAtMs), {
 		addSuffix: true,
 	});
+	// `label` is stored as undefined when cleared (never ''), so ?? is safe.
+	const name = shell.label ?? shell.pty;
 	return (
-		<Pressable
-			onPress={onResume}
-			className='flex-row items-center gap-3 px-4 py-3'
-			style={cardStyle}
-		>
-			<FontAwesome6 name='terminal' size={15} color={primaryColor} />
-			<View className='min-w-0 flex-1'>
-				<ThemedText
-					className='text-[14px] font-semibold text-text-primary'
-					numberOfLines={1}
-					style={skin.mono ? { fontFamily: skin.monoFamily } : undefined}
-				>
-					{shell.pty}
+		<>
+			<Pressable
+				onPress={onResume}
+				onLongPress={() => setRenaming(true)}
+				className='flex-row items-center gap-3 px-4 py-3'
+				style={cardStyle}
+			>
+				<FontAwesome6 name='terminal' size={15} color={primaryColor} />
+				<View className='min-w-0 flex-1'>
+					<ThemedText
+						className='text-[14px] font-semibold text-text-primary'
+						numberOfLines={1}
+						style={skin.mono ? { fontFamily: skin.monoFamily } : undefined}
+					>
+						{name}
+					</ThemedText>
+					<ThemedText className='mt-0.5 text-xs text-muted'>
+						Started {since}
+					</ThemedText>
+				</View>
+				<ThemedText className='text-[13px] font-bold text-primary'>
+					{applyCase(skin, 'Resume')} ›
 				</ThemedText>
-				<ThemedText className='mt-0.5 text-xs text-muted'>
-					Started {since}
-				</ThemedText>
-			</View>
-			<ThemedText className='text-[13px] font-bold text-primary'>
-				{applyCase(skin, 'Resume')} ›
-			</ThemedText>
-		</Pressable>
+			</Pressable>
+
+			{renaming ? (
+				<RenameDialog
+					title='Rename session'
+					description='A local name for this shell — only shown in fressh.'
+					initial={shell.label ?? ''}
+					placeholder={shell.pty}
+					onClose={() => setRenaming(false)}
+					onSave={(next) => {
+						renameShell(shell.shellId, next);
+						setRenaming(false);
+					}}
+				/>
+			) : null}
+		</>
 	);
 }

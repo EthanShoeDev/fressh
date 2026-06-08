@@ -24,6 +24,7 @@ import { ThemedText } from '@/components/themed/ThemedText';
 import { useAppForm, useFieldContext } from '@/components/form-components';
 import { KeyList } from '@/components/key-manager/KeyList';
 import { rootLogger } from '@/lib/logger';
+import { preferences } from '@/lib/preferences';
 import {
 	useSshConnMutation,
 	type SshConnectionProgress,
@@ -60,6 +61,14 @@ export default function ConnectScreen() {
 	const saveRef = React.useRef(saveToServers);
 	saveRef.current = saveToServers;
 
+	// Per-host shell integration, seeded from the app-wide default. Stored with the
+	// host (when saved) and used (ANDed with the global setting) for this connect.
+	const [shellIntegration, setShellIntegration] = React.useState(() =>
+		preferences.shellIntegrationEnabled.get(),
+	);
+	const shellIntegrationRef = React.useRef(shellIntegration);
+	shellIntegrationRef.current = shellIntegration;
+
 	const sshConnMutation = useSshConnMutation({
 		onConnectionProgress: (s) => setLastConnectionProgressEvent(s),
 	});
@@ -70,7 +79,10 @@ export default function ConnectScreen() {
 			onChange: connectionDetailsStandardSchema,
 			onSubmitAsync: ({ value }) =>
 				sshConnMutation
-					.mutateAsync(value, { save: saveRef.current })
+					.mutateAsync(value, {
+						save: saveRef.current,
+						shellIntegration: shellIntegrationRef.current,
+					})
 					.then((success) => {
 						setLastConnectionProgressEvent(null);
 						// Swap this form for the terminal it just opened so backing out of
@@ -223,6 +235,11 @@ export default function ConnectScreen() {
 						)}
 
 						<SaveToggle on={saveToServers} onChange={setSaveToServers} />
+
+						<ShellIntegrationToggle
+							on={shellIntegration}
+							onChange={setShellIntegration}
+						/>
 
 						{sshConnMutation.isError && sshConnMutation.error ? (
 							<View className='gap-1'>
@@ -484,6 +501,33 @@ function SaveToggle({
 				</ThemedText>
 				<ThemedText className='mt-0.5 text-xs text-muted'>
 					Quick-connect next time
+				</ThemedText>
+			</View>
+			<PillToggle on={on} onPress={() => onChange(!on)} />
+		</Pressable>
+	);
+}
+
+function ShellIntegrationToggle({
+	on,
+	onChange,
+}: {
+	on: boolean;
+	onChange: (v: boolean) => void;
+}) {
+	const cardStyle = useSurfaceStyle();
+	return (
+		<Pressable
+			onPress={() => onChange(!on)}
+			className='flex-row items-center gap-3 px-3.5 py-3.5'
+			style={cardStyle}
+		>
+			<View className='flex-1'>
+				<ThemedText className='text-sm font-semibold text-text-primary'>
+					Smart terminal
+				</ThemedText>
+				<ThemedText className='mt-0.5 text-xs text-muted'>
+					Track folder, command status & timing — nothing changed on the server
 				</ThemedText>
 			</View>
 			<PillToggle on={on} onPress={() => onChange(!on)} />

@@ -2,7 +2,12 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { ScreenHeader } from '@/components/themed/ScreenHeader';
 import { ThemedScreen } from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
-import { LinkRow, Section, Segmented } from '@/components/settings-controls';
+import {
+	LinkRow,
+	Section,
+	Segmented,
+	ToggleRow,
+} from '@/components/settings-controls';
 import { preferences } from '@/lib/preferences';
 import type { TabBarImpl } from '@/lib/tab-bar-config';
 import { APP_THEMES, useAppTheme, type ThemeSwatch } from '@/lib/theme';
@@ -16,6 +21,8 @@ const TAB_BAR_OPTIONS: readonly { id: TabBarImpl; label: string }[] = [
 export default function Tab() {
 	const { themeName, setThemeName } = useAppTheme();
 	const [tabBarImpl, setTabBarImpl] = preferences.tabBarImpl.useValue();
+	const [shellIntegration, setShellIntegration] =
+		preferences.shellIntegrationEnabled.useValue();
 
 	return (
 		<ThemedScreen edges={['top']}>
@@ -43,6 +50,19 @@ export default function Tab() {
 						value={tabBarImpl}
 						onChange={setTabBarImpl}
 					/>
+				</Section>
+
+				<Section title='Shell integration'>
+					<ToggleRow
+						label='Smart terminal'
+						value={shellIntegration}
+						onChange={setShellIntegration}
+					/>
+					<ThemedText className='mt-1.5 px-1 text-xs text-muted'>
+						Lets fressh track the current folder, command status, and timing.
+						Set up automatically on connect — nothing is changed on your server.
+						Off makes fressh a plain SSH client.
+					</ThemedText>
 				</Section>
 
 				{/* Manage Keys moved to its own bottom-nav tab; Security section dropped. */}
