@@ -142,3 +142,32 @@ shares no surface with the terminal/SSH/renderer projects
 [on-device-shell.md](on-device-shell.md)) or the app-shell UI work
 ([native-ui-theme-or-themes.md](native-ui-theme-or-themes.md)). It can ship independently
 and at any time, and v0 alone is a small, self-contained PR.
+
+## Bug: `cargo fmt` reformats the vendored alacritty fork
+
+**Symptom.** Running `just fmt` (`cargo fmt --all`) in
+`packages/react-native-terminal/rust` rewrites ~10 files inside
+`vendor/alacritty` (e.g. `alacritty_renderer/src/lib.rs`, `selection.rs`,
+`message_bar.rs`, both `build.rs`), producing hundreds of lines of pure
+reformatting with zero logic change. `just fmt-check` then always reports the
+submodule as dirty, so it can't be used as a gate.
+
+**Cause.** Our `rust/rustfmt.toml` differs from alacritty's upstream style, and
+even though the workspace `exclude`s `vendor/alacritty`, `cargo fmt` still
+reaches the vendored crates through the `alacritty_renderer` path dependency
+(pulled in by `fressh-render`) and reformats them with our config.
+
+**Why it matters.** This silently diverges the fork from upstream alacritty for
+no functional reason — exactly what the `minimize-alacritty-fork-divergence`
+rule warns against — and makes future rebases onto a newer alacritty tag
+conflict-heavy. It already caused a batch of accidental churn that had to be
+reverted by hand.
+
+**Fix options.**
+- **Scope fmt to our crates (recommended, minimal).** Change the `fmt` /
+  `fmt-check` recipes from `cargo fmt --all` to an explicit package list
+  (`-p fressh-core -p fressh-ssh -p fressh-render -p shim-uniffi`) so the
+  vendored crates are never touched and `fmt-check` becomes a usable gate again.
+- **Match upstream's rustfmt config.** Vendor alacritty's own `rustfmt.toml`
+  into the fork tree so our formatter produces upstream-identical output. More
+  fragile — drifts whenever upstream changes its style.
