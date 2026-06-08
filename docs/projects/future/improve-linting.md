@@ -171,3 +171,44 @@ reverted by hand.
 - **Match upstream's rustfmt config.** Vendor alacritty's own `rustfmt.toml`
   into the fork tree so our formatter produces upstream-identical output. More
   fragile — drifts whenever upstream changes its style.
+
+## Astro linting: deliberately NOT setting it up (decided 2026-06-08)
+
+**Decision: we will not invest in linting the Astro app — `apps/web` is being
+replaced by a TanStack Start (React/TSX) app instead.** See
+[web-tanstack-start.md](web-tanstack-start.md). Do not add Astro lint wiring,
+overrides, or a second linter; the right fix for the blind spot below is to remove
+Astro, not to lint around it. This section records *why* so nobody re-opens it.
+
+The investigation behind the decision (verified against the vendored oxc source in
+`docs/cloned-repos-as-docs/oxc`, oxlint 1.68 era):
+
+- **There is no Astro (or Svelte) rule plugin in oxc.** The full set of plugin
+  namespaces is a `bitflags` enum in `crates/oxc_linter/src/config/plugins.rs`:
+  `eslint, react, unicorn, typescript, oxc, import, jsdoc, jest, vitest, jsx-a11y,
+  nextjs, react-perf, promise, node, vue`. `vue` *is* ported (template-aware
+  eslint-plugin-vue rules); **`astro` and `svelte` are not** — there is nothing to
+  add to the `plugins:` array for Astro.
+- **oxlint already lints the JS *inside* `.astro` files** (so this isn't about
+  total darkness). `astro` is in `LINTABLE_EXTENSIONS`; an `AstroPartialLoader`
+  extracts the `---` frontmatter and every `<script>` tag (both parsed as TS) and
+  runs all enabled rules on those sections. That coverage exists today and will go
+  away naturally when the app does.
+- **But the template/markup is invisible to oxlint, and that's the catch.** It only
+  carves out JS/TS, never the HTML-ish body. So:
+  - No template-aware Astro rules exist or can be added (the eslint-plugin-astro
+    family — `astro/no-set-html-directive`, `astro/no-unused-css-selector`,
+    `astro/valid-compile`, markup a11y — is not ported).
+  - **`eslint/no-unused-vars` and `typescript/consistent-type-imports` are silently
+    skipped on `.astro`/`.svelte`/`.vue`** (they bail by extension, since a binding
+    used only in the template would false-positive). Unused imports/vars in `.astro`
+    frontmatter are a genuine, unfixable-in-oxlint coverage gap.
+  - `jsx-a11y` never touches the Astro markup.
+
+**The only way to truly lint Astro** would be reintroducing ESLint with
+`eslint-plugin-astro` + `astro-eslint-parser` as a separate, second linter pass —
+undoing the "drop ESLint, own oxlint directly" decision for the sake of one small
+static site. Not worth it. **We're removing the language instead of adding a
+linter for it.** Until the TanStack Start migration lands, treat the `.astro`
+coverage gap as known and accepted (knip's `apps/web` coverage, gap #2 above, is
+the closest stopgap for unused-code there).
