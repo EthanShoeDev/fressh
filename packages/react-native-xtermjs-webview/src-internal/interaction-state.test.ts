@@ -65,6 +65,9 @@ class FakeElement {
 	textContent = '';
 	id = '';
 	className = '';
+	scrollTop = 0;
+	scrollHeight = 200;
+	clientHeight = 200;
 	private rect = {
 		left: 0,
 		top: 0,
@@ -238,13 +241,58 @@ const dispatchPointerEvent = (
 	return event;
 };
 
-const installDomGlobals = (t: TestContext) => {
+const createTouchEvent = (
+	type: string,
+	init: {
+		identifier?: number;
+		clientX: number;
+		clientY: number;
+		timeStamp?: number;
+	},
+) => {
+	let defaultPrevented = false;
+	const touch = {
+		identifier: init.identifier ?? 1,
+		clientX: init.clientX,
+		clientY: init.clientY,
+	};
+	return {
+		type,
+		touches: type === 'touchend' || type === 'touchcancel' ? [] : [touch],
+		changedTouches: [touch],
+		timeStamp: init.timeStamp ?? 0,
+		get defaultPrevented() {
+			return defaultPrevented;
+		},
+		preventDefault() {
+			defaultPrevented = true;
+		},
+		stopPropagation() {},
+	} as unknown as TouchEvent;
+};
+
+const dispatchTouchEvent = (
+	target: FakeElement,
+	type: string,
+	init: Parameters<typeof createTouchEvent>[1],
+) => {
+	const event = createTouchEvent(type, init);
+	target.emit(type, event as unknown as Event);
+	return event;
+};
+
+const installDomGlobals = (
+	t: TestContext,
+	options?: { pointerEvents?: boolean },
+) => {
 	const originalWindow = (globalThis as Record<string, unknown>).window;
 	const originalDocument = (globalThis as Record<string, unknown>).document;
 	const document = new FakeDocument();
 	const window = {
 		document,
-		PointerEvent: class PointerEvent {},
+		...(options?.pointerEvents === false
+			? {}
+			: { PointerEvent: class PointerEvent {} }),
 		getComputedStyle(element: FakeElement) {
 			return {
 				position: element.style.position ?? 'static',
@@ -268,6 +316,26 @@ const createTouchScrollTerm = (element: FakeElement, rows = 24) =>
 	({
 		rows,
 		element,
+		options: {
+			scrollback: 0,
+		},
+		_core: {
+			_bufferService: {
+				buffer: {
+					ydisp: 0,
+				},
+			},
+		},
+	}) as const;
+
+const createTouchScrollTermWithBottomPin = (
+	element: FakeElement,
+	onScrollToBottom: () => void,
+	rows = 24,
+) =>
+	({
+		...createTouchScrollTerm(element, rows),
+		scrollToBottom: onScrollToBottom,
 	}) as const;
 
 const createSelectionTerm = (
@@ -450,6 +518,241 @@ void test('touch scroll batch includes the producer page step', (t) => {
 	);
 
 	assert.equal(scrollBatch?.pageStep, 24);
+});
+
+void test('touch scroll marks the document only while it owns viewport gestures', (t) => {
+	const { document } = installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root, 25) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: () => {},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
+
+	controller.setConfig({
+		enabled: true,
+		slopPx: 8,
+		pxPerLine: 10,
+	});
+	assert.equal(
+		document.body.classList.contains('fressh-touch-scroll-enabled'),
+		true,
+	);
+
+	controller.setConfig({ enabled: false });
+	assert.equal(
+		document.body.classList.contains('fressh-touch-scroll-enabled'),
+		false,
+	);
+});
+
+void test('touch scroll handles Android touch events when PointerEvent is unavailable', async (t) => {
+	installDomGlobals(t, { pointerEvents: false });
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	const messages: BridgeInboundDraftMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root, 25) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
+
+	controller.setConfig({
+		enabled: true,
+		slopPx: 0,
+		pxPerLine: 1,
+		maxPagesPerFlush: 2,
+		maxExtraLines: 999,
+		coalesceMs: 0,
+		velocityMultiplierEnabled: false,
+		backlogMultiplierEnabled: false,
+	});
+
+	dispatchTouchEvent(root, 'touchstart', {
+		identifier: 7,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	const moveEvent = dispatchTouchEvent(root, 'touchmove', {
+		identifier: 7,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 100,
+	});
+	dispatchTouchEvent(root, 'touchend', {
+		identifier: 7,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 120,
+	});
+	controller.handleEnterAck(1);
+	await new Promise((resolve) => setTimeout(resolve, 0));
+
+	const scrollBatch = messages.find(
+		(
+			message,
+		): message is Extract<BridgeInboundDraftMessage, { type: 'scrollbackBatch' }> =>
+			message.type === 'scrollbackBatch',
+	);
+
+	assert.equal(moveEvent.defaultPrevented, true);
+	assert.equal(scrollBatch?.pageStep, 24);
+	assert.equal(scrollBatch?.direction, 'up');
+});
+
+void test('touch scroll telemetry reports local xterm scroll state', (t) => {
+	installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+	const viewport = new FakeElement('div');
+	viewport.className = 'xterm-viewport';
+	viewport.scrollTop = 42;
+	viewport.scrollHeight = 400;
+	viewport.clientHeight = 200;
+	const screen = new FakeElement('div');
+	screen.className = 'xterm-screen';
+	screen.scrollHeight = 450;
+	screen.clientHeight = 190;
+	viewport.appendChild(screen);
+	root.appendChild(viewport);
+
+	const messages: BridgeInboundDraftMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTerm(root, 25) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
+
+	controller.setConfig({
+		enabled: true,
+		slopPx: 0,
+		pxPerLine: 1,
+		coalesceMs: 0,
+		debugTelemetry: true,
+		debugTelemetryIntervalMs: 0,
+	});
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 100,
+	});
+
+	const telemetry = messages
+		.filter(
+			(message): message is Extract<BridgeInboundDraftMessage, { type: 'debug' }> =>
+				message.type === 'debug',
+		)
+		.map((message) => message.message)
+		.join('\n');
+
+	assert.match(telemetry, /localScroll/);
+	assert.match(telemetry, /scrollback=0/);
+	assert.match(telemetry, /ydisp=0/);
+	assert.match(telemetry, /viewportTop=200/);
+	assert.match(telemetry, /viewportScrollable=1/);
+	assert.match(telemetry, /viewportClient=200/);
+	assert.match(telemetry, /viewportScroll=400/);
+	assert.match(telemetry, /screenClient=190/);
+	assert.match(telemetry, /screenScroll=450/);
+	assert.match(telemetry, /rootClient=200/);
+	assert.match(telemetry, /rootScroll=200/);
+});
+
+void test('touch scroll keeps local xterm viewport pinned to bottom during remote scroll', (t) => {
+	installDomGlobals(t);
+
+	const root = new FakeElement('div');
+	root.setBoundingClientRect({
+		width: 320,
+		height: 200,
+		right: 320,
+		bottom: 200,
+	});
+
+	let scrollToBottomCalls = 0;
+	const messages: BridgeInboundDraftMessage[] = [];
+	const controller = createTouchScrollController({
+		term: createTouchScrollTermWithBottomPin(root, () => {
+			scrollToBottomCalls += 1;
+		}) as never,
+		root: root as never,
+		instanceId: 'instance-1',
+		sendToRn: (message) => {
+			messages.push(message);
+		},
+		isSelectionModeEnabled: () => false,
+		cancelLongPress() {},
+	});
+
+	controller.setConfig({
+		enabled: true,
+		slopPx: 0,
+		pxPerLine: 1,
+		coalesceMs: 0,
+		velocityMultiplierEnabled: false,
+		backlogMultiplierEnabled: false,
+	});
+
+	dispatchPointerEvent(root, 'pointerdown', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 40,
+		timeStamp: 0,
+	});
+	dispatchPointerEvent(root, 'pointermove', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 100,
+	});
+	controller.handleEnterAck(1);
+	dispatchPointerEvent(root, 'pointerup', {
+		pointerId: 1,
+		clientX: 40,
+		clientY: 140,
+		timeStamp: 120,
+	});
+
+	assert.ok(
+		scrollToBottomCalls >= 3,
+		`expected bottom pinning during down/move/up, got ${scrollToBottomCalls}`,
+	);
 });
 
 void test('touch scroll quick release flushes after delayed enter ack', async (t) => {

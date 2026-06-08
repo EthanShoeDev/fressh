@@ -11,6 +11,24 @@ type TouchScrollController = {
 	updateLineHeight: () => void;
 };
 
+type TerminalWithPrivateBuffer = Terminal & {
+	_core?: {
+		_bufferService?: {
+			buffer?: {
+				ydisp?: number;
+			};
+		};
+	};
+	_bufferService?: {
+		buffer?: {
+			ydisp?: number;
+		};
+	};
+	scrollToBottom?: () => void;
+};
+
+const touchScrollOwnerClass = 'fressh-touch-scroll-enabled';
+
 export const createTouchScrollController = ({
 	term,
 	root,
@@ -122,6 +140,52 @@ export const createTouchScrollController = ({
 		sendToRn({ type: 'debug', message });
 	};
 
+	const getLocalScrollDiagnostics = () => {
+		const privateTerm = term as TerminalWithPrivateBuffer;
+		const buffer =
+			privateTerm._bufferService?.buffer ??
+			privateTerm._core?._bufferService?.buffer;
+		const viewport =
+			term.element?.querySelector<HTMLElement>('.xterm-viewport') ?? null;
+		const screen =
+			term.element?.querySelector<HTMLElement>('.xterm-screen') ?? null;
+		const viewportScrollable =
+			viewport && viewport.scrollHeight > viewport.clientHeight ? 1 : 0;
+		const rootScrollable =
+			root && root.scrollHeight > root.clientHeight ? 1 : 0;
+		return [
+			'localScroll',
+			`scrollback=${String(term.options.scrollback ?? 'unknown')}`,
+			`ydisp=${String(buffer?.ydisp ?? 'unknown')}`,
+			`rows=${String(term.rows ?? 'unknown')}`,
+			`lineHeight=${String(lineHeightPx)}`,
+			`viewportTop=${String(viewport?.scrollTop ?? 'missing')}`,
+			`viewportScrollable=${viewportScrollable}`,
+			`viewportClient=${String(viewport?.clientHeight ?? 'missing')}`,
+			`viewportScroll=${String(viewport?.scrollHeight ?? 'missing')}`,
+			`screenClient=${String(screen?.clientHeight ?? 'missing')}`,
+			`screenScroll=${String(screen?.scrollHeight ?? 'missing')}`,
+			`rootTop=${String(root?.scrollTop ?? 'missing')}`,
+			`rootScrollable=${rootScrollable}`,
+			`rootClient=${String(root?.clientHeight ?? 'missing')}`,
+			`rootScroll=${String(root?.scrollHeight ?? 'missing')}`,
+		].join(' ');
+	};
+
+	const pinLocalViewportToBottom = () => {
+		const privateTerm = term as TerminalWithPrivateBuffer;
+		try {
+			privateTerm.scrollToBottom?.();
+		} catch {
+			// Best effort; the DOM fallback below handles the usual xterm viewport.
+		}
+		const viewport =
+			term.element?.querySelector<HTMLElement>('.xterm-viewport') ?? null;
+		if (!viewport) return;
+		const bottom = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+		if (viewport.scrollTop !== bottom) viewport.scrollTop = bottom;
+	};
+
 	const ensureDebugOverlay = () => {
 		if (debugOverlayEl || !root) return;
 		const el = document.createElement('div');
@@ -151,11 +215,16 @@ export const createTouchScrollController = ({
 		debugOverlayEl = null;
 	};
 
-	const emitTelemetry = (message: string) => {
+	const emitTelemetry = (message: string, opts?: { force?: boolean }) => {
 		const cfg = getActiveConfig();
 		if (!cfg?.debugTelemetry) return;
 		const now = nowMs();
-		if (now - debugTelemetryLastTs < cfg.debugTelemetryIntervalMs) return;
+		if (
+			!opts?.force &&
+			now - debugTelemetryLastTs < cfg.debugTelemetryIntervalMs
+		) {
+			return;
+		}
 		debugTelemetryLastTs = now;
 		sendToRn({ type: 'debug', message });
 	};
@@ -420,6 +489,7 @@ export const createTouchScrollController = ({
 		if (pendingEnterRequestId !== requestId) return;
 		clearPendingEnterRequest();
 		scrollbackEnterState = 'on';
+		pinLocalViewportToBottom();
 
 		const pointerDownNow = pointerIsDown;
 		const phase = pointerDownNow ? 'dragging' : 'active';
@@ -441,8 +511,16 @@ export const createTouchScrollController = ({
 
 	const applyTouchAction = () => {
 		const value = enabled ? 'none' : '';
-		if (root) root.style.touchAction = value;
-		if (term.element) term.element.style.touchAction = value;
+		document.body?.classList.toggle(touchScrollOwnerClass, enabled);
+		const touchTargets = [
+			root,
+			term.element,
+			term.element?.querySelector<HTMLElement>('.xterm-viewport') ?? null,
+			term.element?.querySelector<HTMLElement>('.xterm-screen') ?? null,
+		];
+		for (const target of touchTargets) {
+			if (target) target.style.touchAction = value;
+		}
 	};
 
 	const updateLineHeight = () => {
@@ -473,9 +551,9 @@ export const createTouchScrollController = ({
 		if (!target) return;
 		listenersInstalled = true;
 
-		if (!('PointerEvent' in window)) {
+		const supportsPointerEvents = 'PointerEvent' in window;
+		if (!supportsPointerEvents) {
 			emitDebug('PointerEvent not supported; touch scroll disabled.');
-			return;
 		}
 
 		const onPointerDown = (event: PointerEvent) => {
@@ -492,10 +570,15 @@ export const createTouchScrollController = ({
 			activePointerId = event.pointerId;
 			startX = event.clientX;
 			startY = event.clientY;
-			lastY = startY;
-			lastMoveTs = event.timeStamp;
-			state = 'Tracking';
-		};
+				lastY = startY;
+				lastMoveTs = event.timeStamp;
+				state = 'Tracking';
+				pinLocalViewportToBottom();
+				emitTelemetry(
+					`touch-scroll down state=${state} ${getLocalScrollDiagnostics()}`,
+					{ force: true },
+				);
+			};
 
 		const onPointerMove = (event: PointerEvent) => {
 			if (!enabled) return;
@@ -517,12 +600,17 @@ export const createTouchScrollController = ({
 				if (distance < cfg.slopPx) return;
 
 				cancelLongPress();
-				state = 'Scrolling';
-				requestScrollbackEnter();
-				emitScrollbackMode(true, 'dragging');
-				try {
-					target?.setPointerCapture(event.pointerId);
-				} catch {
+					state = 'Scrolling';
+					requestScrollbackEnter();
+					emitScrollbackMode(true, 'dragging');
+					pinLocalViewportToBottom();
+					emitTelemetry(
+						`touch-scroll start distance=${distance.toFixed(1)} ${getLocalScrollDiagnostics()}`,
+						{ force: true },
+					);
+					try {
+						target?.setPointerCapture(event.pointerId);
+					} catch {
 					// Ignore capture errors.
 				}
 			}
@@ -574,11 +662,16 @@ export const createTouchScrollController = ({
 					);
 					scheduleFlush();
 					updateDebugOverlay();
+					}
 				}
-			}
 
-			lastMoveTs = event.timeStamp;
-			lastY = event.clientY;
+				pinLocalViewportToBottom();
+				emitTelemetry(
+					`touch-scroll move dy=${deltaY.toFixed(1)} desired=${desiredLines.toFixed(1)} sent=${sentLines.toFixed(1)} ${getLocalScrollDiagnostics()}`,
+				);
+
+				lastMoveTs = event.timeStamp;
+				lastY = event.clientY;
 
 			event.preventDefault();
 			event.stopPropagation();
@@ -601,12 +694,17 @@ export const createTouchScrollController = ({
 				} else {
 					pendingPointerUp = true;
 				}
-			} else if (state === 'Tracking') {
-				state = scrollbackActive ? 'ScrollbackActive' : 'Idle';
-			}
+				} else if (state === 'Tracking') {
+					state = scrollbackActive ? 'ScrollbackActive' : 'Idle';
+				}
 
-			activePointerId = null;
-		};
+				pinLocalViewportToBottom();
+				emitTelemetry(
+					`touch-scroll up state=${state} ${getLocalScrollDiagnostics()}`,
+					{ force: true },
+				);
+				activePointerId = null;
+			};
 
 		const onPointerCancel = (event: PointerEvent) => {
 			if (isSelectionModeEnabled()) {
@@ -626,16 +724,103 @@ export const createTouchScrollController = ({
 			}
 		};
 
-		target.addEventListener('pointerdown', onPointerDown);
-		target.addEventListener('pointermove', onPointerMove);
-		target.addEventListener('pointerup', onPointerUp);
-		target.addEventListener('pointercancel', onPointerCancel);
+		const touchToPointerEvent = (
+			type: string,
+			event: TouchEvent,
+			touch: Touch,
+		) =>
+			({
+				type,
+				pointerId: touch.identifier,
+				clientX: touch.clientX,
+				clientY: touch.clientY,
+				timeStamp: event.timeStamp,
+				pointerType: 'touch',
+				isPrimary: true,
+				preventDefault: () => event.preventDefault(),
+				stopPropagation: () => event.stopPropagation(),
+			}) as PointerEvent;
+
+		const getTouchForActivePointer = (event: TouchEvent) => {
+			for (const touch of Array.from(event.changedTouches)) {
+				if (activePointerId === touch.identifier) return touch;
+			}
+			return null;
+		};
+
+		const consumeTouchScrollEvent = (event: TouchEvent) => {
+			event.preventDefault();
+			event.stopPropagation();
+		};
+
+		const onTouchStart = (event: TouchEvent) => {
+			if (!enabled) return;
+			if (isSelectionModeEnabled()) return;
+			if (pointerIsDown) return;
+			if (event.touches.length !== 1) return;
+			const touch = event.changedTouches[0] ?? event.touches[0];
+			if (!touch) return;
+			onPointerDown(touchToPointerEvent('pointerdown', event, touch));
+		};
+
+		const onTouchMove = (event: TouchEvent) => {
+			if (!enabled) return;
+			const touch = getTouchForActivePointer(event);
+			if (!touch) return;
+			onPointerMove(touchToPointerEvent('pointermove', event, touch));
+			if (state === 'Scrolling' || state === 'ScrollbackActive') {
+				consumeTouchScrollEvent(event);
+			}
+		};
+
+		const onTouchEnd = (event: TouchEvent) => {
+			const touch = getTouchForActivePointer(event);
+			if (!touch) return;
+			onPointerUp(touchToPointerEvent('pointerup', event, touch));
+		};
+
+		const onTouchCancel = (event: TouchEvent) => {
+			const touch = getTouchForActivePointer(event);
+			if (!touch) return;
+			onPointerCancel(touchToPointerEvent('pointercancel', event, touch));
+		};
+
+		if (supportsPointerEvents) {
+			target.addEventListener('pointerdown', onPointerDown);
+			target.addEventListener('pointermove', onPointerMove);
+			target.addEventListener('pointerup', onPointerUp);
+			target.addEventListener('pointercancel', onPointerCancel);
+		}
+		target.addEventListener('touchstart', onTouchStart, {
+			capture: true,
+			passive: false,
+		});
+		target.addEventListener('touchmove', onTouchMove, {
+			capture: true,
+			passive: false,
+		});
+		target.addEventListener('touchend', onTouchEnd, {
+			capture: true,
+			passive: false,
+		});
+		target.addEventListener('touchcancel', onTouchCancel, {
+			capture: true,
+			passive: false,
+		});
 
 		return () => {
-			target?.removeEventListener('pointerdown', onPointerDown);
-			target?.removeEventListener('pointermove', onPointerMove);
-			target?.removeEventListener('pointerup', onPointerUp);
-			target?.removeEventListener('pointercancel', onPointerCancel);
+			if (supportsPointerEvents) {
+				target?.removeEventListener('pointerdown', onPointerDown);
+				target?.removeEventListener('pointermove', onPointerMove);
+				target?.removeEventListener('pointerup', onPointerUp);
+				target?.removeEventListener('pointercancel', onPointerCancel);
+			}
+			target?.removeEventListener('touchstart', onTouchStart, { capture: true });
+			target?.removeEventListener('touchmove', onTouchMove, { capture: true });
+			target?.removeEventListener('touchend', onTouchEnd, { capture: true });
+			target?.removeEventListener('touchcancel', onTouchCancel, {
+				capture: true,
+			});
 			listenersInstalled = false;
 		};
 	};

@@ -2,7 +2,6 @@ import { type ListenerEvent } from '@fressh/react-native-uniffi-russh';
 import {
 	XtermJsWebView,
 	type XtermWebViewHandle,
-	type TouchScrollConfig,
 } from '@fressh/react-native-xtermjs-webview';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -14,6 +13,7 @@ import {
 	useRouter,
 	useFocusEffect,
 } from 'expo-router';
+import Constants from 'expo-constants';
 import React, {
 	startTransition,
 	useCallback,
@@ -88,7 +88,12 @@ import {
 	loadRuntimeShellConfigState,
 	reloadRuntimeShellConfigFromRemote,
 } from '@/lib/shell-config-store-native';
-import { emitScrollTrace, type ScrollTraceSink } from '@/lib/scroll-trace';
+import {
+	configureScrollTraceEnabled,
+	emitScrollTrace,
+	isScrollTraceEnabled,
+	type ScrollTraceSink,
+} from '@/lib/scroll-trace';
 import {
 	useBrowserActionsController,
 	useFeatureRequestController,
@@ -177,8 +182,27 @@ import {
 	runShellScrollbackInactiveCleanup,
 	shouldTreatShellWorkmuxScrollbackFailureAsAlreadyInactive,
 } from './shell-scrollback-policy';
+import { resolveShellTouchScrollPolicy } from './shell-touch-scroll';
 
 const logger = rootLogger.extend('TabsShellDetail');
+
+type ExpoConstantsWithManifestExtra = typeof Constants & {
+	manifest2?: {
+		extra?: Record<string, unknown>;
+	};
+};
+
+const isConfiguredScrollTraceEnabled = () => {
+	const constants = Constants as ExpoConstantsWithManifestExtra;
+	const extra =
+		(Constants.expoConfig?.extra as Record<string, unknown> | undefined) ??
+		constants.manifest2?.extra;
+	return (
+		extra?.fresshEnableScrollTrace === true ||
+		extra?.fresshEnableScrollTrace === 'true' ||
+		isScrollTraceEnabled()
+	);
+};
 
 const sleep = (ms: number) =>
 	new Promise<void>((resolve) => {
@@ -736,42 +760,21 @@ function ShellDetail() {
 	const lastSelectionRef = useRef<{ text: string; at: number } | null>(null);
 	const { width, height } = useWindowDimensions();
 	autoWisprEnabledRef.current = autoWisprEnabled;
-	const touchScrollEnabled =
-		Platform.OS === 'android' &&
-		Math.min(width, height) >= 600 &&
-		tmuxEnabled &&
-		Boolean(connection);
-	const touchScrollConfig = useMemo<TouchScrollConfig>(
+	const scrollTraceEnabled = isConfiguredScrollTraceEnabled();
+	configureScrollTraceEnabled(scrollTraceEnabled);
+	const hasConnection = Boolean(connection);
+	const remoteTouchScrollPolicy = useMemo(
 		() =>
-			touchScrollEnabled
-				? {
-						enabled: true,
-						pxPerLine: 10,
-						slopPx: 10,
-						maxLinesPerFrame: 12,
-						flickVelocity: 1.2,
-						coalesceMs: 24,
-						minFlushMs: 16,
-						maxFlushMs: 80,
-						maxPagesPerFlush: 12,
-						maxExtraLines: 999,
-						maxBacklogPages: 50,
-						velocityMultiplierEnabled: true,
-						velocityThreshold: 0.3,
-						velocityBoost: 2.5,
-						velocityBoostMax: 20,
-						velocitySmoothing: 0.2,
-						backlogMultiplierEnabled: true,
-						backlogBoostRefPages: 2,
-						backlogBoostMax: 2,
-						rttEwmaAlpha: 0.2,
-						debug: __DEV__,
-						debugOverlay: false,
-						debugTelemetry: __DEV__,
-						debugTelemetryIntervalMs: 120,
-					}
-				: { enabled: false },
-		[touchScrollEnabled],
+			resolveShellTouchScrollPolicy({
+				platformOS: Platform.OS,
+				width,
+				height,
+				tmuxEnabled,
+				hasConnection,
+				scrollTraceEnabled,
+				debug: __DEV__,
+			}),
+		[hasConnection, height, scrollTraceEnabled, tmuxEnabled, width],
 	);
 	const exitSelectionMode = useCallback(() => {
 		setSelectionModeEnabled(false);
@@ -3087,6 +3090,7 @@ function ShellDetail() {
 								error: logger.error,
 							}}
 							xtermOptions={{
+								scrollback: remoteTouchScrollPolicy.xtermScrollback,
 								theme: {
 									background: theme.colors.background,
 									foreground: theme.colors.textPrimary,
@@ -3103,7 +3107,7 @@ function ShellDetail() {
 											}),
 								},
 							}}
-							touchScrollConfig={touchScrollConfig}
+							touchScrollConfig={remoteTouchScrollPolicy.touchScrollConfig}
 							onResize={handleTerminalResize}
 							onSelection={handleSelectionChanged}
 							onSelectionModeChange={handleSelectionModeChange}

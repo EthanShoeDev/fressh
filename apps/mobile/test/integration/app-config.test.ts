@@ -31,3 +31,10 @@ void test('checked-in Android resources package the configured runtimeVersion', 
 		true,
 	);
 });
+
+void test('app config exposes the scroll trace flag through Expo extra', () => {
+	const source = readFileSync(require.resolve('../../app.config.ts'), 'utf8');
+
+	assert.match(source, /fresshEnableScrollTrace:/);
+	assert.match(source, /EXPO_PUBLIC_FRESSH_ENABLE_SCROLL_TRACE/);
+});
