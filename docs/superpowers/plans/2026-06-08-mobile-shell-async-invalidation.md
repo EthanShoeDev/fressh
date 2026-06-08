@@ -206,10 +206,11 @@ Run:
 
 ```sh
 git status --short
-git log --oneline -4
+git log --oneline 51c3797..HEAD
+git log --oneline --max-count=1 51c3797
 ```
 
-Expected: `git status --short` prints no output. `git log --oneline -4` includes commit subjects ending with `docs: document mobile shell request lifecycle`, `test: cover stale Workmux status cycle invalidation`, `docs: plan mobile shell async invalidation`, and `docs: design mobile shell async invalidation`.
+Expected: `git status --short` prints no output. `git log --oneline 51c3797..HEAD` includes commit subjects ending with `docs: document mobile shell request lifecycle`, `test: cover stale Workmux status cycle invalidation`, and `docs: plan mobile shell async invalidation`. `git log --oneline --max-count=1 51c3797` prints the design commit ending with `docs: design mobile shell async invalidation`.
 
 - [ ] **Step 3: Confirm issue-84 acceptance mapping**
 
