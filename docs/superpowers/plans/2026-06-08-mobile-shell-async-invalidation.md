@@ -206,10 +206,10 @@ Run:
 
 ```sh
 git status --short
-git log --oneline -3
+git log --oneline -4
 ```
 
-Expected: `git status --short` prints no output. `git log --oneline -3` includes commit subjects ending with `docs: document mobile shell request lifecycle`, `test: cover stale Workmux status cycle invalidation`, and `docs: design mobile shell async invalidation`.
+Expected: `git status --short` prints no output. `git log --oneline -4` includes commit subjects ending with `docs: document mobile shell request lifecycle`, `test: cover stale Workmux status cycle invalidation`, `docs: plan mobile shell async invalidation`, and `docs: design mobile shell async invalidation`.
 
 - [ ] **Step 3: Confirm issue-84 acceptance mapping**
 
