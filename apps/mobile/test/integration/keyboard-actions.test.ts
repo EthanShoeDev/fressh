@@ -689,6 +689,33 @@ void test('Workmux keyboard command runner invalidates pending commands and stal
 	assert.deepEqual(failures, []);
 });
 
+void test('Workmux status cycle suppresses stale failures after invalidation', async () => {
+	const commandBlock = deferred<void>();
+	const calls: string[] = [];
+	const failures: string[] = [];
+	const runner = createWorkmuxKeyboardCommandRunner({
+		isTmuxEnabled: () => true,
+		getSessionName: () => 'main',
+		runWorkmuxCommand: async (argv) => {
+			calls.push(argv.join(' '));
+			await commandBlock.promise;
+			throw new Error('mdev: command not found');
+		},
+		showFailure: (message) => failures.push(message),
+		getErrorMessage: (error) =>
+			error instanceof Error ? error.message : String(error),
+	});
+
+	const result = runner.run({ type: 'status-cycle' });
+	await Promise.resolve();
+	runner.invalidate();
+	commandBlock.resolve(undefined);
+
+	assert.deepEqual(await result, { status: 'superseded' });
+	assert.deepEqual(calls, ['tmux nav cycle main:']);
+	assert.deepEqual(failures, []);
+});
+
 void test('Workmux keyboard command runner preserves local failures and maps remote failures', async () => {
 	const failures: string[] = [];
 	let tmuxEnabled = false;
