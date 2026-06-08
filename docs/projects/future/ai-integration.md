@@ -11,7 +11,7 @@ on-device toolkit (vendored as docs), and **Effect's AI package**
 the core `effect/unstable/ai` abstractions) as the provider-agnostic seam. Consumes —
 does not modify — `@fressh/react-native-terminal`.
 
-**Prerequisite:** [terminal-semantic-events.md](terminal-semantic-events.md). This is
+**Prerequisite:** [terminal-semantic-events.md](../complete/terminal-semantic-events.md). This is
 the hard dependency, and the reason it's a prereq is below — an AI assistant is only as
 good as the *shell context* it can see, and that context (cwd, command history, exit
 codes, and the **boundaries that slice scrollback into "the last command's output"**)
@@ -202,8 +202,10 @@ describe:
    object with a `destructive` flag).
 4. **UI overlay.** Both surfaces are React overlays floated over the native terminal —
    the *exact* pattern already used for the copy button and the modifier-key toolbar in
-   `apps/mobile/src/app/(tabs)/servers/terminal.tsx`. Autocomplete = inline ghost text
-   near the prompt; Q&A = a bottom sheet that streams the answer. No renderer work.
+   `apps/mobile/src/app/(tabs)/servers/terminal.tsx`. Per
+   [smart-terminal-surface.md](../smart-terminal-surface.md): **"Ask AI" is a button on
+   toolbar page 3** opening a **bottom sheet** that streams the answer; autocomplete =
+   inline ghost text near the prompt. No renderer work.
 5. **Acceptance path.** Accepting a suggestion just writes the bytes to the PTY through
    the same input path the keyboard already uses. The model never executes anything —
    it proposes; the user submits.
@@ -279,5 +281,5 @@ one:
   in `effect/unstable/ai`.
 - On-device toolkit + provider matrix (Apple / Llama / MLC) and usage examples:
   [`docs/cloned-repos-as-docs/ai/README.md`](../../cloned-repos-as-docs/ai/README.md).
-- The context source this all depends on: [terminal-semantic-events.md](terminal-semantic-events.md).
+- The context source this all depends on: [terminal-semantic-events.md](../complete/terminal-semantic-events.md).
 - A sibling consumer of the same per-shell context: [git-diff-integration.md](git-diff-integration.md).

@@ -6,6 +6,7 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useCSSVariable } from 'uniwind';
+import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/themed/Button';
 import { useSurfaceStyle } from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
@@ -320,50 +321,6 @@ function EmptyState({
 // ---------------------------------------------------------------------------
 
 /** A bottom sheet shell: scrim + a top-rounded surface pinned to the bottom. */
-function BottomSheet({
-	onClose,
-	children,
-	maxHeightPct,
-}: {
-	onClose: () => void;
-	children: React.ReactNode;
-	maxHeightPct?: number;
-}) {
-	const skin = useThemeSkin();
-	const surface = useCSSVariable('--color-surface') as string;
-	const border = useCSSVariable('--color-border-strong') as string;
-	return (
-		<Modal transparent visible animationType='slide' onRequestClose={onClose}>
-			<View className='flex-1 justify-end'>
-				<Pressable className='absolute inset-0 bg-overlay' onPress={onClose} />
-				<View
-					style={{
-						backgroundColor: surface,
-						borderColor: border,
-						borderWidth: 1,
-						borderTopLeftRadius: skin.radius + 4,
-						borderTopRightRadius: skin.radius + 4,
-						maxHeight: maxHeightPct ? `${maxHeightPct}%` : undefined,
-					}}
-				>
-					<View
-						style={{
-							width: 40,
-							height: 4,
-							borderRadius: 2,
-							backgroundColor: border,
-							alignSelf: 'center',
-							marginTop: 10,
-							marginBottom: 4,
-						}}
-					/>
-					{children}
-				</View>
-			</View>
-		</Modal>
-	);
-}
-
 function KeyDetailSheet({
 	entry,
 	onClose,

@@ -27,6 +27,7 @@ import React, {
 } from 'react';
 import {
 	Pressable,
+	ScrollView,
 	Text,
 	TextInput,
 	useWindowDimensions,
@@ -41,7 +42,9 @@ import { useCSSVariable } from 'uniwind';
 import { rootLogger } from '@/lib/logger';
 import { preferences, useTerminalRenderConfig } from '@/lib/preferences';
 import { useSshStore } from '@/lib/ssh-store';
-import { TerminalSemanticsDebugPanel } from '@/components/TerminalSemanticsDebugPanel';
+import { ContextBar } from '@/components/terminal/ContextBar';
+import { PresetsToolbarPage } from '@/components/terminal/PresetsToolbarPage';
+import type { Preset } from '@/lib/presets';
 import { ThemedText } from '@/components/themed/ThemedText';
 import { JS_TAB_BAR_HEIGHT } from '@/lib/tab-bar-config';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
@@ -268,6 +271,10 @@ function ShellDetail() {
 						softwareKeyboardLayoutMode='resize'. */}
 			<View ref={columnRef} onLayout={measureColumn} className='flex-1 gap-1'>
 				<KeyboardToolBarContext value={toolbarContext}>
+					{/* Smart-terminal context bar — ambient cwd / command status / exit /
+					    timing. A real row (not an overlay) so it never occludes output.
+					    See docs/projects/smart-terminal-surface.md. */}
+					{shell ? <ContextBar shellId={shell.shellId} /> : null}
 					<View className='flex-1 border-2 border-border'>
 						{shell ? (
 							<TerminalSurface
@@ -452,7 +459,6 @@ function TerminalSurface({
 					/>
 				</View>
 			</GestureDetector>
-			<TerminalSemanticsDebugPanel shellId={shellId} />
 			{pendingCopy ? (
 				<Pressable
 					accessibilityLabel='Copy selection'
@@ -581,44 +587,126 @@ function CloseShellButton({ onPress }: { onPress: () => void }) {
 	);
 }
 
+const TOOLBAR_PAGE_HEIGHT = 86;
+
 function KeyboardToolbar() {
-	const [terminalBg, border] = useCSSVariable([
+	const [terminalBg, border, primary, muted] = useCSSVariable([
 		'--color-terminal-background',
 		'--color-border',
-	]) as [string, string];
+		'--color-primary',
+		'--color-muted',
+	]) as [string, string, string, string];
+	const { sendBytes } = useContextSafe(KeyboardToolBarContext);
+	const [pageWidth, setPageWidth] = useState(0);
+	const [page, setPage] = useState(0);
+
+	// Run a preset: type its command into the PTY, with a trailing Enter unless the
+	// user opted out (autoRun off ⇒ insert only, they edit + submit). See
+	// docs/projects/future/preset-command-buttons.md.
+	const onRunPreset = useCallback(
+		(preset: Preset) => {
+			sendBytes(encoder.encode(preset.command + (preset.autoRun ? '\r' : '')));
+		},
+		[sendBytes],
+	);
+
 	// Match the design's accessory bar: a hairline-topped strip in the terminal's
-	// own colour, holding two rows of rounded, spaced keys (styled per button).
+	// own colour. Page 1 is the modifier/nav keys (the default); page 2 is presets.
+	// A paging ScrollView is enough — the bar sits below the terminal's gesture
+	// zone, so its horizontal swipe never fights the scroll/select gestures.
 	return (
 		<View
 			style={{
-				height: 100,
 				borderTopWidth: 1,
 				borderTopColor: border,
 				backgroundColor: terminalBg,
 				paddingHorizontal: 10,
 				paddingTop: 8,
 				paddingBottom: 6,
-				gap: 7,
+				gap: 4,
 			}}
 		>
-			<KeyboardToolbarRow>
-				<KeyboardToolbarButtonPreset preset='esc' />
-				<KeyboardToolbarButtonPreset preset='/' />
-				<KeyboardToolbarButtonPreset preset='|' />
-				<KeyboardToolbarButtonPreset preset='home' />
-				<KeyboardToolbarButtonPreset preset='up' />
-				<KeyboardToolbarButtonPreset preset='end' />
-				<KeyboardToolbarButtonPreset preset='pgup' />
-			</KeyboardToolbarRow>
-			<KeyboardToolbarRow>
-				<KeyboardToolbarButtonPreset preset='tab' />
-				<KeyboardToolbarButtonPreset preset='ctrl' />
-				<KeyboardToolbarButtonPreset preset='alt' />
-				<KeyboardToolbarButtonPreset preset='left' />
-				<KeyboardToolbarButtonPreset preset='down' />
-				<KeyboardToolbarButtonPreset preset='right' />
-				<KeyboardToolbarButtonPreset preset='pgdn' />
-			</KeyboardToolbarRow>
+			<View
+				style={{ height: TOOLBAR_PAGE_HEIGHT }}
+				onLayout={(e) => setPageWidth(e.nativeEvent.layout.width)}
+			>
+				<ScrollView
+					horizontal
+					pagingEnabled
+					showsHorizontalScrollIndicator={false}
+					keyboardShouldPersistTaps='handled'
+					onMomentumScrollEnd={(e) =>
+						setPage(
+							Math.round(
+								e.nativeEvent.contentOffset.x / Math.max(1, pageWidth),
+							),
+						)
+					}
+				>
+					{/* Page 1 — modifier / nav keys (unchanged default). */}
+					<View
+						style={{ width: pageWidth, height: TOOLBAR_PAGE_HEIGHT, gap: 7 }}
+					>
+						<KeyboardToolbarRow>
+							<KeyboardToolbarButtonPreset preset='esc' />
+							<KeyboardToolbarButtonPreset preset='/' />
+							<KeyboardToolbarButtonPreset preset='|' />
+							<KeyboardToolbarButtonPreset preset='home' />
+							<KeyboardToolbarButtonPreset preset='up' />
+							<KeyboardToolbarButtonPreset preset='end' />
+							<KeyboardToolbarButtonPreset preset='pgup' />
+						</KeyboardToolbarRow>
+						<KeyboardToolbarRow>
+							<KeyboardToolbarButtonPreset preset='tab' />
+							<KeyboardToolbarButtonPreset preset='ctrl' />
+							<KeyboardToolbarButtonPreset preset='alt' />
+							<KeyboardToolbarButtonPreset preset='left' />
+							<KeyboardToolbarButtonPreset preset='down' />
+							<KeyboardToolbarButtonPreset preset='right' />
+							<KeyboardToolbarButtonPreset preset='pgdn' />
+						</KeyboardToolbarRow>
+					</View>
+					{/* Page 2 — preset commands. */}
+					<View style={{ width: pageWidth, height: TOOLBAR_PAGE_HEIGHT }}>
+						<PresetsToolbarPage onRun={onRunPreset} />
+					</View>
+				</ScrollView>
+			</View>
+			<PageDots
+				count={2}
+				active={page}
+				activeColor={primary}
+				dotColor={muted}
+			/>
+		</View>
+	);
+}
+
+function PageDots({
+	count,
+	active,
+	activeColor,
+	dotColor,
+}: {
+	count: number;
+	active: number;
+	activeColor: string;
+	dotColor: string;
+}) {
+	return (
+		<View className='flex-row items-center justify-center gap-1.5'>
+			{Array.from({ length: count }, (_, i) => (
+				<View
+					key={i}
+					style={{
+						width: i === active ? 14 : 6,
+						height: 6,
+						borderRadius: 3,
+						backgroundColor: i === active ? activeColor : dotColor,
+						opacity: i === active ? 1 : 0.5,
+					}}
+				/>
+			))}
 		</View>
 	);
 }

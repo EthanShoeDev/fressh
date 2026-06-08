@@ -114,7 +114,7 @@ Deliberately tiny — this is a half-day port, not a rewrite:
   decision moot by removing Astro — once `apps/web` is `.tsx`, the full oxlint React
   stack and knip cover it natively.
 - Independent of the terminal/SSH/renderer projects
-  ([terminal-semantic-events.md](terminal-semantic-events.md),
+  ([terminal-semantic-events.md](../complete/terminal-semantic-events.md),
   [git-diff-integration.md](git-diff-integration.md),
   [ai-integration.md](ai-integration.md)) and the mobile theme work
   ([native-ui-theme-or-themes.md](native-ui-theme-or-themes.md)). Ships on its own.

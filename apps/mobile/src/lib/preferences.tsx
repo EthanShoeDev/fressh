@@ -274,6 +274,15 @@ export const preferences = {
 		kind: 'boolean',
 		resolve: (raw) => raw ?? true,
 	}),
+	// Preset commands (one-tap commands) as a JSON array string. The typed
+	// accessors + CRUD live in `lib/presets.ts`, which wraps this raw pref —
+	// definePref's `resolve` must return a `string`, so the parsing layer sits
+	// above it. See docs/projects/future/preset-command-buttons.md.
+	presetCommands: definePref({
+		key: 'presetCommands',
+		kind: 'string',
+		resolve: (raw) => raw ?? '[]',
+	}),
 };
 
 /**

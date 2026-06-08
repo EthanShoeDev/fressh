@@ -2,24 +2,25 @@ import {
 	addFresshEventListener,
 	FresshEvent_Tags,
 } from '@fressh/react-native-terminal';
-import { useMemo } from 'react';
 import { create } from 'zustand';
 import { rootLogger } from './logger';
 
 const logger = rootLogger.extend('TermSemantics');
 
 /**
- * Per-shell "semantic" state lifted out of the byte stream by the native OSC
- * scanner (OSC 7 cwd + OSC 133 command lifecycle). This is the JS consumer of
- * the semantic-events seam — the same per-shell context the git/AI features will
- * build on. Kept as its OWN store (not folded into ssh-store) so the feature is
- * a self-contained layer: it subscribes to the event plane independently and
- * touches nothing in the control-plane view-model.
+ * Per-shell semantic context lifted out of the byte stream by the native OSC
+ * scanner (OSC 7 cwd + OSC 133/633 command lifecycle). This is THE canonical
+ * per-shell store the "smart terminal" surfaces read — the context bar today, and
+ * the git slice + AI prompt-builder as they land. Kept as its OWN store (not
+ * folded into ssh-store) so the feature is a self-contained layer: it subscribes
+ * to the event plane independently and touches nothing in the control-plane
+ * view-model.
  *
- * See docs/projects/terminal-semantic-events.md.
+ * See docs/projects/smart-terminal-surface.md (consumer/surface design) and
+ * docs/projects/complete/terminal-semantic-events.md (the producing pipeline).
  */
-export interface ShellSemantics {
-	/** Latest cwd reported via OSC 7 (absolute path). */
+export interface ShellContext {
+	/** Latest cwd reported via OSC 7 / OSC 633;P;Cwd (absolute path). */
 	cwd?: string;
 	/** True between CommandStart and CommandFinished (a command is running). */
 	running: boolean;
@@ -32,69 +33,55 @@ export interface ShellSemantics {
 	lastCommand?: string;
 	/** How many commands have finished in this shell (cheap "did anything run?"). */
 	commandCount: number;
+	/** True once ANY OSC 7/133/633 event has been seen on this shell — i.e. shell
+	 *  integration is actually live. Drives the context bar's active vs. waiting. */
+	sawOsc: boolean;
+	/** Newest-first, capped history of finished commands (for the details sheet). */
+	recent: RecentCommand[];
 }
 
-/** One recent semantic event, kept for the debug panel so the raw pipeline is
- *  visible even before any derived state is interesting. */
-export interface SemanticLogEntry {
-	id: number;
-	shellId: string;
-	tag: string;
-	/** Compact human summary of the event payload. */
-	summary: string;
+/** One finished command in the per-shell history. `command` is present only when
+ *  the shell emitted OSC 633;E (fressh's injected integration). */
+export interface RecentCommand {
+	command?: string;
+	exitCode?: number;
+	durationMs?: number;
 	atMs: number;
 }
 
-const EMPTY: ShellSemantics = { running: false, commandCount: 0 };
-const LOG_CAP = 40;
+const RECENT_CAP = 12;
+
+const EMPTY: ShellContext = {
+	running: false,
+	commandCount: 0,
+	sawOsc: false,
+	recent: [],
+};
 
 interface TerminalSemanticsStore {
-	byShell: Record<string, ShellSemantics>;
-	/** Newest-first ring buffer of recent events (all shells), capped. */
-	log: SemanticLogEntry[];
+	byShell: Record<string, ShellContext>;
 }
 
-export const useTerminalSemanticsStore = create<TerminalSemanticsStore>(
-	() => ({ byShell: {}, log: [] }),
-);
+const useTerminalSemanticsStore = create<TerminalSemanticsStore>(() => ({
+	byShell: {},
+}));
 
-/** Subscribe to one shell's semantic state (undefined until a signal arrives). */
-export function useShellSemantics(shellId: string | undefined) {
+/** Subscribe to one shell's semantic context (undefined until a signal arrives). */
+export function useShellContext(shellId: string | undefined) {
 	return useTerminalSemanticsStore((s) =>
 		shellId ? s.byShell[shellId] : undefined,
 	);
 }
 
-/** Subscribe to the recent-event log for one shell (newest first).
- *  Selects the stable `log` reference, then filters in a memo — filtering INSIDE
- *  the zustand selector would return a fresh array every render and trip
- *  "getSnapshot should be cached" → an infinite re-render loop. */
-export function useShellEventLog(shellId: string | undefined) {
-	const log = useTerminalSemanticsStore((s) => s.log);
-	return useMemo(
-		() => (shellId ? log.filter((e) => e.shellId === shellId) : log),
-		[log, shellId],
-	);
-}
-
-let nextLogId = 1;
-
-/** Merge a partial update into one shell's semantic state. */
-function patch(shellId: string, next: Partial<ShellSemantics>) {
+/** Merge a partial update into one shell's context. Every OSC event implies the
+ *  integration is live, so `sawOsc` is set on every patch from the listener. */
+function patch(shellId: string, next: Partial<ShellContext>) {
 	useTerminalSemanticsStore.setState((s) => {
 		const prev = s.byShell[shellId] ?? EMPTY;
-		return { byShell: { ...s.byShell, [shellId]: { ...prev, ...next } } };
+		return {
+			byShell: { ...s.byShell, [shellId]: { ...prev, ...next, sawOsc: true } },
+		};
 	});
-}
-
-/** Append an entry to the capped, newest-first event log. */
-function pushLog(shellId: string, tag: string, summary: string) {
-	useTerminalSemanticsStore.setState((s) => ({
-		log: [
-			{ id: nextLogId++, shellId, tag, summary, atMs: Date.now() },
-			...s.log,
-		].slice(0, LOG_CAP),
-	}));
 }
 
 // One subscription on the shared event-plane fan-out. Only the OSC-derived tags
@@ -104,41 +91,40 @@ addFresshEventListener((event) => {
 		case FresshEvent_Tags.WorkingDirectoryChanged: {
 			const { shellId, path } = event.inner;
 			patch(shellId, { cwd: path });
-			pushLog(shellId, 'cwd', path);
 			break;
 		}
 		case FresshEvent_Tags.PromptStart: {
 			// Back at a prompt → no command running.
 			patch(event.inner.shellId, { running: false });
-			pushLog(event.inner.shellId, 'prompt', 'A');
 			break;
 		}
 		case FresshEvent_Tags.CommandStart: {
 			patch(event.inner.shellId, { running: true });
-			pushLog(event.inner.shellId, 'cmd-start', 'running');
 			break;
 		}
 		case FresshEvent_Tags.CommandText: {
 			const { shellId, command } = event.inner;
 			patch(shellId, { lastCommand: command });
-			pushLog(shellId, 'cmd-text', command);
 			break;
 		}
 		case FresshEvent_Tags.CommandFinished: {
 			const { shellId, exitCode, durationMs } = event.inner;
 			const ms = durationMs === undefined ? undefined : Number(durationMs);
 			const prev = useTerminalSemanticsStore.getState().byShell[shellId];
+			// `lastCommand` was set by the preceding OSC 633;E for this command.
+			const entry: RecentCommand = {
+				command: prev?.lastCommand,
+				exitCode,
+				durationMs: ms,
+				atMs: Date.now(),
+			};
 			patch(shellId, {
 				running: false,
 				lastExitCode: exitCode,
 				lastDurationMs: ms,
 				commandCount: (prev?.commandCount ?? 0) + 1,
+				recent: [entry, ...(prev?.recent ?? [])].slice(0, RECENT_CAP),
 			});
-			pushLog(
-				shellId,
-				'cmd-done',
-				`exit=${exitCode ?? '?'}${ms !== undefined ? ` ${ms}ms` : ''}`,
-			);
 			break;
 		}
 		case FresshEvent_Tags.ShellClosed: {

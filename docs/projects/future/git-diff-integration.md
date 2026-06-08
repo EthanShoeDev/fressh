@@ -7,7 +7,7 @@ and the design options so we don't re-derive them.
 **Scope (if pursued):** `@fressh/react-native-terminal` (`fressh-core` + `fressh-ssh`,
 possibly the vendored alacritty parser) + the mobile app's terminal UI.
 
-**Prerequisite:** [terminal-semantic-events.md](terminal-semantic-events.md) — the
+**Prerequisite:** [terminal-semantic-events.md](../complete/terminal-semantic-events.md) — the
 shell-integration event pipeline (OSC 7 cwd, OSC 133 exit code) that lifts semantic
 facts out of the native byte stream into JS. This feature is one consumer of it; the cwd
 detection discussed below is really "the OSC 7 slice of that layer."
@@ -93,6 +93,13 @@ limitation — it's true of every terminal; this is why iTerm2/VS Code/WezTerm a
 on shell integration for cwd-aware features.
 
 ### (3) Rendering the overlay — already a solved pattern
+
+> **Where it renders is now decided:** the git badge (branch + dirty count) lives in the
+> **context bar**, and the changed-files list / diff peek open in a **bottom sheet** — see
+> [smart-terminal-surface.md](../smart-terminal-surface.md). Git *writes* the `git` slice
+> of the shared `ShellContext` store; the context bar reads it. The exec helper below is
+> shared with [preset-command-buttons.md](preset-command-buttons.md)'s "Run" tab.
+
 
 The terminal screen is a native Nitro/GLES view, but the app already floats **React
 overlays** over it: the copy button and the modifier-key toolbar in

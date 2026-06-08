@@ -1,15 +1,17 @@
 # Project: terminal semantic events → JS (shell integration)
 
-**Status:** SECOND SLICE LANDED (2026-06-08) — **automatic OSC 633 injection** is wired
-end-to-end (pending an on-device run by Ethan). On connect, fressh now launches the remote
-interactive shell with VS Code's shell-integration scripts injected, so the shell emits
-cwd / command lifecycle / exit code / **command text** with **zero setup, zero dotfile
-edits, nothing permanent on the host**. The scanner parses OSC 7 + 133 + 633. The
-foundational capability that several "smart terminal" features (git-aware UI, exit-code
-badges, command timing, command history) all sit on. See
-[git-diff-integration.md](git-diff-integration.md) and
-[ai-integration.md](future/ai-integration.md) — those features are *consumers* of this
-pipeline.
+**Status:** ✅ COMPLETE (2026-06-08) — verified in-app by Ethan. **Automatic OSC 633
+injection** is wired end-to-end: on connect, fressh launches the remote interactive shell
+with VS Code's shell-integration scripts injected, so the shell emits cwd / command
+lifecycle / exit code / **command text** with **zero setup, zero dotfile edits, nothing
+permanent on the host**. The scanner parses OSC 7 + 133 + 633, and the **global +
+per-host settings** to control it all shipped. This is the foundational pipeline several
+"smart terminal" features sit on; **the product surface that consumes it now lives in
+[smart-terminal-surface.md](../smart-terminal-surface.md)** (the context bar + paged
+toolbar that replace the debug panel). Consumers:
+[git-diff-integration.md](../future/git-diff-integration.md),
+[ai-integration.md](../future/ai-integration.md),
+[preset-command-buttons.md](../future/preset-command-buttons.md).
 
 **What's built:**
 - `fressh-core/src/osc.rs` — `OscScanner` (`vte::Perform`) over a second `vte::Parser`;
@@ -24,14 +26,24 @@ pipeline.
   sourcing). Unit-tested (quote-free invariant, per-shell dispatch, nonce).
 - `events.rs` / `shim-uniffi` / regenerated ubrn bindings — adds `CommandText`; `ShellOptions`
   gains optional `shellIntegration`. Events cross to JS via `addFresshEventListener`.
-- `apps/mobile`: `lib/terminal-semantics.ts` (per-shell store + capped log) now also tracks
-  `lastCommand` (633;E); `components/TerminalSemanticsDebugPanel.tsx` debug overlay.
+- `apps/mobile`: `lib/terminal-semantics.ts` (per-shell store + capped log) tracks
+  `lastCommand` (633;E); `components/TerminalSemanticsDebugPanel.tsx` debug overlay (to be
+  retired by the context bar).
+- **Settings (shipped):** a global "Smart terminal" kill-switch (`shellIntegrationEnabled`
+  pref) + a per-host toggle (on the connect form and the saved-host detail screen, stored
+  in connection metadata). Effective value = global ∧ per-host, threaded into every
+  shell-open path (connect / reconnect / new-shell-on-live).
 
-**What's NOT built yet** (this doc's remaining work): the **global kill-switch + per-host
-toggle UI** (the flag is plumbed `shellIntegration?: boolean` but always-on today); the
-**status chip / setup-sheet** terminal UI; temp-dir **cleanup** on disconnect (TODO in
-`shell_integration.rs`); device validation of the **zsh + fish** paths (only bash tested);
-and the A/B manual fallbacks. See "Shell integration" below.
+**Carried forward (not part of this completed pipeline):**
+- **Product surface** — the debug panel → context bar + paged toolbar migration is now
+  [smart-terminal-surface.md](../smart-terminal-surface.md)'s v0.
+- **Temp-dir cleanup** on disconnect — still a `TODO` in `shell_integration.rs`.
+- **zsh + fish on-device validation** — bash verified in-app; zsh/fish wired per VS Code's
+  mechanism but not yet exercised on a real device.
+- **A/B manual fallbacks** (snippet / dotfile append) for shells we can't auto-inject —
+  deferred; auto-injection (C) covers the common case.
+
+The remainder of this doc is the original design record (kept for the decision rationale).
 
 **Scope:** `@fressh/react-native-terminal` — `fressh-core` (`session.rs` reader loop,
 `osc.rs`, `events.rs` `CoreEvent`), the shim (`shim-uniffi/src/lib.rs`), the JS event
@@ -400,6 +412,14 @@ The status chip stays as the *signal* (active / waiting / off), but for the comm
 should just be `active` on first prompt with no setup sheet ever shown.
 
 ### Terminal-screen UI: the status chip + setup sheet
+
+> **Superseded by [smart-terminal-surface.md](../smart-terminal-surface.md) (2026-06-08).**
+> The "status chip" idea below evolved, with Ethan, into a full **context bar** (a
+> thin always-visible row under the app bar) plus a **paged keyboard toolbar** for
+> actions — the production home that git / AI / preset-commands all render into. The
+> states and detection signal described here still hold; the *placement* is now the
+> context bar, not a floating chip. Read the surface doc for the current design; this
+> section is kept for the detection-state rationale.
 
 The shipped surface is **one element** on the terminal screen — a status chip in the top
 bar — that both *signals* whether semantics are live and *is the entry point* to turning

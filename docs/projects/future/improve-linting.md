@@ -137,7 +137,7 @@ newly suppressed here.
 
 This is pure repo-tooling — it touches the lint config, `turbo.jsonc`, and CI only, and
 shares no surface with the terminal/SSH/renderer projects
-([terminal-semantic-events.md](terminal-semantic-events.md),
+([terminal-semantic-events.md](../complete/terminal-semantic-events.md),
 [git-diff-integration.md](git-diff-integration.md),
 [on-device-shell.md](on-device-shell.md)) or the app-shell UI work
 ([native-ui-theme-or-themes.md](native-ui-theme-or-themes.md)). It can ship independently
