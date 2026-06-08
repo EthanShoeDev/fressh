@@ -4,10 +4,11 @@
 plan. Records the idea, the two surfaces it lives on, the data model, the settings UX, and
 what it shares with the other smart-terminal features so we don't re-derive them.
 
-**Scope (if pursued):** `apps/mobile` (a presets store + settings UI + a new bottom-tab
-"Run" surface + a toolbar page) and a small `@fressh/react-native-terminal` addition (an
-out-of-band `exec(cmd) -> output` helper — **the same one
-[git-diff-integration.md](git-diff-integration.md) needs**, so the two features share it).
+**Scope (if pursued):** `apps/mobile` (a presets store + a new bottom-tab **"Commands"**
+surface that both manages presets and runs one-offs + the in-shell toolbar page) and a
+small `@fressh/react-native-terminal` addition (an out-of-band `exec(cmd) -> output` helper
+— **the same one [git-diff-integration.md](git-diff-integration.md) needs**, so the two
+features share it).
 
 **Related:**
 - [smart-terminal-surface.md](../smart-terminal-surface.md) — defines the paged toolbar;
@@ -51,46 +52,50 @@ becomes horizontally paged; **page 2 is the preset row**:
 - Horizontally scrollable within the page when there are many; the page itself is one of
   the toolbar's swipe pages.
 
-## Surface 2 — the "Run" tab (one-off command, no shell)
+## Surface 2 — the "Commands" bottom tab (the headline surface)
 
-A **new bottom-tab-bar item** (alongside Servers / Keys / Settings — added via
-`lib/tab-bar-config`). This is the headline new surface: run a command on a host *without*
-opening a persistent shell.
+A **new bottom-tab-bar item — "Commands"** (alongside Servers / Keys / Settings — added via
+`lib/tab-bar-config`). This is the dedicated home for everything preset-related, and it does
+**two jobs in one screen**: it's both where you *configure* your presets and where you *run
+one-off commands* on a host without a persistent shell. Preset management lives **here, not
+buried in Settings** — config sits right next to use.
 
-**Flow:**
-1. Pick a **saved host** (reuses `secretsManager.connections` — the same list the Servers
-   tab shows).
-2. Pick a **preset** (or type an ad-hoc command).
-3. **Run** → out-of-band `exec` on the host → capture stdout/stderr + exit code → render
-   in a **result panel** (scrollable, copyable, monospaced; exit-code pill).
-4. Optionally **save as preset**, **re-run**, or **open a full shell here** if it turns out
-   you want interactivity.
+### Job 1 — configure / manage presets
 
-**Why a separate tab, not just the terminal:** the mental model is *operational one-shots*,
-not a session. No PTY lifecycle, no scrollback to manage, no keyboard toolbar — just
-command in, output out. It's the phone-shaped version of `ssh host 'some command'`.
+The CRUD surface for your preset commands:
+- A list of saved presets: label + command (mono, truncated), with **add / edit / delete**
+  (and later **reorder**, icons).
+- **Editor** — label, command, `autoRun` (and later icon). Reuse the `BottomSheet` /
+  dialog pattern (already shipped — the in-shell page uses the same editor today).
+- It reads/writes the **same `lib/presets.ts` store** the in-shell toolbar page reads, so a
+  preset added/edited here updates toolbar **page 2** instantly (and vice-versa).
 
-**Connection lifecycle (open question, see below):** if a connection to that host is
-already live (the SSH store has it), reuse it and open a second channel; otherwise connect,
-`exec`, and either keep the connection warm briefly or disconnect. The `exec` channel is
-**no-PTY** — `channel_open_session()` + `channel.exec(cmd)` instead of `request_shell()` —
-exactly the helper the git doc specs.
+### Job 2 — run a one-off command on a host (no persistent shell)
+
+Buttons to execute a command on a saved host *without* opening a terminal — the
+phone-shaped `ssh host 'some command'`:
+1. Pick a **saved host** (reuses `secretsManager.connections`, the Servers list).
+2. Tap a **preset** (the same presets from Job 1) or type an **ad-hoc command**.
+3. **Run** → out-of-band `exec` → **result panel** (stdout/stderr + exit-code pill,
+   scrollable, copyable).
+4. **Save as preset**, **re-run**, or **open a full shell here** if you discover you want
+   interactivity.
+
+**Connection lifecycle (open question, below):** reuse a live connection if one exists (open
+a second channel); otherwise connect → `exec` → keep-warm-briefly or disconnect. The `exec`
+channel is **no-PTY** — `channel_open_session()` + `channel.exec(cmd)` instead of
+`request_shell()` — **the same `fressh-ssh` helper the git doc needs**, so building it
+serves both features.
 
 > Caveat: `exec` runs a *non-interactive* command. Long-running / interactive / paging
-> commands (`top`, `vim`, `tail -f`, anything needing a TTY or input) don't fit the
-> one-off model — stream until the user cancels, or steer them to "open a shell instead."
-> Detect-and-degrade, don't hang. (See open questions.)
+> commands (`top`, `vim`, `tail -f`, anything needing a TTY) don't fit the one-off model —
+> stream until the user cancels, or steer them to "open a shell instead." Detect-and-degrade,
+> don't hang.
 
-## Surface 3 — settings / config UI (managing presets)
-
-Presets are user data → a real management surface, reusing what we just built:
-
-- **A presets manager** (Settings → "Commands", and/or a "manage" affordance inside the
-  Run tab): list of presets with **add / edit / delete / reorder**. Each row shows the
-  label + the command (mono, truncated).
-- **Editor** — label, command, and the small options below. Reuse the modal/dialog pattern
-  (`RenameDialog` / `BottomSheet`) rather than a new screen for v1.
-- Long-press anywhere a preset appears (toolbar page 2, Run tab) → jump to its editor.
+**Why a tab (not Settings, not the terminal):** managing presets + firing operational
+one-shots is its own mode — *"what commands do I keep, and run one quickly on a box"* —
+distinct from a live session. A dedicated tab keeps config next to use and avoids cluttering
+either Settings or the terminal screen.
 
 ### Data model
 
@@ -118,7 +123,7 @@ interface Preset {
 
 ## What it shares with the rest
 
-- **`exec(cmd) -> output` helper in `fressh-ssh`** — built once, used by both the Run tab
+- **`exec(cmd) -> output` helper in `fressh-ssh`** — built once, used by both the Commands tab
   and git status. A no-PTY channel that runs one command and returns stdout/stderr/exit.
   This feature is a good reason to build it (simpler than git's porcelain parsing — just
   pass bytes through).
@@ -133,11 +138,13 @@ interface Preset {
   global `definePref`-backed store (`lib/presets.ts`) + add/edit/delete (`+` to add,
   long-press to edit, `autoRun` toggle). Pure `sendBytes`. Shipped with the surface doc's
   v1 paged toolbar.
-- **v1 — the Run tab.** Add the `exec` helper to `fressh-ssh`; new bottom tab; host pick →
-  preset/ad-hoc → result panel. Reuses the saved-host list. This is the bigger,
-  more-novel surface and the one that needs the native addition.
+- **v1 — the Commands tab.** New bottom tab with **both jobs**: (1) the preset manager
+  (list + add/edit/delete, reusing the store + editor shipped in v0), and (2) the one-off
+  runner — add the `exec` helper to `fressh-ssh`, host pick → preset/ad-hoc → result panel,
+  reusing the saved-host list. The runner is the bigger, more-novel half (needs the native
+  addition); the manager is mostly UI over the existing store.
 - **v2 — per-host presets + polish.** Per-host scope via connection metadata; reorder;
-  icons; "save last command as preset"; "open a shell here" from a Run result.
+  icons; "save last command as preset"; "open a shell here" from a result.
 
 ## Open questions
 
@@ -147,7 +154,7 @@ interface Preset {
   Dangerous commands (`rm -rf`, `git reset --hard`) argue for an insert-or-confirm path —
   maybe a per-preset `autoRun` + a confirm flag, or detect destructive verbs (shared with
   the AI doc's "flag destructive verbs" concern).
-- **Non-interactive limit of `exec`.** The Run tab can't host `top`/`vim`/`tail -f`. How do
+- **Non-interactive limit of `exec`.** The Commands tab can't host `top`/`vim`/`tail -f`. How do
   we detect/communicate that, and offer "open a shell instead"? Stream with a cancel, cap
   output size, timeout.
 - **Connection lifecycle for one-offs.** Reuse a live connection if present; otherwise
@@ -156,8 +163,8 @@ interface Preset {
 - **Output rendering.** Plain text panel is fine for `df -h`; but command output can carry
   ANSI color / control codes. Render raw, strip ANSI, or run it through a tiny throwaway
   `Term`? v1: strip-and-mono, note the limitation.
-- **Where the manager lives.** Settings tab vs. inside the Run tab vs. both. Discoverability
-  vs. clutter.
+- ~~**Where the manager lives.**~~ Resolved: the **Commands tab** hosts the manager (next
+  to the runner), not Settings — config sits next to use.
 - **Secrets in commands.** A preset like `mysql -p<password>` would persist a secret in
   MMKV plaintext-ish prefs. Warn, or route secret-bearing presets through the keychain like
   connections? At minimum, document that presets are not a secret store.

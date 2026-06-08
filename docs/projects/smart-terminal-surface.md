@@ -158,10 +158,11 @@ context bar needs (we already track `firstSeen`-ish via the event log; formalize
 | Ask-AI Q&A | action | **toolbar page 3** button | AI bottom sheet (stream) |
 | AI autocomplete (later) | inline | ghost text near prompt | — |
 
-> Presets also have a **second, off-terminal home**: a dedicated bottom-tab "Run" surface
-> for one-off commands on a host *without* a persistent shell (out-of-band `exec`). That's
-> owned by [preset-command-buttons.md](future/preset-command-buttons.md); this doc only
-> covers the in-shell toolbar page.
+> Presets also have a **second, off-terminal home**: a dedicated **"Commands" bottom tab**
+> that both *manages* presets (CRUD) and *runs one-off commands* on a host without a
+> persistent shell (out-of-band `exec`). That's owned by
+> [preset-command-buttons.md](future/preset-command-buttons.md); this doc only covers the
+> in-shell toolbar page.
 
 ## Suggested phasing
 
@@ -179,7 +180,7 @@ context bar needs (we already track `firstSeen`-ish via the event log; formalize
   page 1 = the modifier/nav keys (unchanged), page 2 = preset commands, with page dots.
   Presets: `lib/presets.ts` (JSON-in-a-`definePref` store + CRUD), `PresetsToolbarPage`
   (tap = run via `sendBytes(cmd + \r)`, `+` = add, long-press = edit/delete, `autoRun`
-  toggle). The **"Run" tab** (one-off `exec`, no shell) is still pending — needs the
+  toggle). The **"Commands" tab** (preset manager + one-off `exec` runner) is still pending — needs the
   `fressh-ssh` `exec` helper (shared with git). See preset-command-buttons.md.
 - **v1 — paged toolbar + presets.** Make the toolbar paged; ship page 2 (presets) since
   it's self-contained (no native work, no model, no out-of-band exec). High utility, low

@@ -98,7 +98,7 @@ on shell integration for cwd-aware features.
 > **context bar**, and the changed-files list / diff peek open in a **bottom sheet** — see
 > [smart-terminal-surface.md](../smart-terminal-surface.md). Git *writes* the `git` slice
 > of the shared `ShellContext` store; the context bar reads it. The exec helper below is
-> shared with [preset-command-buttons.md](preset-command-buttons.md)'s "Run" tab.
+> shared with [preset-command-buttons.md](preset-command-buttons.md)'s "Commands" tab.
 
 
 The terminal screen is a native Nitro/GLES view, but the app already floats **React

@@ -26,9 +26,9 @@ export const DEFAULT_TAB_BAR_IMPL: TabBarImpl =
 		: 'js';
 
 /**
- * Single source of truth for the three bottom tabs, consumed by BOTH the native
- * and JS layouts so their route names / labels / icons can never drift. `name`
- * must match the route folder under `app/(tabs)/`.
+ * Single source of truth for the bottom tabs, consumed by BOTH the native and JS
+ * layouts so their route names / labels / icons can never drift. `name` must match
+ * the route folder under `app/(tabs)/`.
  */
 export const TAB_ROUTES = [
 	{
@@ -36,6 +36,12 @@ export const TAB_ROUTES = [
 		label: 'Servers',
 		iconFamily: FontAwesome6,
 		icon: 'server',
+	},
+	{
+		name: 'commands',
+		label: 'Commands',
+		iconFamily: FontAwesome6,
+		icon: 'bolt',
 	},
 	{
 		name: 'keys',
