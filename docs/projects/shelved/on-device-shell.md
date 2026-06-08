@@ -1,16 +1,87 @@
-# Future project: on-device (local) shell in the native terminal
+# Shelved project: on-device (local) shell in the native terminal
 
-**Status:** NOT STARTED — exploratory. Has one serious platform risk (Android exec
-policy) with a known clean workaround. Worth it because almost all the hard parts —
-the renderer, the parser, the `Term`, the touch/keyboard plumbing — already exist.
+**Status:** SHELVED (2026-06-07) — explored, not started. The foundational seam it
+needs already exists (built for the terminal preview), but the cross-platform build is
+a substantial from-scratch piece and isn't a current priority. See **Why shelved** and
+**If we revive this** below before reading the older body (which is preserved as
+research but whose *exec-based* approach is now superseded — see the revival decision).
 
-**Scope (if pursued):** `@fressh/react-native-terminal` — a new **local PTY** byte
-source alongside `fressh-ssh`, feeding the same `fressh-core` `Term`; an Android native
-spawn (JNI fork/exec + PTY); the mobile app's session/tab UI to offer "Local shell"
-next to SSH hosts.
+**Original scope (if pursued):** `@fressh/react-native-terminal` — a new **local** byte
+source alongside `fressh-ssh`, feeding the same `fressh-core` `Term`; the mobile app's
+session/tab UI to offer a local shell next to SSH hosts.
 
 **Reference:** Termux's implementation, cloned at
 `docs/cloned-repos-as-docs/termux-app`. Key files cited inline below.
+
+---
+
+## Why shelved (2026-06-07)
+
+- **The immediate value already shipped.** The live terminal preview
+  ([../complete/preview-terminal-theme.md](../complete/preview-terminal-theme.md)) was
+  the near-term win, and it built the load-bearing primitive — a `fressh-core` `Term`
+  driven by a **non-SSH byte source** — as a clean, closed seam in
+  `packages/react-native-terminal/rust/fressh-core/src/source.rs` (`ReadSource` /
+  `WriteSink` / `ShellBackend`). A local shell is "add one more source variant," so the
+  groundwork is done and reviving later is low-friction.
+- **The real build is bigger than the seam.** The decision below (no `exec`, mini
+  embedded shell on *both* platforms) means we'd be **writing a shell** — a REPL, line
+  handling, and a builtin command set in Rust — not just wiring a PTY to an existing
+  `/system/bin/sh`. That's real, from-scratch scope for a feature most users would touch
+  lightly. Other work comes first.
+- **App-store distribution is a hard goal, and it constrains the design.** We want this
+  on the **App Store and Play Store**. That rules out the Termux model (it's frozen at
+  `targetSdkVersion=28` to keep exec-from-app-storage working, which blocks modern Play
+  distribution — see the body below) and, more fundamentally, iOS forbids `fork`/`exec`
+  of any binary at all. Designing for both stores forces the no-exec, in-process
+  approach — which is the right long-term shape but more work than a quick Android hack.
+
+## If we revive this — the decision: in-process "mini embedded shell", no `exec`, both platforms
+
+Run the **same in-process Rust mini-shell on iOS and Android**, with **no `fork`/`exec`
+of any binary**. This is the only model that ships cleanly on both stores and gives a
+consistent UX, accepting that it's a *sandboxed builtin shell*, not a full userland.
+
+- **What it is.** A small Rust interpreter behind the existing byte-source seam — a new
+  `ReadSource::Local` / `WriteSink::Local` (or a `Local` backend) in `source.rs` — that
+  runs a REPL: read a line of input, parse, dispatch to a **builtin** (e.g.
+  `cd/ls/cat/echo/pwd/env/mkdir/rm/mv/cp/head/tail/clear/help/…`), write output back
+  into the same `Term` every SSH/preview session already uses. Scoped to the **app's
+  sandbox container** (its Documents/tmp), since that's all an unprivileged app can see
+  on either OS. No external programs, no package manager.
+- **Why not the alternatives** (researched 2026-06-07):
+  - *Termux-style fork/exec of bundled binaries* — iOS can't do it at all; on Android it
+    forces `targetSdk=28` (no modern Play). Rejected.
+  - *Exec Android's `/system/bin/sh` (the old body's "Option A")* — works on Android and
+    is genuinely more capable (real mksh + toybox), but has **no iOS analogue**, so it
+    breaks the "consistent on both stores" goal. Kept as a possible *Android-only power
+    mode* layered on top later, but **not** the v1 direction.
+  - *Vendor `ios_system`* (the a-Shell / LibTerm approach: each unix tool compiled as an
+    in-process library with `main()`→`cmd_main()`, dispatched on a thread; BSD-licensed,
+    bundles `ls/cp/curl/tar/python/lua/tex/…`) — real-ish userland, but a large C/Obj-C
+    dependency that owns stdio and would fight our Rust `Term`/core; iOS-only. Too heavy
+    for v1; revisit only if users want a real toolset on iOS.
+  - *Emulation* (the iSH approach: a usermode x86 emulator running real Alpine Linux,
+    which is why iSH has `apk`) — essentially its own product; far out of scope.
+- **UI.** Its own bottom-nav tab (e.g. "Device" / "Shell"), added via one entry in
+  `apps/mobile/src/lib/tab-bar-config.ts` `TAB_ROUTES` + a route folder under
+  `app/(tabs)/` — both the native and JS tab bars pick it up automatically. Visible on
+  both platforms (it works on both); the screen opens a terminal bound to a local
+  `shellId`.
+- **Honesty.** Set expectations in the UI: this is "a shell in our sandbox," not a
+  rooted device shell or a real Linux box.
+
+> Note (correction to earlier research): Termux's banner tells users to install packages
+> with **`pkg`**, not `apt` directly — `pkg` is Termux's thin wrapper around `apt`/`dpkg`.
+> Either way it's a real Debian-style package manager pulling `.deb`s into `$PREFIX`;
+> none of that applies to our no-exec design, which has no package manager.
+
+---
+
+> **Everything below is the original exploration, preserved for reference.** Its
+> recommended path (exec `/system/bin/sh`, Android-first) is **superseded** by the
+> no-exec, both-platforms decision above. Read it for the Termux mechanics and the
+> Android exec/targetSdk analysis, not as the current plan.
 
 ## Goal
 
