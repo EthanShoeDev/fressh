@@ -98,6 +98,40 @@ void test('stale keyboard target actions are not supported', () => {
 	}
 });
 
+void test('stale command preset menu action is not supported', () => {
+	assert.equal(
+		KNOWN_ACTION_IDS.includes(
+			'TOGGLE_COMMAND_PRESETS' as (typeof KNOWN_ACTION_IDS)[number],
+		),
+		false,
+	);
+	assert.equal(
+		CONFIG_SUPPORTED_ACTION_IDS.includes(
+			'TOGGLE_COMMAND_PRESETS' as (typeof CONFIG_SUPPORTED_ACTION_IDS)[number],
+		),
+		false,
+	);
+});
+
+void test('command menu action delegates to the action context', async () => {
+	let toggled = 0;
+
+	await runAction('TOGGLE_COMMAND_MENU', {
+		availableKeyboardIds: new Set(),
+		selectKeyboard: () => {},
+		rotateKeyboard: () => {},
+		openConfigurator: () => {},
+		sendBytes: () => {},
+		pasteClipboard: async () => {},
+		copySelection: () => {},
+		toggleCommandMenu: () => {
+			toggled += 1;
+		},
+	} as Parameters<typeof runAction>[1]);
+
+	assert.equal(toggled, 1);
+});
+
 void test('Wispr text action delegates to the action context', async () => {
 	let opened = 0;
 

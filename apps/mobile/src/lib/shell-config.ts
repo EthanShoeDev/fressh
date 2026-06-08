@@ -17,13 +17,22 @@ export type CommandPreset = {
 	steps: CommandStep[];
 };
 
-export type CommandPresetMenu = {
-	type: 'submenu';
+export type CommandActionEntry = {
+	type: 'action';
 	label: string;
-	presets: CommandPresetEntry[];
+	actionId: ActionId;
 };
 
-export type CommandPresetEntry = CommandPreset | CommandPresetMenu;
+export type CommandMenu = {
+	type: 'submenu';
+	label: string;
+	entries: CommandMenuEntry[];
+};
+
+export type CommandMenuEntry =
+	| CommandPreset
+	| CommandMenu
+	| CommandActionEntry;
 
 export type KeyboardLongPressOption =
 	| { type: 'text'; text: string; label: string; icon: string | null }
@@ -84,7 +93,7 @@ export type ShellConfig = {
 	};
 	keyboards: KeyboardDefinition[];
 	macrosByKeyboardId: Record<string, MacroDef[]>;
-	commandMenus: CommandPresetEntry[];
+	commandMenus: CommandMenuEntry[];
 };
 
 const supportedActionIds = new Set<string>(CONFIG_SUPPORTED_ACTION_IDS);
@@ -139,13 +148,20 @@ const commandPresetSchema = z.object({
 	steps: z.array(commandStepSchema),
 });
 
-const commandPresetEntrySchema: z.ZodType<CommandPresetEntry> = z.lazy(() =>
+const commandActionEntrySchema = z.object({
+	type: z.literal('action'),
+	label: z.string().min(1),
+	actionId: z.string().min(1),
+});
+
+const commandMenuEntrySchema: z.ZodType<CommandMenuEntry> = z.lazy(() =>
 	z.discriminatedUnion('type', [
 		commandPresetSchema,
+		commandActionEntrySchema,
 		z.object({
 			type: z.literal('submenu'),
 			label: z.string().min(1),
-			presets: z.array(commandPresetEntrySchema),
+			entries: z.array(commandMenuEntrySchema),
 		}),
 	]),
 );
@@ -277,6 +293,35 @@ function validateExecutableItemReferences({
 	}
 }
 
+function validateCommandMenuEntryReferences({
+	entry,
+	path,
+	ctx,
+}: {
+	entry: CommandMenuEntry;
+	path: (string | number)[];
+	ctx: z.RefinementCtx;
+}) {
+	if (entry.type === 'action' && !supportedActionIds.has(entry.actionId)) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: [...path, 'actionId'],
+			message: `Unsupported command menu actionId ${entry.actionId}`,
+		});
+		return;
+	}
+
+	if (entry.type !== 'submenu') return;
+
+	for (const [index, child] of entry.entries.entries()) {
+		validateCommandMenuEntryReferences({
+			entry: child,
+			path: [...path, 'entries', index],
+			ctx,
+		});
+	}
+}
+
 const shellConfigSchema: z.ZodType<ShellConfig> = z
 	.object({
 		version: z.string().min(1),
@@ -289,7 +334,7 @@ const shellConfigSchema: z.ZodType<ShellConfig> = z
 		}),
 		keyboards: z.array(keyboardDefinitionSchema).min(1),
 		macrosByKeyboardId: z.record(z.string(), z.array(macroDefSchema)),
-		commandMenus: z.array(commandPresetEntrySchema),
+		commandMenus: z.array(commandMenuEntrySchema),
 	})
 	.superRefine((config, ctx) => {
 		const keyboardIds = new Set<string>();
@@ -465,6 +510,14 @@ const shellConfigSchema: z.ZodType<ShellConfig> = z
 					}
 				}
 			}
+		}
+
+		for (const [index, entry] of config.commandMenus.entries()) {
+			validateCommandMenuEntryReferences({
+				entry,
+				path: ['commandMenus', index],
+				ctx,
+			});
 		}
 	});
 

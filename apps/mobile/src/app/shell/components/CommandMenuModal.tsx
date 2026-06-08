@@ -1,31 +1,34 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { dispatchCommandMenuSelection } from '@/lib/command-menu-selection';
+import { type ActionId } from '@/lib/keyboard-actions';
 import {
+	type CommandMenu,
+	type CommandMenuEntry,
 	type CommandPreset,
-	type CommandPresetEntry,
-	type CommandPresetMenu,
 } from '@/lib/shell-config';
 import { useTheme } from '@/lib/theme';
 
-const isCommandPresetMenu = (
-	preset: CommandPresetEntry,
-): preset is CommandPresetMenu => preset.type === 'submenu';
+const isCommandMenu = (entry: CommandMenuEntry): entry is CommandMenu =>
+	entry.type === 'submenu';
 
-export function CommandPresetsModal({
+export function CommandMenuModal({
 	open,
-	presets,
+	entries,
 	bottomOffset,
 	onClose,
 	onSelect,
+	onAction,
 }: {
 	open: boolean;
-	presets: CommandPresetEntry[];
+	entries: CommandMenuEntry[];
 	bottomOffset: number;
 	onClose: () => void;
 	onSelect: (preset: CommandPreset) => void;
+	onAction: (actionId: ActionId) => void;
 }) {
 	const theme = useTheme();
-	const [menuStack, setMenuStack] = useState<CommandPresetMenu[]>([]);
+	const [menuStack, setMenuStack] = useState<CommandMenu[]>([]);
 
 	useEffect(() => {
 		if (!open) {
@@ -41,28 +44,31 @@ export function CommandPresetsModal({
 	};
 
 	const activeMenu = menuStack[menuStack.length - 1];
-	const activePresets = activeMenu?.presets ?? presets;
-	const menuTitle = activeMenu?.label ?? 'Command Presets';
+	const activeEntries = activeMenu?.entries ?? entries;
+	const menuTitle = activeMenu?.label ?? 'Cmds';
 
-	const uniquePresets = useMemo(() => {
+	const uniqueEntries = useMemo(() => {
 		const seen = new Set<string>();
-		return activePresets.filter((preset) => {
-			const key = preset.label.trim();
+		return activeEntries.filter((entry) => {
+			const key = entry.label.trim();
 			if (seen.has(key)) return false;
 			seen.add(key);
 			return true;
 		});
-	}, [activePresets]);
+	}, [activeEntries]);
 
-	const handlePresetPress = (preset: CommandPresetEntry) => {
-		if (isCommandPresetMenu(preset)) {
-			setMenuStack((current) => [...current, preset]);
-			return;
-		}
-		// Ensure the next open starts at the root even if the parent closes the modal
-		// as a side effect of selecting a preset.
-		setMenuStack([]);
-		onSelect(preset);
+	const handleEntryPress = (entry: CommandMenuEntry) => {
+		dispatchCommandMenuSelection(entry, {
+			onSubmenu: (menu) => setMenuStack((current) => [...current, menu]),
+			onPreset: (selectedPreset) => {
+				// Ensure the next open starts at the root even if the parent closes the modal
+				// as a side effect of selecting a preset.
+				setMenuStack([]);
+				onSelect(selectedPreset);
+			},
+			onClose: handleClose,
+			onAction,
+		});
 	};
 
 	return (
@@ -127,16 +133,16 @@ export function CommandPresetsModal({
 							<Text style={{ color: theme.colors.textSecondary }}>Close</Text>
 						</Pressable>
 					</View>
-					{uniquePresets.length === 0 ? (
+					{uniqueEntries.length === 0 ? (
 						<Text style={{ color: theme.colors.textSecondary }}>
-							No command presets configured.
+							No commands configured.
 						</Text>
 					) : (
 						<ScrollView>
-							{uniquePresets.map((preset, index) => (
+							{uniqueEntries.map((entry, index) => (
 								<Pressable
-									key={`${preset.type}-${preset.label}-${index.toString()}`}
-									onPress={() => handlePresetPress(preset)}
+									key={`${entry.type}-${entry.label}-${index.toString()}`}
+									onPress={() => handleEntryPress(entry)}
 									style={{
 										paddingVertical: 12,
 										paddingHorizontal: 12,
@@ -161,9 +167,9 @@ export function CommandPresetsModal({
 												fontWeight: '600',
 											}}
 										>
-											{preset.label}
+											{entry.label}
 										</Text>
-										{isCommandPresetMenu(preset) ? (
+										{isCommandMenu(entry) ? (
 											<Text
 												style={{ color: theme.colors.textSecondary }}
 											>{`>`}</Text>

@@ -64,7 +64,7 @@ export const KNOWN_ACTION_IDS = [
 	'ROTATE_KEYBOARD',
 	'OPEN_KEYBOARD_SETTINGS',
 	...KEYBOARD_TARGET_ACTION_IDS,
-	'TOGGLE_COMMAND_PRESETS',
+	'TOGGLE_COMMAND_MENU',
 	'OPEN_COMMANDER',
 	'OPEN_SKILL_SELECTOR',
 	'OPEN_BROWSER_ACTIONS',
@@ -243,7 +243,7 @@ export type ActionContext = {
 	sendBytes: (bytes: Uint8Array<ArrayBuffer>) => void;
 	pasteClipboard: () => Promise<void>;
 	copySelection: () => void;
-	toggleCommandPresets?: () => void;
+	toggleCommandMenu?: () => void;
 	openCommander?: () => void;
 	openSkillSelector?: () => void;
 	openBrowserActions?: () => void;
@@ -364,8 +364,8 @@ export async function runAction(
 			context.editHostUrlSlot?.('app-url');
 			return;
 		}
-		case 'TOGGLE_COMMAND_PRESETS': {
-			context.toggleCommandPresets?.();
+		case 'TOGGLE_COMMAND_MENU': {
+			context.toggleCommandMenu?.();
 			return;
 		}
 		case 'OPEN_COMMANDER': {
