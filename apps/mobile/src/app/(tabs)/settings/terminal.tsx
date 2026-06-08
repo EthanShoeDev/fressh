@@ -1,5 +1,13 @@
 import { ScrollView, View } from 'react-native';
 import {
+	NativeForm,
+	NativeSection,
+	NativeSegmentedRow,
+	NativeSelectRow,
+	NativeStepperRow,
+	NativeToggleRow,
+} from '@/components/native-controls';
+import {
 	FieldLabel,
 	Section,
 	Segmented,
@@ -20,8 +28,10 @@ import {
 	TERMINAL_PADDING,
 	TERMINAL_SCROLLBACK,
 } from '@/lib/preferences';
+import { useIsNativeTheme } from '@/lib/theme-skin';
 
-export default function TerminalSettings() {
+/** Shared terminal-settings state (prefs + bounds helpers) for both render paths. */
+function useTerminalSettingsState() {
 	const [fontSize, setFontSize] = preferences.terminalFontSize.useValue();
 	const [padding, setPadding] = preferences.terminalPadding.useValue();
 	const [scrollback, setScrollback] = preferences.terminalScrollback.useValue();
@@ -37,7 +47,162 @@ export default function TerminalSettings() {
 		preferences.terminalBlinkTimeout.useValue();
 	const [boldIsBright, setBoldIsBright] =
 		preferences.terminalBoldIsBright.useValue();
+	return {
+		fontSize,
+		setFontSize,
+		padding,
+		setPadding,
+		scrollback,
+		setScrollback,
+		colorScheme,
+		setColorScheme,
+		cursorStyle,
+		setCursorStyle,
+		cursorBlink,
+		setCursorBlink,
+		blinkInterval,
+		setBlinkInterval,
+		blinkTimeout,
+		setBlinkTimeout,
+		boldIsBright,
+		setBoldIsBright,
+	};
+}
 
+export default function TerminalSettings() {
+	return useIsNativeTheme() ? <NativeTerminal /> : <CustomTerminal />;
+}
+
+/** Native theme: the preview (RN) above one full-screen `<Host>` form. */
+function NativeTerminal() {
+	const s = useTerminalSettingsState();
+	return (
+		<View className='flex-1 bg-background'>
+			<View className='p-4 pb-0'>
+				<TerminalPreview />
+			</View>
+			<NativeForm>
+				<NativeSection title='Theme'>
+					{COLOR_SCHEMES.map((scheme) => (
+						<NativeSelectRow
+							key={scheme.id}
+							label={scheme.label}
+							selected={s.colorScheme === scheme.id}
+							onPress={() => {
+								s.setColorScheme(scheme.id);
+							}}
+						/>
+					))}
+				</NativeSection>
+
+				<NativeSection title='Display'>
+					<NativeStepperRow
+						label='Font size'
+						value={s.fontSize}
+						decDisabled={s.fontSize <= TERMINAL_FONT_SIZE.min}
+						incDisabled={s.fontSize >= TERMINAL_FONT_SIZE.max}
+						onDec={() => {
+							s.setFontSize(s.fontSize - TERMINAL_FONT_SIZE.step);
+						}}
+						onInc={() => {
+							s.setFontSize(s.fontSize + TERMINAL_FONT_SIZE.step);
+						}}
+					/>
+					<NativeStepperRow
+						label='Padding'
+						value={s.padding}
+						decDisabled={s.padding <= TERMINAL_PADDING.min}
+						incDisabled={s.padding >= TERMINAL_PADDING.max}
+						onDec={() => {
+							s.setPadding(s.padding - TERMINAL_PADDING.step);
+						}}
+						onInc={() => {
+							s.setPadding(s.padding + TERMINAL_PADDING.step);
+						}}
+					/>
+					<NativeToggleRow
+						label='Bold is bright'
+						value={s.boldIsBright}
+						onChange={s.setBoldIsBright}
+					/>
+				</NativeSection>
+
+				<NativeSection title='Cursor'>
+					<NativeSegmentedRow
+						label='Style'
+						options={CURSOR_STYLES}
+						value={s.cursorStyle}
+						onChange={s.setCursorStyle}
+					/>
+					<NativeSegmentedRow
+						label='Blink'
+						options={CURSOR_BLINKS}
+						value={s.cursorBlink}
+						onChange={s.setCursorBlink}
+					/>
+					{s.cursorBlink !== 'never' ? (
+						<>
+							<NativeStepperRow
+								label='Blink interval (ms)'
+								value={s.blinkInterval}
+								decDisabled={s.blinkInterval <= TERMINAL_BLINK_INTERVAL.min}
+								incDisabled={s.blinkInterval >= TERMINAL_BLINK_INTERVAL.max}
+								onDec={() => {
+									s.setBlinkInterval(
+										s.blinkInterval - TERMINAL_BLINK_INTERVAL.step,
+									);
+								}}
+								onInc={() => {
+									s.setBlinkInterval(
+										s.blinkInterval + TERMINAL_BLINK_INTERVAL.step,
+									);
+								}}
+							/>
+							<NativeStepperRow
+								label='Stop blinking after'
+								value={s.blinkTimeout === 0 ? 'Never' : `${s.blinkTimeout}s`}
+								decDisabled={s.blinkTimeout <= TERMINAL_BLINK_TIMEOUT.min}
+								incDisabled={s.blinkTimeout >= TERMINAL_BLINK_TIMEOUT.max}
+								onDec={() => {
+									s.setBlinkTimeout(
+										s.blinkTimeout - TERMINAL_BLINK_TIMEOUT.step,
+									);
+								}}
+								onInc={() => {
+									s.setBlinkTimeout(
+										s.blinkTimeout + TERMINAL_BLINK_TIMEOUT.step,
+									);
+								}}
+							/>
+						</>
+					) : null}
+				</NativeSection>
+
+				<NativeSection
+					title='Buffer'
+					footer='Scrollback applies to new shells.'
+				>
+					<NativeStepperRow
+						label='Scrollback'
+						value={s.scrollback}
+						decDisabled={s.scrollback <= TERMINAL_SCROLLBACK.min}
+						incDisabled={s.scrollback >= TERMINAL_SCROLLBACK.max}
+						onDec={() => {
+							s.setScrollback(s.scrollback - TERMINAL_SCROLLBACK.step);
+						}}
+						onInc={() => {
+							s.setScrollback(s.scrollback + TERMINAL_SCROLLBACK.step);
+						}}
+					/>
+				</NativeSection>
+			</NativeForm>
+		</View>
+	);
+}
+
+/** Every stylized theme: the custom-drawn terminal settings. */
+function CustomTerminal() {
+	const s = useTerminalSettingsState();
 	return (
 		<View className='flex-1 bg-background'>
 			{/* Sticky preview pinned above the scrolling settings list so it stays
@@ -56,9 +221,9 @@ export default function TerminalSettings() {
 							<SelectRow
 								key={scheme.id}
 								label={scheme.label}
-								selected={colorScheme === scheme.id}
+								selected={s.colorScheme === scheme.id}
 								onPress={() => {
-									setColorScheme(scheme.id);
+									s.setColorScheme(scheme.id);
 								}}
 							/>
 						))}
@@ -69,70 +234,74 @@ export default function TerminalSettings() {
 					<View className='gap-2'>
 						<StepperRow
 							label='Font size'
-							value={fontSize}
-							decDisabled={fontSize <= TERMINAL_FONT_SIZE.min}
-							incDisabled={fontSize >= TERMINAL_FONT_SIZE.max}
+							value={s.fontSize}
+							decDisabled={s.fontSize <= TERMINAL_FONT_SIZE.min}
+							incDisabled={s.fontSize >= TERMINAL_FONT_SIZE.max}
 							onDec={() => {
-								setFontSize(fontSize - TERMINAL_FONT_SIZE.step);
+								s.setFontSize(s.fontSize - TERMINAL_FONT_SIZE.step);
 							}}
 							onInc={() => {
-								setFontSize(fontSize + TERMINAL_FONT_SIZE.step);
+								s.setFontSize(s.fontSize + TERMINAL_FONT_SIZE.step);
 							}}
 						/>
 						<StepperRow
 							label='Padding'
-							value={padding}
-							decDisabled={padding <= TERMINAL_PADDING.min}
-							incDisabled={padding >= TERMINAL_PADDING.max}
+							value={s.padding}
+							decDisabled={s.padding <= TERMINAL_PADDING.min}
+							incDisabled={s.padding >= TERMINAL_PADDING.max}
 							onDec={() => {
-								setPadding(padding - TERMINAL_PADDING.step);
+								s.setPadding(s.padding - TERMINAL_PADDING.step);
 							}}
 							onInc={() => {
-								setPadding(padding + TERMINAL_PADDING.step);
+								s.setPadding(s.padding + TERMINAL_PADDING.step);
 							}}
 						/>
 
 						<FieldLabel>Cursor</FieldLabel>
 						<Segmented
 							options={CURSOR_STYLES}
-							value={cursorStyle}
-							onChange={setCursorStyle}
+							value={s.cursorStyle}
+							onChange={s.setCursorStyle}
 						/>
 
 						<FieldLabel>Cursor blink</FieldLabel>
 						<Segmented
 							options={CURSOR_BLINKS}
-							value={cursorBlink}
-							onChange={setCursorBlink}
+							value={s.cursorBlink}
+							onChange={s.setCursorBlink}
 						/>
-						{cursorBlink !== 'never' && (
+						{s.cursorBlink !== 'never' && (
 							<>
 								<StepperRow
 									label='Blink interval (ms)'
-									value={blinkInterval}
-									decDisabled={blinkInterval <= TERMINAL_BLINK_INTERVAL.min}
-									incDisabled={blinkInterval >= TERMINAL_BLINK_INTERVAL.max}
+									value={s.blinkInterval}
+									decDisabled={s.blinkInterval <= TERMINAL_BLINK_INTERVAL.min}
+									incDisabled={s.blinkInterval >= TERMINAL_BLINK_INTERVAL.max}
 									onDec={() => {
-										setBlinkInterval(
-											blinkInterval - TERMINAL_BLINK_INTERVAL.step,
+										s.setBlinkInterval(
+											s.blinkInterval - TERMINAL_BLINK_INTERVAL.step,
 										);
 									}}
 									onInc={() => {
-										setBlinkInterval(
-											blinkInterval + TERMINAL_BLINK_INTERVAL.step,
+										s.setBlinkInterval(
+											s.blinkInterval + TERMINAL_BLINK_INTERVAL.step,
 										);
 									}}
 								/>
 								<StepperRow
 									label='Stop blinking after'
-									value={blinkTimeout === 0 ? 'Never' : `${blinkTimeout}s`}
-									decDisabled={blinkTimeout <= TERMINAL_BLINK_TIMEOUT.min}
-									incDisabled={blinkTimeout >= TERMINAL_BLINK_TIMEOUT.max}
+									value={s.blinkTimeout === 0 ? 'Never' : `${s.blinkTimeout}s`}
+									decDisabled={s.blinkTimeout <= TERMINAL_BLINK_TIMEOUT.min}
+									incDisabled={s.blinkTimeout >= TERMINAL_BLINK_TIMEOUT.max}
 									onDec={() => {
-										setBlinkTimeout(blinkTimeout - TERMINAL_BLINK_TIMEOUT.step);
+										s.setBlinkTimeout(
+											s.blinkTimeout - TERMINAL_BLINK_TIMEOUT.step,
+										);
 									}}
 									onInc={() => {
-										setBlinkTimeout(blinkTimeout + TERMINAL_BLINK_TIMEOUT.step);
+										s.setBlinkTimeout(
+											s.blinkTimeout + TERMINAL_BLINK_TIMEOUT.step,
+										);
 									}}
 								/>
 							</>
@@ -140,8 +309,8 @@ export default function TerminalSettings() {
 
 						<ToggleRow
 							label='Bold is bright'
-							value={boldIsBright}
-							onChange={setBoldIsBright}
+							value={s.boldIsBright}
+							onChange={s.setBoldIsBright}
 						/>
 					</View>
 				</Section>
@@ -150,14 +319,14 @@ export default function TerminalSettings() {
 					<View className='gap-2'>
 						<StepperRow
 							label='Scrollback'
-							value={scrollback}
-							decDisabled={scrollback <= TERMINAL_SCROLLBACK.min}
-							incDisabled={scrollback >= TERMINAL_SCROLLBACK.max}
+							value={s.scrollback}
+							decDisabled={s.scrollback <= TERMINAL_SCROLLBACK.min}
+							incDisabled={s.scrollback >= TERMINAL_SCROLLBACK.max}
 							onDec={() => {
-								setScrollback(scrollback - TERMINAL_SCROLLBACK.step);
+								s.setScrollback(s.scrollback - TERMINAL_SCROLLBACK.step);
 							}}
 							onInc={() => {
-								setScrollback(scrollback + TERMINAL_SCROLLBACK.step);
+								s.setScrollback(s.scrollback + TERMINAL_SCROLLBACK.step);
 							}}
 						/>
 						<ThemedText className='text-xs text-muted'>

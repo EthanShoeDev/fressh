@@ -8,7 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { rootLogger } from '@/lib/logger';
 import { appFonts } from '../lib/fonts';
-import { initAppTheme } from '../lib/theme';
+import { initAppTheme, useSystemThemeSync } from '../lib/theme';
 
 rootLogger.info('Fressh App Init', {
 	isLiquidGlassAvailable: isLiquidGlassAvailable(),
@@ -31,6 +31,11 @@ export default function RootLayout() {
 	// A lazy useState initializer runs exactly once, synchronously before children
 	// render (no theme flash), by which point native modules are ready.
 	useState(initAppTheme);
+
+	// While the Native theme is selected, follow the device light/dark setting
+	// (no-op for the always-dark stylized themes). Must run before the early
+	// return below so the hook order stays stable.
+	useSystemThemeSync();
 
 	// Load the design typefaces before first paint (runtime, via expo-font).
 	const [fontsLoaded, fontError] = useFonts(appFonts);

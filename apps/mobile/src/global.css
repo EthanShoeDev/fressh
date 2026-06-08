@@ -128,6 +128,55 @@
 		}
 
 		/*
+		 * Native — "feels like the OS". Two variants: `native` (system dark) and
+		 * `native-light` (system light). The app stores a single selectable theme
+		 * `native`; a root hook resolves it to `native`/`native-light` from the
+		 * device color scheme (see `useSystemThemeSync` in theme.tsx). These tokens
+		 * use Apple's system colors for the RN chrome (header, notes, plain cards);
+		 * the actual @expo/ui controls self-color from the platform. Deliberately
+		 * neutral/un-branded — the whole point is to defer to the OS.
+		 */
+		@variant native {
+			--color-background: #000000;
+			--color-surface: #1c1c1e;
+			--color-terminal-background: #000000;
+			--color-border: #38383a;
+			--color-border-strong: #545458;
+			--color-text-primary: #ffffff;
+			--color-text-secondary: #ebebf5;
+			--color-muted: #8e8e93;
+			--color-primary: #0a84ff;
+			--color-button-text-on-primary: #ffffff;
+			--color-input-background: #1c1c1e;
+			--color-danger: #ff453a;
+			--color-overlay: rgba(0, 0, 0, 0.4);
+			--color-shadow: #000000;
+			--color-primary-disabled: #2b6cb0;
+			--color-success: #30d158;
+			--color-warning: #ff9f0a;
+		}
+
+		@variant native-light {
+			--color-background: #f2f2f7;
+			--color-surface: #ffffff;
+			--color-terminal-background: #f2f2f7;
+			--color-border: #c6c6c8;
+			--color-border-strong: #aeaeb2;
+			--color-text-primary: #000000;
+			--color-text-secondary: #3c3c43;
+			--color-muted: #8e8e93;
+			--color-primary: #007aff;
+			--color-button-text-on-primary: #ffffff;
+			--color-input-background: #ffffff;
+			--color-danger: #ff3b30;
+			--color-overlay: rgba(0, 0, 0, 0.2);
+			--color-shadow: #000000;
+			--color-primary-disabled: #99c7ff;
+			--color-success: #34c759;
+			--color-warning: #ff9500;
+		}
+
+		/*
 		 * Monolith — brutalist editorial. Pure black, hairline grid, one
 		 * electric-lime accent. ALL-CAPS, sharp corners (best in stylized nav).
 		 */

@@ -1,7 +1,10 @@
-# Future project: a "Native" theme built from platform UI elements (@expo/ui)
+# Project: a "Native" theme built from platform UI elements (@expo/ui)
 
-**Status:** NOT STARTED — exploratory. Architecturally distinct from our other themes
-(see the key insight below) and depends on adding `@expo/ui`. Tractable in phases.
+**Status:** v0 + v1 IMPLEMENTED (JS complete; pending on-device QA + native rebuild).
+The single universal "Native" theme that follows the system light/dark is wired end to
+end; what remains is device tuning (chiefly `@expo/ui` `Host` sizing) and the deeper v2
+items. See **Implementation notes** at the bottom for exactly what landed and the QA
+checklist.
 
 **Scope (if pursued):** the mobile app's theme system (`apps/mobile/src/lib/theme.tsx`,
 `theme-skin.ts`, `global.css`) + the settings-control components, + a new `@expo/ui`
@@ -177,3 +180,87 @@ self-contained of the future projects and could ship independently.
 
 IDEALLY:
 If the native theme is applied the app is faster. Like we should not use the skia background if this is applied.
+
+## Implementation notes (what landed)
+
+Decisions taken: **one universal "Native" theme** (not a per-platform split, not an
+orthogonal mode) that **follows the system light/dark**, scoped to **v0 + v1**.
+
+**Theme registration & system light/dark**
+- `global.css`: two new variants — `native` (system dark, Apple system colors) and
+  `native-light` (system light). Both registered in `metro.config.js` `extraThemes` and in
+  `src/uniwind-types.d.ts` (metro regenerates the latter on next start).
+- The app stores a single selectable theme `native` (added to `APP_THEMES` in `theme.tsx`
+  and `APP_THEME_NAMES` in `preferences.tsx`). `resolveUniwindTheme(name, scheme)` folds the
+  device color scheme into `native`/`native-light`; the stylized themes pass through.
+- `initAppTheme()` resolves against `Appearance.getColorScheme()` at startup;
+  `useSystemThemeSync()` (mounted in `_layout.tsx`) keeps the live theme in sync with system
+  appearance while Native is selected (no-op for the always-dark themes).
+- `theme-skin.ts`: a neutral `native` skin (no blobs/scanlines/glass/glow, system fonts).
+  Empty `blobs` ⇒ `ThemedBackground` early-returns `null` ⇒ **no Skia canvas mounts under
+  Native** — the "make it faster / drop the Skia background" goal, for free.
+  `useThemeSkin()` maps `native-light` → the `native` skin; new `useIsNativeTheme()` is the
+  branch the control/container layer keys off.
+
+**THE HARD-WON LAYOUT RULE (first attempt crashed Android).** A first cut put a
+`<Host matchContents>` per control and a per-section `<Host matchContents={{vertical:true}}
+width:100%>` *nested inside the RN `ScrollView`*. On Android that throws
+`java.lang.IllegalStateException: layout state is not idle before measure starts` (a
+re-entrant Jetpack Compose measure) the moment a Host renders. The fix, matching the
+canonical `@expo/ui` example (`apps/native-component-list/.../FieldGroupScreen.tsx`):
+**exactly one `<Host style={{ flex: 1 }}>` per screen, as the OUTERMOST native element**,
+with a self-scrolling `FieldGroup` inside. Never use `matchContents`, never nest a `Host`
+in an RN `ScrollView`, never give each control its own `Host`. RN chrome (the screen header,
+the terminal preview) lives ABOVE the `<Host>`. (NB: `@expo/ui` 56.0.16 already includes the
+56.0.6 `flushPendingStateUpdates` fix — version is not the issue; the usage pattern is.)
+
+**Architecture.** Because the native UI is one full-screen host (not per-control hosts),
+each native settings screen is a **separate component tree**, chosen at the top of the
+screen via `useIsNativeTheme()` (`Tab` → `NativeSettings`/`CustomSettings`,
+`TerminalSettings` → `NativeTerminal`/`CustomTerminal`). Branching into distinct components
+(not an inline `if` mid-render) keeps each path's hook list stable across a live theme
+switch. The stylized themes' screens are untouched.
+
+**Control layer** — all `@expo/ui` usage is isolated in `src/components/native-controls.tsx`:
+`NativeForm` (`<Host flex:1><FieldGroup>`), `NativeSection` (`FieldGroup.Section` + optional
+muted `SectionFooter`), and the rows — `NativeToggleRow` (`Switch`), `NativeSegmentedRow`,
+`NativeSelectRow` (tappable `Row` + tinted ✓), `NativeStepperRow` (`Row` of − / value / +
+`Button`s), `NativeNavRow` (tappable row + chevron). The plain RN controls in
+`settings-controls.tsx` are unchanged (used only by the stylized paths).
+
+`NativeSegmentedRow` renders a **real native segmented control**, not the dropdown menu
+`Picker` (the universal `Picker` only offers wheel/menu, which looked bad). Because the two
+platforms' segmented APIs differ, it's a platform split in
+`src/components/native-segmented-control.{ios,android}.tsx` (+ a `.d.ts` for tsgo): iOS uses a
+SwiftUI `Picker` with `pickerStyle('segmented')` + `tag` modifiers; Android uses Material 3
+`SingleChoiceSegmentedButtonRow` + `SegmentedButton`. Used for **Tab bar** (2 opts) and the
+**Cursor** style/blink choices (4 opts). NOT for the theme picker — 5 options is too cramped
+for a segmented control.
+
+**What's native under the Native theme:** the *entire* Settings and Terminal-settings
+screens — including what were mixed-content sections. The Terminal link becomes a
+`NativeNavRow`; the Display/Cursor `FieldLabel`s become native section titles; notes become
+section footers. Two things stay RN and render ABOVE the `<Host>` (RN can't live inside it):
+the terminal preview, and the **theme picker** — which keeps the shared `ThemeGrid` swatch-card
+look from the other themes (a 5-wide segmented control was too cramped, per user).
+
+**Not needed:** the `@expo/ui` babel plugin (it only rewrites `Icon.select`, which we don't
+use). No config plugin — it's an autolinked Expo module.
+
+### On-device QA checklist (native rebuild required)
+`@expo/ui` is a native module, so this needs `expo run:ios` / `expo run:android` (a JS
+reload is not enough), and a **Metro restart** to pick up the new `@variant`s. Then:
+1. **No crash on entering Settings / Terminal settings under Native** (the regression that
+   started this — the single-`Host` rewrite is the fix; re-verify on a real Android device).
+2. **System light/dark** — flip the OS appearance with Native selected; chrome tokens AND
+   the native controls should both flip; switching to a stylized theme should stay dark.
+3. Each row behaves on **both** iOS (SwiftUI) and Android (Material 3): Switch, the menu
+   Picker, the select-row checkmark, the stepper buttons + disabled bounds, the nav row.
+4. The `FieldGroup` scrolls and sizes correctly (it owns scrolling; there is no RN
+   `ScrollView` under Native). Confirm no Skia background under Native, and that the four
+   stylized themes are visually unchanged.
+
+### Possible follow-ups (v2)
+Native `NavigationBar`/tab chrome, `BottomSheet`, `ContextMenu`, haptics; `Slider` for the
+numeric steppers (would need min/max/step plumbed through). (A true segmented control already
+landed — see the control layer above.)

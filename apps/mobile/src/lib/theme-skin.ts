@@ -190,6 +190,28 @@ const THEME_SKINS: Partial<Record<AppThemeName, ThemeSkin>> = {
 		titleGlow: 'rgba(45,230,198,0.45)',
 		titleFamily: 'SpaceGrotesk_700Bold',
 	},
+	// Native: defer to the OS. No canvas (blobs/scanlines empty → ThemedBackground
+	// renders nothing, the perf win), no glass/glow, system typography. The real
+	// personality comes from the @expo/ui controls, not this skin. Keyed under
+	// `native`; `native-light` resolves here too (see useThemeSkin).
+	native: {
+		radius: 10,
+		controlRadius: 10,
+		blobs: [],
+		animateBlobs: false,
+		scanlines: false,
+		glass: false,
+		glow: '',
+		textCase: 'none',
+		mono: false,
+		edgeToEdge: false,
+		tracking: 0,
+		titleSize: 30,
+		titleWeight: '700',
+		titleMono: false,
+		titleTracking: 0.35,
+		headerRule: false,
+	},
 	// Brutalist: pure black, SHARP corners, edge-to-edge hairline grid, ALL-CAPS mono.
 	monolith: {
 		radius: 0,
@@ -218,10 +240,19 @@ const THEME_SKINS: Partial<Record<AppThemeName, ThemeSkin>> = {
 	},
 };
 
-/** The active theme's skin (falls back to a neutral rounded default). */
+/** The active theme's skin (falls back to a neutral rounded default). The two
+ *  Native variants (`native`/`native-light`) share one skin. */
 export function useThemeSkin(): ThemeSkin {
 	const { theme } = useUniwind();
-	return THEME_SKINS[theme as AppThemeName] ?? DEFAULT_SKIN;
+	const key = theme === 'native-light' ? 'native' : theme;
+	return THEME_SKINS[key as AppThemeName] ?? DEFAULT_SKIN;
+}
+
+/** Whether the system-following Native theme is active (either light or dark
+ *  variant). The control/container layer branches on this to render @expo/ui. */
+export function useIsNativeTheme() {
+	const { theme } = useUniwind();
+	return theme === 'native' || theme === 'native-light';
 }
 
 /**

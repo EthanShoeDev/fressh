@@ -24,6 +24,7 @@ const APP_THEME_NAMES = [
 	'graphite',
 	'aurora',
 	'monolith',
+	'native',
 ] as const;
 
 /** Default theme when none is stored (or a stale/removed one was). */

@@ -32,6 +32,7 @@
 		"@expo-google-fonts/jetbrains-mono": "^0.4.1",
 		"@expo-google-fonts/space-grotesk": "^0.4.1",
 		"@expo-google-fonts/space-mono": "^0.4.2",
+		"@expo/ui": "~56.0.16",
 		"@expo/vector-icons": "^15.0.3",
 		"@fressh/assets": "workspace:*",
 		"@fressh/react-native-terminal": "workspace:*",

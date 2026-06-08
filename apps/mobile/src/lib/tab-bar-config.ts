@@ -1,4 +1,5 @@
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
 
 /**
  * Which bottom tab bar implementation the app renders:
@@ -66,3 +67,17 @@ export type TabRouteName = TabRoute['name'];
  * padding under the bar stays exact.
  */
 export const JS_TAB_BAR_HEIGHT = 64;
+
+/**
+ * Content height (excluding the bottom safe-area inset) of the OS native tab bar
+ * (`expo-router/unstable-native-tabs`). The native bar doesn't expose its height
+ * to JS (rns#3627), so we use the platform's standard bar height — the same value
+ * `useBottomTabSpacing` reserves for scroll padding, and what the terminal
+ * keyboard-toolbar offset subtracts so the toolbar clears the IME with the native
+ * bar (see docs/projects/complete/toolbar-keyboard-by-construction.md).
+ */
+export const NATIVE_TAB_BAR_HEIGHT = Platform.select({
+	ios: 49,
+	android: 80,
+	default: 56,
+});

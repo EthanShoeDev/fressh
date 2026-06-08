@@ -1,4 +1,11 @@
-import { Platform, type TextStyle } from 'react-native';
+import { useEffect } from 'react';
+import {
+	Appearance,
+	type ColorSchemeName,
+	Platform,
+	type TextStyle,
+	useColorScheme,
+} from 'react-native';
 import { Uniwind } from 'uniwind';
 import { preferences } from './preferences';
 
@@ -42,6 +49,14 @@ export const APP_THEMES = [
 		id: 'monolith',
 		label: 'Monolith',
 		swatch: { bg: '#0a0a0a', accent: '#ccff00', accent2: '#f4f4f2' },
+	},
+	// "Feels like the OS": real @expo/ui controls (SwiftUI / Material 3) and a
+	// neutral system palette that follows the device light/dark. The swatch shows
+	// the dark variant; the live theme flips with the system scheme.
+	{
+		id: 'native',
+		label: 'Native',
+		swatch: { bg: '#1c1c1e', accent: '#0a84ff', accent2: '#30d158' },
 	},
 ] as const satisfies readonly {
 	id: string;
@@ -102,22 +117,63 @@ export const NATIVE_TAB_STYLES: Partial<Record<AppThemeName, NativeTabStyle>> = 
 };
 
 /**
+ * A *resolved* uniwind theme name — every selectable `AppThemeName` plus
+ * `native-light`, the system-light variant of Native that the app never stores
+ * directly (the picker only ever shows/saves `native`).
+ */
+type UniwindThemeName = AppThemeName | 'native-light';
+
+/**
+ * Fold the device color scheme into the stored theme. Only `native` splits by
+ * appearance (→ `native`/`native-light`); the four stylized themes are always
+ * dark and pass through unchanged.
+ */
+function resolveUniwindTheme(
+	name: AppThemeName,
+	scheme: ColorSchemeName | null | undefined,
+): UniwindThemeName {
+	if (name === 'native') {
+		return scheme === 'light' ? 'native-light' : 'native';
+	}
+	return name;
+}
+
+/**
  * Apply the persisted theme once at module load (before first render) so the
- * app doesn't flash the default theme then switch.
+ * app doesn't flash the default theme then switch. Reads the current system
+ * appearance imperatively so Native lands on the right light/dark variant.
  */
 export function initAppTheme() {
-	Uniwind.setTheme(preferences.theme.get());
+	Uniwind.setTheme(
+		resolveUniwindTheme(preferences.theme.get(), Appearance.getColorScheme()),
+	);
 }
 
 /**
  * Read + change the active app theme. Persists to MMKV and drives uniwind's
- * className re-render via `Uniwind.setTheme`.
+ * className re-render via `Uniwind.setTheme` (resolving Native against the
+ * current system appearance so the switch is immediate, no flash).
  */
 export function useAppTheme() {
 	const [themeName, setPref] = preferences.theme.useValue();
+	const scheme = useColorScheme();
 	const setThemeName = (name: AppThemeName) => {
 		setPref(name);
-		Uniwind.setTheme(name);
+		Uniwind.setTheme(resolveUniwindTheme(name, scheme));
 	};
 	return { themeName, setThemeName };
+}
+
+/**
+ * Keep the live uniwind theme in sync with the system light/dark setting while
+ * Native is selected. Mount once near the app root. For the stylized themes this
+ * is a no-op (they pass through), so it's safe to always run. Idempotent with
+ * {@link useAppTheme}'s direct set — both resolve to the same variant.
+ */
+export function useSystemThemeSync() {
+	const [themeName] = preferences.theme.useValue();
+	const scheme = useColorScheme();
+	useEffect(() => {
+		Uniwind.setTheme(resolveUniwindTheme(themeName, scheme));
+	}, [themeName, scheme]);
 }

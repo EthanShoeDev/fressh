@@ -35,5 +35,14 @@ config.resolver.blockList = config.resolver.blockList
 module.exports = withUniwindConfig(config, {
 	cssEntryFile: './src/global.css',
 	dtsFile: './src/uniwind-types.d.ts',
-	extraThemes: ['phosphor', 'graphite', 'aurora', 'monolith'],
+	// `native` + `native-light` back the system-following "Native" theme (the app
+	// stores `native`; the device color scheme picks the variant at runtime).
+	extraThemes: [
+		'phosphor',
+		'graphite',
+		'aurora',
+		'monolith',
+		'native',
+		'native-light',
+	],
 });

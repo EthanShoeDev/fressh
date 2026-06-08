@@ -1,4 +1,12 @@
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
+import {
+	NativeForm,
+	NativeNavRow,
+	NativeSection,
+	NativeSegmentedRow,
+	NativeToggleRow,
+} from '@/components/native-controls';
 import { ScreenHeader } from '@/components/themed/ScreenHeader';
 import { ThemedScreen } from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
@@ -10,15 +18,82 @@ import {
 } from '@/components/settings-controls';
 import { preferences } from '@/lib/preferences';
 import type { TabBarImpl } from '@/lib/tab-bar-config';
-import { APP_THEMES, useAppTheme, type ThemeSwatch } from '@/lib/theme';
-import { applyCase, useThemeSkin } from '@/lib/theme-skin';
+import {
+	type AppThemeName,
+	APP_THEMES,
+	useAppTheme,
+	type ThemeSwatch,
+} from '@/lib/theme';
+import { applyCase, useIsNativeTheme, useThemeSkin } from '@/lib/theme-skin';
 
 const TAB_BAR_OPTIONS: readonly { id: TabBarImpl; label: string }[] = [
 	{ id: 'native', label: 'Native' },
 	{ id: 'js', label: 'Custom' },
 ];
 
+const SHELL_INTEGRATION_FOOTER =
+	'Lets fressh track the current folder, command status, and timing. Set up automatically on connect — nothing is changed on your server. Off makes fressh a plain SSH client.';
+
+// Branch by theme at the top so each path is its own component with a stable hook
+// list — the Native path renders real platform controls (@expo/ui), every other
+// theme keeps the custom-drawn settings UI.
 export default function Tab() {
+	return useIsNativeTheme() ? <NativeSettings /> : <CustomSettings />;
+}
+
+/** Native theme: one full-screen `<Host>` form of platform controls. */
+function NativeSettings() {
+	const { themeName, setThemeName } = useAppTheme();
+	const [tabBarImpl, setTabBarImpl] = preferences.tabBarImpl.useValue();
+	const [shellIntegration, setShellIntegration] =
+		preferences.shellIntegrationEnabled.useValue();
+	const router = useRouter();
+
+	return (
+		<ThemedScreen edges={['top']}>
+			<ScreenHeader title='Settings' />
+			{/* The theme picker keeps the swatch-grid look from the other themes,
+			    rendered in RN above the native form (RN views can't live inside the
+			    @expo/ui Host). A 5-wide segmented control was too cramped. */}
+			<View className='px-4 pt-2'>
+				<ThemedText className='mb-2 text-sm text-text-secondary'>
+					Theme
+				</ThemedText>
+				<ThemeGrid themeName={themeName} setThemeName={setThemeName} />
+			</View>
+			<NativeForm>
+				<NativeSection>
+					<NativeSegmentedRow
+						layout='inline'
+						label='Tab bar'
+						options={TAB_BAR_OPTIONS}
+						value={tabBarImpl}
+						onChange={setTabBarImpl}
+					/>
+				</NativeSection>
+				<NativeSection
+					title='Shell integration'
+					footer={SHELL_INTEGRATION_FOOTER}
+				>
+					<NativeToggleRow
+						label='Smart terminal'
+						value={shellIntegration}
+						onChange={setShellIntegration}
+					/>
+				</NativeSection>
+				<NativeSection title='Terminal'>
+					<NativeNavRow
+						label='Terminal settings'
+						onPress={() => router.push('/(tabs)/settings/terminal')}
+					/>
+				</NativeSection>
+			</NativeForm>
+		</ThemedScreen>
+	);
+}
+
+/** Every stylized theme: the custom-drawn settings UI. */
+function CustomSettings() {
 	const { themeName, setThemeName } = useAppTheme();
 	const [tabBarImpl, setTabBarImpl] = preferences.tabBarImpl.useValue();
 	const [shellIntegration, setShellIntegration] =
@@ -29,19 +104,7 @@ export default function Tab() {
 			<ScreenHeader title='Settings' />
 			<ScrollView className='flex-1' contentContainerClassName='px-4 pb-4 pt-2'>
 				<Section title='Theme'>
-					<View className='flex-row flex-wrap justify-between gap-y-3'>
-						{APP_THEMES.map((appTheme) => (
-							<ThemeCard
-								key={appTheme.id}
-								label={appTheme.label}
-								swatch={appTheme.swatch}
-								selected={themeName === appTheme.id}
-								onPress={() => {
-									setThemeName(appTheme.id);
-								}}
-							/>
-						))}
-					</View>
+					<ThemeGrid themeName={themeName} setThemeName={setThemeName} />
 				</Section>
 
 				<Section title='Tab bar'>
@@ -59,9 +122,7 @@ export default function Tab() {
 						onChange={setShellIntegration}
 					/>
 					<ThemedText className='mt-1.5 px-1 text-xs text-muted'>
-						Lets fressh track the current folder, command status, and timing.
-						Set up automatically on connect — nothing is changed on your server.
-						Off makes fressh a plain SSH client.
+						{SHELL_INTEGRATION_FOOTER}
 					</ThemedText>
 				</Section>
 
@@ -71,6 +132,31 @@ export default function Tab() {
 				</Section>
 			</ScrollView>
 		</ThemedScreen>
+	);
+}
+
+/** The swatch-grid theme picker, shared by both the Native and stylized settings. */
+function ThemeGrid({
+	themeName,
+	setThemeName,
+}: {
+	themeName: AppThemeName;
+	setThemeName: (name: AppThemeName) => void;
+}) {
+	return (
+		<View className='flex-row flex-wrap justify-between gap-y-3'>
+			{APP_THEMES.map((appTheme) => (
+				<ThemeCard
+					key={appTheme.id}
+					label={appTheme.label}
+					swatch={appTheme.swatch}
+					selected={themeName === appTheme.id}
+					onPress={() => {
+						setThemeName(appTheme.id);
+					}}
+				/>
+			))}
+		</View>
 	);
 }
 

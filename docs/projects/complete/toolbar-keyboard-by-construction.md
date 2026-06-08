@@ -5,6 +5,14 @@ and is device-verified; this doc captures *why* it needs a measured fudge factor
 what the clean options are, so we can come back to it. Ethan is not ready to go full-screen
 or to regress `NativeTabs` → JS `Tabs` yet, so we park it here.
 
+**UPDATE (2026-06-08).** The native-bar path was reported obscured by the IME (the
+`measureInWindow` value left the toolbar ~a tab-bar-height too low). Switched the native bar
+to the **fixed-bottom-inset-measurement-free** option below: `bottomReserved = (js ?
+JS_TAB_BAR_HEIGHT : NATIVE_TAB_BAR_HEIGHT) + insets.bottom`, where `NATIVE_TAB_BAR_HEIGHT`
+(`tab-bar-config.ts`, iOS 49 / Android 80) is the same constant `useBottomTabSpacing`
+already reserves. `measureInWindow`/`measureColumn` removed from `terminal.tsx`. If the
+toolbar sits slightly high/low under the native bar, tune that one constant.
+
 ## The goal
 
 The custom key toolbar (ESC / arrows / CTRL / ALT, in `shell/detail.tsx`) should rest

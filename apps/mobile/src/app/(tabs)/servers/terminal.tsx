@@ -30,7 +30,6 @@ import {
 	ScrollView,
 	Text,
 	TextInput,
-	useWindowDimensions,
 	View,
 	type StyleProp,
 	type ViewStyle,
@@ -46,7 +45,7 @@ import { ContextBar } from '@/components/terminal/ContextBar';
 import { PresetsToolbarPage } from '@/components/terminal/PresetsToolbarPage';
 import type { Preset } from '@/lib/presets';
 import { ThemedText } from '@/components/themed/ThemedText';
-import { JS_TAB_BAR_HEIGHT } from '@/lib/tab-bar-config';
+import { JS_TAB_BAR_HEIGHT, NATIVE_TAB_BAR_HEIGHT } from '@/lib/tab-bar-config';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
 import { useContextSafe } from '@/lib/utils';
 
@@ -146,28 +145,17 @@ function ShellDetail() {
 	// screen-relative keyboard height — otherwise the toolbar floats a tab-bar-height
 	// above the keyboard. (keyboardHeight is measured from the screen bottom.)
 	//
-	// With the JS tab bar that reserved space is known *by construction*
-	// (JS_TAB_BAR_HEIGHT + the bottom inset the bar pads itself with), so we use it
-	// directly — exact, no measurement timing. The native bar doesn't expose its
-	// height to JS (see docs/toolbar-keyboard-by-construction.md + rns#3627), so for
-	// it we keep measuring the column via measureInWindow.
+	// The JS bar's reserved space is exact (JS_TAB_BAR_HEIGHT + inset, by
+	// construction). The native bar doesn't expose its height to JS (rns#3627), so
+	// it's a GUESS: NATIVE_TAB_BAR_HEIGHT (iOS 49 / Android 80) + inset — the same
+	// fixed estimate useBottomTabSpacing uses. We swapped off measureInWindow (flaky
+	// timing) for this constant so there's a single, stable knob to tune: increasing
+	// NATIVE_TAB_BAR_HEIGHT lowers the toolbar, decreasing it raises the toolbar.
+	// See docs/projects/complete/toolbar-keyboard-by-construction.md.
 	const [tabBarImpl] = preferences.tabBarImpl.useValue();
-	const windowHeight = useWindowDimensions().height;
-	const columnRef = useRef<View>(null);
-	const [measuredBottomReserved, setMeasuredBottomReserved] = useState(
-		insets.bottom,
-	);
-	const measureColumn = useCallback(() => {
-		columnRef.current?.measureInWindow((_x, y, _w, h) => {
-			if (h > 0) {
-				setMeasuredBottomReserved(Math.max(0, windowHeight - (y + h)));
-			}
-		});
-	}, [windowHeight]);
 	const bottomReserved =
-		tabBarImpl === 'js'
-			? JS_TAB_BAR_HEIGHT + insets.bottom
-			: measuredBottomReserved;
+		(tabBarImpl === 'js' ? JS_TAB_BAR_HEIGHT : NATIVE_TAB_BAR_HEIGHT) +
+		insets.bottom;
 	const toolbarMarginBottom =
 		keyboardHeight > 0
 			? Math.max(keyboardHeight - bottomReserved, insets.bottom)
@@ -269,7 +257,7 @@ function ShellDetail() {
 						deterministic surface resize. (A KeyboardAvoidingView resized the surface
 						only inconsistently and clipped the 2nd toolbar row.) Paired with
 						softwareKeyboardLayoutMode='resize'. */}
-			<View ref={columnRef} onLayout={measureColumn} className='flex-1 gap-1'>
+			<View className='flex-1 gap-1'>
 				<KeyboardToolBarContext value={toolbarContext}>
 					{/* Smart-terminal context bar — ambient cwd / command status / exit /
 					    timing. A real row (not an overlay) so it never occludes output.
