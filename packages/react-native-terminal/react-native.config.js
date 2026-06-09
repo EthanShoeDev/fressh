@@ -1,9 +1,12 @@
+const path = require('node:path');
+
 module.exports = {
 	dependency: {
 		platforms: {
 			android: { sourceDir: 'android' },
-			// ios added once the podspec + xcodeproj are generated (§8).
-			// ios: { project: 'ios/ReactNativeTerminal.xcodeproj' },
+			// Autolink the hand-authored podspec (no xcodeproj — the pod compiles
+			// our ios/** + the generated bindings and links shim_uniffi.xcframework, §8).
+			ios: { podspecPath: path.join(__dirname, 'ReactNativeTerminal.podspec') },
 		},
 	},
 };

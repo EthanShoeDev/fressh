@@ -58,6 +58,8 @@
 		"nitro:codegen": "nitrogen",
 		"//native": "Single .so (§8): cargo-ndk builds the shim-uniffi staticlib (uniffi control plane + render C-ABI, sharing fressh-core's registry statics); the umbrella android/CMakeLists links it + the ubrn-generated C++ + the Nitro C++ into libReactNativeTerminal.so.",
 		"build:android": "cd rust && cargo ndk -t arm64-v8a -t x86_64 -o ../android/src/main/jniLibs build -p shim-uniffi --release",
+		"//build:ios": "iOS analogue of build:android (§1/§8): cargo-build shim-uniffi for device + sim, lipo the sim slices, package one shim_uniffi.xcframework the podspec links. JSI bindings (cpp/generated) come from the cross-platform ubrn:generate, so the xcframework needs no headers — just the staticlib.",
+		"build:ios": "cd rust && ./build-ios.sh",
 		"//ubrn:generate": "Reads uniffi metadata from the HOST staticlib (.a) — the canonical ubrn library-mode input (ubrn itself uses .a for the android/ios targets). The .a name is OS-independent; the cdylib name is NOT (.so on Linux, .dylib on macOS), so hardcoding .so built fine on Linux but broke macOS. Do NOT change back to a platform-specific cdylib extension.",
 		"ubrn:generate": "cd rust && ubrn generate jsi bindings --library --ts-dir ../src/generated --cpp-dir ../cpp/generated target/debug/libshim_uniffi.a",
 		"//ubrn:build:ios": "ubrn build ios --and-generate --release",

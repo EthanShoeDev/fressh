@@ -9,7 +9,7 @@
  * `disconnect`/`closeShell`.
  */
 
-import { NativeModules } from 'react-native';
+import { NativeModules, TurboModuleRegistry } from 'react-native';
 import generatedModule, {
 	closePreview as _closePreview,
 	closeShell as _closeShell,
@@ -72,17 +72,23 @@ export type ShellId = string;
 
 // The ubrn-generated bindings call `globalThis.NativeShimUniffi`, which only
 // exists after the native installer runs. We trigger it once (idempotent) on
-// first import — before any binding call — via the legacy module registered by
-// ReactNativeTerminalPackage. Without this, the first uniffi call throws
-// "Cannot read property 'ubrn_uniffi_shim_uniffi_fn_func_*' of undefined".
+// first import — before any binding call. Without this, the first uniffi call
+// throws "Cannot read property 'ubrn_uniffi_shim_uniffi_fn_func_*' of undefined".
+//
+// Platform note: the two installers are registered differently, so we look the
+// module up both ways. Android's is a legacy bridge module (ReactPackage) → it
+// surfaces on `NativeModules`. iOS's is a C++ TurboModule (ReactNativeTerminalUniffi.mm,
+// method in `methodMap_`) → it surfaces on `TurboModuleRegistry`, NOT the legacy
+// `NativeModules` proxy (which only sees ObjC-exported methods). Try the
+// TurboModule path first, then fall back to NativeModules.
+type Installer = { installRustCrate?: () => boolean };
 let nativeInstalled = false;
 function ensureNativeInstalled() {
 	if (nativeInstalled) return;
-	const mod = (
-		NativeModules as {
-			ReactNativeTerminalUniffi?: { installRustCrate?: () => boolean };
-		}
-	).ReactNativeTerminalUniffi;
+	const mod =
+		(TurboModuleRegistry.get?.('ReactNativeTerminalUniffi') as Installer | null) ??
+		(NativeModules as { ReactNativeTerminalUniffi?: Installer })
+			.ReactNativeTerminalUniffi;
 	if (mod?.installRustCrate) {
 		mod.installRustCrate();
 		// installRustCrate sets up `globalThis.NativeShimUniffi`; only now can the
