@@ -179,17 +179,6 @@ export function ConfigureModal({
 								{`Loaded: ${configLastLoadedAt}`}
 							</Text>
 						) : null}
-						{configLastError ? (
-							<Text
-								style={{
-									color: theme.colors.textSecondary,
-									fontSize: 12,
-									marginTop: 6,
-								}}
-							>
-								{`Last error: ${configLastError}`}
-							</Text>
-						) : null}
 					</View>
 					{options.map((option, index) => (
 						<Pressable
@@ -227,6 +216,28 @@ export function ConfigureModal({
 							)}
 						</Pressable>
 					))}
+					{configLastError ? (
+						<View
+							style={{
+								padding: 12,
+								borderRadius: 10,
+								borderWidth: 1,
+								borderColor: theme.colors.border,
+								backgroundColor: theme.colors.surface,
+								marginTop: 8,
+							}}
+						>
+							<Text
+								numberOfLines={8}
+								style={{
+									color: theme.colors.textSecondary,
+									fontSize: 12,
+								}}
+							>
+								{`Last error: ${configLastError}`}
+							</Text>
+						</View>
+					) : null}
 					<Pressable
 						onPress={onOpenShellConfigDocs}
 						style={{ marginTop: 10, alignSelf: 'flex-start' }}

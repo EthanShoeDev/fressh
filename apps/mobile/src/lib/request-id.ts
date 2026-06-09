@@ -1,5 +1,14 @@
 import { useCallback, useMemo, useRef } from 'react';
 
+/**
+ * Shared request lifecycle primitive for mobile shell controllers.
+ *
+ * Call `next()` when async work starts, guard each awaited continuation with
+ * `isCurrent(id)`, and call `invalidate()` on blur, AppState inactive,
+ * source/target change, modal close, or unmount before clearing visible state.
+ * A stale completion may finish its promise, but must not mutate UI, show
+ * alerts, clear newer in-flight state, or send follow-up shell commands.
+ */
 export type RequestIdHandle = {
 	next: () => number;
 	isCurrent: (id: number) => boolean;
