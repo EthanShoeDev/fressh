@@ -1,9 +1,11 @@
 import { FontAwesome6 } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 import { BottomSheet } from '@/components/BottomSheet';
 import { ThemedText } from '@/components/themed/ThemedText';
+import type { GitStatus } from '@/lib/git-status';
 import { preferences } from '@/lib/preferences';
 import {
 	type RecentCommand,
@@ -11,6 +13,7 @@ import {
 	useShellContext,
 } from '@/lib/terminal-semantics';
 import { useThemeSkin } from '@/lib/theme-skin';
+import { useGitStatusDriver } from '@/lib/use-git-status';
 
 /**
  * The "smart terminal" context bar — a thin always-visible row under the app bar
@@ -21,6 +24,7 @@ import { useThemeSkin } from '@/lib/theme-skin';
  * See docs/projects/smart-terminal-surface.md.
  */
 export function ContextBar({ shellId }: { shellId: string }) {
+	useGitStatusDriver(shellId);
 	const ctx = useShellContext(shellId);
 	const [globalOn] = preferences.shellIntegrationEnabled.useValue();
 	const skin = useThemeSkin();
@@ -46,6 +50,7 @@ export function ContextBar({ shellId }: { shellId: string }) {
 						ctx={ctx}
 						monoFamily={monoFamily}
 						primaryColor={primaryColor}
+						mutedColor={mutedColor}
 					/>
 				) : (
 					<>
@@ -62,6 +67,7 @@ export function ContextBar({ shellId }: { shellId: string }) {
 				<DetailsSheet
 					ctx={ctx}
 					monoFamily={monoFamily}
+					shellId={shellId}
 					onClose={() => setDetailsOpen(false)}
 				/>
 			) : null}
@@ -73,10 +79,12 @@ function ActiveContent({
 	ctx,
 	monoFamily,
 	primaryColor,
+	mutedColor,
 }: {
 	ctx: ShellContext;
 	monoFamily: string | undefined;
 	primaryColor: string;
+	mutedColor: string;
 }) {
 	return (
 		<>
@@ -88,6 +96,8 @@ function ActiveContent({
 			>
 				{ctx.cwd ? basename(ctx.cwd) : '—'}
 			</ThemedText>
+
+			{ctx.git ? <GitBadge git={ctx.git} mutedColor={mutedColor} /> : null}
 
 			<View className='flex-1' />
 
@@ -119,10 +129,12 @@ function ActiveContent({
 function DetailsSheet({
 	ctx,
 	monoFamily,
+	shellId,
 	onClose,
 }: {
 	ctx: ShellContext | undefined;
 	monoFamily: string | undefined;
+	shellId: string;
 	onClose: () => void;
 }) {
 	const mono = monoFamily ? { fontFamily: monoFamily } : undefined;
@@ -146,6 +158,15 @@ function DetailsSheet({
 						{ctx?.cwd ?? '—'}
 					</ThemedText>
 				</View>
+
+				{ctx?.git ? (
+					<GitSection
+						git={ctx.git}
+						mono={mono}
+						shellId={shellId}
+						onClose={onClose}
+					/>
+				) : null}
 
 				<View className='gap-1'>
 					<ThemedText className='text-xs font-semibold uppercase text-muted'>
@@ -192,6 +213,108 @@ function RecentRow({
 			{cmd.durationMs !== undefined ? (
 				<ThemedText className='text-[11px] text-muted'>
 					{formatDuration(cmd.durationMs)}
+				</ThemedText>
+			) : null}
+		</View>
+	);
+}
+
+/** Debug-grade git readout for the details sheet: branch/upstream/sync, counts, and
+ *  the changed-file list with raw XY codes. The honest "is detection working" view;
+ *  the richer files UI + diff peek land later. */
+function GitSection({
+	git,
+	mono,
+	shellId,
+	onClose,
+}: {
+	git: GitStatus;
+	mono: { fontFamily: string } | undefined;
+	shellId: string;
+	onClose: () => void;
+}) {
+	const router = useRouter();
+	const openDiff = (file: string, untracked: boolean) => {
+		onClose();
+		router.push({
+			pathname: '/servers/diff',
+			params: { shellId, file, untracked: untracked ? '1' : '0' },
+		});
+	};
+	return (
+		<View className='gap-1'>
+			<ThemedText className='text-xs font-semibold uppercase text-muted'>
+				Git
+			</ThemedText>
+			<ThemedText className='text-sm text-text-primary' style={mono}>
+				{git.detached ? '(detached)' : (git.branch ?? '—')}
+				{git.upstream ? ` → ${git.upstream}` : ''}
+				{git.ahead > 0 ? `  ↑${git.ahead}` : ''}
+				{git.behind > 0 ? `  ↓${git.behind}` : ''}
+			</ThemedText>
+			<ThemedText className='text-xs text-muted'>
+				{git.staged} staged · {git.unstaged} unstaged · {git.untracked}{' '}
+				untracked
+				{git.conflicted > 0 ? ` · ${git.conflicted} conflicted` : ''}
+			</ThemedText>
+			{git.files.length > 0 ? (
+				<ScrollView style={{ maxHeight: 200 }}>
+					<View className='gap-0.5'>
+						{git.files.map((f) => (
+							<Pressable
+								key={`${f.kind}-${f.path}`}
+								onPress={() => openDiff(f.path, f.kind === 'untracked')}
+								className='flex-row items-center gap-2 py-0.5 active:opacity-60'
+							>
+								<ThemedText className='text-xs text-muted' style={mono}>
+									{f.kind === 'untracked' ? '??' : `${f.x}${f.y}`}
+								</ThemedText>
+								<ThemedText
+									className='flex-1 text-xs text-text-primary'
+									numberOfLines={1}
+									style={mono}
+								>
+									{f.origPath ? `${f.origPath} → ${f.path}` : f.path}
+								</ThemedText>
+								<FontAwesome6 name='chevron-right' size={9} color='#888' />
+							</Pressable>
+						))}
+					</View>
+				</ScrollView>
+			) : (
+				<ThemedText className='text-sm text-muted'>
+					Working tree clean.
+				</ThemedText>
+			)}
+		</View>
+	);
+}
+
+/** Compact branch + sync + dirty-count chip: `⎇ main ↑2 ↓1 ●5`. Hidden when cwd is
+ *  not a repo (the driver leaves `git` undefined). */
+function GitBadge({ git, mutedColor }: { git: GitStatus; mutedColor: string }) {
+	const dirty = git.staged + git.unstaged + git.untracked + git.conflicted;
+	return (
+		<View className='flex-row items-center gap-1'>
+			<FontAwesome6 name='code-branch' size={10} color={mutedColor} />
+			<ThemedText
+				className='text-xs text-muted'
+				numberOfLines={1}
+				style={{ maxWidth: 90 }}
+			>
+				{git.detached ? '(detached)' : (git.branch ?? '—')}
+			</ThemedText>
+			{git.ahead > 0 ? (
+				<ThemedText className='text-[11px] text-muted'>↑{git.ahead}</ThemedText>
+			) : null}
+			{git.behind > 0 ? (
+				<ThemedText className='text-[11px] text-muted'>
+					↓{git.behind}
+				</ThemedText>
+			) : null}
+			{dirty > 0 ? (
+				<ThemedText className='text-[11px] font-semibold text-warning'>
+					●{dirty}
 				</ThemedText>
 			) : null}
 		</View>

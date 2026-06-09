@@ -3,6 +3,7 @@ import {
 	FresshEvent_Tags,
 } from '@fressh/react-native-terminal';
 import { create } from 'zustand';
+import type { GitStatus } from './git-status';
 import { rootLogger } from './logger';
 
 const logger = rootLogger.extend('TermSemantics');
@@ -38,6 +39,10 @@ export interface ShellContext {
 	sawOsc: boolean;
 	/** Newest-first, capped history of finished commands (for the details sheet). */
 	recent: RecentCommand[];
+	/** Git status of `cwd`, written by the git driver (out-of-band `exec` + parse).
+	 *  Undefined when cwd isn't a repo / no git / not yet probed. Not an OSC signal,
+	 *  so it's set via {@link setShellGit}, which does NOT flip `sawOsc`. */
+	git?: GitStatus;
 }
 
 /** One finished command in the per-shell history. `command` is present only when
@@ -81,6 +86,18 @@ function patch(shellId: string, next: Partial<ShellContext>) {
 		return {
 			byShell: { ...s.byShell, [shellId]: { ...prev, ...next, sawOsc: true } },
 		};
+	});
+}
+
+/** Set (or clear, with `undefined`) the git slice for a shell. Unlike {@link patch}
+ *  this does NOT set `sawOsc` — git status comes from an out-of-band `exec`, not the
+ *  byte stream, so it must not be mistaken for shell-integration liveness. No-ops if
+ *  the shell has no context yet (git only fires once cwd arrived via OSC). */
+export function setShellGit(shellId: string, git: GitStatus | undefined) {
+	useTerminalSemanticsStore.setState((s) => {
+		const prev = s.byShell[shellId];
+		if (!prev) return s;
+		return { byShell: { ...s.byShell, [shellId]: { ...prev, git } } };
 	});
 }
 

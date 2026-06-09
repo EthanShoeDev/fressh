@@ -132,9 +132,9 @@ export function KeyList(props: {
 	);
 
 	return (
-		<View className='flex-1'>
+		<View className={props.mode === 'select' ? 'shrink' : 'flex-1'}>
 			<ScrollView
-				className='flex-1'
+				className={props.mode === 'select' ? 'shrink' : 'flex-1'}
 				contentContainerStyle={{
 					paddingHorizontal: 16,
 					paddingTop: 12,

@@ -185,8 +185,10 @@ context bar needs (we already track `firstSeen`-ish via the event log; formalize
 - **v1 — paged toolbar + presets.** Make the toolbar paged; ship page 2 (presets) since
   it's self-contained (no native work, no model, no out-of-band exec). High utility, low
   risk.
-- **v2 — git slice.** Add the `exec` channel + porcelain parse (git doc) → git badge in
-  the context bar + the git sheet. Page-3 "Changed files" action.
+- **v2 — git slice. ✅ DONE (plumbing + detection, 2026-06-09).** JS porcelain parse over
+  the shipped `runCommand` exec → `ShellContext.git` → git badge in the context bar + a
+  debug file-list readout in the details sheet. Still TODO: the real git *sheet* (proper
+  changed-files list + diff peek) and the page-3 "Changed files" action. See the git doc.
 - **v3 — AI.** Page-3 "Ask AI" → context-assembled Q&A sheet (AI doc). Autocomplete later.
 
 ## Open questions

@@ -14,6 +14,7 @@ export default function ServersStackLayout() {
 				name='terminal'
 				options={{ title: header.title('SSH Shell') }}
 			/>
+			<Stack.Screen name='diff' options={{ title: header.title('Diff') }} />
 		</Stack>
 	);
 }
