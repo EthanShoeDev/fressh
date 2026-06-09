@@ -86,7 +86,9 @@ let nativeInstalled = false;
 function ensureNativeInstalled() {
 	if (nativeInstalled) return;
 	const mod =
-		(TurboModuleRegistry.get?.('ReactNativeTerminalUniffi') as Installer | null) ??
+		(TurboModuleRegistry.get?.(
+			'ReactNativeTerminalUniffi',
+		) as Installer | null) ??
 		(NativeModules as { ReactNativeTerminalUniffi?: Installer })
 			.ReactNativeTerminalUniffi;
 	if (mod?.installRustCrate) {

@@ -56,7 +56,10 @@ export default function GitDiffScreen() {
 		}
 		let cancelled = false;
 		setState({ kind: 'loading' });
-		(async () => {
+		// Fire-and-forget: the IIFE handles its own errors (try/catch below) and
+		// cancellation (the `cancelled` flag), so it never rejects — void it to
+		// satisfy no-floating-promises.
+		void (async () => {
 			try {
 				const res = await runCommand(
 					connectionId,

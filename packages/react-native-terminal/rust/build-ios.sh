@@ -38,6 +38,13 @@ SIM_TARGETS=(aarch64-apple-ios-sim x86_64-apple-ios)
 FAT_SIM_DIR="target/ios-simulator-fat/${PROFILE_DIR}"
 OUT_XCFRAMEWORK="../${LIB}.xcframework" # package root (gitignored; globbed into `files`)
 
+# Stamp the staticlib's objects with the app's minimum iOS version. Without this,
+# cargo + the `cc` crate (FreeType, ring) default the objects' min-OS to the Xcode
+# SDK version (e.g. 26.0), and linking them into the app (min 16.4) spams
+# "object file ... was built for newer 'iOS' version than being linked". Keep in
+# sync with apps/mobile's IPHONEOS_DEPLOYMENT_TARGET / Podfile `platform :ios`.
+export IPHONEOS_DEPLOYMENT_TARGET=16.4
+
 cargo_flags=(-p shim-uniffi)
 [ "$PROFILE" = "release" ] && cargo_flags+=(--release)
 
