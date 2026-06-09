@@ -82,7 +82,7 @@ const resolveDevice = (platform: Platform, override: Option.Option<string>) =>
 			const out = yield* runString(
 				ChildProcess.make('xcrun', ['simctl', 'list', 'devices', 'booted']),
 			);
-			const udid = (/\(([0-9A-F]{8}-[0-9A-F-]{27})\)/.exec(out))?.[1];
+			const udid = /\(([0-9A-F]{8}-[0-9A-F-]{27})\)/.exec(out)?.[1];
 			if (!udid) {
 				return yield* new ScreenshotError({
 					message:

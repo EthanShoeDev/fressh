@@ -1,5 +1,5 @@
-# Marketing screenshot flow. Drives the app through the connect form and all four
-# tabs, capturing one screenshot per screen.
+# Marketing screenshot flow. Drives the app through all four tabs and the connect
+# form, capturing one screenshot per screen.
 #
 # Run via `bun run screenshots` (apps/mobile/scripts/screenshots.ts), which builds
 # a Release variant with EXPO_PUBLIC_SCREENSHOT_SEED=1 (so the Servers and Commands
@@ -8,16 +8,19 @@
 # takeScreenshot paths; Maestro appends `.png`.
 #
 # Notes learned from the iOS XCUITest hierarchy:
-#   - TextInput testIDs do NOT surface as ids on iOS (the wrapping Pressable groups
-#     accessibility); form fields are tapped by placeholder text, and the secure
-#     password field by position.
+#   - The connect form is captured LAST, because filling its secure password field
+#     opens a keyboard the app can't dismiss via Maestro on iOS — and that keyboard
+#     covers the bottom tab bar, breaking any tab navigation that follows it. Tabs
+#     first, keyboard-opening form last.
 #   - The Servers/Commands lists are @shopify/flash-list; its virtualized rows are
 #     drawn but are NOT reliably present in Maestro's queryable hierarchy, so we do
 #     NOT assertVisible/tapOn list rows — we settle with a wait and screenshot the
-#     pixels (which are correct).
+#     (correct) pixels.
+#   - Button testIDs DO surface as ids on iOS (id: key-generate); tabs match by text;
+#     TextInput testIDs do NOT, so form fields are tapped by placeholder / position.
 #   - A live terminal / smart-terminal screenshot needs a real SSH host (the rebex
-#     demo's shell closes immediately and exposes no shell integration). That is
-#     deferred — see docs/projects/future/automated-screenshots-improvements.md.
+#     demo's shell closes immediately). Deferred — see
+#     docs/projects/future/automated-screenshots-improvements.md.
 appId: dev.fressh.app
 ---
 - launchApp:
@@ -29,24 +32,6 @@ appId: dev.fressh.app
     optional: true
     timeout: 8000
 - takeScreenshot: ${OUTPUT}/servers-${PLATFORM}
-
-# --- Connect form (filled, not submitted — needs no real host) ---------------
-- tapOn: 'New connection'
-- assertVisible: 'New server'
-- tapOn: 'example.com' # host field (placeholder)
-- inputText: 'test.rebex.net'
-- tapOn: 'root' # username field (placeholder)
-- eraseText
-- inputText: 'demo'
-# Secure password field has no stable text/id on iOS — tap by position.
-- tapOn:
-    point: 50%, 48%
-- inputText: 'password'
-# hideKeyboard isn't supported by the app's custom keyboard handling on iOS; tap
-# the (non-interactive) screen title to dismiss it for a clean form shot.
-- tapOn: 'New server'
-- takeScreenshot: ${OUTPUT}/connect-${PLATFORM}
-- back
 
 # --- Commands tab (seeded presets) -------------------------------------------
 - tapOn: 'Commands'
@@ -73,3 +58,20 @@ appId: dev.fressh.app
     optional: true
     timeout: 1500
 - takeScreenshot: ${OUTPUT}/settings-${PLATFORM}
+
+# --- Connect form (filled, not submitted — LAST: opens a keyboard) -----------
+- tapOn: 'Servers'
+- tapOn: 'New connection'
+- assertVisible: 'New server'
+- tapOn: 'example.com' # host field (placeholder)
+- inputText: 'test.rebex.net'
+- tapOn: 'root' # username field (placeholder)
+- eraseText
+- inputText: 'demo'
+# Secure password field has no stable text/id on iOS — tap by position.
+- tapOn:
+    point: 50%, 48%
+- inputText: 'password'
+# Dismiss the keyboard for a clean form shot by tapping the non-interactive title.
+- tapOn: 'New server'
+- takeScreenshot: ${OUTPUT}/connect-${PLATFORM}

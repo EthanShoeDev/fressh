@@ -3,8 +3,8 @@ import GithubMark from '@fressh/assets/third-party-brands/github-mark/github-mar
 import GooglePlayBadge from '@fressh/assets/third-party-brands/google-play/GetItOnGooglePlay_Badge_Web_color_English.svg';
 import npmLogoRed from '@fressh/assets/third-party-brands/npm-js/npm-logo-red.png';
 import mobileAppIconDark from '@fressh/assets/mobile-app-icon-dark.png';
-import serversAndroidScreenshot from '@fressh/assets/mobile-screenshots/servers-android.png';
-import terminalAndroidScreenshot from '@fressh/assets/mobile-screenshots/terminal-android.png';
+import serversScreenshot from '@fressh/assets/mobile-screenshots/servers-ios.png';
+import keysScreenshot from '@fressh/assets/mobile-screenshots/keys-ios.png';
 import { createFileRoute } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
@@ -180,14 +180,14 @@ function HomePage() {
 					<div className='mx-auto max-w-5xl rounded-[2.5rem] border border-gray-200/70 bg-white/80 px-8 py-12 shadow-xl shadow-emerald-500/5 backdrop-blur dark:border-white/10 dark:bg-white/5 dark:shadow-emerald-500/10'>
 						<div className='flex flex-col items-center gap-8 lg:flex-row lg:justify-center'>
 							<img
-								src={serversAndroidScreenshot}
+								src={serversScreenshot}
 								alt='Servers tab screenshot'
 								className='w-full max-w-xs rounded-3xl border border-white/60 shadow-xl ring-1 shadow-emerald-500/15 ring-emerald-500/10 dark:border-white/10 dark:ring-white/10'
 								loading='lazy'
 							/>
 							<img
-								src={terminalAndroidScreenshot}
-								alt='Terminal screenshot'
+								src={keysScreenshot}
+								alt='Keys tab screenshot'
 								className='w-full max-w-xs rounded-3xl border border-white/60 shadow-xl ring-1 shadow-slate-900/10 ring-slate-900/10 dark:border-white/10 dark:ring-white/10'
 								loading='lazy'
 							/>

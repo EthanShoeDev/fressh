@@ -21,9 +21,9 @@ simple while supporting powerful features.
 
 ### Screenshots
 
-![Servers tab](./packages/assets/mobile-screenshots/servers-android.png)
-
-![Terminal](./packages/assets/mobile-screenshots/terminal-android.png)
+![Servers tab](./packages/assets/mobile-screenshots/servers-ios.png)
+![New connection](./packages/assets/mobile-screenshots/connect-ios.png)
+![Keys tab](./packages/assets/mobile-screenshots/keys-ios.png)
 
 > Regenerate these with `bun run --filter @fressh/mobile screenshots` — see
 > [Screenshots](#screenshots-automation) below.

@@ -159,7 +159,12 @@ is the easy-but-wrong shortcut of putting real hosts/passwords behind the same
   now prints a pre-flight warning if 5600 is occupied, but it can't auto-resolve it — free
   the port (quit ActivityWatch) if a run stalls at startup. Worth a note in CONTRIBUTING.
 - **`hideKeyboard` is unsupported** by the app's custom keyboard handling on iOS; the flow
-  dismisses the keyboard by tapping the non-interactive screen title instead.
+  dismisses the keyboard by tapping the non-interactive screen title instead — and even then
+  iOS may keep a Passwords-AutoFill accessory up. Because an open keyboard **covers the bottom
+  tab bar**, any tab navigation *after* the connect form silently taps nothing. The flow works
+  around this by ordering **tabs first, the keyboard-opening connect form last**. A real fix
+  would make the form reliably dismissable (or disable iOS password AutoFill in the screenshot
+  build).
 - **Android is unvalidated.** The pipeline is written for both platforms but has only been
   run on the iOS simulator. Android `testID`s map differently (resource-id / content-desc),
   so the placeholder-selector workarounds may behave differently and want a pass.
