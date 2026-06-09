@@ -92,6 +92,12 @@ const encoder = new TextEncoder();
 
 function ShellDetail() {
 	const inputRef = useRef<TextInput>(null);
+	// Guards against iOS firing onChangeText TWICE for one keystroke (a multiline
+	// TextInput quirk). Set on the first fire, cleared on the next microtask — so a
+	// duplicate within the SAME event-loop turn is dropped, while a genuine next
+	// keystroke (a separate native event → separate turn → guard already cleared) is
+	// never suppressed. Safe: it can only ever drop a same-turn duplicate.
+	const changeGuardRef = useRef(false);
 
 	const searchParams = useLocalSearchParams<{
 		connectionId?: string;
@@ -277,11 +283,27 @@ function ShellDetail() {
 						<TextInput
 							ref={inputRef}
 							autoFocus
+							// `value=''` held constant keeps the field empty after every keystroke,
+							// so each onChangeText carries only the new char (no accumulation) and an
+							// empty-field Backspace emits no change event (it rides onKeyPress). This
+							// is the divergence-free design — the field never mirrors shell state. Its
+							// one iOS wrinkle: a multiline TextInput fires onChangeText TWICE for one
+							// keystroke (same event-loop turn, both with the new char), so letters were
+							// sent twice; changeGuardRef drops that same-turn duplicate. Android fires
+							// once, so it's unaffected.
 							value=''
 							onChangeText={(text) => {
 								if (!shell || !text) {
 									return;
 								}
+								// Drop the iOS same-turn duplicate fire (see changeGuardRef).
+								if (changeGuardRef.current) {
+									return;
+								}
+								changeGuardRef.current = true;
+								queueMicrotask(() => {
+									changeGuardRef.current = false;
+								});
 								// Enter/Backspace are handled in onKeyPress; send the rest.
 								const printable = text.replaceAll('\n', '');
 								if (printable) {
