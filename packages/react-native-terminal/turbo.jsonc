@@ -79,5 +79,19 @@
 			"inputs": ["rust/**", "!rust/target/**"],
 			"outputs": ["android/src/main/jniLibs/**"],
 		},
+
+		// iOS analogue of build:android (doc §7): build-ios.sh cargo-builds the
+		// shim-uniffi staticlib for device + sim, lipos the sim slices, and packages
+		// shim_uniffi.xcframework (the podspec's `vendored_frameworks` links it).
+		// mobile's `ios` task depends on `^build:ios`, so `turbo ios` runs this BEFORE
+		// xcode's pod link (which can't build the .a). Without this output declaration
+		// the framework wasn't cached, so a clean checkout had nothing to link. The
+		// ANGLE xcframeworks are NOT produced here — they're committed (see .gitignore).
+		// target/ stays out of inputs/outputs (huge; cargo does its own incremental
+		// caching — same rationale as build:android above).
+		"build:ios": {
+			"inputs": ["rust/**", "!rust/target/**"],
+			"outputs": ["shim_uniffi.xcframework/**"],
+		},
 	},
 }

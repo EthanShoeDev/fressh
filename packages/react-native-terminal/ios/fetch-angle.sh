@@ -7,9 +7,11 @@
 # (each device + arm64/x64 simulator), with the dlopen-able dynamic libs our
 # `khronos-egl` `dynamic` path resolves at runtime.
 #
-# Extracts the two xcframeworks to the PACKAGE ROOT (gitignored via `*.xcframework/`,
-# globbed into `files` for publish — same handling as shim_uniffi.xcframework). Pin
-# the tag; bump deliberately. Run from the package dir: `bun run angle:fetch`.
+# Extracts the two xcframeworks to the PACKAGE ROOT, where they are COMMITTED
+# (stable third-party prebuilts — see .gitignore, which ignores only the
+# rust-derived shim_uniffi.xcframework). So this only needs re-running when bumping
+# the pinned tag, NOT on every clean checkout. Pin the tag; bump deliberately. Run
+# from the package dir: `bun run angle:fetch`.
 
 set -euo pipefail
 
