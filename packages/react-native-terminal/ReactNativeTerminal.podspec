@@ -36,8 +36,28 @@ Pod::Spec.new do |s|
   ]
 
   # The single Rust staticlib (control plane + render C-ABI + fressh-core registry
-  # statics — ONE copy, §8). Device + simulator slices in one xcframework.
-  s.vendored_frameworks = "shim_uniffi.xcframework"
+  # statics — ONE copy, §8), plus ANGLE's libEGL/libGLESv2 (dynamic, Metal backend
+  # — the GLES2 driver the renderer runs over on iOS, §2/§5). The ANGLE frameworks
+  # must be EMBEDDED: dyld loads them at launch and egl.rs resolves their symbols
+  # from the process image (Library::this()). Fetch them with `bun run angle:fetch`.
+  s.vendored_frameworks = [
+    "shim_uniffi.xcframework",
+    "libEGL.xcframework",
+    "libGLESv2.xcframework",
+  ]
+
+  # Expose the render C-ABI header in the module umbrella so HybridTerminal.swift can
+  # call fressh_terminal_* (Swift imports the module's PUBLIC headers). Setting
+  # public_header_files restricts the public set, so this must be additive with
+  # nitrogen's — which appends to it in add_nitrogen_files below.
+  s.public_header_files = "ios/FresshTerminalRenderABI.h"
+
+  # Bundled monospace font for the renderer — FreeType rasterizes it by file path
+  # (no fontconfig on mobile, §6/§8). HybridTerminal.swift resolves it from this
+  # bundle. The Android side ships the same DejaVuSansMono.ttf as an asset.
+  s.resource_bundles = {
+    "FresshTerminalFonts" => ["ios/fonts/*.ttf"],
+  }
 
   # Brings ubrn's header-only C++ runtime (UniffiCallInvoker.h, RustArcPtr.h, …)
   # onto the header path — the generated bindings #include these. Android resolves

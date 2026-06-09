@@ -41,10 +41,16 @@ OUT_XCFRAMEWORK="../${LIB}.xcframework" # package root (gitignored; globbed into
 cargo_flags=(-p shim-uniffi)
 [ "$PROFILE" = "release" ] && cargo_flags+=(--release)
 
+# Build ONLY the staticlib, not the cdylib. iOS links the `.a` (an archive — no
+# link step) into the app via the xcframework, and the app's final clang link
+# supplies the compiler runtime (e.g. `___chkstk_darwin`, referenced by FreeType).
+# A standalone `cargo build` would also link the cdylib `.dylib`, whose link lacks
+# that runtime and fails once the renderer (→ FreeType) is reachable. The cdylib is
+# Android-only (cargo-ndk) anyway. `cargo rustc --crate-type` overrides [lib].
 echo "▸ Building lib${LIB}.a for device + simulator (${PROFILE})"
 for target in "$DEVICE_TARGET" "${SIM_TARGETS[@]}"; do
 	echo "  - $target"
-	cargo build "${cargo_flags[@]}" --target "$target"
+	cargo rustc "${cargo_flags[@]}" --target "$target" --crate-type staticlib
 done
 
 echo "▸ lipo'ing the simulator slices → fat lib"

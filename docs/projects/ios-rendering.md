@@ -3,12 +3,15 @@
 Work outline for bringing the native terminal renderer + SSH control plane to
 **iOS**, which is currently a stub on the `refresh` branch (Android-first).
 
-> Status: **not started.** Android is device-verified (single staticlib: control
-> plane + GLES2 render plane sharing `fressh-core`'s registry). iOS builds, installs,
-> and launches, but the `react-native-terminal` native module is a stub — so the
-> uniffi control plane never installs (`globalThis.NativeShimUniffi` undefined →
-> `Cannot read property 'ubrn_uniffi_shim_uniffi_fn_func_*' of undefined`), and the
-> Nitro `<Terminal>` view has no iOS implementation.
+> Status: **rendering on iOS (simulator).** Milestone A (SSH control plane) is
+> verified — the uniffi shim installs `globalThis.NativeShimUniffi` via a hand-wired
+> TurboModule (`ios/ReactNativeTerminalUniffi.mm`). Milestone B (render plane,
+> ANGLE→Metal) is wired and **drawing a `Term` on a `CAMetalLayer`**: `egl.rs` +
+> the shim render C-ABI are now cross-platform, `ios/HybridTerminal.swift` is a real
+> `CAMetalLayer` + `CADisplayLink` view, and ANGLE (`libEGL`/`libGLESv2`, Metal) is
+> vendored via a **prebuilt** xcframework (`ios/fetch-angle.sh`, kivy/angle-builder).
+> Both planes share one pod/`.so` (§8). The per-task notes in **Work outline** below
+> are now largely **done** — treat the new **Remaining work** section as the live list.
 
 This doc is the **task outline only**. For the *why* — engine/renderer choice, why
 ANGLE→Metal over native EAGL/GLES, the single-`.so` zero-copy design, and the layer
@@ -101,6 +104,74 @@ stopgap, not the target.
 ### 8. Fonts
 - Bundle a FreeType-rasterizable font and wire `fontPath` for iOS (Android resolves
   a bundled font today). Tied to the §1 FreeType-for-iOS question.
+- **Done.** `DejaVuSansMono.ttf` ships via the podspec `resource_bundles`
+  (`FresshTerminalFonts.bundle`); `HybridTerminal.swift` resolves its path.
+
+---
+
+## Remaining work (post-Milestone-B-wiring)
+
+The renderer draws on the simulator; these are the open items.
+
+### A. Build ANGLE from source instead of vendoring a prebuilt — *priority*
+Today `ios/fetch-angle.sh` downloads a prebuilt xcframework from **kivy/angle-builder**
+(pinned `chromium-7151_rev1`). That's a third-party binary we don't control — we want
+to build ANGLE ourselves from a pinned source.
+
+- **Is there a Rust crate?** `mozangle` (Servo's ANGLE-as-a-crate) exists, but it only
+  builds the **shader translator** by default and its `egl` feature is **Windows/D3D11
+  only** — no iOS/Metal. It reverse-engineers a `cc`-crate build from ANGLE's
+  `moz.build` for that narrow subset; it is **not** a path to an iOS/Metal ANGLE. So
+  there is no cargo-native "build ANGLE for iOS" option.
+- **Build from source = ANGLE's own toolchain: depot_tools (`gclient` + `gn` + `ninja`).**
+  A standalone ANGLE checkout works (no full Chromium tree; ANGLE's `DEPS` pull what
+  `gclient sync` needs). The steps (cf. kivy/angle-builder's `angle.py`):
+  1. `gclient sync` (depot_tools) — fetches ANGLE + third_party deps.
+  2. `gn gen out/<target>` per slice, args:
+     ```
+     is_component_build=false  is_debug=false  angle_enable_wgpu=false
+     target_os="ios"  target_cpu="arm64"  target_environment="device"     # device
+     target_os="ios"  target_cpu="arm64"|"x64"  target_environment="simulator"  # sim
+     ```
+     Metal needs **no flag** — `angle_enable_metal = is_apple` (auto-on); see
+     `gni/angle.gni`.
+  3. `autoninja -C out/<target> libEGL libGLESv2`.
+  4. `lipo` the sim slices + `xcodebuild -create-xcframework` → `libEGL.xcframework`,
+     `libGLESv2.xcframework` (exactly the shape `fetch-angle.sh` extracts today).
+- **Upstream modifications: none needed.** iOS + Metal are first-class upstream, so
+  (unlike the alacritty/crossfont *forks* we carry for the renderer cut-line and the
+  fontconfig-free FreeType path) ANGLE needs **no source patch** — only build config
+  (gn args). If a tweak ever became necessary we'd fork+submodule like the others, but
+  it isn't now. ⇒ **pin an ANGLE commit SHA** (a plain git submodule is insufficient —
+  `gclient` pulls deps outside ANGLE's git tree), not a fork.
+- **Cost / shape in-repo:** depot_tools (~GB) + `gclient sync` (several GB) + a
+  per-arch `gn`+`ninja` build (tens of minutes). Too heavy to run on every dev build.
+  Recommended shape: a `build-angle.sh` (pinned SHA, the gn args above) that produces
+  the two xcframeworks, run in **CI / once**, with the output cached or committed as a
+  release artifact — "build-it-ourselves, vendor-the-output." `fetch-angle.sh` then
+  pulls *our* artifact, not a third party's. Interim hardening if we keep the prebuilt:
+  checksum-pin the download.
+
+### B. Runtime hardening (the renderer draws — make it robust)
+- **GL context per thread.** The `CADisplayLink` loop runs on the main thread; Android's
+  `egl.rs` re-`make_current`s every frame because other GL consumers (Skia) steal the
+  current context. Verify the same holds on iOS (it shares the path) and on a **real
+  device** (only sim-verified so far).
+- **ANGLE load on device.** `egl.rs` `dlopen`s `@rpath/libEGL.framework/...` (the
+  linker emits no load command — see the `ios-render-plane-wired` memory). Confirm
+  `@rpath` resolves on device, not just the simulator.
+- **Resize / keyboard.** Confirm `layoutSubviews` → `fressh_terminal_resize` keeps the
+  grid in lockstep when the keyboard opens/closes (the Android keyboard-resize saga).
+
+### C. Re-verify Android after the shared-module refactor
+`android.rs` → `render.rs` + the `cfg(any(android, ios))` widening were not rebuilt
+with `cargo ndk` in the iOS dev environment (cargo-ndk absent). The android branches
+are byte-identical, but re-run `bun run build:android` + a device smoke test.
+
+### D. Misc
+- Reconsider the `is_component_build` / dynamic-framework embedding once on device
+  (App Store ships dynamic frameworks fine, but re-check signing).
+- The render-quality parity items below still apply once iOS is solid.
 
 ---
 

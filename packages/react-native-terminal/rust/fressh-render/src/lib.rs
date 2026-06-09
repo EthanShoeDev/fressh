@@ -31,9 +31,9 @@ pub mod config;
 pub mod content;
 pub mod driver;
 
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub mod egl;
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub use egl::EglContext;
 
 pub use config::{ColorScheme, CursorBlink, CursorStyle, Palette, TerminalConfig};

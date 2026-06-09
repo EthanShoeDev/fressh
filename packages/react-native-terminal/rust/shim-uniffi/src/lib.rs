@@ -12,8 +12,11 @@
 
 use std::sync::Arc;
 
-#[cfg(target_os = "android")]
-mod android;
+// The render-plane C-ABI (the Nitro view's native entry points). Shared by both
+// mobile targets — identical EGL/GLES2 path; only the window handle
+// (ANativeWindow* vs CAMetalLayer*) and the log backend differ.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+mod render;
 
 uniffi::setup_scaffolding!();
 

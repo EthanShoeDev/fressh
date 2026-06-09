@@ -34,13 +34,18 @@ alacritty_renderer = { path = "../vendor/alacritty/alacritty_renderer" }
 # construct the Rasterizer for GlyphCache. Same instance the renderer uses.
 crossfont = "0.8.1"
 
-# Android EGL bring-up + C-ABI for the native view (the render-plane entry point).
-[target.'cfg(target_os = "android")'.dependencies]
-# `dynamic` loads libEGL.so at runtime (dlopen) — no pkg-config/link-time EGL,
-# which is what works for Android cross-compiles.
+# EGL bring-up for the native view (the render-plane entry point). Android's
+# system libEGL.so, or ANGLE's libEGL.dylib on iOS (§2). `dynamic` dlopens it at
+# runtime — no pkg-config/link-time EGL, which is what works for the mobile
+# cross-compiles.
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 khronos-egl = { version = "6", features = ["dynamic"] }
 log = "0.4"
-android_logger = "0.14"
+
+# iOS resolves ANGLE's EGL from the linked framework via `Library::this()` (egl.rs)
+# — must match the libloading khronos-egl uses so the instance types unify.
+[target.'cfg(target_os = "ios")'.dependencies]
+libloading = "0.8"
 
 # Transitive deps the renderer needs once wired (measured from src/renderer/):
 #   crossfont (glyph rasterization, FreeType/CoreText — the mobile rider, §5),

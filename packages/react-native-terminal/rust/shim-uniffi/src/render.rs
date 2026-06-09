@@ -1,4 +1,8 @@
-//! Render-plane C-ABI (§10). Called by the Nitro view's JNI bridge (cpp-adapter).
+//! Render-plane C-ABI (§10). Called by the Nitro view's native bridge — Android's
+//! JNI cpp-adapter (`ANativeWindow*`), or iOS's Swift view (`CAMetalLayer*`, via
+//! ANGLE→Metal, §5). Both platforms share this module: the EGL/GLES2 path is
+//! identical (`EglContext` hides the system-EGL-vs-ANGLE difference), so only the
+//! window handle type and the log backend differ.
 //!
 //! An attached view owns an [`EglContext`] (EGL + GL renderer for its surface) and
 //! a `shellId`. Each frame it looks the shell's durable `Term` up from
@@ -17,6 +21,27 @@ use std::slice;
 use fressh_core::{runtime, send_data, set_render_metrics, shell_input_idle_ms, shell_term};
 use fressh_render::{ColorScheme, CursorBlink, CursorStyle, EglContext, TerminalConfig};
 use serde::Deserialize;
+
+/// Initialise the platform log backend once (idempotent): `android_logger` →
+/// logcat on Android, `oslog` → the unified log (Console.app / `log stream`) on
+/// iOS. Called from `fressh_terminal_attach`. Without it the `log::` calls in this
+/// module no-op.
+fn init_logging() {
+	#[cfg(target_os = "android")]
+	android_logger::init_once(
+		android_logger::Config::default().with_max_level(log::LevelFilter::Info),
+	);
+	#[cfg(target_os = "ios")]
+	{
+		use std::sync::Once;
+		static INIT: Once = Once::new();
+		INIT.call_once(|| {
+			let _ = oslog::OsLogger::new("dev.fressh.app")
+				.level_filter(log::LevelFilter::Info)
+				.init();
+		});
+	}
+}
 
 /// Per-frame draw outcome, tracked so we can log on *transitions* only (the draw
 /// loop runs at vsync — logging every frame would flood logcat). Purely diagnostic.
@@ -148,12 +173,14 @@ fn cstr_opt(ptr: *const c_char) -> Option<String> {
 	}
 }
 
-/// Create an EGL/GLES2 renderer for `window` (an `ANativeWindow*`) and optionally
-/// bind it to `shell_id`. Returns null on failure (see logcat).
+/// Create an EGL/GLES2 renderer for `window` (an `ANativeWindow*` on Android, a
+/// `CAMetalLayer*` on iOS) and optionally bind it to `shell_id`. Returns null on
+/// failure (see logcat / the unified log).
 ///
 /// # Safety
-/// `window` must be a valid `ANativeWindow*`. `font_path`/`config_json`/`shell_id`
-/// must each be a valid NUL-terminated C string or null.
+/// `window` must be a valid `ANativeWindow*` (Android) / `CAMetalLayer*` (iOS).
+/// `font_path`/`config_json`/`shell_id` must each be a valid NUL-terminated C
+/// string or null.
 #[no_mangle]
 pub unsafe extern "C" fn fressh_terminal_attach(
 	window: *mut c_void,
@@ -161,9 +188,7 @@ pub unsafe extern "C" fn fressh_terminal_attach(
 	config_json: *const c_char,
 	shell_id: *const c_char,
 ) -> *mut AttachedTerminal {
-	android_logger::init_once(
-		android_logger::Config::default().with_max_level(log::LevelFilter::Info),
-	);
+	init_logging();
 
 	let font_path = cstr_opt(font_path).unwrap_or_default();
 	let shell_id = cstr_opt(shell_id);

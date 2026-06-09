@@ -1,4 +1,5 @@
-//! Android EGL context bring-up around a [`TerminalRenderer`] (§5).
+//! EGL context bring-up around a [`TerminalRenderer`] (§5): Android's system EGL,
+//! or ANGLE→Metal on iOS (the same EGL/GLES2 code, a different `libEGL`).
 //!
 //! This is a *pure renderer* surface: it owns the EGL display/surface/context and
 //! a `TerminalRenderer`, and draws whatever `Term` it's handed. It does NOT own
@@ -15,8 +16,68 @@ use khronos_egl as egl;
 use crate::config::TerminalConfig;
 use crate::driver::TerminalRenderer;
 
-/// EGL loaded dynamically (libEGL.so via dlopen) — see Cargo.toml.
+/// EGL loaded dynamically (dlopen) — Android's system `libEGL.so`, or ANGLE's
+/// `libEGL.dylib` on iOS (§2). iOS uses the EGL 1.5 instance so it can select
+/// ANGLE's Metal backend via `eglGetPlatformDisplay` (a 1.5 entry point);
+/// Android's system EGL is fine at 1.4.
+#[cfg(target_os = "android")]
 type Egl = egl::DynamicInstance<egl::EGL1_4>;
+#[cfg(target_os = "ios")]
+type Egl = egl::DynamicInstance<egl::EGL1_5>;
+
+/// Create the EGL display. Android uses the default system display; iOS routes
+/// through ANGLE's Metal backend so alacritty's GLES2 renderer runs over Metal (§5).
+#[cfg(target_os = "android")]
+fn create_display(egl: &Egl) -> Result<egl::Display, String> {
+	unsafe { egl.get_display(egl::DEFAULT_DISPLAY) }.ok_or_else(|| "no EGL display".to_string())
+}
+
+/// iOS: select ANGLE's Metal backend. The `EGL_PLATFORM_ANGLE_*` enums are ANGLE
+/// extensions (absent from `khronos-egl`), defined inline. NOTE: requires ANGLE's
+/// `libEGL` to be loadable at runtime (de-risk step 2, §2) — this path is
+/// compile-checked but runtime-unverified until those binaries are vendored.
+#[cfg(target_os = "ios")]
+fn create_display(egl: &Egl) -> Result<egl::Display, String> {
+	const EGL_PLATFORM_ANGLE_ANGLE: egl::Enum = 0x3202;
+	const EGL_PLATFORM_ANGLE_TYPE_ANGLE: egl::Attrib = 0x3203;
+	const EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE: egl::Attrib = 0x3489;
+	let attribs = [
+		EGL_PLATFORM_ANGLE_TYPE_ANGLE,
+		EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE,
+		egl::ATTRIB_NONE,
+	];
+	unsafe { egl.get_platform_display(EGL_PLATFORM_ANGLE_ANGLE, egl::DEFAULT_DISPLAY, &attribs) }
+		.map_err(|e| format!("eglGetPlatformDisplay(ANGLE/Metal): {e:?}"))
+}
+
+/// Load the EGL entry points. Android dlopens the system `libEGL.so`; iOS resolves
+/// from the process image instead — ANGLE's `libEGL` is linked into the app as a
+/// framework (podspec `vendored_frameworks`), so dyld has already bound its symbols
+/// at launch. There is no `libEGL.dylib` soname to dlopen on iOS, so the default
+/// `load_required()` (which looks for `libEGL.so[.1]`) does not apply.
+#[cfg(target_os = "android")]
+fn load_egl() -> Result<Egl, String> {
+	unsafe { Egl::load_required() }.map_err(|e| format!("load libEGL: {e}"))
+}
+
+#[cfg(target_os = "ios")]
+fn load_egl() -> Result<Egl, String> {
+	// ANGLE ships as frameworks EMBEDDED in the app bundle (podspec
+	// `vendored_frameworks` → App.app/Frameworks/), but nothing references them at
+	// link time (we resolve EGL dynamically), so the linker emits no load command
+	// and dyld does NOT auto-load them at launch. So dlopen them explicitly by
+	// `@rpath` — dlopen expands it via the app's LC_RPATH (@executable_path/Frameworks).
+	// Load libGLESv2 first (libEGL pulls it in but does not statically depend on it)
+	// and leak the handle so it stays resident for the process lifetime.
+	unsafe {
+		let gles = libloading::Library::new("@rpath/libGLESv2.framework/libGLESv2")
+			.map_err(|e| format!("dlopen ANGLE libGLESv2: {e}"))?;
+		std::mem::forget(gles);
+		let egl_lib = libloading::Library::new("@rpath/libEGL.framework/libEGL")
+			.map_err(|e| format!("dlopen ANGLE libEGL: {e}"))?;
+		Egl::load_required_from(egl_lib).map_err(|e| format!("load ANGLE EGL API: {e}"))
+	}
+}
 
 /// Owns the EGL context + the GL renderer for one native surface.
 pub struct EglContext {
@@ -28,12 +89,14 @@ pub struct EglContext {
 }
 
 impl EglContext {
-	/// Set up an EGL/GLES2 context for `window` (an `ANativeWindow*`) and build a
-	/// [`TerminalRenderer`] using the bundled font in `config`.
+	/// Set up an EGL/GLES2 context for `window` and build a [`TerminalRenderer`]
+	/// using the bundled font in `config`. `window` is an `ANativeWindow*` on
+	/// Android and a `CAMetalLayer*` on iOS (ANGLE→Metal, §5) — opaque to the EGL
+	/// surface creation below.
 	pub fn create(window: *mut c_void, config: TerminalConfig) -> Result<Self, String> {
-		let egl = unsafe { Egl::load_required() }.map_err(|e| format!("load libEGL: {e}"))?;
+		let egl = load_egl()?;
 
-		let display = unsafe { egl.get_display(egl::DEFAULT_DISPLAY) }.ok_or("no EGL display")?;
+		let display = create_display(&egl)?;
 		egl.initialize(display)
 			.map_err(|e| format!("eglInitialize: {e:?}"))?;
 
