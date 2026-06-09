@@ -42,7 +42,7 @@
 		"@tanstack/react-form": "^1.33.0",
 		"date-fns": "^4.4.0",
 		"effect": "catalog:",
-		"expo": "~56.0.3",
+		"expo": "~56.0.9",
 		"expo-clipboard": "~56.0.3",
 		"expo-constants": "~56.0.14",
 		"expo-crypto": "~56.0.4",
