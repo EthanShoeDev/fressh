@@ -45,7 +45,10 @@ import { ContextBar } from '@/components/terminal/ContextBar';
 import { PresetsToolbarPage } from '@/components/terminal/PresetsToolbarPage';
 import type { Preset } from '@/lib/presets';
 import { ThemedText } from '@/components/themed/ThemedText';
-import { JS_TAB_BAR_HEIGHT, NATIVE_TAB_BAR_HEIGHT } from '@/lib/tab-bar-config';
+import {
+	JS_TAB_BAR_HEIGHT,
+	NATIVE_TAB_BAR_TOOLBAR_OFFSET,
+} from '@/lib/tab-bar-config';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
 import { useContextSafe } from '@/lib/utils';
 
@@ -146,25 +149,30 @@ function ShellDetail() {
 	}, []);
 
 	// The toolbar's marginBottom must clear the keyboard's overlap with THIS column,
-	// not the whole screen. The column's bottom sits above the bottom tab bar, so we
-	// subtract the space below the column (tab bar + nav inset) from the
-	// screen-relative keyboard height — otherwise the toolbar floats a tab-bar-height
-	// above the keyboard. (keyboardHeight is measured from the screen bottom.)
+	// not the whole screen. keyboardHeight is measured from the screen bottom, so we
+	// subtract `spaceBelowColumn` (everything between the column's bottom edge and the
+	// screen bottom) to get the keyboard's actual overlap with the column.
 	//
-	// The JS bar's reserved space is exact (JS_TAB_BAR_HEIGHT + inset, by
-	// construction). The native bar doesn't expose its height to JS (rns#3627), so
-	// it's a GUESS: NATIVE_TAB_BAR_HEIGHT (iOS 49 / Android 80) + inset — the same
-	// fixed estimate useBottomTabSpacing uses. We swapped off measureInWindow (flaky
-	// timing) for this constant so there's a single, stable knob to tune: increasing
-	// NATIVE_TAB_BAR_HEIGHT lowers the toolbar, decreasing it raises the toolbar.
+	// For the JS bar `spaceBelowColumn` is exact and POSITIVE: we render that bar, so
+	// it's literally JS_TAB_BAR_HEIGHT + inset. For the NATIVE bar it's a hand-tuned
+	// correction (the OS doesn't expose the bar height — rns#3627) whose sign DIFFERS
+	// per platform, because `softwareKeyboardLayoutMode: 'resize'` is Android-only:
+	//   - Android (resize): the window shrinks to the keyboard top, so the band below
+	//     the column is a real positive height (~80 + inset). Subtracting it is right.
+	//   - iOS (overlay): the window does NOT resize; the column runs to the physical
+	//     screen bottom and iOS's keyboard frame already covers the home indicator AND
+	//     the tab-bar region. So `+ insets.bottom` double-counts, and the offset goes
+	//     NEGATIVE to cancel it (-84 ≈ -(tab bar 49 + home indicator 34)). It's an
+	//     inset cancellation, not a height — see NATIVE_TAB_BAR_TOOLBAR_OFFSET.
+	// Single knob: increasing the offset lowers the toolbar, decreasing it raises it.
 	// See docs/projects/complete/toolbar-keyboard-by-construction.md.
 	const [tabBarImpl] = preferences.tabBarImpl.useValue();
-	const bottomReserved =
-		(tabBarImpl === 'js' ? JS_TAB_BAR_HEIGHT : NATIVE_TAB_BAR_HEIGHT) +
+	const spaceBelowColumn =
+		(tabBarImpl === 'js' ? JS_TAB_BAR_HEIGHT : NATIVE_TAB_BAR_TOOLBAR_OFFSET) +
 		insets.bottom;
 	const toolbarMarginBottom =
 		keyboardHeight > 0
-			? Math.max(keyboardHeight - bottomReserved, insets.bottom)
+			? Math.max(keyboardHeight - spaceBelowColumn, insets.bottom)
 			: insets.bottom;
 
 	// Shells are keyed in the store by their native `shellId` (opaque), but the
@@ -230,7 +238,7 @@ function ShellDetail() {
 	);
 
 	return (
-		<View className='flex-1 justify-start bg-background px-2 pt-0.5 pb-0'>
+		<View className='flex-1 justify-start bg-background pt-0.5 pb-0'>
 			<Stack.Screen
 				options={{
 					headerBackVisible: true,
@@ -269,7 +277,7 @@ function ShellDetail() {
 					    timing. A real row (not an overlay) so it never occludes output.
 					    See docs/projects/smart-terminal-surface.md. */}
 					{shell ? <ContextBar shellId={shell.shellId} /> : null}
-					<View className='flex-1 border-2 border-border'>
+					<View className='flex-1'>
 						{shell ? (
 							<TerminalSurface
 								shellId={shell.shellId}

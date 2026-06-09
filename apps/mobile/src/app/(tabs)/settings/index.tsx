@@ -18,6 +18,7 @@ import {
 } from '@/components/settings-controls';
 import { preferences } from '@/lib/preferences';
 import type { TabBarImpl } from '@/lib/tab-bar-config';
+import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 import {
 	type AppThemeName,
 	APP_THEMES,
@@ -98,11 +99,19 @@ function CustomSettings() {
 	const [tabBarImpl, setTabBarImpl] = preferences.tabBarImpl.useValue();
 	const [shellIntegration, setShellIntegration] =
 		preferences.shellIntegrationEnabled.useValue();
+	// Reserve space under the bottom tab bar so the last row (Terminal settings)
+	// isn't hidden behind it — ThemedScreen only insets the top edge, so content
+	// runs to the screen bottom (under the bar) otherwise.
+	const bottomSpace = useBottomTabSpacing();
 
 	return (
 		<ThemedScreen edges={['top']}>
 			<ScreenHeader title='Settings' />
-			<ScrollView className='flex-1' contentContainerClassName='px-4 pb-4 pt-2'>
+			<ScrollView
+				className='flex-1'
+				contentContainerClassName='px-4 pt-2'
+				contentContainerStyle={{ paddingBottom: bottomSpace }}
+			>
 				<Section title='Theme'>
 					<ThemeGrid themeName={themeName} setThemeName={setThemeName} />
 				</Section>

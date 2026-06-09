@@ -69,14 +69,43 @@ export type TabRouteName = TabRoute['name'];
 export const JS_TAB_BAR_HEIGHT = 64;
 
 /**
- * Content height (excluding the bottom safe-area inset) of the OS native tab bar
- * (`expo-router/unstable-native-tabs`). The native bar doesn't expose its height
- * to JS (rns#3627), so we use the platform's standard bar height — the same value
- * `useBottomTabSpacing` reserves for scroll padding, and what the terminal
- * keyboard-toolbar offset subtracts so the toolbar clears the IME with the native
- * bar (see docs/projects/complete/toolbar-keyboard-by-construction.md).
+ * Per-platform offset that lands the terminal keyboard-toolbar on top of the IME
+ * when the NATIVE tab bar is active. This is NOT a bar height (despite the Android
+ * value looking like one) and NOT scroll padding — it's a correction term consumed
+ * only by terminal.tsx's `spaceBelowColumn`. For "how much the bar occludes" (scroll
+ * padding) use NATIVE_TAB_BAR_RESERVE below. The native bar doesn't expose its height
+ * to JS (rns#3627), so this is a hand-tuned knob: increasing it lowers the toolbar,
+ * decreasing it raises it.
+ *
+ * Why the sign flips between platforms (this confused us — it's real):
+ * `softwareKeyboardLayoutMode: 'resize'` is ANDROID-ONLY (app.config.ts). So when the
+ * keyboard opens the two platforms are in OPPOSITE layout regimes:
+ *  - Android (resize): the OS shrinks the window to end at the keyboard top, so the
+ *    column is already lifted above the keyboard. The value adds back the tab-bar
+ *    band the resize reclaimed → genuinely POSITIVE (~80).
+ *  - iOS (overlay): the window does NOT resize; the column still runs to the physical
+ *    screen bottom, behind the keyboard. iOS's keyboard frame already spans down past
+ *    the home indicator AND the tab-bar region, so the formula's `+ insets.bottom`
+ *    (and the bar's safe-area inset baked into the column bottom) are double-counted.
+ *    The value goes NEGATIVE to cancel them: -84 ≈ -(tab bar 49 + home indicator 34).
+ *    It's an inset cancellation, not a height — which is exactly why a positive
+ *    "bar height" like Android's could never line up on iOS.
+ * See docs/projects/complete/toolbar-keyboard-by-construction.md.
  */
-export const NATIVE_TAB_BAR_HEIGHT = Platform.select({
+export const NATIVE_TAB_BAR_TOOLBAR_OFFSET = Platform.select({
+	ios: -84,
+	android: 80,
+	default: 56,
+});
+
+/**
+ * Space (excluding the bottom safe-area inset) the native tab bar occupies, used by
+ * `useBottomTabSpacing` to pad scroll content so it clears the bar. iOS standard tab
+ * bar height is 49pt (the inset is added on top by the hook). Kept SEPARATE from
+ * NATIVE_TAB_BAR_TOOLBAR_OFFSET, whose iOS value is a negative toolbar-alignment
+ * offset that would otherwise zero out (or invert) this reserve.
+ */
+export const NATIVE_TAB_BAR_RESERVE = Platform.select({
 	ios: 49,
 	android: 80,
 	default: 56,
