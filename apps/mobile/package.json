@@ -12,8 +12,8 @@
 		"ios": "expo run:ios --port 8081",
 		"dev:android:release": "bun run adb:fix-wifi && expo run:android --port 8082 --variant release",
 		"dev:ios:release": "expo run:ios --port 8081 --variant release",
-		"build:signed:aab": "tsx scripts/signed-build.ts",
-		"build:signed:apk": "tsx scripts/signed-build.ts --format apk",
+		"build:signed:aab": "bun scripts/signed-build.ts",
+		"build:signed:apk": "bun scripts/signed-build.ts --format apk",
 		"build:aab": "cd android && ./gradlew bundleRelease",
 		"build:apk": "cd android && ./gradlew assembleRelease",
 		"prebuild": "expo prebuild",
@@ -21,6 +21,9 @@
 		"expo:install:fix": "expo install --fix",
 		"expo:doctor": "bunx expo-doctor@latest || true",
 		"maestro:test": "maestro test test/e2e/",
+		"screenshots": "bun scripts/screenshots.ts",
+		"screenshots:ios": "bun scripts/screenshots.ts --platform ios",
+		"screenshots:android": "bun scripts/screenshots.ts --platform android",
 		"adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done",
 		"release": "GITHUB_TOKEN=$(gh auth token) release-it",
 		"release:dry": "release-it --dry-run"
@@ -82,7 +85,6 @@
 	"devDependencies": {
 		"@release-it/conventional-changelog": "catalog:",
 		"@types/react": "catalog:",
-		"cmd-ts": "^0.15.0",
 		"cross-env": "catalog:",
 		"release-it": "catalog:",
 		"tsx": "^4.22.4",

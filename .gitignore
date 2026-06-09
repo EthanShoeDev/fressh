@@ -18,6 +18,8 @@ coverage
 .next/
 out/
 dist
+.nitro/
+.output/
 
 
 # Debug

@@ -56,9 +56,9 @@ function save(list: Preset[]) {
 	preferences.presetCommands.set(JSON.stringify(list));
 }
 
-/** Read presets imperatively (outside React). Module-local for now; export when
- *  the "Run" tab needs a non-React read. */
-function getPresets(): Preset[] {
+/** Read presets imperatively (outside React). Exported for non-React readers
+ *  (e.g. the screenshot seed's idempotency check). */
+export function getPresets(): Preset[] {
 	return parse(preferences.presetCommands.get());
 }
 

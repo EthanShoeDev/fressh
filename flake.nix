@@ -90,6 +90,7 @@
           just
           alejandra
           clang-tools
+          maestro # mobile UI automation, drives the screenshot flow
         ];
 
         mkShellFn =

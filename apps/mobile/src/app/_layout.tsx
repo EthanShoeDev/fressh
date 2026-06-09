@@ -3,11 +3,12 @@ import * as DevClient from 'expo-dev-client';
 import { useFonts } from 'expo-font';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Stack } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { rootLogger } from '@/lib/logger';
 import { appFonts } from '../lib/fonts';
+import { seedScreenshotData } from '../lib/screenshot-seed';
 import { initAppTheme, useSystemThemeSync } from '../lib/theme';
 
 rootLogger.info('Fressh App Init', {
@@ -36,6 +37,12 @@ export default function RootLayout() {
 	// (no-op for the always-dark stylized themes). Must run before the early
 	// return below so the hook order stays stable.
 	useSystemThemeSync();
+
+	// Seed demo data for marketing screenshots. No-op unless the build sets
+	// EXPO_PUBLIC_SCREENSHOT_SEED=1, so this never runs in production.
+	useEffect(() => {
+		void seedScreenshotData();
+	}, []);
 
 	// Load the design typefaces before first paint (runtime, via expo-font).
 	const [fontsLoaded, fontError] = useFonts(appFonts);

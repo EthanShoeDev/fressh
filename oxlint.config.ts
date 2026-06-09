@@ -60,7 +60,6 @@ export default defineConfig({
 		'**/routeTree.gen.ts',
 		'**/sst-env.d.ts',
 		'**/uniwind-types.d.ts',
-		'apps/start/src/seo/cookie-trackers/**/*.js',
 		'infra/grafana/dashboards/**',
 		'CLAUDE.md',
 		'.agents/**',

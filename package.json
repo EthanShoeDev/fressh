@@ -13,6 +13,7 @@
 			"react-native": "0.85.3",
 			"react-native-webview": "13.16.1",
 			"@types/react": "~19.2.14",
+			"@types/react-dom": "^19.2.3",
 			"typescript": "~5.9.3",
 			"cross-env": "^10.1.0",
 			"release-it": "^20.2.0",

@@ -1,146 +1,198 @@
+#!/usr/bin/env bun
 /**
- * https://docs.expo.dev/guides/local-app-production/
+ * Local signed Android release build.
+ *
+ * Pulls the upload keystore + passwords, drops them into android/ (keystore
+ * file, gradle.properties, release signingConfig in build.gradle), then runs
+ * the gradle bundle/assemble task. Optionally cuts a GitHub release with the APK.
+ *
+ *   bun run build:signed:aab            # signed .aab (Play upload artifact)
+ *   bun run build:signed:apk            # signed .apk (sideloadable)
+ *
+ * @see https://docs.expo.dev/guides/local-app-production/
+ *
+ * Effect-ts: @effect/platform-bun runtime/services, effect/unstable/cli for arg
+ * parsing, effect/unstable/process (ChildProcessSpawner) for spawning, and the
+ * effect FileSystem/Path services (no node:fs / node:path). Mirrors the pattern
+ * in ./screenshots.ts.
  */
-import * as fsp from 'node:fs/promises';
-import * as path from 'node:path';
-import { boolean, command, flag, oneOf, option, run } from 'cmd-ts';
+import { BunRuntime, BunServices } from '@effect/platform-bun';
+import { Data, Effect, FileSystem, Path, Stream } from 'effect';
 import * as Schema from 'effect/Schema';
+import { Command as CliCommand, Flag } from 'effect/unstable/cli';
+import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process';
 import packageJson from '../package.json' with { type: 'json' };
-import { cmd } from './script-lib';
 
-async function getSecrets(): Promise<{
-	keystoreBase64: string;
-	keystoreAlias: string;
-	keystorePassword: string;
-}> {
-	const isBwUnlocked = await cmd(`bw status`, { stdio: 'pipe' }).then(
-		({ stdout }) => {
-			const bwStatus = JSON.parse(stdout) as { status: string };
-			return bwStatus.status === 'unlocked';
-		},
+const COMMAND_NAME = 'signed-build';
+
+class SignedBuildError extends Data.TaggedError('SignedBuildError')<{
+	message: string;
+	cause?: unknown;
+}> {}
+
+// ---------------------------------------------------------------------------
+// process helpers (effect/unstable/process)
+// ---------------------------------------------------------------------------
+
+/** Spawn a command, streaming its stdout+stderr to the terminal; fail on non-zero exit. */
+const runInherit = (label: string, command: ChildProcess.Command) =>
+	Effect.scoped(
+		Effect.gen(function* () {
+			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+			yield* Effect.sync(() => console.log(`\n$ ${label}`));
+			const handle = yield* spawner.spawn(command);
+			yield* handle.all.pipe(
+				Stream.decodeText(),
+				Stream.runForEach((chunk) =>
+					Effect.sync(() => process.stdout.write(chunk)),
+				),
+			);
+			const code = yield* handle.exitCode;
+			if (code !== 0) {
+				return yield* new SignedBuildError({
+					message: `${label} failed (exit ${code})`,
+				});
+			}
+		}),
 	);
-	if (!isBwUnlocked) {
-		throw new Error('Bitwarden is not unlocked');
+
+/** Spawn a command and return its buffered stdout. */
+const runString = (command: ChildProcess.Command) =>
+	Effect.scoped(
+		Effect.gen(function* () {
+			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+			const handle = yield* spawner.spawn(command);
+			return yield* handle.stdout.pipe(Stream.decodeText(), Stream.mkString);
+		}),
+	);
+
+// ---------------------------------------------------------------------------
+// secrets
+// ---------------------------------------------------------------------------
+
+const BwItem = Schema.Struct({
+	login: Schema.Struct({
+		username: Schema.String,
+		password: Schema.String,
+	}),
+	fields: Schema.Array(
+		Schema.Struct({
+			name: Schema.String,
+			value: Schema.String,
+		}),
+	),
+});
+
+/**
+ * Read the upload keystore from the personal Bitwarden vault via the `bw` CLI.
+ *
+ * TODO(secrets-migration): per docs/projects/future/ci-building-and-releasing.md
+ * this `bw` call is being replaced by reading the keystore from env vars injected
+ * by `secretspec run` (keyring locally / GitHub Secrets in CI). `bw` is not a
+ * secretspec provider, and `bws` (Bitwarden Secrets Manager) is unavailable on
+ * our self-hosted Vaultwarden. Until then, this preserves the current behavior.
+ */
+const getSecrets = Effect.gen(function* () {
+	const statusOut = yield* runString(ChildProcess.make('bw', ['status']));
+	const status = yield* Schema.decodeUnknownEffect(
+		Schema.fromJsonString(Schema.Struct({ status: Schema.String })),
+	)(statusOut);
+	if (status.status !== 'unlocked') {
+		return yield* new SignedBuildError({
+			message: 'Bitwarden is not unlocked (run `bw unlock`).',
+		});
 	}
 
-	const { stdout: rawBwItemString } = await cmd(
-		`bw get item "fressh keystore" --raw`,
-		{
-			stdio: 'pipe',
-		},
+	const raw = yield* runString(
+		ChildProcess.make('bw', ['get', 'item', 'fressh keystore', '--raw']),
 	);
-	const bwItemSchema = Schema.Struct({
-		login: Schema.Struct({
-			username: Schema.String,
-			password: Schema.String,
-		}),
-		fields: Schema.Array(
-			Schema.Struct({
-				name: Schema.String,
-				value: Schema.String,
-			}),
-		),
-	});
-	const bwItem = Schema.decodeUnknownSync(bwItemSchema)(
-		JSON.parse(rawBwItemString),
+	const item = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(BwItem))(
+		raw,
 	);
-	const keystoreBase64 = bwItem.fields.find(
-		(field) => field.name === 'keystore',
-	)?.value;
+
+	const keystoreBase64 = item.fields.find((f) => f.name === 'keystore')?.value;
 	if (!keystoreBase64) {
-		throw new Error('Keystore not found');
+		return yield* new SignedBuildError({
+			message: 'No `keystore` field on the "fressh keystore" item.',
+		});
 	}
 	return {
 		keystoreBase64,
-		keystoreAlias: bwItem.login.username,
-		keystorePassword: bwItem.login.password,
+		keystoreAlias: item.login.username,
+		keystorePassword: item.login.password,
 	};
-}
+});
 
-const signedBuildCommand = command({
-	name: 'signed-build',
-	description: 'Build a signed release build of the app',
-	args: {
-		format: option({
-			long: 'format',
-			type: oneOf(['aab', 'apk']),
-			short: 'f',
-			description: 'The format of the build to build',
-			defaultValue: () => 'aab' as const,
-		}),
-		ghRelease: flag({
-			long: 'gh-release',
-			type: boolean,
-			short: 'g',
-			description:
-				'Whether to create a GitHub release (deprecated, use release-it instead)',
-			defaultValue: () => false,
-		}),
-	},
-	handler: async ({ format, ghRelease }) => {
-		{
-			if (ghRelease && format !== 'apk') {
-				throw new Error('ghRelease is only supported for apk builds');
-			}
+// ---------------------------------------------------------------------------
+// build
+// ---------------------------------------------------------------------------
 
-			console.log(
-				'Making signed build. Format:',
-				format,
-				'GH Release:',
-				ghRelease,
-			);
-			const secrets = await getSecrets();
-			await cmd(`bun run prebuild:clean`);
+const main = (format: 'aab' | 'apk', ghRelease: boolean) =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
 
-			// Ensure keystore is in the right place
-			// https://docs.expo.dev/guides/local-app-production/#create-an-upload-key
-			// Generated with:
-			// sudo keytool -genkey -v -keystore fressh-upload-key.keystore -alias fressh-key-alias -keyalg RSA -keysize 2048 -validity 10000
-			const keystorePath = `./android/app/fressh-upload-key.keystore`;
-			const keystoreFileName = path.basename(keystorePath);
-			// const bufferShouldEqual = await fsp.readFile(keystoreFileName, 'base64');
-			// await fsp.writeFile(
-			// 	'./debug.log',
-			// 	JSON.stringify(
-			// 		{
-			// 			...secrets,
-			// 			bufferShouldEqual,
-			// 		},
-			// 		null,
-			// 		2,
-			// 	),
-			// );
-			await fsp.writeFile(
-				keystorePath,
-				Buffer.from(secrets.keystoreBase64, 'base64'),
-				'base64',
-			);
-			console.log(`Keystore written to ${keystorePath}`);
+		if (ghRelease && format !== 'apk') {
+			return yield* new SignedBuildError({
+				message: '--gh-release is only supported for apk builds',
+			});
+		}
+		console.log(
+			`Making signed build. Format: ${format}, GH Release: ${ghRelease}`,
+		);
 
-			// Ensure gradle.properties is configured
-			// https://docs.expo.dev/guides/local-app-production/#update-gradle-variables
-			const gradlePropertiesSuffix = `
+		const scriptDir = import.meta.dirname; // apps/mobile/scripts
+		const mobileDir = path.resolve(scriptDir, '..');
+		const androidDir = path.join(mobileDir, 'android');
+		const keystorePath = path.join(
+			androidDir,
+			'app',
+			'fressh-upload-key.keystore',
+		);
+		const keystoreFileName = path.basename(keystorePath);
+		const gradlePropsPath = path.join(androidDir, 'gradle.properties');
+		const buildGradlePath = path.join(androidDir, 'app', 'build.gradle');
+
+		const secrets = yield* getSecrets;
+
+		yield* runInherit(
+			'bun run prebuild:clean',
+			ChildProcess.make('bun', ['run', 'prebuild:clean'], {
+				cwd: mobileDir,
+				extendEnv: true,
+			}),
+		);
+
+		// Ensure keystore is in the right place
+		// https://docs.expo.dev/guides/local-app-production/#create-an-upload-key
+		// Generated with:
+		// keytool -genkey -v -keystore fressh-upload-key.keystore -alias fressh-key-alias -keyalg RSA -keysize 2048 -validity 10000
+		yield* fs.writeFile(
+			keystorePath,
+			Buffer.from(secrets.keystoreBase64, 'base64'),
+		);
+		console.log(`Keystore written to ${keystorePath}`);
+
+		// Ensure gradle.properties is configured
+		// https://docs.expo.dev/guides/local-app-production/#update-gradle-variables
+		const gradlePropertiesSuffix = `
         FRESSH_UPLOAD_STORE_FILE=${keystoreFileName}
         FRESSH_UPLOAD_KEY_ALIAS=${secrets.keystoreAlias}
         FRESSH_UPLOAD_STORE_PASSWORD=${secrets.keystorePassword}
         FRESSH_UPLOAD_KEY_PASSWORD=${secrets.keystorePassword}
         `;
-			const currentGradleProperties = await fsp.readFile(
-				'./android/gradle.properties',
-				'utf8',
+		const currentGradleProperties = yield* fs.readFileString(gradlePropsPath);
+		if (!currentGradleProperties.includes(gradlePropertiesSuffix.trim())) {
+			yield* fs.writeFileString(
+				gradlePropsPath,
+				`${currentGradleProperties}\n\n${gradlePropertiesSuffix}`,
 			);
+			console.log(`Gradle properties written to ${gradlePropsPath}`);
+		}
 
-			if (!currentGradleProperties.includes(gradlePropertiesSuffix.trim())) {
-				await fsp.writeFile(
-					'./android/gradle.properties',
-					`${currentGradleProperties}\n\n${gradlePropertiesSuffix}`,
-				);
-				console.log(`Gradle properties written to ./android/gradle.properties`);
-			}
-
-			// Ensure there is a release signing config in android/app/build.gradle
-			// https://docs.expo.dev/guides/local-app-production/#add-signing-config-to-buildgradle
-			const releaseSigningConfig = `
+		// Ensure there is a release signing config in android/app/build.gradle
+		// https://docs.expo.dev/guides/local-app-production/#add-signing-config-to-buildgradle
+		const releaseSigningConfig = `
                 release {
                     if (project.hasProperty('FRESSH_UPLOAD_STORE_FILE')) {
                         storeFile file(FRESSH_UPLOAD_STORE_FILE)
@@ -149,45 +201,81 @@ const signedBuildCommand = command({
                         keyPassword FRESSH_UPLOAD_KEY_PASSWORD
                     }
                 }`;
-			const currentBuildGradle = await fsp.readFile(
-				'./android/app/build.gradle',
-				'utf8',
-			);
-			if (!currentBuildGradle.includes(releaseSigningConfig.trim())) {
-				const newBuildGradle = currentBuildGradle
-					.replace(
-						/signingConfigs \{([\s\S]*?)\}/, // Modify existing signingConfigs without removing debug
-						(match) => {
-							if (match.includes('release {')) {
-								return match.replace(
-									/release \{([\s\S]*?)\}/,
-									releaseSigningConfig,
-								);
-							}
-							return match.trim() + releaseSigningConfig;
-						},
-					)
-					.replace(
-						/buildTypes \{([\s\S]*?)release \{([\s\S]*?)signingConfig signingConfigs\.debug/, // Ensure release config uses signingConfigs.release
-						`buildTypes { $1release { $2signingConfig signingConfigs.release`,
-					);
-				await fsp.writeFile('./android/app/build.gradle', newBuildGradle);
-				console.log(`Build gradle written to ./android/app/build.gradle`);
-			}
-
-			const bundleCommand =
-				format === 'aab' ? 'bundleRelease' : 'assembleRelease';
-			await cmd(`./gradlew app:${bundleCommand}`, {
-				relativeCwd: './android',
-			});
-
-			if (ghRelease) {
-				await cmd(
-					`gh release create v${packageJson.version} ./android/app/build/outputs/apk/release/app-release.apk`,
+		const currentBuildGradle = yield* fs.readFileString(buildGradlePath);
+		if (!currentBuildGradle.includes(releaseSigningConfig.trim())) {
+			const newBuildGradle = currentBuildGradle
+				.replace(
+					/signingConfigs \{([\s\S]*?)\}/, // Modify existing signingConfigs without removing debug
+					(match) => {
+						if (match.includes('release {')) {
+							return match.replace(
+								/release \{([\s\S]*?)\}/,
+								releaseSigningConfig,
+							);
+						}
+						return match.trim() + releaseSigningConfig;
+					},
+				)
+				.replace(
+					/buildTypes \{([\s\S]*?)release \{([\s\S]*?)signingConfig signingConfigs\.debug/, // Ensure release config uses signingConfigs.release
+					`buildTypes { $1release { $2signingConfig signingConfigs.release`,
 				);
-			}
+			yield* fs.writeFileString(buildGradlePath, newBuildGradle);
+			console.log(`Build gradle written to ${buildGradlePath}`);
 		}
-	},
-});
 
-void run(signedBuildCommand, process.argv.slice(2));
+		const bundleCommand =
+			format === 'aab' ? 'bundleRelease' : 'assembleRelease';
+		yield* runInherit(
+			`./gradlew app:${bundleCommand}`,
+			ChildProcess.make('./gradlew', [`app:${bundleCommand}`], {
+				cwd: androidDir,
+				extendEnv: true,
+			}),
+		);
+
+		if (ghRelease) {
+			const apkPath = path.join(
+				androidDir,
+				'app',
+				'build',
+				'outputs',
+				'apk',
+				'release',
+				'app-release.apk',
+			);
+			yield* runInherit(
+				`gh release create v${packageJson.version}`,
+				ChildProcess.make('gh', [
+					'release',
+					'create',
+					`v${packageJson.version}`,
+					apkPath,
+				]),
+			);
+		}
+	});
+
+const command = CliCommand.make(
+	COMMAND_NAME,
+	{
+		format: Flag.choice('format', ['aab', 'apk']).pipe(
+			Flag.withAlias('f'),
+			Flag.withDefault('aab' as const),
+			Flag.withDescription('The format of the build to produce'),
+		),
+		ghRelease: Flag.boolean('gh-release').pipe(
+			Flag.withAlias('g'),
+			Flag.withDefault(false),
+			Flag.withDescription(
+				'Create a GitHub release with the APK (deprecated — release flow is moving to changesets + `gh release upload` in CI; see docs/projects/future/ci-building-and-releasing.md)',
+			),
+		),
+	},
+	({ format, ghRelease }) => main(format, ghRelease),
+);
+
+CliCommand.run(command, { version: '0.0.1' }).pipe(
+	Effect.provide(BunServices.layer),
+	BunRuntime.runMain,
+);

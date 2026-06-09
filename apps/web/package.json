@@ -4,25 +4,29 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"build": "bun run astro:build",
-		"dev": "bun run astro:dev",
+		"build": "vite build",
+		"dev": "vite dev",
+		"start": "vite preview --host 0.0.0.0",
 		"tsgo:check": "tsgo --noEmit",
-		"astro:build": "astro build",
-		"astro:dev": "astro dev",
-		"astro:preview": "astro preview"
+		"preview": "vite preview"
 	},
 	"dependencies": {
-		"@astrojs/vercel": "^10.0.8",
 		"@fressh/assets": "workspace:*",
 		"@tailwindcss/vite": "4.3.0",
+		"@tanstack/react-router": "^1.141.1",
+		"@tanstack/react-start": "^1.141.1",
 		"@vercel/analytics": "^2.0.1",
-		"astro": "^6.4.2",
-		"sharp": "^0.34.5",
+		"react": "catalog:",
+		"react-dom": "catalog:",
 		"tailwindcss": "catalog:"
 	},
 	"devDependencies": {
-		"cross-env": "catalog:",
+		"@types/node": "^25.0.7",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"@vitejs/plugin-react": "^5.2.0",
 		"typescript": "catalog:",
-		"vite": "^7.3.2"
+		"vite": "^7.3.2",
+		"vite-tsconfig-paths": "^6.0.3"
 	}
 }

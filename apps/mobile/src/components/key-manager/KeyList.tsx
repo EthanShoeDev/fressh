@@ -77,6 +77,7 @@ export function KeyList(props: {
 	const actions = (
 		<View className='mb-5 flex-row gap-2.5'>
 			<Button
+				testID='key-generate'
 				className='flex-1'
 				title='Generate'
 				loading={isGenerating}
@@ -87,6 +88,7 @@ export function KeyList(props: {
 				}}
 			/>
 			<Button
+				testID='key-import'
 				className='flex-1'
 				variant='outline'
 				title='Import'
