@@ -320,6 +320,18 @@ key. The `bw`/Vaultwarden flow is fully retired.
    profile). Then a CI dispatch with `platform: ios`.
 7. iOS listing text: `fastlane/metadata/en-US/` (deliver pushes it during `promote:ios`).
 
+### ✅ DONE (2026-06-10): Google Play auth via Workload Identity Federation
+
+No Google service-account key exists anywhere. GCP project `fressh-mobile-ssh`, SA
+`fastlane-supply@…iam.gserviceaccount.com` (zero GCP roles — authorization is the Play Console
+user invite), WIF pool `github` + provider `github-actions` bound to repository_owner
+`EthanShoeDev`, impersonation granted to `…/attribute.repository/EthanShoeDev/fressh`. Workflows:
+`id-token: write` + `google-github-actions/auth@v2` (provider
+`projects/222063936101/locations/global/workloadIdentityPools/github/providers/github-actions`) →
+exports `GOOGLE_APPLICATION_CREDENTIALS`, which the Fastfile's `play_auth_args` prefers
+(`GOOGLE_SERVICE_ACCOUNT_KEY_JSON` from bao remains as a local-only fallback). WIF only works
+inside Actions — local submits would need `gcloud auth application-default login` or the fallback.
+
 ### TODO (next): CI reads OpenBao directly — stop mirroring secrets into GitHub
 
 Today every secret is stored twice (OpenBao for local, GitHub Secrets for CI) and the workflows

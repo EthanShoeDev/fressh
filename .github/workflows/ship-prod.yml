@@ -27,6 +27,7 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write # Google Workload Identity Federation (Play promote)
 
 jobs:
   promote:
@@ -46,14 +47,21 @@ jobs:
       - name: Extract release notes
         run: bun run --cwd apps/mobile changelog:extract --version "${{ inputs.version }}"
 
+      # Play auth via Workload Identity Federation (no static Google key);
+      # exports GOOGLE_APPLICATION_CREDENTIALS for the promote lane.
+      - name: Google Cloud auth (WIF)
+        if: contains(fromJSON('["android","all"]'), inputs.platform)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/222063936101/locations/global/workloadIdentityPools/github/providers/github-actions
+          service_account: fastlane-supply@fressh-mobile-ssh.iam.gserviceaccount.com
+
       - name: Promote Play internal -> production
         if: contains(fromJSON('["android","all"]'), inputs.platform)
-        run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile promote:android -- version:${{ inputs.version }}
-        env:
-          GOOGLE_SERVICE_ACCOUNT_KEY_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY_JSON }}
+        run: bun run --cwd apps/mobile promote:android -- version:${{ inputs.version }}
 
       - name: Submit TestFlight build for App Review
         if: contains(fromJSON('["ios","all"]'), inputs.platform)
-        run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile promote:ios -- version:${{ inputs.version }}
+        run: bun run --cwd apps/mobile promote:ios -- version:${{ inputs.version }}
         env:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}

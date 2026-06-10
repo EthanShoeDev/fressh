@@ -62,6 +62,20 @@ def release_notes
   File.exist?(path) ? File.read(path) : "Internal build #{app_version}"
 end
 
+# Google Play auth, in preference order:
+#  1. Workload Identity Federation — google-github-actions/auth exchanges the
+#     job's OIDC token and exports GOOGLE_APPLICATION_CREDENTIALS (no static
+#     key anywhere). supply's json_key accepts that credentials file directly.
+#  2. Raw service-account JSON from env (secretspec <- OpenBao) for local runs.
+def play_auth_args
+  ambient = ENV["GOOGLE_APPLICATION_CREDENTIALS"]
+  if ambient && File.exist?(ambient)
+    { json_key: ambient }
+  else
+    { json_key_data: ENV.fetch("GOOGLE_SERVICE_ACCOUNT_KEY_JSON") }
+  end
+end
+
 platform :ios do
   desc "Create/renew the dist cert + App Store profile via the ASC key (run locally; then store in OpenBao — runbook D)"
   lane :certs do
@@ -161,9 +175,9 @@ platform :android do
   desc "Upload build/fressh-android.aab to the Play internal testing track"
   lane :beta do
     supply(
+      **play_auth_args,
       track: "internal",
       aab: File.join(MOBILE_DIR, "build", "fressh-android.aab"),
-      json_key_data: ENV.fetch("GOOGLE_SERVICE_ACCOUNT_KEY_JSON"),
       release_status: "completed",
       # Listing metadata/screenshots are owned by the promote/listing flow;
       # betas only ship the binary + its changelog
@@ -179,7 +193,7 @@ platform :android do
   lane :promote do |options|
     version = options[:version] || app_version
     supply(
-      json_key_data: ENV.fetch("GOOGLE_SERVICE_ACCOUNT_KEY_JSON"),
+      **play_auth_args,
       track: "internal",
       track_promote_to: "production",
       version_code: version_code(version),
