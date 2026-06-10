@@ -7,13 +7,14 @@
 // via createRequire — CJS resolution handles their subpaths/exports correctly.
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const { getDefaultConfig } = require('expo/metro-config');
 const { withUniwindConfig } = require('uniwind/metro');
 
-const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+// Cast: this .js file is type-checked without bun-types, so import.meta.dirname
+// (Node >=20.11 / bun, what eas-cli's import() runs under) is unknown to it.
+const projectRoot = /** @type {string} */ (import.meta.dirname);
 const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);

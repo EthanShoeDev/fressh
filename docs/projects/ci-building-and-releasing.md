@@ -75,29 +75,95 @@ already modeled this way for dev/typecheck — we're extending it to release bui
 cached native outputs on a clean runner and rebuilding only what changed. The **only** new pieces are
 the two app-level release tasks (a non-persistent generalization of the existing `build:signed:apk`).
 
-### The GitHub Actions shape (thin caller)
+### The GitHub Actions shape (thin caller, reusable workflow)
+
+`build-mobile.yml` is a **reusable workflow** (`on: workflow_call` + `workflow_dispatch`). It contains
+**no build steps** — it loads the devShell, runs `secretspec` for signing secrets, and calls the turbo
+task. All ordering/codegen knowledge stays in turbo.
 
 ```yaml
-# .github/workflows/build-mobile.yml  (sketch)
-on: { workflow_dispatch: {}, push: { tags: ['@fressh/mobile@*'] } }
+# .github/workflows/build-mobile.yml  (shape)
+on:
+  workflow_dispatch: { inputs: { platform: { type: choice, options: [android, ios, all] } } }
+  workflow_call:     { inputs: { platform: { type: string }, release-tag: { type: string } } }
 jobs:
-  android:
+  android:           # if: platform in [android, all]
     runs-on: ubuntu-latest            # Rust+NDK build is fine on Linux
     steps:
       - uses: actions/checkout@v4
       - # install Nix + load .#default devShell (same as check.yml)
       - run: bun install --frozen-lockfile
-      - run: secretspec run --profile production -- turbo build:android --filter @fressh/mobile
-      - run: gh release upload "$GITHUB_REF_NAME" <artifact> --clobber
-  ios:
-    runs-on: macos-15                  # iOS Rust build + xcframework + signing need macOS
-    steps: [ checkout, nix devShell, bun install, "turbo build:ios", gh release upload ]
+      - run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bunx turbo build:android --filter @fressh/mobile
+      - if: inputs.release-tag != ''   # called from release.yml -> attach to the GH Release
+        run: gh release upload "${{ inputs.release-tag }}" apps/mobile/build/fressh-android.aab --clobber
+      - if: inputs.release-tag == ''   # manual dispatch -> just a workflow artifact
+        uses: actions/upload-artifact@v4
+  ios:               # if: platform in [ios, all]; runs-on: macos-15 (xcframework + signing)
+    steps: [ checkout, nix devShell, bun install, "turbo build:ios", attach/upload ]
 ```
 
-The workflow contains **no build steps** — it loads the devShell, runs `secretspec` for signing
-secrets, and calls the turbo task. All ordering/codegen knowledge stays in turbo.
+### How a release triggers the build (the GITHUB_TOKEN gotcha)
+
+The changesets docs suggest triggering format-specific release workflows **on the tag/release that
+changesets creates** (`versioning-apps.md`). We tried that (`build-mobile.yml` on `push: tags:
+['@fressh/mobile@*']`) and hit a hard GitHub rule: **events created with the default `GITHUB_TOKEN`
+(tag pushes, releases) do not start new workflow runs** — GitHub's recursion guard. So the
+changeset-pushed tag would never have fired `build-mobile.yml`.
+
+`effect-tanstack-start` (the reference repo) never hits this because its "release" is an inline
+`changeset publish` to npm in the *same* job — nothing downstream needs to wake up. fressh's release
+output is a long multi-platform **build**, which we want in its own file. Two ways to bridge:
+
+1. **PAT** — give `changesets/action` a Personal Access Token instead of `GITHUB_TOKEN`; its tag push
+   then fires `build-mobile.yml`. Minimal YAML, but a long-lived token to manage/rotate.
+2. **Reusable workflow (CHOSEN)** — `release.yml`'s `publish:` step runs `changeset tag` (creates the
+   tag + GitHub Release + sets `outputs.published`), then a second job in the **same run** calls
+   `build-mobile.yml` via `uses:` when the `@fressh/mobile` tag was produced, passing `release-tag` so
+   the artifact attaches to that Release. No token to manage; structurally identical to the inline
+   npm-publish model, just factored into a callable file. `secrets: inherit` passes `EXPO_TOKEN`/`ASC_*`.
+
+`release.yml` derives the mobile tag by selecting `@fressh/mobile` out of `publishedPackages` (a single
+release can tag several packages via `privatePackages.tag` + the `updateInternalDependencies` cascade),
+and only builds when the mobile app was actually part of that release.
+
+### Store submission / beta channels  *(IMPLEMENTED, rev 2026-06-10)*
+
+"Beta release" = a changesets release whose artifacts also go to the store test channels:
+**Google Play internal testing** (instant, up to 100 testers, no review) and **TestFlight**
+(every EAS iOS submit lands there; internal TestFlight groups need no Apple review).
+We use **`eas submit`** (free) with the **locally built** artifact (`--path`), so this works
+with Track A5 builds.
+
+- **`apps/mobile/scripts/submit.ts`** (effect-ts, mirrors signed-build.ts): materializes the
+  store credential **files** that eas.json requires (`eas submit` cannot read them from env) —
+  `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` → `google-service-account.json`, `ASC_API_KEY_P8` →
+  `asc-api-key.p8` — runs `eas submit -p <platform> --path build/fressh-*.{aab,ipa} --profile
+  production --non-interactive --wait`, then deletes the key files (both gitignored +
+  .easignored). Scripts: `bun run submit:android` / `submit:ios`.
+- **`eas.json` submit.production**: android `track: internal` + `serviceAccountKeyPath`;
+  ios `ascApiKeyPath` + `ascApiKeyId`/`ascApiKeyIssuerId`/`ascAppId` (non-secret IDs,
+  committed — currently `TODO_*` placeholders until the ASC key + app record exist).
+- **`build-mobile.yml`** gained a `submit` boolean input (dispatch + call): after the build,
+  runs the submit script under `secretspec --provider env://`. `release.yml` passes
+  `submit: false` until the store prereqs are done (flip it to make every release a beta).
+- **Play versionCode gotcha:** versionCode is derived from semver (`maj*10000+min*100+pat`),
+  and Play rejects re-used versionCodes — so every Play submission needs a version bump via
+  changesets first. (Changesets `--snapshot` betas don't fit the derivation — prerelease
+  suffixes break `semverToCode` — so betas are just normal patch releases for now.)
+- **One-time store prereqs** (manual, see runbook below): create the Play app + upload the
+  FIRST .aab by hand (Play API limitation) + service-account key; create the ASC app record +
+  API key. PR-preview OTA (EAS Update) remains deferred.
 
 ### Signing / credentials (open sub-decision)
+
+> **FINDING (rev 2026-06-10): EAS already holds the original Bitwarden upload keystore.**
+> `keytool -printcert -jarfile build/fressh-android.aab` on a fresh `eas build --local` AAB shows a
+> 2048-bit RSA cert valid from **2025-09-10** — the same day the bw keystore + signed-build script
+> were created — while the EAS project was only linked 2026-06-09 (a freshly EAS-generated keystore
+> would date from June 2026). So "upload the bw keystore to EAS" is already done; the Play upload key
+> is preserved. Remaining (optional, self-hosting posture): copy the keystore values out of
+> Vaultwarden into OpenBao via `secretspec set` as backup. No mobile-app release was ever published
+> (only library releases), so nothing downstream depends on the old `bw` flow.
 
 `eas build --local` signs via **EAS-managed credentials by default** (the keystore / iOS cert live on
 EAS's servers). That's the simplest path and what the initial `build:android`/`build:ios` tasks use —
@@ -110,6 +176,96 @@ keystore + passwords into at build time — at which point the `FRESSH_ANDROID_*
 required again. iOS local signing is the harder half (cert `.p12` + provisioning profile), so a
 reasonable interim split is **EAS-managed for iOS, secretspec-fed local creds for Android**. Starting
 on EAS-managed for both to get a first green build; revisit before relying on it.
+
+---
+
+## Runbook — exact next steps to a working pipeline + first beta  *(rev 2026-06-10)*
+
+Ordered; A is pure verification, B–D are one-time store/secret setup, E is the repeatable beta flow.
+
+### A. Verify the CI pipeline (no store accounts needed)
+
+1. Commit + push this branch, open the PR → `check.yml` must go green (validates the shared
+   `.github/actions/setup` composite).
+2. Manual CI build off the branch (only `EXPO_TOKEN` is needed; already a GH secret ✅):
+   ```bash
+   gh workflow run build-mobile.yml --ref refresh -f platform=android
+   gh run watch          # then: gh run download -n fressh-android-aab
+   ```
+3. Add a changeset for the release flow test: `bunx changeset` → pick `@fressh/mobile` patch.
+4. Merge the PR → `release.yml` opens the **"Version Packages" PR**.
+5. Merge that PR → same workflow runs `changeset tag`, creates the `@fressh/mobile@<v>` GitHub
+   Release, and the `build` job attaches `fressh-android.aab` to it. Pipeline verified.
+
+### B. (Optional, self-hosting posture) back up the keystore from Vaultwarden → OpenBao
+
+EAS already holds the original upload keystore (see FINDING above), so this is backup only.
+`bw` isn't installed; use `bunx @bitwarden/cli`:
+
+```bash
+bunx @bitwarden/cli config server https://<your-vaultwarden-host>
+bunx @bitwarden/cli login && export BW_SESSION=$(bunx @bitwarden/cli unlock --raw)
+bunx @bitwarden/cli get item "fressh keystore" --raw > /tmp/ks.json
+jq -r '.fields[] | select(.name=="keystore") | .value' /tmp/ks.json   # KEYSTORE_BASE64
+jq -r '.login.username, .login.password' /tmp/ks.json                  # alias, password
+cd ~/fressh && nix develop   # secretspec + VAULT auth (~/.vault-token)
+secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production FRESSH_ANDROID_KEYSTORE_BASE64
+secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production FRESSH_ANDROID_KEY_ALIAS
+secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production FRESSH_ANDROID_KEYSTORE_PASSWORD
+secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production FRESSH_ANDROID_KEY_PASSWORD
+rm /tmp/ks.json
+```
+
+### C. Google Play internal testing (one-time)
+
+1. Play Console (play.google.com/console, $25 one-time dev account): **Create app** with package
+   `dev.fressh.app`; accept **Play App Signing** (our EAS keystore stays the *upload* key).
+2. **The first .aab must be uploaded manually** (Play API limitation): take the AAB from step A
+   and upload it to **Testing → Internal testing → Create release**; add your Gmail as a tester.
+3. Service account for `eas submit`: Play Console → **Users and permissions → Invite new user →
+   ...** is for humans; for the API follow expo.fyi/creating-google-service-account — create a GCP
+   service account + JSON key, then in Play Console grant it **Release manager** on the app.
+4. Store the key (verbatim JSON):
+   ```bash
+   nix develop -c secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production GOOGLE_SERVICE_ACCOUNT_KEY_JSON
+   gh secret set GOOGLE_SERVICE_ACCOUNT_KEY_JSON < service-account.json
+   ```
+5. Bump the version first (Play rejects the versionCode the manual upload used — `bunx changeset`
+   + release, or test locally after a local bump), then test:
+   ```bash
+   nix develop -c secretspec run -f apps/mobile/secretspec.toml --profile production -- bun run --cwd apps/mobile submit:android
+   ```
+
+### D. TestFlight (one-time)
+
+1. Link EAS ↔ Apple + create iOS dist credentials (interactive, needs Apple ID login):
+   ```bash
+   cd apps/mobile && bunx eas-cli@20.1.0 credentials -p ios
+   # sign in -> let EAS register dev.fressh.app + create dist cert / provisioning profile
+   ```
+   (Required before any CI iOS build — `--non-interactive` can't create credentials.)
+2. App Store Connect → **My Apps → + → New App** for bundle `dev.fressh.app`; note the numeric
+   **Apple ID** of the app (= `ascAppId`).
+3. ASC API key: **Users and Access → Integrations → App Store Connect API → Team Keys → +**,
+   role **App Manager**; download the `.p8` (one chance); note **Key ID** + **Issuer ID**.
+4. Replace the `TODO_*` placeholders in `apps/mobile/eas.json` (`ascApiKeyId`,
+   `ascApiKeyIssuerId`, `ascAppId`) — they're non-secret, commit them.
+5. Store the .p8 (verbatim contents):
+   ```bash
+   nix develop -c secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production ASC_API_KEY_P8
+   gh secret set ASC_API_KEY_P8 < AuthKey_XXXXXXXXXX.p8
+   # (no ASC_KEY_ID/ASC_ISSUER_ID secrets — those IDs are non-secret and live in eas.json)
+   ```
+6. CI iOS build: `gh workflow run build-mobile.yml --ref main -f platform=ios` (first macOS run
+   is slow — uncached Nix + Rust). Then with `-f submit=true` → TestFlight; add yourself to an
+   internal TestFlight group in ASC.
+
+### E. The repeatable beta release (after C/D)
+
+1. Flip `submit: false` → `true` and `platform: android` → `all` in `release.yml`'s build job.
+2. Per beta: `bunx changeset` in the feature PR → merge → merge the "Version Packages" PR.
+   That produces: bumped version + CHANGELOG + git tag + GitHub Release with artifacts **and**
+   a Play internal-track rollout + TestFlight build of the same artifacts.
 
 ---
 

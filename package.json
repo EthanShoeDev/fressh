@@ -40,6 +40,7 @@
 		"catalog:fix": "bun scripts/catalog-check.ts --fix",
 		"changeset": "changeset",
 		"version": "changeset version && bun install --lockfile-only",
+		"tag": "changeset tag",
 		"ncu:interactive": "bunx npm-check-updates --interactive --format group -ws --root",
 		"prepare": "effect-tsgo patch"
 	},

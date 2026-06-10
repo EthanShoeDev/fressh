@@ -17,6 +17,8 @@ build/
 *.orig.*
 *.jks
 *.p8
+# Play Console service-account key, materialized by scripts/submit.ts
+google-service-account.json
 *.p12
 *.key
 *.mobileprovision

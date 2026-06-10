@@ -21,6 +21,17 @@
 		}
 	},
 	"submit": {
-		"production": {}
+		"production": {
+			"android": {
+				"track": "internal",
+				"serviceAccountKeyPath": "./google-service-account.json"
+			},
+			"ios": {
+				"ascApiKeyPath": "./asc-api-key.p8",
+				"ascApiKeyId": "TODO_ASC_KEY_ID",
+				"ascApiKeyIssuerId": "TODO_ASC_ISSUER_ID",
+				"ascAppId": "TODO_ASC_APP_ID"
+			}
+		}
 	}
 }

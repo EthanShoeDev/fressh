@@ -21,26 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-
-      - name: Cache Nix Store
-        uses: nix-community/cache-nix-action@main
-        with:
-          primary-key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-
-      - name: Load devShell environment
-        uses: nicknovitski/nix-develop@main
-        with:
-          arguments: .#default
-
-      - uses: actions/cache@v3
-        name: Setup Bun cache
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-store-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-store-
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
 
       - name: Cache Turbo
         uses: actions/cache@v4
@@ -53,8 +35,6 @@ jobs:
             ${{ runner.os }}-turbo-${{ github.ref_name }}-${{ github.job }}-
             ${{ runner.os }}-turbo-${{ github.ref_name }}-
             ${{ runner.os }}-turbo-
-
-      - run: bun install --frozen-lockfile
 
       - run: bunx turbo lint:check
 

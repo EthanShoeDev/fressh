@@ -1,0 +1,45 @@
+name: Setup
+description: >-
+  Standard CI setup — install Nix, load the flake devShell (so every later step
+  in the job runs inside it), restore the bun cache, and install dependencies.
+  The devShell env is exported via $GITHUB_ENV/$GITHUB_PATH, which propagates
+  from this composite action up to the calling job's subsequent steps.
+
+inputs:
+  devshell:
+    description: The flake devShell to load (passed to `nix develop`).
+    required: false
+    default: .#default
+  install:
+    description: Whether to run `bun install --frozen-lockfile`.
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@main
+
+    - name: Cache Nix Store
+      uses: nix-community/cache-nix-action@main
+      with:
+        primary-key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
+
+    - name: Load devShell environment
+      uses: nicknovitski/nix-develop@main
+      with:
+        arguments: ${{ inputs.devshell }}
+
+    - name: Setup Bun cache
+      uses: actions/cache@v3
+      with:
+        path: ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-store-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-store-
+
+    - name: Install dependencies
+      if: inputs.install == 'true'
+      shell: bash
+      run: bun install --frozen-lockfile

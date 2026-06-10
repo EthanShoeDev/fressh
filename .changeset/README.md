@@ -18,7 +18,7 @@ with your PR. Example:
 
 ```markdown
 ---
-"@fressh/mobile": minor
+'@fressh/mobile': minor
 ---
 
 Add ED25519 key import to the key manager.

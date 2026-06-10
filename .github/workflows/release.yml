@@ -15,40 +15,66 @@ jobs:
     name: Version Packages
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Exposed to the `build` job below: the exact @fressh/mobile tag if (and only
+    # if) the mobile app was released this run. Empty otherwise -> no build.
+    outputs:
+      mobile-tag: ${{ steps.mobile.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
 
-      - name: Cache Nix Store
-        uses: nix-community/cache-nix-action@main
-        with:
-          primary-key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-
-      - name: Load devShell environment
-        uses: nicknovitski/nix-develop@main
-        with:
-          arguments: .#default
-
-      - uses: actions/cache@v3
-        name: Setup Bun cache
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-store-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-store-
-
-      - run: bun install --frozen-lockfile
-
-      # Opens/updates the "Version Packages" PR. Merging it bumps package.json,
-      # rewrites CHANGELOG.md, and (privatePackages.tag) tags @fressh/mobile@<version>.
-      # No `publish:` — apps/mobile is private and never goes to npm.
-      - name: Create Version Packages PR
+      # Canonical changesets two-mode action:
+      #  - changesets present  -> `version` opens/updates the "Version Packages" PR
+      #    (bumps package.json, rewrites CHANGELOG.md).
+      #  - no changesets (that PR just merged) -> `publish` runs `changeset tag`,
+      #    which creates+pushes the git tag @fressh/mobile@<version> and a GitHub
+      #    Release, and sets outputs.published=true. We use `tag` not `publish`
+      #    because apps/mobile is private and never goes to npm
+      #    (privatePackages.tag:true allows tagging it).
+      # The `build` job below then builds the app IN THIS SAME RUN and attaches the
+      # artifact to that Release. (We can't trigger build-mobile.yml off the tag
+      # push because GITHUB_TOKEN-pushed tags don't start new workflow runs.)
+      - name: Version (PR) or Tag (release)
+        id: changesets
         uses: changesets/action@v1
         with:
           version: bun run version
-          commit: "chore: version packages"
-          title: "Version Packages"
+          publish: bun run tag
+          commit: 'chore: version packages'
+          title: 'Version Packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # A release can tag several packages at once (privatePackages.tag + the
+      # updateInternalDependencies cascade), so pick out the @fressh/mobile tag
+      # specifically. Empty if the mobile app wasn't part of this release.
+      - name: Determine mobile release tag
+        id: mobile
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+        run: |
+          tag=$(jq -r '.[] | select(.name=="@fressh/mobile") | "@fressh/mobile@" + .version' <<<"$PUBLISHED" | head -n1)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  # When the Version PR merge produced a release (published==true), build the app
+  # and attach it to the freshly-created GitHub Release. Calls the reusable
+  # build-mobile workflow so the build recipe lives in exactly one place.
+  # NOTE: android-only for now; switch to `all` once iOS credentials are wired.
+  build:
+    name: Build & attach artifacts
+    needs: version
+    if: needs.version.outputs.mobile-tag != ''
+    uses: ./.github/workflows/build-mobile.yml
+    with:
+      platform: android
+      release-tag: ${{ needs.version.outputs.mobile-tag }}
+      # Flip to true once the store prereqs are done (Play app created + first
+      # manual .aab upload + service-account secret; ASC app + API key for iOS).
+      # Then every changesets release auto-lands in Play internal / TestFlight.
+      submit: false
+    secrets: inherit
+    permissions:
+      contents: write

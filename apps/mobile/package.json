@@ -14,6 +14,8 @@
 		"dev:ios:release": "expo run:ios --port 8081 --variant release",
 		"build:android": "bunx eas-cli@20.1.0 build --local --platform android --profile production --non-interactive --output ./build/fressh-android.aab",
 		"build:ios": "bunx eas-cli@20.1.0 build --local --platform ios --profile production --non-interactive --output ./build/fressh-ios.ipa",
+		"submit:android": "bun scripts/submit.ts --platform android",
+		"submit:ios": "bun scripts/submit.ts --platform ios",
 		"build:signed:aab": "bun scripts/signed-build.ts",
 		"build:signed:apk": "bun scripts/signed-build.ts --format apk",
 		"build:aab": "cd android && ./gradlew bundleRelease",

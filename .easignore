@@ -55,6 +55,11 @@ packages/react-native-terminal/ios/build/
 # xcframeworks (libEGL/libGLESv2) are NOT excluded — they're needed for iOS.
 packages/react-native-terminal/shim_uniffi.xcframework/
 
+# --- store credentials (materialized by apps/mobile/scripts/submit.ts; must
+# never end up in a build archive) ---
+apps/mobile/google-service-account.json
+apps/mobile/asc-api-key.p8
+
 # --- misc ---
 .DS_Store
 *.pem

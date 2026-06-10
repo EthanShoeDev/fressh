@@ -4,6 +4,14 @@ name: Build Mobile
 # `eas build --local` via turbo. This workflow is a THIN CALLER — all of the
 # codegen/native-build ordering lives in turbo (turbo build:android / build:ios).
 # See docs/projects/ci-building-and-releasing.md ("What we're doing & why").
+#
+# Triggered two ways:
+#  - workflow_call: release.yml calls this in the SAME run after `changeset tag`
+#    creates the @fressh/mobile@<version> GitHub Release. We pass that release tag
+#    so the built artifact is attached to it. (We can't rely on the tag-push event
+#    because GITHUB_TOKEN-pushed tags don't trigger workflows.)
+#  - workflow_dispatch: manual build; no release exists, so the artifact is
+#    uploaded as a workflow artifact instead.
 on:
   workflow_dispatch:
     inputs:
@@ -12,11 +20,29 @@ on:
         type: choice
         options: [android, ios, all]
         default: android
-  push:
-    tags: ["@fressh/mobile@*"] # the changesets release tag
+      submit:
+        description: Submit to store test channels (Play internal / TestFlight) after building
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      platform:
+        description: Platform(s) to build (android | ios | all)
+        type: string
+        default: android
+      release-tag:
+        description: GitHub Release tag to attach artifacts to (e.g. "@fressh/mobile@0.0.5")
+        type: string
+        required: true
+      submit:
+        description: Submit to store test channels (Play internal / TestFlight) after building
+        type: boolean
+        default: false
+    # Secrets come from the caller via `secrets: inherit`, so no secrets block is
+    # needed here; steps reference `${{ secrets.* }}` directly.
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}
   cancel-in-progress: false
 
 permissions:
@@ -25,34 +51,14 @@ permissions:
 jobs:
   android:
     name: Android
-    if: >-
-      github.event_name == 'push' ||
-      contains(fromJSON('["android","all"]'), github.event.inputs.platform)
+    if: contains(fromJSON('["android","all"]'), inputs.platform)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-
-      - name: Cache Nix Store
-        uses: nix-community/cache-nix-action@main
-        with:
-          primary-key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-
-      - name: Load devShell environment
-        uses: nicknovitski/nix-develop@main
-        with:
-          arguments: .#default
-
-      - uses: actions/cache@v3
-        name: Setup Bun cache
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-store-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-store-
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
 
       - name: Cache Turbo
         uses: actions/cache@v4
@@ -61,8 +67,6 @@ jobs:
           key: ${{ runner.os }}-turbo-build-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-build-
-
-      - run: bun install --frozen-lockfile
 
       # turbo runs the terminal package's codegen (ubrn + nitrogen) + native .so,
       # then `eas build --local` for the app. In CI, secrets come from GitHub
@@ -73,42 +77,42 @@ jobs:
         env: # GitHub Secrets -> env:// provider, read by secretspec
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Upload artifact to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        run: gh release upload "$GITHUB_REF_NAME" apps/mobile/build/fressh-android.aab --clobber
+      - name: Attach to GitHub Release
+        if: inputs.release-tag != ''
+        run: gh release upload "${{ inputs.release-tag }}" apps/mobile/build/fressh-android.aab --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload as workflow artifact (manual builds)
+        if: inputs.release-tag == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: fressh-android-aab
+          path: apps/mobile/build/fressh-android.aab
+
+      # eas submit (free service) -> Play "internal testing" track (eas.json
+      # submit.production.android). scripts/submit.ts materializes the
+      # service-account JSON from the env var, submits the .aab, and removes it.
+      # Prereq: the FIRST .aab of a new Play app must be uploaded manually in the
+      # Play Console (Google API limitation) — see the runbook in
+      # docs/projects/ci-building-and-releasing.md.
+      - name: Submit to Play internal track
+        if: inputs.submit
+        run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile submit:android
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_KEY_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY_JSON }}
+
   ios:
     name: iOS
-    if: >-
-      github.event_name == 'push' ||
-      contains(fromJSON('["ios","all"]'), github.event.inputs.platform)
+    if: contains(fromJSON('["ios","all"]'), inputs.platform)
     runs-on: macos-15 # iOS Rust build + xcframework + signing need macOS
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-
-      - name: Cache Nix Store
-        uses: nix-community/cache-nix-action@main
-        with:
-          primary-key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
-
-      - name: Load devShell environment
-        uses: nicknovitski/nix-develop@main
-        with:
-          arguments: .#default
-
-      - uses: actions/cache@v3
-        name: Setup Bun cache
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-store-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-store-
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
 
       - name: Cache Turbo
         uses: actions/cache@v4
@@ -118,18 +122,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-build-
 
-      - run: bun install --frozen-lockfile
-
       - name: Build (turbo -> eas build --local)
         run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bunx turbo build:ios --filter @fressh/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
 
-      - name: Upload artifact to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        run: gh release upload "$GITHUB_REF_NAME" apps/mobile/build/fressh-ios.ipa --clobber
+      - name: Attach to GitHub Release
+        if: inputs.release-tag != ''
+        run: gh release upload "${{ inputs.release-tag }}" apps/mobile/build/fressh-ios.ipa --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload as workflow artifact (manual builds)
+        if: inputs.release-tag == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: fressh-ios-ipa
+          path: apps/mobile/build/fressh-ios.ipa
+
+      # eas submit (free service) -> App Store Connect; every iOS submit lands in
+      # TestFlight. Needs the ASC API key (.p8 via env; key/issuer/app IDs are
+      # non-secret and live in eas.json submit.production.ios).
+      - name: Submit to TestFlight
+        if: inputs.submit
+        run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile submit:ios
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
