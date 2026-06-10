@@ -245,6 +245,11 @@ void test('runtime shell config accepts command menu action entries', () => {
 			label: 'Request a Feature',
 			actionId: 'OPEN_REPO_FEATURE_REQUEST',
 		},
+		{
+			type: 'action',
+			label: 'Fit terminal to device',
+			actionId: 'FIT_TERMINAL_TO_DEVICE',
+		},
 	];
 
 	const parsed = parseShellConfigData(config);
@@ -254,6 +259,11 @@ void test('runtime shell config accepts command menu action entries', () => {
 			type: 'action',
 			label: 'Request a Feature',
 			actionId: 'OPEN_REPO_FEATURE_REQUEST',
+		},
+		{
+			type: 'action',
+			label: 'Fit terminal to device',
+			actionId: 'FIT_TERMINAL_TO_DEVICE',
 		},
 	]);
 });

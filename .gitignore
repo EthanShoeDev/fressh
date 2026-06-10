@@ -42,6 +42,7 @@ mnt/*
 .turbo/
 .direnv/
 .cache/
+.worktrees/
 
 # Local backups & artifacts
 backup.json

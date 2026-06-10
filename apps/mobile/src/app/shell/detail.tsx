@@ -103,6 +103,10 @@ import {
 import { executeSideChannelCommand } from '@/lib/ssh-side-channel';
 import { useSshStore } from '@/lib/ssh-store';
 import {
+	createManualTerminalFitRunner,
+	type TerminalFitSize,
+} from '@/lib/terminal-fit-runner';
+import {
 	buildClipboardPasteSegments,
 	buildCommanderExecuteSegments,
 	buildTextEntryPastePayload,
@@ -440,6 +444,9 @@ function ShellDetail() {
 	const hasAttachedOnceRef = useRef(false);
 	const workmuxScrollbackCommandExecutorRef =
 		useRef<WorkmuxScrollbackCommandExecutor | null>(null);
+	const waitForTerminalSizeAfterFitRef = useRef<
+		() => Promise<TerminalFitSize | null>
+	>(async () => null);
 	const [terminalReady, setTerminalReady] = useState(false);
 	const [hasRenderedTerminal, setHasRenderedTerminal] = useState(false);
 	const [shellConfigState, setShellConfigState] = useState(() =>
@@ -498,13 +505,12 @@ function ShellDetail() {
 	const normalizedTmuxTarget = tmuxTarget.trim().length
 		? tmuxTarget.trim()
 		: 'main';
-	const workmuxControlChannel = useMemo<WorkmuxControlChannel>(
-		() =>
-			createWorkmuxControlChannel({
-				connection: connection ?? null,
-			}),
-		[connection, normalizedTmuxTarget],
-	);
+	const workmuxControlChannel = useMemo<WorkmuxControlChannel>(() => {
+		void normalizedTmuxTarget;
+		return createWorkmuxControlChannel({
+			connection: connection ?? null,
+		});
+	}, [connection, normalizedTmuxTarget]);
 	const workmuxControlChannelRef = useRef(workmuxControlChannel);
 	useLayoutEffect(() => {
 		workmuxControlChannelRef.current = workmuxControlChannel;
@@ -1928,12 +1934,7 @@ function ShellDetail() {
 		configureModal.onClose();
 		if (!featureRequestCloseRef.current()) return false;
 		return true;
-	}, [
-		commandMenuModal,
-		commanderModal,
-		configureModal,
-		handleCloseTextEntry,
-	]);
+	}, [commandMenuModal, commanderModal, configureModal, handleCloseTextEntry]);
 
 	const runBrowserActionsWorkmuxCommand = useCallback(
 		async (_connection: unknown, argv: string[], timeoutMs: number) => {
@@ -1959,6 +1960,30 @@ function ShellDetail() {
 		getErrorMessage,
 		closeOtherModals: closeBrowserActionsOtherModals,
 	});
+	const manualTerminalFitRunner = useMemo(
+		() =>
+			createManualTerminalFitRunner({
+				getConnection: () => connection ?? null,
+				isTmuxEnabled: () => tmuxEnabled,
+				getTerminalSize: () => lastSizeRef.current,
+				getXterm: () => xtermRef.current,
+				getTargetName: () => tmuxTarget.trim() || 'main',
+				waitForTerminalSizeAfterFit: () =>
+					waitForTerminalSizeAfterFitRef.current(),
+				resizePty: async (cols, rows) => {
+					if (!shell) {
+						throw new Error('No shell is available.');
+					}
+					await shell.resizePty(cols, rows);
+				},
+				executeSideChannelCommand,
+				showFailure: (title, message) => {
+					Alert.alert(title, message);
+				},
+				getErrorMessage,
+			}),
+		[connection, shell, tmuxEnabled, tmuxTarget],
+	);
 	const workmuxKeyboardTmuxEnabledRef = useRef(tmuxEnabled);
 	const workmuxKeyboardTmuxTargetRef = useRef(tmuxTarget);
 	const browserActionsInvalidateAllRef = useRef(browserActions.invalidateAll);
@@ -2423,6 +2448,11 @@ function ShellDetail() {
 		[workmuxKeyboardCommandRunner],
 	);
 
+	const handleFitTerminalToDevice = useCallback(() => {
+		commandMenuModal.onClose();
+		void manualTerminalFitRunner.run();
+	}, [commandMenuModal, manualTerminalFitRunner]);
+
 	const actionContext = useMemo<ActionContext>(
 		() => ({
 			availableKeyboardIds,
@@ -2434,6 +2464,7 @@ function ShellDetail() {
 			sendBytes: sendBytesRaw,
 			pasteClipboard: handlePasteClipboard,
 			copySelection: handleCopySelection,
+			fitTerminalToDevice: handleFitTerminalToDevice,
 			toggleCommandMenu: () => {
 				browserActions.invalidateHostUrlReads();
 				commanderModal.onClose();
@@ -2476,6 +2507,7 @@ function ShellDetail() {
 			handleCopySelection,
 			handleCloseTextEntry,
 			handlePasteClipboard,
+			handleFitTerminalToDevice,
 			handleOpenWisprTextEditor,
 			openConfigDialog,
 			rotateKeyboard,
@@ -2572,20 +2604,56 @@ function ShellDetail() {
 	// Debounced PTY resize handler
 	const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
+	const terminalFitSizeWaitersRef = useRef(
+		new Set<(size: TerminalFitSize) => void>(),
+	);
 	const resumeDismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
 
+	const waitForTerminalSizeAfterFit = useCallback(() => {
+		return new Promise<TerminalFitSize | null>((resolve) => {
+			let settled = false;
+			let timeoutId: ReturnType<typeof setTimeout> | null = null;
+			let waiter: ((size: TerminalFitSize) => void) | null = null;
+
+			const finish = (size: TerminalFitSize | null) => {
+				if (settled) return;
+				settled = true;
+				if (timeoutId) {
+					clearTimeout(timeoutId);
+				}
+				if (waiter) {
+					terminalFitSizeWaitersRef.current.delete(waiter);
+				}
+				resolve(size);
+			};
+			waiter = (size: TerminalFitSize) => finish(size);
+
+			terminalFitSizeWaitersRef.current.add(waiter);
+			timeoutId = setTimeout(() => {
+				finish(lastSizeRef.current);
+			}, 250);
+		});
+	}, []);
+	waitForTerminalSizeAfterFitRef.current = waitForTerminalSizeAfterFit;
+
 	const handleTerminalResize = useCallback(
 		(cols: number, rows: number) => {
+			const previousSize = lastSizeRef.current;
+			const nextSize = { cols, rows };
+			lastSizeRef.current = nextSize;
+			if (terminalFitSizeWaitersRef.current.size > 0) {
+				for (const waiter of terminalFitSizeWaitersRef.current) {
+					waiter(nextSize);
+				}
+				terminalFitSizeWaitersRef.current.clear();
+			}
+
 			// Skip if same size
-			if (
-				lastSizeRef.current?.cols === cols &&
-				lastSizeRef.current?.rows === rows
-			) {
+			if (previousSize?.cols === cols && previousSize?.rows === rows) {
 				return;
 			}
-			lastSizeRef.current = { cols, rows };
 
 			// Clear pending resize
 			if (resizeTimeoutRef.current) {
@@ -2884,8 +2952,7 @@ function ShellDetail() {
 	}, [clearScrollbackState]);
 
 	const writeShellChunkToTerminal = useCallback((bytesBuffer: ArrayBuffer) => {
-		const bytes = new Uint8Array(bytesBuffer);
-		xtermRef.current?.write(bytes);
+		xtermRef.current?.write(new Uint8Array(bytesBuffer));
 	}, []);
 
 	const detachShellListener = useCallback(() => {

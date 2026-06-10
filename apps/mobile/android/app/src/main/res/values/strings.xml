@@ -1,0 +1,9 @@
+<resources>
+  <string name="app_name">Fressh</string>
+  <string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>
+  <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
+  <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
+  <string name="expo_runtime_version">0.0.5-native-agent-alert-route-v1</string>
+  <string name="wispr_automation_accessibility_description">Fressh Wispr Flow dictation automation</string>
+  <string name="wispr_automation_accessibility_summary">Allows Fressh to find the Wispr Flow control and perform a tap gesture only when you start Wispr dictation from Fressh.</string>
+</resources>

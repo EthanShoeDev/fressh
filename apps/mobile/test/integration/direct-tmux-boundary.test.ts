@@ -27,6 +27,7 @@ const directMuxBoundaryPath =
 const workmuxAppCommandsPath = 'apps/mobile/src/lib/workmux-app-commands.ts';
 const allowedDirectMuxCommandPrefixes = new Set([
 	'tmux copy-mode',
+	'tmux resize-window',
 	'tmux send-keys',
 ]);
 
@@ -481,6 +482,14 @@ void test('direct tmux boundary only allows DirectMux commands in the boundary f
 			kind: 'shell',
 			functionName: 'buildDirectTmuxScrollMoveCommand',
 			commandPrefix: 'tmux send-keys',
+		}),
+		true,
+	);
+	assert.equal(
+		isAllowedAppBoundaryOccurrence(directMuxBoundaryPath, {
+			kind: 'shell',
+			functionName: 'buildDirectTmuxResizeWindowCommand',
+			commandPrefix: 'tmux resize-window',
 		}),
 		true,
 	);

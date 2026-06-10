@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+	buildDirectTmuxResizeWindowCommand,
 	buildDirectTmuxScrollEnterCommand,
 	buildDirectTmuxScrollExitCommand,
 	buildDirectTmuxScrollMoveCommand,
@@ -93,6 +94,48 @@ void test('DirectMux scroll move rejects invalid direction, unit, and count', ()
 					count,
 				}),
 			new RegExp(`Invalid DirectMux count: ${count}`),
+		);
+	}
+});
+
+void test('DirectMux resize window command targets explicit terminal size', () => {
+	assert.equal(
+		buildDirectTmuxResizeWindowCommand({
+			targetName: 'main',
+			cols: 42,
+			rows: 17,
+		}),
+		'tmux resize-window -t main -x 42 -y 17 \\; set-window-option -t main window-size manual',
+	);
+	assert.equal(
+		buildDirectTmuxResizeWindowCommand({
+			targetName: "main's work",
+			cols: 88,
+			rows: 33,
+		}),
+		"tmux resize-window -t 'main'\\''s work' -x 88 -y 33 \\; set-window-option -t 'main'\\''s work' window-size manual",
+	);
+});
+
+void test('DirectMux resize window command rejects invalid terminal sizes', () => {
+	for (const size of [0, -1, 1.5, Number.NaN]) {
+		assert.throws(
+			() =>
+				buildDirectTmuxResizeWindowCommand({
+					targetName: 'main',
+					cols: size,
+					rows: 24,
+				}),
+			new RegExp(`Invalid DirectMux count: ${size}`),
+		);
+		assert.throws(
+			() =>
+				buildDirectTmuxResizeWindowCommand({
+					targetName: 'main',
+					cols: 80,
+					rows: size,
+				}),
+			new RegExp(`Invalid DirectMux count: ${size}`),
 		);
 	}
 });
@@ -272,7 +315,7 @@ void test('DirectMux transport overlapping dispose closes hidden shell once', as
 	assert.equal(await send, true);
 	await closeStarted.promise;
 	let secondDisposeResolved = false;
-	secondDispose.then(() => {
+	void secondDispose.then(() => {
 		secondDisposeResolved = true;
 	});
 	await new Promise((resolve) => setTimeout(resolve, 0));

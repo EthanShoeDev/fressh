@@ -31,6 +31,12 @@ export type DirectTmuxScrollMove = {
 	count: number;
 };
 
+export type DirectTmuxResizeWindow = {
+	targetName: string;
+	cols: number;
+	rows: number;
+};
+
 export type DirectTmuxControlTransport = {
 	send: (command: string) => Promise<boolean>;
 	dispose: () => Promise<void>;
@@ -97,6 +103,26 @@ export function buildDirectTmuxScrollMoveCommand({
 		`-t ${quoteTmuxTarget(sessionName)}`,
 		`-N ${safeCount}`,
 		`-X ${tmuxAction}`,
+	].join(' ');
+}
+
+export function buildDirectTmuxResizeWindowCommand({
+	targetName,
+	cols,
+	rows,
+}: DirectTmuxResizeWindow): string {
+	const safeCols = requirePositiveInteger(cols);
+	const safeRows = requirePositiveInteger(rows);
+	const target = quoteTmuxTarget(targetName);
+	return [
+		'tmux resize-window',
+		`-t ${target}`,
+		`-x ${safeCols}`,
+		`-y ${safeRows}`,
+		'\\;',
+		'set-window-option',
+		`-t ${target}`,
+		'window-size manual',
 	].join(' ');
 }
 

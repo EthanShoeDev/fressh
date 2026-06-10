@@ -519,6 +519,28 @@ void test('shell config accepts legacy detected-open action ids', () => {
 	assert.doesNotThrow(() => parseShellConfigData(macroConfig));
 });
 
+void test('mdev command menu exposes terminal fit action', () => {
+	const config = getBundledShellConfig();
+	const mdevMenu = config.commandMenus.find(
+		(entry) => entry.type === 'submenu' && entry.label === 'mdev',
+	);
+	assert.ok(mdevMenu);
+	assert.equal(mdevMenu.type, 'submenu');
+
+	assert.deepEqual(mdevMenu.entries.slice(0, 2), [
+		{
+			type: 'action',
+			label: 'Request a Feature',
+			actionId: 'OPEN_REPO_FEATURE_REQUEST',
+		},
+		{
+			type: 'action',
+			label: 'Fit terminal to device',
+			actionId: 'FIT_TERMINAL_TO_DEVICE',
+		},
+	]);
+});
+
 void test('advanced keyboard omits consolidated host URL setter actions', () => {
 	const config = getBundledShellConfig();
 	const advancedKeyboard = config.keyboards.find(
