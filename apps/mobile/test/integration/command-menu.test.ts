@@ -95,6 +95,7 @@ void test('bundled command menu exposes the approved Issue 91 tree', () => {
 			type: 'submenu',
 			children: [
 				{ label: 'Request a Feature', type: 'action' },
+				{ label: 'Fit terminal to device', type: 'action' },
 				{ label: 'Open Workspace', type: 'preset' },
 				{ label: 'Close Workspace', type: 'preset' },
 				{ label: 'Rename Workspace', type: 'preset' },
@@ -205,9 +206,12 @@ void test('core8 submenu owns repo quality commands', () => {
 		label: 'yarn test:ci',
 		steps: [{ type: 'text', data: 'yarn test:ci' }, { type: 'enter' }],
 	});
-	assert.deepEqual(findPreset(commandMenus, ['core8', 'core8 jobs switch T0']), {
-		type: 'preset',
-		label: 'core8 jobs switch T0',
-		steps: [{ type: 'text', data: './bin/core8 jobs switch T0' }],
-	});
+	assert.deepEqual(
+		findPreset(commandMenus, ['core8', 'core8 jobs switch T0']),
+		{
+			type: 'preset',
+			label: 'core8 jobs switch T0',
+			steps: [{ type: 'text', data: './bin/core8 jobs switch T0' }],
+		},
+	);
 });

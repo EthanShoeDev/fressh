@@ -25,6 +25,7 @@ import {
 	HOST_BROWSER_NO_CONNECTION_MESSAGE,
 	parseHostBrowserUrlInput,
 	type HostBrowserOpenMode,
+	type TmuxPaneContext,
 	type HostBrowserUrlSlot,
 } from './host-browser-actions';
 import { runHostCommandWithBoundary } from './host-command-router';
@@ -676,6 +677,7 @@ export type BrowserActionsControllerHandle = {
 	hostUrlProps: HostUrlModalProps;
 	open: () => void;
 	close: () => void;
+	resolveHostBrowserPaneContext: () => Promise<TmuxPaneContext>;
 	resolveHostBrowserPanePath: () => Promise<string>;
 	resolveHostBrowserWorkspace: () => Promise<BrowserActionsWorkspace>;
 	resolveCurrentGitHubRepository: () => Promise<string>;
@@ -1208,6 +1210,7 @@ export function useBrowserActionsController<TConnection>(
 			hostUrlProps,
 			open: openController,
 			close,
+			resolveHostBrowserPaneContext,
 			resolveHostBrowserPanePath,
 			resolveHostBrowserWorkspace,
 			resolveCurrentGitHubRepository,
@@ -1223,6 +1226,7 @@ export function useBrowserActionsController<TConnection>(
 			invalidateHostUrlReads,
 			openController,
 			resolveCurrentGitHubRepository,
+			resolveHostBrowserPaneContext,
 			resolveHostBrowserPanePath,
 			resolveHostBrowserWorkspace,
 			runHostBrowserCommand,
