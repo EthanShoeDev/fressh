@@ -86,5 +86,8 @@ jobs:
       # Then every changesets release auto-lands in Play internal / TestFlight.
       submit: false
     secrets: inherit
+    # A caller's permissions block CAPS what the called workflow may request —
+    # build-mobile.yml needs id-token for Google WIF, so it must be granted here.
     permissions:
       contents: write
+      id-token: write
