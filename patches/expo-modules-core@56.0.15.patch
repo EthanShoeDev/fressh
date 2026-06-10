@@ -1,0 +1,13 @@
+diff --git a/ios/Core/SharedObjects/SharedObjectRegistry.swift b/ios/Core/SharedObjects/SharedObjectRegistry.swift
+index bb2bdcdc3b93ae9dea7dbc4c4f7e36109590d5c4..0fcae111f093c64e6ac4a720603f68ee71f853b8 100644
+--- a/ios/Core/SharedObjects/SharedObjectRegistry.swift
++++ b/ios/Core/SharedObjects/SharedObjectRegistry.swift
+@@ -34,7 +34,7 @@ public final class SharedObjectRegistry: Sendable {
+   /**
+    Weak reference to the app context for the registry.
+    */
+-  private weak let appContext: AppContext?
++  nonisolated(unsafe) private weak var appContext: AppContext?
+ 
+   internal struct State: Sendable {
+     /**

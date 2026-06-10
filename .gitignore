@@ -18,6 +18,8 @@ coverage
 .next/
 out/
 dist
+.nitro/
+.output/
 
 
 # Debug
@@ -39,3 +41,5 @@ mnt/*
 .turbo/
 .direnv/
 .cache/
+
+docs/cloned-repos-as-docs/

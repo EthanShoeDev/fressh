@@ -1,0 +1,305 @@
+//! `Session = connection + shells + Term + reader task`. The reader loop feeds
+//! the parsed `Term` continuously in the background — view or no view — which is
+//! exactly what makes scrollback durable across view mount/unmount (§9).
+
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
+use alacritty_terminal::event::{Event, EventListener};
+use alacritty_terminal::grid::Dimensions;
+use alacritty_terminal::term::Config as TermConfig;
+use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor};
+use alacritty_terminal::vte::Parser as OscParser;
+use alacritty_terminal::Term;
+use once_cell::sync::Lazy;
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
+
+use fressh_ssh::{Connection as SshConnection, SshError, TerminalType};
+
+use crate::events::{self, CoreEvent};
+use crate::osc::OscScanner;
+use crate::source::{ShellBackend, WriteSink};
+use crate::{registry, runtime};
+
+/// Shared, lockable parsed terminal state. The reader loop writes it; the render
+/// plane reads it (looked up from the registry by shell id). Std `Mutex` is fine
+/// — contention is a brief per-chunk write vs a per-frame read.
+pub type SharedTerm = Arc<Mutex<Term<CoreListener>>>;
+
+/// Renderer cell metrics in physical px, published by the render plane on each
+/// resize. The control plane uses them to map touch pixels → grid cells for
+/// touch-driven scroll and selection (the `Term` knows the grid + scroll offset,
+/// but not the on-screen pixel size of a cell — only the renderer does).
+#[derive(Clone, Copy, Default)]
+pub struct RenderMetrics {
+	pub cell_width: f32,
+	pub cell_height: f32,
+	pub padding_x: f32,
+	pub padding_y: f32,
+}
+
+/// `EventListener` for our `Term`. The only event we must act on is `PtyWrite`
+/// (terminal responses to queries like cursor-position reports): we forward those
+/// bytes back to the shell's stdin. Other events (title, bell, …) are ignored for
+/// now. Cheap to clone; the parser calls it synchronously while the `Term` is
+/// locked, so it must not block — it just enqueues onto an unbounded channel.
+#[derive(Clone)]
+pub struct CoreListener {
+	pty_tx: mpsc::UnboundedSender<Vec<u8>>,
+}
+
+impl EventListener for CoreListener {
+	fn send_event(&self, event: Event) {
+		if let Event::PtyWrite(text) = event {
+			let _ = self.pty_tx.send(text.into_bytes());
+		}
+	}
+}
+
+/// Monotonic process clock. Activity timestamps are stored as ms since this
+/// instant so they can live in a lock-free `AtomicU64` (read every frame by the
+/// render plane on a different thread than the input writer).
+static PROCESS_START: Lazy<Instant> = Lazy::new(Instant::now);
+
+/// Milliseconds since [`PROCESS_START`].
+fn now_ms() -> u64 {
+	PROCESS_START.elapsed().as_millis() as u64
+}
+
+/// A live shell: the durable `Term`, a writer for stdin/resize, and the two
+/// background tasks (the reader loop feeding `Term`, and the PTY-response drain).
+pub struct ShellSession {
+	pub shell_id: String,
+	pub connection_id: String,
+	pub channel_id: u32,
+	pub term_type: TerminalType,
+	pub created_at_ms: f64,
+	pub term: SharedTerm,
+	/// Latest renderer cell metrics (physical px), set by the render plane on resize.
+	pub metrics: Mutex<RenderMetrics>,
+	/// Sub-cell scroll accumulator so slow drags still scroll smoothly (mirrors
+	/// termux's `mScrollRemainder`). Reset when a selection starts.
+	pub scroll_remainder: Mutex<f32>,
+	/// `now_ms()` of the last user input (keystroke/paste), bumped in
+	/// [`Self::send_data`]. The render plane reads the resulting idle time each
+	/// frame to drive the cursor blink timeout/reset (input lands on the control
+	/// plane, not the render plane, so the signal must originate here).
+	last_input_ms: AtomicU64,
+	/// History limit this `Term` was built with, kept so [`Self::set_cursor_default_blinking`]
+	/// can rebuild the `Term` config (via `set_options`) without clobbering it.
+	scrollback_lines: usize,
+	/// The `On`/`Always`-vs-`Off` default blink currently seeded into the `Term`'s
+	/// `default_cursor_style`. Tracked so we only call the (event-firing)
+	/// `set_options` when it actually changes.
+	default_cursor_blinking: AtomicBool,
+	writer: WriteSink,
+	reader_task: JoinHandle<()>,
+	pty_task: JoinHandle<()>,
+}
+
+impl ShellSession {
+	/// Wrap a byte source ([`ShellBackend`]) in a session: build the `Term`, spawn
+	/// the reader loop (bytes → `Term`) and the PTY-response drain (`Term` → stdin).
+	/// The backend is SSH for a live shell, or a canned snippet for the settings
+	/// preview — the session is identical either way (§ data plane).
+	pub(crate) fn spawn(
+		shell_id: String,
+		connection_id: String,
+		backend: ShellBackend,
+		cols: usize,
+		rows: usize,
+		scrollback_lines: usize,
+	) -> Arc<Self> {
+		let (pty_tx, mut pty_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+		let listener = CoreListener { pty_tx };
+
+		let dims = GridDims {
+			columns: cols.max(1),
+			screen_lines: rows.max(1),
+		};
+		let config = TermConfig {
+			scrolling_history: scrollback_lines,
+			..Default::default()
+		};
+		let term: SharedTerm = Arc::new(Mutex::new(Term::new(config, &dims, listener)));
+
+		let ShellBackend {
+			channel_id,
+			term_type,
+			created_at_ms,
+			mut reader,
+			writer,
+		} = backend;
+
+		// Reader loop: parse incoming bytes into the durable Term until EOF.
+		let term_for_reader = term.clone();
+		let shell_id_for_reader = shell_id.clone();
+		let reader_task = runtime::handle().spawn(async move {
+			let mut processor: Processor = Processor::new();
+			// Second, low-level vte pass for shell-integration OSCs (7/133). It
+			// touches no `Term` state — only emits `CoreEvent`s — so it runs
+			// OUTSIDE the term lock to keep that critical section tight. See
+			// osc.rs / docs/projects/terminal-semantic-events.md.
+			let mut osc_parser = OscParser::new();
+			let mut osc_scanner = OscScanner::new(shell_id_for_reader.clone());
+			while let Some(bytes) = reader.recv().await {
+				{
+					let mut term = term_for_reader.lock().unwrap_or_else(|p| p.into_inner());
+					processor.advance(&mut *term, &bytes);
+				}
+				osc_parser.advance(&mut osc_scanner, &bytes);
+			}
+			// EOF → the source closed; drop the session and notify JS. (The canned
+			// preview source never reaches here — it parks after its one snippet.)
+			registry::remove_shell(&shell_id_for_reader);
+			events::emit(CoreEvent::ShellClosed {
+				shell_id: shell_id_for_reader,
+			});
+		});
+
+		// PTY-response drain: write terminal query responses back to the server.
+		let writer_for_pty = writer.clone();
+		let pty_task = runtime::handle().spawn(async move {
+			while let Some(bytes) = pty_rx.recv().await {
+				let _ = writer_for_pty.send_data(&bytes).await;
+			}
+		});
+
+		Arc::new(Self {
+			shell_id,
+			connection_id,
+			channel_id,
+			term_type,
+			created_at_ms,
+			term,
+			metrics: Mutex::new(RenderMetrics::default()),
+			scroll_remainder: Mutex::new(0.0),
+			// Seed as "just active" so a fresh shell's cursor blinks immediately
+			// rather than starting already timed-out.
+			last_input_ms: AtomicU64::new(now_ms()),
+			scrollback_lines,
+			// `Term` default is steady (false); the render plane seeds On/Always live.
+			default_cursor_blinking: AtomicBool::new(false),
+			writer,
+			reader_task,
+			pty_task,
+		})
+	}
+
+	/// Seed the `Term`'s *default* cursor blink (what `On`/`Off` resolve to when no
+	/// program has set DECSCUSR). Driven live by the render plane on config/attach,
+	/// so switching the app's blink mode to `On` affects already-open shells — not
+	/// just new ones. Cheap and idempotent: a no-op unless the value changes, since
+	/// `set_options` fires events + a full redamage. Preserves `scrolling_history`.
+	pub fn set_cursor_default_blinking(&self, blinking: bool) {
+		if self
+			.default_cursor_blinking
+			.swap(blinking, Ordering::Relaxed)
+			== blinking
+		{
+			return;
+		}
+		let mut term = self.term.lock().unwrap_or_else(|p| p.into_inner());
+		term.set_options(TermConfig {
+			scrolling_history: self.scrollback_lines,
+			default_cursor_style: CursorStyle {
+				shape: CursorShape::Block,
+				blinking,
+			},
+			..Default::default()
+		});
+	}
+
+	/// Send user input (stdin) to the shell.
+	pub async fn send_data(&self, data: &[u8]) -> Result<(), SshError> {
+		// Input is the activity that resets the cursor blink timeout/phase.
+		self.last_input_ms.store(now_ms(), Ordering::Relaxed);
+		self.writer.send_data(data).await
+	}
+
+	/// Milliseconds since the last user input — read by the render plane each
+	/// frame to drive the cursor blink. Saturates at 0 (clock is monotonic).
+	pub fn input_idle_ms(&self) -> u64 {
+		now_ms().saturating_sub(self.last_input_ms.load(Ordering::Relaxed))
+	}
+
+	/// Resize the terminal: reflow the durable `Term` and tell the server.
+	pub async fn resize(&self, cols: usize, rows: usize) -> Result<(), SshError> {
+		{
+			let mut term = self.term.lock().unwrap_or_else(|p| p.into_inner());
+			term.resize(GridDims {
+				columns: cols.max(1),
+				screen_lines: rows.max(1),
+			});
+		}
+		self.writer.resize(cols as u32, rows as u32).await
+	}
+
+	/// Close the shell: stop the background tasks and close the channel. The
+	/// `Term` is dropped with the session (caller removes it from the registry).
+	pub async fn close(&self) {
+		self.reader_task.abort();
+		self.pty_task.abort();
+		let _ = self.writer.close().await;
+	}
+}
+
+/// A live connection plus its registry id. Shells are tracked in the registry
+/// keyed by their own ids, not nested here (flat id-keyed model, §7).
+pub struct ConnectionSession {
+	pub connection_id: String,
+	pub inner: Arc<SshConnection>,
+}
+
+/// Grid dimensions for `Term::new`. History is configured separately via
+/// `TermConfig::scrolling_history`, so `total_lines == screen_lines` here.
+struct GridDims {
+	columns: usize,
+	screen_lines: usize,
+}
+impl Dimensions for GridDims {
+	fn total_lines(&self) -> usize {
+		self.screen_lines
+	}
+	fn screen_lines(&self) -> usize {
+		self.screen_lines
+	}
+	fn columns(&self) -> usize {
+		self.columns
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	/// The `Term`'s replies to queries (here a Device Status Report) must flow
+	/// through `CoreListener` onto the PTY-response channel so the drain task can
+	/// write them back to the server. This is the seam the reader loop relies on.
+	#[test]
+	fn pty_write_is_forwarded_to_response_channel() {
+		let (pty_tx, mut pty_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+		let listener = CoreListener { pty_tx };
+		let dims = GridDims {
+			columns: 80,
+			screen_lines: 24,
+		};
+		let mut term = Term::new(TermConfig::default(), &dims, listener);
+
+		// CSI 6 n = report cursor position → Term replies via Event::PtyWrite.
+		let mut processor: Processor = Processor::new();
+		processor.advance(&mut term, b"\x1b[6n");
+
+		let resp = pty_rx.try_recv().expect("expected a PTY response");
+		assert!(
+			resp.starts_with(b"\x1b["),
+			"expected a CSI response, got {resp:?}"
+		);
+		assert!(
+			resp.ends_with(b"R"),
+			"expected a cursor-position report ending in 'R'"
+		);
+	}
+}

@@ -1,17 +1,17 @@
 import { Stack } from 'expo-router';
-import { useTheme } from '@/lib/theme';
+import { useThemedHeader } from '@/components/themed/useThemedHeader';
 
 export default function SettingsStackLayout() {
-	const theme = useTheme();
+	const header = useThemedHeader();
 	return (
-		<Stack
-			screenOptions={{
-				headerStyle: { backgroundColor: theme.colors.surface },
-				headerTitleStyle: { color: theme.colors.textPrimary },
-				headerTintColor: theme.colors.textPrimary,
-			}}
-		>
-			<Stack.Screen name="index" options={{ title: 'Settings' }} />
+		<Stack screenOptions={header.screenOptions}>
+			{/* Settings root renders its own inline themed header; the Terminal
+			    sub-screen keeps the native bar (it's a deeper form route). */}
+			<Stack.Screen name='index' options={{ headerShown: false }} />
+			<Stack.Screen
+				name='terminal'
+				options={{ title: header.title('Terminal') }}
+			/>
 		</Stack>
 	);
 }

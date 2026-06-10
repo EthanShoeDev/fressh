@@ -1,0 +1,22 @@
+Fressh is a fast, modern SSH client built around a real terminal — not a webview. A native Rust SSH stack and a GPU-rendered terminal emulator make remote shells feel instant, even on flaky mobile connections.
+
+<b>Connect fast</b>
+• Save your servers and connect in one tap
+• Import existing SSH keys (including ED25519) or generate new ones, stored securely in the system keystore
+• Clear, readable errors when something goes wrong — no silent failures
+
+<b>A real terminal</b>
+• GPU-accelerated terminal rendering for smooth scrolling and crisp text
+• Smart toolbar with arrow keys, modifiers, and paging designed for touch
+• Automatic shell integration: command-aware scrollback, status, and a context bar
+• Git-aware sessions: see branch status at a glance and review diffs on device
+
+<b>Commands, not just shells</b>
+• Save command presets and run them on any host with one tap
+• Fire one-off commands without opening a full session
+
+<b>Make it yours</b>
+• Multiple themes, from terminal-classic to native platform styling
+• Keyboard-safe layouts that keep your prompt visible while you type
+
+Your keys never leave your device. No accounts, no tracking — just SSH.

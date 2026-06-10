@@ -1,0 +1,27 @@
+// Oxfmt Configuration
+// https://oxc.rs/docs/guide/usage/formatter/config-file-reference.html
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"printWidth": 80,
+	"tabWidth": 2,
+	"useTabs": true,
+	"singleQuote": true,
+	"jsxSingleQuote": true,
+	"trailingComma": "all",
+	"bracketSpacing": true,
+	"bracketSameLine": false,
+	"ignorePatterns": [
+		"docs/**",
+		// Vendored third-party submodules (e.g. our alacritty/crossfont forks);
+		// never reformat upstream code — it churns huge fixtures and pollutes
+		// fork diffs/rebases.
+		"**/vendor/**",
+		"**/dist/**",
+		"**/dist-internal/**",
+		"**/lib/**",
+		"**/.expo/**",
+		"**/android/**",
+		"**/ios/**",
+		"**/uniwind-types.d.ts",
+	],
+}

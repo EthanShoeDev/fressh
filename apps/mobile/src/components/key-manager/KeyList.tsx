@@ -1,113 +1,542 @@
-import { RnRussh } from '@fressh/react-native-uniffi-russh';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useAtomSet, useAtomValue } from '@effect/atom-react';
+import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
 import * as DocumentPicker from 'expo-document-picker';
 import React from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { secretsManager } from '@/lib/secrets-manager';
-import { useTheme } from '@/lib/theme';
+import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { useCSSVariable } from 'uniwind';
+import { BottomSheet } from '@/components/BottomSheet';
+import { Button } from '@/components/themed/Button';
+import { useSurfaceStyle } from '@/components/themed/ThemedScreen';
+import { ThemedText } from '@/components/themed/ThemedText';
+import { secretsManager, type KeyMetadata } from '@/lib/secrets-manager';
+import { useThemeSkin } from '@/lib/theme-skin';
+import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
+import { asyncResultErrorMessage } from '@/lib/utils';
 
 export type KeyListMode = 'manage' | 'select';
 
+type KeyEntry = { id: string; metadata: KeyMetadata };
+
+const MONTHS = [
+	'Jan',
+	'Feb',
+	'Mar',
+	'Apr',
+	'May',
+	'Jun',
+	'Jul',
+	'Aug',
+	'Sep',
+	'Oct',
+	'Nov',
+	'Dec',
+];
+
+/** "Mar 4, 2026" — avoids leaning on Hermes Intl for a tiny, predictable label. */
+function formatAdded(ms: number) {
+	const d = new Date(ms);
+	return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+/**
+ * Strictly private-key management, rebuilt to match the "Keys & Connect" design:
+ * a Generate/Import action row, then a card per key (accent key-glyph, name +
+ * DEFAULT badge, added date). Tapping a card raises a detail bottom sheet where
+ * ANY key — default or not — can be set-default / renamed / deleted, so renaming
+ * a non-default key is two taps. Import lives behind its own sheet, and there's a
+ * proper empty state. All chrome comes from the active theme's skin/tokens, so it
+ * wears Aurora glass, Monolith brutalism, etc.
+ *
+ * In `select` mode (the connect form's key picker) the cards just pick: tapping
+ * one calls `onSelect(id)` and there's no detail sheet.
+ */
 export function KeyList(props: {
 	mode: KeyListMode;
 	onSelect?: (id: string) => void | Promise<void>;
 }) {
-	const listKeysQuery = useQuery(secretsManager.keys.query.list);
-	const theme = useTheme();
+	const bottomSpace = useBottomTabSpacing();
+	const onPrimary = useCSSVariable('--color-button-text-on-primary') as string;
+	const secondary = useCSSVariable('--color-text-secondary') as string;
+	const listResult = useAtomValue(secretsManager.keys.atoms.list);
 
-	const generateMutation = useMutation({
-		mutationFn: async () => {
-			const pair = await RnRussh.generateKeyPair('ed25519');
-			await secretsManager.keys.utils.upsertPrivateKey({
-				metadata: { priority: 0, label: 'New Key', isDefault: false },
-				value: pair,
-			});
-		},
-		onSuccess: () => listKeysQuery.refetch(),
-	});
+	const generate = useAtomSet(secretsManager.keys.atoms.generate);
+	const generateResult = useAtomValue(secretsManager.keys.atoms.generate);
+	const isGenerating = generateResult.waiting;
+
+	const keys = AsyncResult.isSuccess(listResult) ? listResult.value : [];
+
+	const [importOpen, setImportOpen] = React.useState(false);
+	const [detailId, setDetailId] = React.useState<string | null>(null);
+	const [renameId, setRenameId] = React.useState<string | null>(null);
+
+	const detailEntry = keys.find((k) => k.id === detailId) ?? null;
+	const renameEntry = keys.find((k) => k.id === renameId) ?? null;
+
+	const actions = (
+		<View className='mb-5 flex-row gap-2.5'>
+			<Button
+				testID='key-generate'
+				className='flex-1'
+				title='Generate'
+				loading={isGenerating}
+				loadingTitle='Generating…'
+				icon={<FontAwesome6 name='plus' size={15} color={onPrimary} />}
+				onPress={() => {
+					generate();
+				}}
+			/>
+			<Button
+				testID='key-import'
+				className='flex-1'
+				variant='outline'
+				title='Import'
+				icon={<FontAwesome6 name='download' size={14} color={secondary} />}
+				onPress={() => setImportOpen(true)}
+			/>
+		</View>
+	);
+
+	const body = AsyncResult.isInitial(listResult) ? (
+		<ThemedText className='mt-6 text-center text-sm text-muted'>
+			Loading keys…
+		</ThemedText>
+	) : AsyncResult.isFailure(listResult) ? (
+		<ThemedText className='mt-6 text-center text-sm text-danger'>
+			Error loading keys
+		</ThemedText>
+	) : keys.length === 0 ? (
+		<EmptyState
+			onGenerate={() => generate()}
+			generating={isGenerating}
+			onImport={() => setImportOpen(true)}
+		/>
+	) : (
+		<>
+			<SectionLabel>Your keys</SectionLabel>
+			<View className='gap-3'>
+				{keys.map((entry) => (
+					<KeyCard
+						key={entry.id}
+						entry={entry}
+						onPress={() => {
+							if (props.mode === 'select') {
+								void props.onSelect?.(entry.id);
+							} else {
+								setDetailId(entry.id);
+							}
+						}}
+					/>
+				))}
+			</View>
+		</>
+	);
 
 	return (
-		<ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-			<ImportKeyCard onImported={() => listKeysQuery.refetch()} />
-
-			<Pressable
-				style={[
-					{
-						backgroundColor: theme.colors.primary,
-						borderRadius: 12,
-						paddingVertical: 14,
-						alignItems: 'center',
-					},
-					generateMutation.isPending && { opacity: 0.7 },
-				]}
-				disabled={generateMutation.isPending}
-				onPress={() => {
-					generateMutation.mutate();
+		<View className={props.mode === 'select' ? 'shrink' : 'flex-1'}>
+			<ScrollView
+				className={props.mode === 'select' ? 'shrink' : 'flex-1'}
+				contentContainerStyle={{
+					paddingHorizontal: 16,
+					paddingTop: 12,
+					paddingBottom: props.mode === 'select' ? 24 : bottomSpace + 16,
 				}}
 			>
-				<Text
-					style={{
-						color: theme.colors.buttonTextOnPrimary,
-						fontWeight: '700',
-						fontSize: 14,
-						letterSpacing: 0.3,
-					}}
-				>
-					{generateMutation.isPending
-						? 'Generating…'
-						: 'Generate New Key (ed25519)'}
-				</Text>
-			</Pressable>
+				{actions}
+				{body}
+			</ScrollView>
 
-			{listKeysQuery.isLoading ? (
-				<Text style={{ color: theme.colors.muted }}>Loading keys…</Text>
-			) : listKeysQuery.isError ? (
-				<Text style={{ color: theme.colors.danger }}>Error loading keys</Text>
-			) : listKeysQuery.data?.length ? (
-				<View style={{ gap: 12 }}>
-					{listKeysQuery.data.map((k) => (
-						<KeyRow
-							key={k.id}
-							entryId={k.id}
-							mode={props.mode}
-							onSelected={props.onSelect}
-						/>
-					))}
-				</View>
-			) : (
-				<Text style={{ color: theme.colors.muted }}>No keys yet</Text>
-			)}
-		</ScrollView>
+			{importOpen ? <ImportSheet onClose={() => setImportOpen(false)} /> : null}
+
+			{props.mode === 'manage' && detailEntry ? (
+				<KeyDetailSheet
+					entry={detailEntry}
+					onClose={() => setDetailId(null)}
+					onRename={() => {
+						setRenameId(detailEntry.id);
+						setDetailId(null);
+					}}
+				/>
+			) : null}
+
+			{props.mode === 'manage' && renameEntry ? (
+				<RenameDialog entry={renameEntry} onClose={() => setRenameId(null)} />
+			) : null}
+		</View>
 	);
 }
 
-function ImportKeyCard({ onImported }: { onImported: () => void }) {
-	const theme = useTheme();
+// ---------------------------------------------------------------------------
+// Bits
+// ---------------------------------------------------------------------------
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+	return (
+		<ThemedText
+			className='mb-2.5 text-[11px] font-semibold uppercase text-primary'
+			style={{ letterSpacing: 1.3 }}
+		>
+			{children}
+		</ThemedText>
+	);
+}
+
+function KeyGlyph({
+	isDefault,
+	size = 42,
+}: {
+	isDefault?: boolean;
+	size?: number;
+}) {
+	const skin = useThemeSkin();
+	const primary = useCSSVariable('--color-primary') as string;
+	return (
+		<View
+			style={{
+				width: size,
+				height: size,
+				borderRadius: skin.controlRadius,
+				backgroundColor: 'rgba(0,0,0,0.28)',
+				alignItems: 'center',
+				justifyContent: 'center',
+				boxShadow: isDefault && skin.glow ? skin.glow : undefined,
+			}}
+		>
+			<MaterialCommunityIcons
+				name='key-variant'
+				size={Math.round(size * 0.5)}
+				color={primary}
+			/>
+		</View>
+	);
+}
+
+function DefaultBadge() {
+	const primary = useCSSVariable('--color-primary') as string;
+	const onPrimary = useCSSVariable('--color-button-text-on-primary') as string;
+	return (
+		<View
+			style={{ backgroundColor: primary, borderRadius: 5 }}
+			className='px-1.5 py-0.5'
+		>
+			<ThemedText
+				className='text-[9px] font-extrabold'
+				style={{ color: onPrimary, letterSpacing: 0.7 }}
+			>
+				DEFAULT
+			</ThemedText>
+		</View>
+	);
+}
+
+function KeyCard({ entry, onPress }: { entry: KeyEntry; onPress: () => void }) {
+	const cardStyle = useSurfaceStyle({ glow: entry.metadata.isDefault });
+	const primary = useCSSVariable('--color-primary') as string;
+	const muted = useCSSVariable('--color-muted') as string;
+	const isDefault = !!entry.metadata.isDefault;
+	const label = entry.metadata.label ?? entry.id;
+
+	return (
+		<Pressable
+			onPress={onPress}
+			className='flex-row items-center gap-3 px-3.5 py-3.5'
+			style={[cardStyle, isDefault ? { borderColor: primary } : null]}
+		>
+			<KeyGlyph isDefault={isDefault} />
+			<View className='min-w-0 flex-1'>
+				<View className='flex-row items-center gap-2'>
+					<ThemedText
+						numberOfLines={1}
+						className='shrink text-[15px] font-semibold text-text-primary'
+					>
+						{label}
+					</ThemedText>
+					{isDefault ? <DefaultBadge /> : null}
+				</View>
+				<ThemedText className='mt-1 text-xs text-muted'>
+					Added {formatAdded(entry.metadata.createdAtMs)}
+				</ThemedText>
+			</View>
+			<FontAwesome6 name='chevron-right' size={14} color={muted} />
+		</Pressable>
+	);
+}
+
+function EmptyState({
+	onGenerate,
+	generating,
+	onImport,
+}: {
+	onGenerate: () => void;
+	generating: boolean;
+	onImport: () => void;
+}) {
+	const skin = useThemeSkin();
+	const primary = useCSSVariable('--color-primary') as string;
+	const onPrimary = useCSSVariable('--color-button-text-on-primary') as string;
+	const secondary = useCSSVariable('--color-text-secondary') as string;
+	return (
+		<View className='mt-16 items-center px-6'>
+			<View
+				style={{
+					width: 84,
+					height: 84,
+					borderRadius: skin.radius + 6,
+					backgroundColor: skin.glass ? 'rgba(255,255,255,0.06)' : undefined,
+					alignItems: 'center',
+					justifyContent: 'center',
+					boxShadow: skin.glow || undefined,
+				}}
+				className={skin.glass ? '' : 'border border-border bg-surface'}
+			>
+				<MaterialCommunityIcons name='key-variant' size={34} color={primary} />
+			</View>
+			<ThemedText className='mt-5 text-[17px] font-semibold text-text-primary'>
+				No keys yet
+			</ThemedText>
+			<ThemedText className='mt-2 max-w-[260px] text-center text-sm leading-5 text-muted'>
+				Generate an ed25519 key or import one you already use. Keys let you
+				connect without typing a password.
+			</ThemedText>
+			<View className='mt-5 flex-row gap-2.5'>
+				<Button
+					title='Generate'
+					loading={generating}
+					loadingTitle='Generating…'
+					icon={<FontAwesome6 name='plus' size={15} color={onPrimary} />}
+					onPress={onGenerate}
+				/>
+				<Button
+					variant='outline'
+					title='Import'
+					icon={<FontAwesome6 name='download' size={14} color={secondary} />}
+					onPress={onImport}
+				/>
+			</View>
+		</View>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Detail bottom sheet — set default / rename / delete for any key
+// ---------------------------------------------------------------------------
+
+/** A bottom sheet shell: scrim + a top-rounded surface pinned to the bottom. */
+function KeyDetailSheet({
+	entry,
+	onClose,
+	onRename,
+}: {
+	entry: KeyEntry;
+	onClose: () => void;
+	onRename: () => void;
+}) {
+	const onPrimary = useCSSVariable('--color-button-text-on-primary') as string;
+	const setDefault = useAtomSet(
+		secretsManager.keys.atoms.setDefault(entry.id),
+		{
+			mode: 'promise',
+		},
+	);
+	const deleteKey = useAtomSet(secretsManager.keys.atoms.delete(entry.id));
+	const isDefault = !!entry.metadata.isDefault;
+	const label = entry.metadata.label ?? entry.id;
+
+	return (
+		<BottomSheet onClose={onClose}>
+			<View className='gap-3 px-4 pb-9 pt-2'>
+				<View className='flex-row items-center gap-3'>
+					<KeyGlyph isDefault={isDefault} size={48} />
+					<View className='min-w-0 flex-1'>
+						<ThemedText
+							numberOfLines={1}
+							className='text-[19px] font-bold text-text-primary'
+						>
+							{label}
+						</ThemedText>
+						<ThemedText className='mt-0.5 text-xs text-muted'>
+							Added {formatAdded(entry.metadata.createdAtMs)}
+						</ThemedText>
+					</View>
+					{isDefault ? <DefaultBadge /> : null}
+				</View>
+
+				<View className='mt-1 gap-2.5'>
+					{!isDefault ? (
+						<Button
+							title='Set as default key'
+							icon={<FontAwesome6 name='check' size={15} color={onPrimary} />}
+							onPress={() => {
+								void setDefault()
+									.catch(() => undefined)
+									.finally(onClose);
+							}}
+						/>
+					) : null}
+					<Button variant='outline' title='Rename' onPress={onRename} />
+					<Button
+						variant='danger'
+						title='Delete key'
+						onPress={() => {
+							deleteKey();
+							onClose();
+						}}
+					/>
+				</View>
+			</View>
+		</BottomSheet>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Rename dialog — works for ANY key (this is how non-default keys get renamed)
+// ---------------------------------------------------------------------------
+
+function RenameDialog({
+	entry,
+	onClose,
+}: {
+	entry: KeyEntry;
+	onClose: () => void;
+}) {
+	const skin = useThemeSkin();
+	const surface = useCSSVariable('--color-surface') as string;
+	const border = useCSSVariable('--color-border-strong') as string;
+	const primary = useCSSVariable('--color-primary') as string;
+	const [value, setValue] = React.useState(entry.metadata.label ?? '');
+
+	const rename = useAtomSet(secretsManager.keys.atoms.rename(entry.id), {
+		mode: 'promise',
+	});
+	const renameResult = useAtomValue(secretsManager.keys.atoms.rename(entry.id));
+	const pending = renameResult.waiting;
+
+	const onSave = () => {
+		const next = value.trim();
+		if (!next) {
+			return;
+		}
+		void rename(next)
+			.catch(() => undefined)
+			.finally(onClose);
+	};
+
+	return (
+		<Modal transparent visible animationType='fade' onRequestClose={onClose}>
+			<View className='flex-1 items-center justify-center p-6'>
+				<Pressable className='absolute inset-0 bg-overlay' onPress={onClose} />
+				<View
+					style={{
+						backgroundColor: surface,
+						borderColor: border,
+						borderWidth: 1,
+						borderRadius: skin.radius,
+					}}
+					className='w-full gap-4 p-5'
+				>
+					<View>
+						<ThemedText className='text-lg font-bold text-text-primary'>
+							Rename key
+						</ThemedText>
+						<ThemedText className='mt-1.5 text-[13px] leading-5 text-muted'>
+							Enter a new name for this key. This is only a local label — it
+							doesn’t change the key itself.
+						</ThemedText>
+					</View>
+					<TextInput
+						autoFocus
+						value={value}
+						onChangeText={setValue}
+						placeholder='Key name'
+						placeholderTextColorClassName='accent-muted'
+						className='px-3.5 py-3 text-base text-text-primary'
+						style={{
+							borderWidth: 1.5,
+							borderColor: primary,
+							borderRadius: skin.controlRadius,
+							backgroundColor: 'rgba(0,0,0,0.25)',
+						}}
+						onSubmitEditing={onSave}
+					/>
+					<View className='flex-row gap-2.5'>
+						<Button
+							className='flex-1'
+							variant='outline'
+							title='Cancel'
+							onPress={onClose}
+						/>
+						<Button
+							className='flex-1'
+							title='Save'
+							loading={pending}
+							loadingTitle='Saving…'
+							onPress={onSave}
+						/>
+					</View>
+				</View>
+			</View>
+		</Modal>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Import sheet — paste / file, label, set-default
+// ---------------------------------------------------------------------------
+
+function ImportSheet({ onClose }: { onClose: () => void }) {
+	return (
+		<BottomSheet onClose={onClose} maxHeightPct={88}>
+			<KeyboardAwareScrollView
+				contentContainerClassName='gap-3 p-4 pb-9'
+				keyboardShouldPersistTaps='handled'
+				bottomOffset={24}
+			>
+				<ImportKeyCard onImported={onClose} />
+			</KeyboardAwareScrollView>
+		</BottomSheet>
+	);
+}
+
+function ImportKeyCard({ onImported }: { onImported?: () => void }) {
 	const [mode, setMode] = React.useState<'paste' | 'file'>('paste');
 	const [label, setLabel] = React.useState('Imported Key');
 	const [asDefault, setAsDefault] = React.useState(false);
 	const [content, setContent] = React.useState('');
 	const [fileName, setFileName] = React.useState<string | null>(null);
+	const primary = useCSSVariable('--color-primary') as string;
+	const onPrimary = useCSSVariable('--color-button-text-on-primary') as string;
 
-	const importMutation = useMutation({
-		mutationFn: async () => {
-			const trimmed = content.trim();
-			if (!trimmed) throw new Error('No key content provided');
-			await secretsManager.keys.utils.upsertPrivateKey({
-				metadata: {
-					priority: 0,
-					label: label || 'Imported Key',
-					isDefault: asDefault,
-				},
-				value: trimmed,
-			});
-		},
-		onSuccess: () => {
+	const importKey = useAtomSet(secretsManager.keys.atoms.import, {
+		mode: 'promise',
+	});
+	const importResult = useAtomValue(secretsManager.keys.atoms.import);
+	const importPending = importResult.waiting;
+	const importErrorMessage = asyncResultErrorMessage(importResult);
+
+	const onImport = async () => {
+		// Guard against a double-tap importing the same key twice before the first
+		// resolves (and before the sheet closes).
+		if (importPending) {
+			return;
+		}
+		const trimmed = content.trim();
+		if (!trimmed) {
+			return;
+		}
+		// On failure the error surfaces via `importResult`; reactivity refreshes
+		// the key list, so there's nothing to refetch here.
+		const success = await importKey({
+			value: trimmed,
+			label: label || 'Imported Key',
+			isDefault: asDefault,
+		}).catch(() => undefined);
+		if (success) {
 			setContent('');
 			setFileName(null);
-			onImported();
-		},
-	});
+			onImported?.();
+		}
+	};
 
 	const pickFile = React.useCallback(async () => {
 		const res = await DocumentPicker.getDocumentAsync({
@@ -117,72 +546,48 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 		});
 		// Newer expo-document-picker: { canceled: boolean, assets?: [{ uri, name, ... }] }
 		const canceled = 'canceled' in res ? res.canceled : false;
-		if (canceled) return;
+		if (canceled) {
+			return;
+		}
 		const asset = res.assets?.[0];
 		const file = asset?.file;
-		if (!file) return;
+		if (!file) {
+			return;
+		}
 		setFileName(asset.name ?? null);
 		const data = await file.text();
 		setContent(data);
 		if (asset.name && (!label || label === 'Imported Key')) {
-			setLabel(String(asset.name).replace(/\.[^.]+$/, ''));
+			setLabel(asset.name.replace(/\.[^.]+$/, ''));
 		}
 	}, [label]);
 
 	return (
-		<View
-			style={{
-				backgroundColor: theme.colors.surface,
-				borderRadius: 12,
-				borderWidth: 1,
-				borderColor: theme.colors.border,
-				padding: 12,
-				gap: 12,
-			}}
-		>
-			<Text
-				style={{
-					color: theme.colors.textPrimary,
-					fontWeight: '700',
-					fontSize: 16,
-				}}
-			>
-				Import Private Key
-			</Text>
+		<View className='gap-3'>
+			<ThemedText className='text-lg font-bold text-text-primary'>
+				Import private key
+			</ThemedText>
 
-			<View
-				style={{
-					flexDirection: 'row',
-					backgroundColor: theme.colors.inputBackground,
-					borderRadius: 10,
-					borderWidth: 1,
-					borderColor: theme.colors.border,
-					overflow: 'hidden',
-				}}
-			>
+			<View className='flex-row overflow-hidden rounded-[10px] border border-border bg-input-background'>
 				{(['paste', 'file'] as const).map((m) => (
 					<Pressable
 						key={m}
 						onPress={() => setMode(m)}
-						style={{
-							flex: 1,
-							paddingVertical: 10,
-							alignItems: 'center',
-							backgroundColor:
-								mode === m
-									? theme.colors.surface
-									: theme.colors.inputBackground,
-						}}
+						className={
+							mode === m
+								? 'flex-1 items-center bg-surface py-2.5'
+								: 'flex-1 items-center bg-input-background py-2.5'
+						}
 					>
-						<Text
-							style={{
-								color:
-									mode === m ? theme.colors.textPrimary : theme.colors.muted,
-								fontWeight: '600',
-							}}
+						<ThemedText
+							className={
+								mode === m
+									? 'font-semibold text-text-primary'
+									: 'font-semibold text-muted'
+							}
 						>
 							{m === 'paste' ? 'Paste' : 'File'}
-						</Text>
+						</ThemedText>
 					</Pressable>
 				))}
 			</View>
@@ -190,354 +595,75 @@ function ImportKeyCard({ onImported }: { onImported: () => void }) {
 			{mode === 'paste' ? (
 				<TextInput
 					multiline
-					placeholder="Paste your private key here"
-					placeholderTextColor={theme.colors.muted}
+					placeholder='Paste your private key here'
+					placeholderTextColorClassName='accent-muted'
 					value={content}
 					onChangeText={setContent}
-					style={{
-						minHeight: 120,
-						backgroundColor: theme.colors.inputBackground,
-						color: theme.colors.textPrimary,
-						borderWidth: 1,
-						borderColor: theme.colors.border,
-						borderRadius: 10,
-						padding: 12,
-						fontFamily: 'Menlo, ui-monospace, monospace',
-					}}
+					className='min-h-[120px] rounded-[10px] border border-border bg-input-background p-3 text-text-primary'
+					style={{ fontFamily: 'Menlo, ui-monospace, monospace' }}
 				/>
 			) : (
-				<View style={{ gap: 8 }}>
-					<Pressable
+				<View className='gap-2'>
+					<Button
+						variant='outline'
+						title={fileName ? 'Choose Different File' : 'Choose File'}
 						onPress={pickFile}
-						style={{
-							backgroundColor: theme.colors.transparent,
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							borderRadius: 10,
-							paddingVertical: 12,
-							alignItems: 'center',
-						}}
-					>
-						<Text
-							style={{ color: theme.colors.textSecondary, fontWeight: '600' }}
-						>
-							{fileName ? 'Choose Different File' : 'Choose File'}
-						</Text>
-					</Pressable>
+					/>
 					{fileName ? (
-						<Text style={{ color: theme.colors.muted }}>
-							Selected: {fileName}
-						</Text>
+						<ThemedText className='text-muted'>Selected: {fileName}</ThemedText>
 					) : null}
 					{content ? (
 						<TextInput
 							editable={false}
 							multiline
 							value={content.slice(0, 500)}
-							style={{
-								minHeight: 80,
-								backgroundColor: theme.colors.inputBackground,
-								color: theme.colors.textSecondary,
-								borderWidth: 1,
-								borderColor: theme.colors.border,
-								borderRadius: 10,
-								padding: 10,
-								fontFamily: 'Menlo, ui-monospace, monospace',
-							}}
+							className='min-h-[80px] rounded-[10px] border border-border bg-input-background p-2.5 text-text-secondary'
+							style={{ fontFamily: 'Menlo, ui-monospace, monospace' }}
 						/>
 					) : null}
 				</View>
 			)}
 
-			<View style={{ gap: 8 }}>
-				<Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-					Label
-				</Text>
+			<View className='gap-2'>
+				<ThemedText className='text-xs text-text-secondary'>Label</ThemedText>
 				<TextInput
-					placeholder="Display name"
-					placeholderTextColor={theme.colors.muted}
+					placeholder='Display name'
+					placeholderTextColorClassName='accent-muted'
 					value={label}
 					onChangeText={setLabel}
-					style={{
-						backgroundColor: theme.colors.inputBackground,
-						color: theme.colors.textPrimary,
-						borderWidth: 1,
-						borderColor: theme.colors.border,
-						borderRadius: 10,
-						paddingHorizontal: 12,
-						paddingVertical: 10,
-						fontSize: 16,
-					}}
+					className='rounded-[10px] border border-border bg-input-background px-3 py-2.5 text-base text-text-primary'
 				/>
 			</View>
 
 			<Pressable
 				onPress={() => setAsDefault((v) => !v)}
-				style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+				className='flex-row items-center gap-2.5'
 			>
 				<View
-					style={{
-						width: 22,
-						height: 22,
-						borderRadius: 6,
-						borderWidth: 2,
-						borderColor: theme.colors.border,
-						backgroundColor: asDefault
-							? theme.colors.primary
-							: theme.colors.transparent,
-					}}
-				/>
-				<Text style={{ color: theme.colors.textSecondary }}>
-					Set as default
-				</Text>
+					className='h-[22px] w-[22px] items-center justify-center rounded-md border-2 border-border'
+					style={asDefault ? { backgroundColor: primary } : undefined}
+				>
+					{asDefault ? (
+						<FontAwesome6 name='check' size={11} color={onPrimary} />
+					) : null}
+				</View>
+				<ThemedText className='text-text-secondary'>Set as default</ThemedText>
 			</Pressable>
 
-			<Pressable
-				disabled={importMutation.isPending}
-				onPress={() => importMutation.mutate()}
-				style={{
-					backgroundColor: theme.colors.primary,
-					borderRadius: 12,
-					paddingVertical: 12,
-					alignItems: 'center',
-					opacity: importMutation.isPending ? 0.6 : 1,
+			<Button
+				title='Import Key'
+				loading={importPending}
+				loadingTitle='Importing…'
+				onPress={() => {
+					void onImport();
 				}}
-			>
-				<Text
-					style={{
-						color: theme.colors.buttonTextOnPrimary,
-						fontWeight: '700',
-					}}
-				>
-					{importMutation.isPending ? 'Importing…' : 'Import Key'}
-				</Text>
-			</Pressable>
+			/>
 
-			{importMutation.isError ? (
-				<Text style={{ color: theme.colors.danger }}>
-					{(importMutation.error as Error).message || 'Import failed'}
-				</Text>
+			{importErrorMessage ? (
+				<ThemedText className='text-danger'>
+					{importErrorMessage || 'Import failed'}
+				</ThemedText>
 			) : null}
-		</View>
-	);
-}
-
-function KeyRow(props: {
-	entryId: string;
-	mode: KeyListMode;
-	onSelected?: (id: string) => void | Promise<void>;
-}) {
-	const theme = useTheme();
-	const entryQuery = useQuery(secretsManager.keys.query.get(props.entryId));
-	const entry = entryQuery.data;
-	const [label, setLabel] = React.useState(
-		entry?.manifestEntry.metadata.label ?? '',
-	);
-
-	const renameMutation = useMutation({
-		mutationFn: async (newLabel: string) => {
-			if (!entry) return;
-			await secretsManager.keys.utils.upsertPrivateKey({
-				keyId: entry.manifestEntry.id,
-				value: entry.value,
-				metadata: {
-					priority: entry.manifestEntry.metadata.priority,
-					label: newLabel,
-					isDefault: entry.manifestEntry.metadata.isDefault,
-				},
-			});
-		},
-		onSuccess: () => entryQuery.refetch(),
-	});
-
-	const deleteMutation = useMutation({
-		mutationFn: async () => {
-			await secretsManager.keys.utils.deletePrivateKey(props.entryId);
-		},
-		onSuccess: () => entryQuery.refetch(),
-	});
-
-	const setDefaultMutation = useMutation({
-		mutationFn: async () => {
-			const entries = await secretsManager.keys.utils.listEntriesWithValues();
-			await Promise.all(
-				entries.map((e) =>
-					secretsManager.keys.utils.upsertPrivateKey({
-						keyId: e.id,
-						value: e.value,
-						metadata: {
-							priority: e.metadata.priority,
-							label: e.metadata.label,
-							isDefault: e.id === props.entryId,
-						},
-					}),
-				),
-			);
-		},
-		onSuccess: async () => {
-			await entryQuery.refetch();
-			if (props.mode === 'select' && props.onSelected) {
-				await props.onSelected(props.entryId);
-			}
-		},
-	});
-
-	if (!entry) return null;
-
-	return (
-		<View
-			style={{
-				flexDirection: 'row',
-				alignItems: 'flex-start',
-				justifyContent: 'space-between',
-				backgroundColor: theme.colors.inputBackground,
-				borderWidth: 1,
-				borderColor: theme.colors.border,
-				borderRadius: 12,
-				paddingHorizontal: 12,
-				paddingVertical: 12,
-			}}
-		>
-			<View style={{ flex: 1, marginRight: 8 }}>
-				<Text
-					style={{
-						color: theme.colors.textPrimary,
-						fontSize: 15,
-						fontWeight: '600',
-					}}
-				>
-					{entry.manifestEntry.metadata.label ?? entry.manifestEntry.id}
-					{entry.manifestEntry.metadata.isDefault ? '  • Default' : ''}
-				</Text>
-				<Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 2 }}>
-					ID: {entry.manifestEntry.id}
-				</Text>
-				{props.mode === 'manage' ? (
-					<TextInput
-						style={{
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							backgroundColor: theme.colors.inputBackground,
-							color: theme.colors.textPrimary,
-							borderRadius: 10,
-							paddingHorizontal: 12,
-							paddingVertical: 10,
-							fontSize: 16,
-							marginTop: 8,
-						}}
-						placeholder="Display name"
-						placeholderTextColor={theme.colors.muted}
-						value={label}
-						onChangeText={setLabel}
-					/>
-				) : null}
-			</View>
-			<View style={{ gap: 6, alignItems: 'flex-end' }}>
-				{props.mode === 'select' ? (
-					<Pressable
-						onPress={() => {
-							setDefaultMutation.mutate();
-						}}
-						style={{
-							backgroundColor: theme.colors.primary,
-							borderRadius: 10,
-							paddingVertical: 12,
-							paddingHorizontal: 10,
-							alignItems: 'center',
-						}}
-					>
-						<Text
-							style={{
-								color: theme.colors.buttonTextOnPrimary,
-								fontWeight: '700',
-								fontSize: 12,
-							}}
-						>
-							Select
-						</Text>
-					</Pressable>
-				) : null}
-				{props.mode === 'manage' ? (
-					<Pressable
-						style={[
-							{
-								backgroundColor: theme.colors.transparent,
-								borderWidth: 1,
-								borderColor: theme.colors.border,
-								borderRadius: 10,
-								paddingVertical: 8,
-								paddingHorizontal: 10,
-								alignItems: 'center',
-							},
-							renameMutation.isPending && { opacity: 0.6 },
-						]}
-						onPress={() => {
-							renameMutation.mutate(label);
-						}}
-						disabled={renameMutation.isPending}
-					>
-						<Text
-							style={{
-								color: theme.colors.textSecondary,
-								fontWeight: '600',
-								fontSize: 12,
-							}}
-						>
-							{renameMutation.isPending ? 'Saving…' : 'Save'}
-						</Text>
-					</Pressable>
-				) : null}
-				{!entry.manifestEntry.metadata.isDefault ? (
-					<Pressable
-						style={{
-							backgroundColor: theme.colors.transparent,
-							borderWidth: 1,
-							borderColor: theme.colors.border,
-							borderRadius: 10,
-							paddingVertical: 8,
-							paddingHorizontal: 10,
-							alignItems: 'center',
-						}}
-						onPress={() => {
-							setDefaultMutation.mutate();
-						}}
-					>
-						<Text
-							style={{
-								color: theme.colors.textSecondary,
-								fontWeight: '600',
-								fontSize: 12,
-							}}
-						>
-							Set Default
-						</Text>
-					</Pressable>
-				) : null}
-				<Pressable
-					style={{
-						backgroundColor: theme.colors.transparent,
-						borderWidth: 1,
-						borderColor: theme.colors.danger,
-						borderRadius: 10,
-						paddingVertical: 8,
-						paddingHorizontal: 10,
-						alignItems: 'center',
-					}}
-					onPress={() => {
-						deleteMutation.mutate();
-					}}
-				>
-					<Text
-						style={{
-							color: theme.colors.danger,
-							fontWeight: '700',
-							fontSize: 12,
-						}}
-					>
-						Delete
-					</Text>
-				</Pressable>
-			</View>
 		</View>
 	);
 }

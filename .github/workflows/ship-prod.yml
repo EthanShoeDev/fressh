@@ -1,0 +1,59 @@
+name: Ship Prod
+
+# THE PROMOTE BUTTON (see docs/projects/ci-building-and-releasing.md, "Release
+# flow"). Takes an existing release that already soaked on the test channels
+# (Play internal / TestFlight) and promotes those EXACT artifacts to the public
+# stores — no rebuild:
+#   - Android: fastlane supply moves the versionCode internal -> production
+#   - iOS:     fastlane deliver submits the already-uploaded TestFlight build
+#              for App Review with auto-release on approval
+# Both are pure store-API calls, so this runs on ubuntu (no macOS needed).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Released version to promote (e.g. "0.2.0" — must have a @fressh/mobile@<version> tag + test-channel rollout)
+        type: string
+        required: true
+      platform:
+        description: Store(s) to promote to
+        type: choice
+        options: [all, android, ios]
+        default: all
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote ${{ inputs.version }} to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Check out the release tag so the promoted version's CHANGELOG section,
+      # fastlane lanes, and store metadata match what actually shipped to beta.
+      - uses: actions/checkout@v4
+        with:
+          ref: '@fressh/mobile@${{ inputs.version }}'
+
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
+
+      - name: Extract release notes
+        run: bun run --cwd apps/mobile changelog:extract --version "${{ inputs.version }}"
+
+      - name: Promote Play internal -> production
+        if: contains(fromJSON('["android","all"]'), inputs.platform)
+        run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile promote:android -- version:${{ inputs.version }}
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY_JSON }}
+
+      - name: Submit TestFlight build for App Review
+        if: contains(fromJSON('["ios","all"]'), inputs.platform)
+        run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile promote:ios -- version:${{ inputs.version }}
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}

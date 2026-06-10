@@ -1,0 +1,43 @@
+[package]
+name = "fressh-core"
+version = "0.1.0"
+edition = "2021"
+
+# THE binding-agnostic boundary (§7). Owns everything hard + durable:
+#   - a self-hosted `static tokio::Runtime` (NOT driven by the binding tool)
+#   - the registry: `DashMap<Id, Arc<Session>>` (session lifetime, §7)
+#   - `Session` = connection + shells + `alacritty_terminal::Term` + reader task
+#   - host-key park/resume (oneshot keyed by connId, §7)
+#
+# Exposes two faces:
+#   1. a plain-Rust API   -> wrapped by the binding shim (shim-uniffi/-craby)
+#   2. a C-ABI (cbindgen) -> called by the Nitro view for the render plane (§10)
+# See docs/projects/native-rendering-refactor.md §7, §8, §9, §10.
+
+[dependencies]
+tokio = { workspace = true }
+alacritty_terminal = { workspace = true }
+dashmap = { workspace = true }
+once_cell = { workspace = true }
+thiserror = { workspace = true }
+
+fressh-ssh = { path = "../fressh-ssh" }
+fressh-render = { path = "../fressh-render" }
+
+# For the `HostKeyVerifier` boxed-future seam (host-key park/resume).
+futures = "0.3.31"
+
+# Zero-copy byte chunks shared with fressh-ssh across the reader-loop seam
+# (`source.rs` `ReadSource`). Already in the tree via russh, so this is free.
+bytes = "1"
+
+# TODO(scaffold): add `[build-dependencies] cbindgen` + a build.rs to emit the
+# C-ABI header the Nitro view links against.
+
+[lib]
+# staticlib -> libfressh_core.a, linked ONCE into the single package .so so the
+# registry/runtime statics are a single shared instance (§8). `lib` for tests.
+crate-type = ["staticlib", "lib"]
+
+[lints]
+workspace = true

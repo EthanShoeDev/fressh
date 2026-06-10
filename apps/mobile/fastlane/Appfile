@@ -1,0 +1,5 @@
+# Shared app identity for all fastlane lanes (see Fastfile).
+app_identifier("dev.fressh.app") # iOS bundle id
+package_name("dev.fressh.app") # Android package
+# apple team id is resolved by match / the ASC API key; set team_id here if a
+# second Apple team ever appears.

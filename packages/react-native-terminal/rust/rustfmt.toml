@@ -1,0 +1,10 @@
+# Stable-only rustfmt options (the toolchain tracks `stable`; nightly-only keys
+# like `imports_granularity`/`group_imports` would break `cargo fmt --check`).
+#
+# `hard_tabs` matches the repo-wide tab convention (prettier/oxfmt use tabs);
+# this keeps Rust consistent with the TS/JSON in the monorepo.
+edition = "2021"
+hard_tabs = true
+max_width = 100
+newline_style = "Unix"
+use_small_heuristics = "Default"

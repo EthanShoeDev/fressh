@@ -1,0 +1,77 @@
+# Marketing screenshot flow. Drives the app through all four tabs and the connect
+# form, capturing one screenshot per screen.
+#
+# Run via `bun run screenshots` (apps/mobile/scripts/screenshots.ts), which builds
+# a Release variant with EXPO_PUBLIC_SCREENSHOT_SEED=1 (so the Servers and Commands
+# tabs are pre-populated with demo data) before invoking Maestro. OUTPUT (absolute
+# dir) + PLATFORM (ios|android) are passed as env and interpolated into the
+# takeScreenshot paths; Maestro appends `.png`.
+#
+# Notes learned from the iOS XCUITest hierarchy:
+#   - The connect form is captured LAST, because filling its secure password field
+#     opens a keyboard the app can't dismiss via Maestro on iOS — and that keyboard
+#     covers the bottom tab bar, breaking any tab navigation that follows it. Tabs
+#     first, keyboard-opening form last.
+#   - The Servers/Commands lists are @shopify/flash-list; its virtualized rows are
+#     drawn but are NOT reliably present in Maestro's queryable hierarchy, so we do
+#     NOT assertVisible/tapOn list rows — we settle with a wait and screenshot the
+#     (correct) pixels.
+#   - Button testIDs DO surface as ids on iOS (id: key-generate); tabs match by text;
+#     TextInput testIDs do NOT, so form fields are tapped by placeholder / position.
+#   - A live terminal / smart-terminal screenshot needs a real SSH host (the rebex
+#     demo's shell closes immediately). Deferred — see
+#     docs/projects/future/automated-screenshots-improvements.md.
+appId: dev.fressh.app
+---
+- launchApp:
+    clearState: true
+
+# --- Servers tab (seeded demo servers; let the list paint, then capture) -----
+- extendedWaitUntil:
+    visible: '__never_visible__'
+    optional: true
+    timeout: 8000
+- takeScreenshot: ${OUTPUT}/servers-${PLATFORM}
+
+# --- Commands tab (seeded presets) -------------------------------------------
+- tapOn: 'Commands'
+- extendedWaitUntil:
+    visible: '__never_visible__'
+    optional: true
+    timeout: 2500
+- takeScreenshot: ${OUTPUT}/commands-${PLATFORM}
+
+# --- Keys tab (generate one so it isn't an empty state) ----------------------
+# Button testIDs surface on iOS (unlike TextInput testIDs), so target the id.
+- tapOn: 'Keys'
+- tapOn:
+    id: 'key-generate'
+- extendedWaitUntil:
+    visible: 'Your keys'
+    timeout: 20000
+- takeScreenshot: ${OUTPUT}/keys-${PLATFORM}
+
+# --- Settings tab ------------------------------------------------------------
+- tapOn: 'Settings'
+- extendedWaitUntil:
+    visible: '__never_visible__'
+    optional: true
+    timeout: 1500
+- takeScreenshot: ${OUTPUT}/settings-${PLATFORM}
+
+# --- Connect form (filled, not submitted — LAST: opens a keyboard) -----------
+- tapOn: 'Servers'
+- tapOn: 'New connection'
+- assertVisible: 'New server'
+- tapOn: 'example.com' # host field (placeholder)
+- inputText: 'test.rebex.net'
+- tapOn: 'root' # username field (placeholder)
+- eraseText
+- inputText: 'demo'
+# Secure password field has no stable text/id on iOS — tap by position.
+- tapOn:
+    point: 50%, 48%
+- inputText: 'password'
+# Dismiss the keyboard for a clean form shot by tapping the non-interactive title.
+- tapOn: 'New server'
+- takeScreenshot: ${OUTPUT}/connect-${PLATFORM}

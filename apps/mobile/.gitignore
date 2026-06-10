@@ -9,6 +9,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Release artifacts (turbo build:android / build:ios -> build/fressh-*.{aab,ipa})
+build/
+
 # Native
 .kotlin/
 *.orig.*
@@ -17,6 +20,12 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+
+# fastlane run artifacts (lanes/metadata in fastlane/ are committed; these are generated)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/test_output/
+fastlane/README.md
 
 # Metro
 .metro-health-check*
@@ -37,5 +46,7 @@ yarn-error.*
 *.tsbuildinfo
 
 # https://docs.expo.dev/workflow/continuous-native-generation/
-android/
-ios/
+# Anchored to the package root — an unanchored `android/` would also swallow
+# fastlane/metadata/android/ (the committed Play listing).
+/android/
+/ios/

@@ -2,6 +2,10 @@
   description = "Expo RN devshells (local emulator / remote AVD)";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Newer pin for fast-moving tools that lag in the main locked nixpkgs.
+    # secretspec's vault/OpenBao provider needs >= 0.10 (locked nixpkgs has 0.3.3,
+    # which has no `openbao` backend). Additive: does not move the main toolchain.
+    nixpkgs-recent.url = "github:NixOS/nixpkgs/nixos-unstable";
     android-nixpkgs = {
       url = "github:tadfisher/android-nixpkgs";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -26,6 +30,7 @@
   outputs = {
     self,
     nixpkgs,
+    nixpkgs-recent,
     android-nixpkgs,
     fenix,
     ...
@@ -34,6 +39,16 @@
 
     overlays = [
       android-nixpkgs.overlays.default
+      # Pull secretspec from the newer pin so its vault/OpenBao provider exists
+      # (the locked nixpkgs ships 0.3.3, which has no `openbao` backend).
+      (_final: prev: {
+        secretspec =
+          (import nixpkgs-recent {
+            inherit (prev) system;
+            config.allowUnfree = true;
+          })
+          .secretspec;
+      })
     ];
 
     forAllSystems = f:
@@ -67,33 +82,40 @@
           fen.targets.aarch64-apple-ios-sim.stable.rust-std
         ];
 
-        defaultPkgs = with pkgs; [
-          # System
-          bash
-          git
-          pkg-config
-          jq
-          starship
-          # JS
-          nodejs_22
-          turbo
-          nodePackages.pnpm
-          yarn
-          watchman
-          # Rust
-          rustToolchain
-          cargo-ndk
-          # Android build helpers
-          jdk17
-          gradle_8
-          scrcpy
-          # Misc
-          cmake
-          ninja
-          just
-          alejandra
-          clang-tools
-        ];
+        defaultPkgs = with pkgs;
+          [
+            bash
+            git
+            pkg-config
+            # crossfont (alacritty font rasterization) needs FreeType + fontconfig
+            # for the host build of the vendored renderer. (react-native-terminal)
+            freetype
+            fontconfig
+            jq
+            nodejs_22
+            turbo
+            bun
+            watchman
+            rustToolchain
+            cargo-ndk
+            jdk17
+            gradle_8
+            scrcpy
+            cmake
+            ninja
+            just
+            alejandra
+            clang-tools
+            maestro # mobile UI automation, drives the screenshot flow
+            secretspec # declarative secrets for signed builds / releases (secretspec.toml)
+            # Store automation (Track B, no EAS): match (iOS signing), pilot/deliver
+            # (TestFlight/App Store), supply (Play tracks + listings). Lanes live in
+            # apps/mobile/fastlane/. See docs/projects/ci-building-and-releasing.md.
+            fastlane
+          ]
+          # gym (fastlane ios build) archives the expo-prebuild workspace, which
+          # needs CocoaPods on the PATH (prebuild runs `pod install`).
+          ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [pkgs.cocoapods];
 
         mkShellFn =
           if pkgs.stdenv.isDarwin
@@ -139,72 +161,6 @@
         fullAndroidSdk = makeAndroidSdk "full";
         remoteAndroidSdk = makeAndroidSdk "remote";
 
-        starshipToml = pkgs.writeText "starship.toml" ''
-          # project-scoped Starship config (no files under ~/.config)
-          add_newline = false
-          format = "$nix_shell$directory$rust$python$cmd_duration$character"
-
-          [nix_shell]
-          disabled = false
-          format = "[$symbol]($style) "
-          symbol = "nix-fressh "
-          pure_msg = ""
-          impure_msg = "(impure) "
-          style = "bold cyan"
-
-          [directory]
-          format = "[$path]($style) "
-          truncation_length = 0
-          truncate_to_repo = false
-          home_symbol = "~"
-
-          [character]
-          success_symbol = "[➜](bold green) "
-          error_symbol   = "[✗](bold red) "
-
-        '';
-
-        starshipBootstrap = pkgs.writeText "fressh-starship-bootstrap.sh" ''
-          if [[ -n ''${__FRESSH_STARSHIP_INIT-} ]]; then
-            if [[ -n ''${FRESSH_OLD_PROMPT_COMMAND:-} ]]; then
-              PROMPT_COMMAND=''${FRESSH_OLD_PROMPT_COMMAND}
-            else
-              unset PROMPT_COMMAND
-            fi
-            unset FRESSH_OLD_PROMPT_COMMAND
-            return
-          fi
-
-          __FRESSH_STARSHIP_INIT=1
-
-          if [[ -n ''${FRESSH_OLD_PROMPT_COMMAND:-} ]]; then
-            PROMPT_COMMAND=''${FRESSH_OLD_PROMPT_COMMAND}
-          else
-            unset PROMPT_COMMAND
-          fi
-
-          if [[ ''${TERM_PROGRAM:-} == "vscode" ]] && command -v code >/dev/null; then
-            if ! declare -F __vsc_prompt_cmd_original >/dev/null; then
-              . "$(code --locate-shell-integration-path bash)"
-            fi
-          fi
-
-          unset FRESSH_OLD_PROMPT_COMMAND
-
-          if command -v starship >/dev/null; then
-            eval "$(starship init bash)"
-
-            if [[ -t 1 ]]; then
-              local __fressh_first_prompt
-              __fressh_first_prompt="$(STARSHIP_SHELL=bash starship prompt 2>/dev/null)"
-              if [[ -n "''${__fressh_first_prompt}" ]]; then
-                PS1="''${__fressh_first_prompt}"
-              fi
-              unset __fressh_first_prompt
-            fi
-          fi
-        '';
-
         commonAndroidInit = sdkRoot: ''
           unset ANDROID_SDK_ROOT
           unset ANDROID_HOME
@@ -215,14 +171,6 @@
           export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
           export ANDROID_NDK="$ANDROID_NDK_ROOT"
           export GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=${sdkRoot}/build-tools/36.0.0/aapt2 -Dorg.gradle.project.android.builder.sdkDownload=false"
-          export STARSHIP_CONFIG=${starshipToml}
-          export STARSHIP_CACHE="$PWD/.starship-cache"
-          mkdir -p "$STARSHIP_CACHE"
-
-          export FRESSH_DEVENV=1
-          export FRESSH_STARSHIP_PREINIT=${starshipBootstrap}
-          export FRESSH_OLD_PROMPT_COMMAND=''${PROMPT_COMMAND:-}
-          export PROMPT_COMMAND=". \"$FRESSH_STARSHIP_PREINIT\""
         '';
       in {
         default = mkShellFn {

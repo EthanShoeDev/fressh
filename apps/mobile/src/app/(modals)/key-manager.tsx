@@ -1,16 +1,17 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
 import { Pressable, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCSSVariable } from 'uniwind';
 import { KeyList } from '@/components/key-manager/KeyList';
 
 export default function KeyManagerModalRoute() {
 	const router = useRouter();
 	const params = useLocalSearchParams<{ select?: string }>();
 	const selectMode = params.select === '1';
+	const background = useCSSVariable('--color-background') as string;
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: '#0B1324' }}>
+		<SafeAreaView style={{ flex: 1, backgroundColor: background }}>
 			<Stack.Screen
 				options={{
 					title: selectMode ? 'Select Key' : 'Manage Keys',
@@ -20,7 +21,7 @@ export default function KeyManagerModalRoute() {
 								router.back();
 							}}
 						>
-							<Text style={{ color: '#E5E7EB', fontWeight: '700' }}>Close</Text>
+							<Text className='font-bold text-text-primary'>Close</Text>
 						</Pressable>
 					),
 				}}

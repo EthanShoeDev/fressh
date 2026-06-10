@@ -1,24 +1,30 @@
-import { type ExpoConfig } from 'expo/config';
+import type { ExpoConfig } from 'expo/config';
 import 'tsx/cjs';
 import packageJson from './package.json';
 
 function semverToCode(v: string) {
-	const [maj, min, pat] = v.split('.').map((n) => parseInt(n || '0', 10));
-	if (maj === undefined || min === undefined || pat === undefined)
+	const [maj, min, pat] = v
+		.split('.')
+		.map((n) => Number.parseInt(n || '0', 10));
+	if (maj === undefined || min === undefined || pat === undefined) {
 		throw new Error(`Invalid version: ${v}`);
-	return maj * 10000 + min * 100 + pat;
+	}
+	return maj * 10_000 + min * 100 + pat;
 }
 const versionCode = semverToCode(packageJson.version);
 
 const config: ExpoConfig = {
 	name: 'Fressh',
 	slug: 'fressh',
+	// EAS account that owns the project (required for CI builds). `eas init` linked
+	// @sherlockshoe/fressh; projectId lives in extra.eas below (dynamic config can't
+	// be written automatically). See docs/projects/ci-building-and-releasing.md.
+	owner: 'sherlockshoe',
 	version: packageJson.version,
 	orientation: 'portrait',
 	icon: '../../packages/assets/mobile-app-icon-dark.png',
 	scheme: 'fressh',
 	userInterfaceStyle: 'automatic',
-	newArchEnabled: true,
 	ios: {
 		supportsTablet: true,
 		config: { usesNonExemptEncryption: false },
@@ -38,9 +44,14 @@ const config: ExpoConfig = {
 			foregroundImage: '../../packages/assets/android-adaptive-icon.png',
 			backgroundColor: '#151718',
 		},
-		edgeToEdgeEnabled: true,
 		predictiveBackGestureEnabled: false,
-		softwareKeyboardLayoutMode: 'pan',
+		// 'resize' (adjustResize): the window shrinks when the soft keyboard opens,
+		// so the terminal SurfaceView reflows to fewer rows ABOVE the keyboard
+		// (surfaceChanged -> nativeResize). This keeps on-screen pixels aligned with
+		// surface pixels, which touch scroll/selection gestures depend on. 'pan'
+		// (adjustPan) instead slides the full-height surface up behind the keyboard,
+		// offsetting every touch coordinate.
+		softwareKeyboardLayoutMode: 'resize',
 	},
 	plugins: [
 		'expo-router',
@@ -56,11 +67,14 @@ const config: ExpoConfig = {
 				imageWidth: 200,
 			},
 		],
-		'expo-secure-store',
 		'expo-font',
 		'expo-dev-client',
+		'expo-image',
 	],
 	experiments: { typedRoutes: true, reactCompiler: true },
+	extra: {
+		eas: { projectId: '97d1010a-896a-45e2-8902-fd0d0c1b4468' },
+	},
 };
 
 export default config;

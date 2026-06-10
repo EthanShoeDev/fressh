@@ -5,7 +5,7 @@
 		"eamodio.gitlens",
 		"astro-build.astro-vscode",
 		"mhutchie.git-graph",
-		"esbenp.prettier-vscode",
+		"oxc.oxc-vscode",
 		"yoavbls.pretty-ts-errors",
 		"ctf0.duplicated-code-new",
 		"github.vscode-github-actions",

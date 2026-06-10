@@ -1,0 +1,197 @@
+# fastlane lanes for fressh mobile (Track B — no EAS, no match).
+# See docs/projects/ci-building-and-releasing.md.
+#
+#   fastlane ios certs        one-time/renewal: create dist cert + profile via the ASC
+#                             API key (then store them in OpenBao — runbook section D)
+#   fastlane ios build        archive signed IPA -> build/fressh-ios.ipa (prebuild must have run)
+#   fastlane ios beta         upload the IPA to TestFlight (internal testers)
+#   fastlane ios release      submit the already-uploaded TestFlight build for App Review (promote)
+#   fastlane android beta     upload build/fressh-android.aab to the Play internal track
+#   fastlane android promote  promote a versionCode from internal -> production track
+#
+# iOS signing material is NOT in a match git repo — it lives in OpenBao (and as
+# GitHub Secrets for CI) exactly like the Android keystore: the dist cert+key
+# (FRESSH_IOS_CERT_P12_BASE64) and provisioning profile
+# (FRESSH_IOS_PROFILE_BASE64) arrive as env vars via secretspec and are
+# materialized/imported at build time.
+#
+# All file paths are absolute via MOBILE_DIR so lane behavior never depends on
+# fastlane's working-directory rules.
+
+require "base64"
+require "fileutils"
+require "json"
+
+MOBILE_DIR = File.expand_path("..", __dir__)
+SIGNING_DIR = File.join(MOBILE_DIR, "build", "ios-signing")
+
+# Name we give the App Store provisioning profile at creation (non-secret;
+# referenced again at build time to pin xcode's manual signing to it).
+IOS_PROFILE_NAME = "fressh appstore"
+
+# App Store Connect API key + team. These are non-secret identifiers (fill
+# once the key exists — runbook section D); only the .p8 content is secret and
+# arrives via secretspec as ASC_API_KEY_P8.
+ASC_KEY_ID = "TODO_ASC_KEY_ID"
+ASC_ISSUER_ID = "TODO_ASC_ISSUER_ID"
+APPLE_TEAM_ID = "TODO_APPLE_TEAM_ID"
+
+def asc_api_key
+  app_store_connect_api_key(
+    key_id: ASC_KEY_ID,
+    issuer_id: ASC_ISSUER_ID,
+    key_content: ENV.fetch("ASC_API_KEY_P8"),
+  )
+end
+
+def app_version
+  JSON.parse(File.read(File.join(MOBILE_DIR, "package.json")))["version"]
+end
+
+# MUST stay in sync with semverToCode in app.config.ts (single source of truth
+# for versionCode/buildNumber, derived from the package.json semver).
+def version_code(version = app_version)
+  maj, min, pat = version.split(".").map(&:to_i)
+  maj * 10_000 + min * 100 + pat
+end
+
+# Release notes produced by `bun scripts/changelog-extract.ts` (the version's
+# CHANGELOG.md section). Falls back to a stub for ad-hoc local runs.
+def release_notes
+  path = File.join(MOBILE_DIR, "build", "release-notes.txt")
+  File.exist?(path) ? File.read(path) : "Internal build #{app_version}"
+end
+
+platform :ios do
+  desc "Create/renew the dist cert + App Store profile via the ASC key (run locally; then store in OpenBao — runbook D)"
+  lane :certs do
+    FileUtils.mkdir_p(SIGNING_DIR)
+    # Apple Distribution certificate: generates a private key locally, saves
+    # .cer + .p12 (passwordless) into SIGNING_DIR, installs into the keychain.
+    cert(
+      api_key: asc_api_key,
+      development: false,
+      output_path: SIGNING_DIR,
+    )
+    # App Store provisioning profile bound to that cert + the bundle id.
+    sigh(
+      api_key: asc_api_key,
+      provisioning_name: IOS_PROFILE_NAME,
+      force: true,
+      output_path: SIGNING_DIR,
+      filename: "appstore.mobileprovision",
+    )
+    UI.success("Now store the signing material in OpenBao + GitHub Secrets (runbook section D):")
+    UI.message("  FRESSH_IOS_CERT_P12_BASE64  = base64 of #{SIGNING_DIR}/<cert-id>.p12")
+    UI.message("  FRESSH_IOS_PROFILE_BASE64   = base64 of #{SIGNING_DIR}/appstore.mobileprovision")
+  end
+
+  desc "Archive a signed release IPA -> build/fressh-ios.ipa (expo prebuild -p ios must have run)"
+  lane :build do
+    # Materialize signing material from env (secretspec <- OpenBao / GH Secrets),
+    # the iOS twin of signed-build.ts's keystore handling.
+    FileUtils.mkdir_p(SIGNING_DIR)
+    p12_path = File.join(SIGNING_DIR, "dist.p12")
+    profile_path = File.join(SIGNING_DIR, "appstore.mobileprovision")
+    File.binwrite(p12_path, Base64.decode64(ENV.fetch("FRESSH_IOS_CERT_P12_BASE64")))
+    File.binwrite(profile_path, Base64.decode64(ENV.fetch("FRESSH_IOS_PROFILE_BASE64")))
+
+    if ENV["CI"]
+      setup_ci # fresh temp keychain ("fastlane_tmp_keychain", empty password)
+      import_certificate(
+        certificate_path: p12_path,
+        keychain_name: "fastlane_tmp_keychain",
+        keychain_password: "",
+      )
+    end
+    # Locally the cert is already in the login keychain (the certs lane put it
+    # there); only the profile needs (re)installing.
+    install_provisioning_profile(path: profile_path)
+
+    update_code_signing_settings(
+      path: File.join(MOBILE_DIR, "ios", "Fressh.xcodeproj"),
+      use_automatic_signing: false,
+      code_sign_identity: "Apple Distribution",
+      team_id: APPLE_TEAM_ID,
+      profile_name: IOS_PROFILE_NAME,
+      targets: ["Fressh"],
+    )
+    build_app(
+      workspace: File.join(MOBILE_DIR, "ios", "Fressh.xcworkspace"),
+      scheme: "Fressh",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: File.join(MOBILE_DIR, "build"),
+      output_name: "fressh-ios.ipa",
+    )
+  end
+
+  desc "Upload build/fressh-ios.ipa to TestFlight (internal testing — no Apple review)"
+  lane :beta do
+    pilot(
+      api_key: asc_api_key,
+      ipa: File.join(MOBILE_DIR, "build", "fressh-ios.ipa"),
+      changelog: release_notes,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+    )
+  end
+
+  desc "Promote: submit the already-uploaded TestFlight build for App Review + auto-release"
+  lane :release do |options|
+    version = options[:version] || app_version
+    # deliver reads What's New from fastlane/metadata/en-US/release_notes.txt.
+    notes_path = File.join(__dir__, "metadata", "en-US", "release_notes.txt")
+    File.write(notes_path, release_notes)
+    deliver(
+      api_key: asc_api_key,
+      app_version: version,
+      build_number: version_code(version).to_s,
+      skip_binary_upload: true, # promote the existing TestFlight build
+      skip_screenshots: true, # flip false once fastlane/screenshots is seeded
+      submit_for_review: true,
+      automatic_release: true,
+      precheck_include_in_app_purchases: false,
+      force: true, # no interactive HTML preview in CI
+    )
+  end
+end
+
+platform :android do
+  desc "Upload build/fressh-android.aab to the Play internal testing track"
+  lane :beta do
+    supply(
+      track: "internal",
+      aab: File.join(MOBILE_DIR, "build", "fressh-android.aab"),
+      json_key_data: ENV.fetch("GOOGLE_SERVICE_ACCOUNT_KEY_JSON"),
+      release_status: "completed",
+      # Listing metadata/screenshots are owned by the promote/listing flow;
+      # betas only ship the binary + its changelog
+      # (metadata/android/en-US/changelogs/<versionCode>.txt).
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: false,
+    )
+  end
+
+  desc "Promote: move a versionCode from the internal track to production (same artifact)"
+  lane :promote do |options|
+    version = options[:version] || app_version
+    supply(
+      json_key_data: ENV.fetch("GOOGLE_SERVICE_ACCOUNT_KEY_JSON"),
+      track: "internal",
+      track_promote_to: "production",
+      version_code: version_code(version),
+      # Promotion only — never re-upload binaries or touch the listing here.
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true,
+      # Staged rollout option once there are real users:
+      # track_promote_release_status: "inProgress", rollout: "0.1",
+    )
+  end
+end

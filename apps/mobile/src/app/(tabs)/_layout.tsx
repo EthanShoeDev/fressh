@@ -1,57 +1,14 @@
-import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
-import {
-	Icon,
-	Label,
-	NativeTabs,
-	VectorIcon,
-} from 'expo-router/unstable-native-tabs';
-import React from 'react';
-import { useTheme } from '@/lib/theme';
+import { JsTabsLayout } from '@/components/navigation/JsTabsLayout';
+import { NativeTabsLayout } from '@/components/navigation/NativeTabsLayout';
+import { preferences } from '@/lib/preferences';
 
+/**
+ * Bottom tab bar selector. Renders either the native bar or our custom JS bar
+ * based on the `tabBarImpl` preference (seeded by the `EXPO_PUBLIC_TAB_BAR`
+ * build-time default). Flipping it in Settings remounts the navigator — per-tab
+ * stack history resets, which is fine for a try-it-out toggle.
+ */
 export default function TabsLayout() {
-	const theme = useTheme();
-	return (
-		<NativeTabs
-			// common
-			backgroundColor={theme.colors.surface}
-			iconColor={theme.colors.muted}
-			labelStyle={{ color: theme.colors.muted }}
-			tintColor={theme.colors.primary}
-			shadowColor={theme.colors.shadow}
-			// android
-			backBehavior="initialRoute"
-			indicatorColor={theme.colors.primary}
-			// labelVisibilityMode="labeled"
-			// rippleColor={theme.colors.transparent}
-			// ios
-			// blurEffect="systemChromeMaterial"
-			// disableTransparentOnScrollEdge={true}
-		>
-			<NativeTabs.Trigger name="index">
-				<Label selectedStyle={{ color: theme.colors.textPrimary }}>Hosts</Label>
-				<Icon
-					src={<VectorIcon family={FontAwesome6} name="server" />}
-					selectedColor={theme.colors.textPrimary}
-				/>
-			</NativeTabs.Trigger>
-			<NativeTabs.Trigger name="shell">
-				<Icon
-					src={<VectorIcon family={MaterialCommunityIcons} name="console" />}
-					selectedColor={theme.colors.textPrimary}
-				/>
-				<Label selectedStyle={{ color: theme.colors.textPrimary }}>
-					Shells
-				</Label>
-			</NativeTabs.Trigger>
-			<NativeTabs.Trigger name="settings">
-				<Icon
-					src={<VectorIcon family={MaterialCommunityIcons} name="cog" />}
-					selectedColor={theme.colors.textPrimary}
-				/>
-				<Label selectedStyle={{ color: theme.colors.textPrimary }}>
-					Settings
-				</Label>
-			</NativeTabs.Trigger>
-		</NativeTabs>
-	);
+	const [impl] = preferences.tabBarImpl.useValue();
+	return impl === 'js' ? <JsTabsLayout /> : <NativeTabsLayout />;
 }

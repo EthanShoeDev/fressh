@@ -1,0 +1,159 @@
+name: Build Mobile
+
+# Track A5: build on GitHub Actions runners using our Nix devShell, invoking
+# `eas build --local` via turbo. This workflow is a THIN CALLER — all of the
+# codegen/native-build ordering lives in turbo (turbo build:android / build:ios).
+# See docs/projects/ci-building-and-releasing.md ("What we're doing & why").
+#
+# Triggered two ways:
+#  - workflow_call: release.yml calls this in the SAME run after `changeset tag`
+#    creates the @fressh/mobile@<version> GitHub Release. We pass that release tag
+#    so the built artifact is attached to it. (We can't rely on the tag-push event
+#    because GITHUB_TOKEN-pushed tags don't trigger workflows.)
+#  - workflow_dispatch: manual build; no release exists, so the artifact is
+#    uploaded as a workflow artifact instead.
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build
+        type: choice
+        options: [android, ios, all]
+        default: android
+      submit:
+        description: Submit to store test channels (Play internal / TestFlight) after building
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      platform:
+        description: Platform(s) to build (android | ios | all)
+        type: string
+        default: android
+      release-tag:
+        description: GitHub Release tag to attach artifacts to (e.g. "@fressh/mobile@0.0.5")
+        type: string
+        required: true
+      submit:
+        description: Submit to store test channels (Play internal / TestFlight) after building
+        type: boolean
+        default: false
+    # Secrets come from the caller via `secrets: inherit`, so no secrets block is
+    # needed here; steps reference `${{ secrets.* }}` directly.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # gh release upload
+
+jobs:
+  android:
+    name: Android
+    if: contains(fromJSON('["android","all"]'), inputs.platform)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-build-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-build-
+
+      # turbo runs the terminal package's codegen (ubrn + nitrogen) + native .so,
+      # then scripts/signed-build.ts (prebuild + keystore from env + gradle).
+      # In CI, secrets come from GitHub Secrets as env vars, so force the env://
+      # provider (no OpenBao in CI; local dev uses the ["env","bao"] chain).
+      - name: Build (turbo -> signed gradle bundle)
+        run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bunx turbo build:android --filter @fressh/mobile
+        env: # GitHub Secrets -> env:// provider, read by secretspec
+          FRESSH_ANDROID_KEYSTORE_BASE64: ${{ secrets.FRESSH_ANDROID_KEYSTORE_BASE64 }}
+          FRESSH_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.FRESSH_ANDROID_KEYSTORE_PASSWORD }}
+          FRESSH_ANDROID_KEY_ALIAS: ${{ secrets.FRESSH_ANDROID_KEY_ALIAS }}
+          FRESSH_ANDROID_KEY_PASSWORD: ${{ secrets.FRESSH_ANDROID_KEY_PASSWORD }}
+
+      - name: Attach to GitHub Release
+        if: inputs.release-tag != ''
+        run: gh release upload "${{ inputs.release-tag }}" apps/mobile/build/fressh-android.aab --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload as workflow artifact (manual builds)
+        if: inputs.release-tag == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: fressh-android-aab
+          path: apps/mobile/build/fressh-android.aab
+
+      # fastlane supply -> Play "internal testing" track, with this version's
+      # CHANGELOG section as the release notes. Prereq: the FIRST .aab of a new
+      # Play app must be uploaded manually in the Play Console (Google API
+      # limitation) — see the runbook in docs/projects/ci-building-and-releasing.md.
+      - name: Submit to Play internal track (fastlane supply)
+        if: inputs.submit
+        run: |
+          bun run --cwd apps/mobile changelog:extract
+          secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile submit:android
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY_JSON }}
+
+  ios:
+    name: iOS
+    if: contains(fromJSON('["ios","all"]'), inputs.platform)
+    runs-on: macos-15 # iOS Rust build + xcframework + signing need macOS
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-build-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-build-
+
+      # turbo runs codegen + the xcframework, then `expo prebuild -p ios` +
+      # `fastlane ios build` (gym). Signing material comes from secrets exactly
+      # like Android: the bao/GH-stored dist cert (.p12) + provisioning profile
+      # are materialized and imported into a temp keychain by the lane.
+      - name: Build (turbo -> prebuild + fastlane gym)
+        run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bunx turbo build:ios --filter @fressh/mobile
+        env:
+          FRESSH_IOS_CERT_P12_BASE64: ${{ secrets.FRESSH_IOS_CERT_P12_BASE64 }}
+          FRESSH_IOS_PROFILE_BASE64: ${{ secrets.FRESSH_IOS_PROFILE_BASE64 }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+
+      - name: Attach to GitHub Release
+        if: inputs.release-tag != ''
+        run: gh release upload "${{ inputs.release-tag }}" apps/mobile/build/fressh-ios.ipa --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload as workflow artifact (manual builds)
+        if: inputs.release-tag == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: fressh-ios-ipa
+          path: apps/mobile/build/fressh-ios.ipa
+
+      # fastlane pilot -> TestFlight (internal testing, no Apple review), with
+      # this version's CHANGELOG section as the what-to-test note.
+      - name: Submit to TestFlight (fastlane pilot)
+        if: inputs.submit
+        run: |
+          bun run --cwd apps/mobile changelog:extract
+          secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile submit:ios
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}

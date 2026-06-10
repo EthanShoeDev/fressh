@@ -1,0 +1,64 @@
+//! Shared helpers + the crate error type. Plain Rust (no uniffi); the binding
+//! shim maps `SshError` onto its own FFI error.
+
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use thiserror::Error;
+
+/// Milliseconds since the unix epoch (wall clock). Used for connection/shell
+/// timestamps surfaced to the app.
+pub fn now_ms() -> f64 {
+	let d = SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.unwrap_or_default();
+	d.as_millis() as f64
+}
+
+/// Errors from the SSH layer. Ported from the uniffi-russh crate, minus the
+/// `uniffi::Error` derive — `fressh-core`/the shim translate this at the boundary.
+// TODO: Split this into different errors for each public function.
+#[derive(Debug, Error)]
+pub enum SshError {
+	#[error("Disconnected")]
+	Disconnected,
+	#[error("Unsupported key type")]
+	UnsupportedKeyType,
+	#[error("Auth failed: {0}")]
+	Auth(String),
+	#[error("Shell already running")]
+	ShellAlreadyRunning,
+	#[error("Host key rejected")]
+	HostKeyRejected,
+	#[error("Not found: {0}")]
+	NotFound(String),
+	#[error("russh error: {0}")]
+	Russh(String),
+	#[error("russh-keys error: {0}")]
+	RusshKeys(String),
+}
+
+impl From<russh::Error> for SshError {
+	fn from(e: russh::Error) -> Self {
+		SshError::Russh(e.to_string())
+	}
+}
+impl From<russh_keys::Error> for SshError {
+	fn from(e: russh_keys::Error) -> Self {
+		SshError::RusshKeys(e.to_string())
+	}
+}
+impl From<russh_keys::ssh_key::Error> for SshError {
+	fn from(e: russh_keys::ssh_key::Error) -> Self {
+		SshError::RusshKeys(e.to_string())
+	}
+}
+impl From<std::io::Error> for SshError {
+	fn from(e: std::io::Error) -> Self {
+		SshError::Russh(e.to_string())
+	}
+}
+impl From<russh::client::AuthResult> for SshError {
+	fn from(a: russh::client::AuthResult) -> Self {
+		SshError::Auth(format!("{a:?}"))
+	}
+}

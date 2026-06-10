@@ -1,0 +1,72 @@
+[workspace]
+# Single cargo workspace for the whole package. Modularity lives here (one crate
+# per concern); the *native boundary* is the single `.so`/framework that links
+# the shim, NOT the crate split. See docs/projects/native-rendering-refactor.md §8.
+#
+# Members:
+#   fressh-ssh    — russh wrapper (auth, channels, byte I/O)        [binding-agnostic]
+#   fressh-render — vendored alacritty GLES2 renderer over Term      [binding-agnostic]
+#   fressh-core   — runtime + registry + sessions + host-key park   [binding-agnostic, the FFI boundary]
+#   shim-uniffi   — thin uniffi binding we ship FIRST                [swappable]
+#   shim-craby    — LCD target, added later (see ../bindings notes)  [swappable, TODO]
+members = ["fressh-ssh", "fressh-render", "fressh-core", "shim-uniffi"]
+# vendor/alacritty is our fork checkout — its OWN cargo workspace. Exclude it so
+# cargo doesn't try to absorb its crates as members of ours. We still path-dep
+# into it (exclude only affects membership, not path deps). (§6)
+exclude = ["vendor/alacritty", "vendor/crossfont"]
+resolver = "2"
+
+# Use our crossfont fork (submodule) everywhere in the graph — including inside
+# alacritty_renderer (which depends on crossfont 0.8.1 from crates.io). Same
+# version, different source: adds a Fontconfig-free FreeType path so the renderer
+# links on Android/iOS, which lack fontconfig. (§6 font decision)
+[patch.crates-io]
+crossfont = { path = "vendor/crossfont" }
+
+[workspace.dependencies]
+# Async runtime — self-hosted in fressh-core (not driven by the binding tool),
+# so the core stays agnostic. Mirrors the feature set used by uniffi-russh today.
+tokio = { version = "1.47.1", features = [
+	"rt-multi-thread",
+	"macros",
+	"time",
+	"net",
+	"sync",
+	"io-util",
+] }
+
+# VT engine — the published library crate (NOT a fork). See §4/§6.
+# PINNED EXACT and kept in LOCKSTEP with the renderer: the fork's
+# `alacritty_renderer` (in vendor/alacritty, branch `fressh` based on the
+# alacritty_terminal_v0.26.0 tag) targets this exact engine API, and depends on
+# this same published `=0.26.0`, so cargo unifies to ONE `alacritty_terminal`
+# instance and `Term`/grid types are compatible across core<->renderer. When we
+# rebase the fork on a newer engine tag, bump BOTH in lockstep.
+alacritty_terminal = "=0.26.0"
+
+# Registry: id -> Arc<Session>. See §7 (registry beats refcounted handles).
+dashmap = "6"
+once_cell = "1.21.3"
+
+# Error plumbing.
+thiserror = "1.0.64"
+
+# Binding tool (shim-uniffi only). PINNED to match the ubrn three-way lock
+# (uniffi-bindgen-react-native 0.31.0-3 + @ubjs/core 0.31.0-3 + this). Mismatch →
+# runtime `Incompatible versions of uniffi … JS (30) Rust (29)`. See the
+# `native-terminal-refactor` / `dep-update-version-locks` memories.
+uniffi = "=0.31.0"
+
+# Lints defined once, inherited by every crate via `[lints] workspace = true`.
+# (stable since Rust 1.74). The justfile gate additionally promotes warnings to
+# errors with `-D warnings` for CI; this block drives editor/`cargo check`
+# feedback during development.
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+# `all` at -1 priority so specific allows/denies below can override it.
+all = { level = "warn", priority = -1 }
+# Surfaces missing `# Safety` docs etc. on the C-ABI we hand-write in fressh-core.
+undocumented_unsafe_blocks = "warn"

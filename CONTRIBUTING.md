@@ -54,16 +54,18 @@ pnpm run android
 
 ### Releasing
 
-Each publishable package uses release-it. From the package directory:
+Versioning and changelogs are managed by [changesets](https://github.com/changesets/changesets).
+In any PR that should show up in the release notes, add a changeset:
 
 ```
-pnpm run release
+bun run changeset
 ```
 
-See the package CHANGELOGs for release notes:
-
-- `packages/react-native-uniffi-russh/CHANGELOG.md`
-- `packages/react-native-xtermjs-webview/CHANGELOG.md`
+Pick the affected package(s) + bump and write the note; commit the generated
+`.changeset/*.md` file with your PR. When changesets land on `main`, the **Release**
+workflow opens a "Version Packages" PR — merging it bumps the version, rewrites
+`CHANGELOG.md`, and tags the release. See `.changeset/README.md` and
+`docs/projects/ci-building-and-releasing.md` for details.
 
 ### CI
 

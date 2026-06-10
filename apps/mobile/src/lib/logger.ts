@@ -1,3 +1,4 @@
+// @deprecated. Use effect-ts logger instead (use managedruntime)
 import { logger, consoleTransport } from 'react-native-logs';
 
 export const rootLogger = logger.createLogger({

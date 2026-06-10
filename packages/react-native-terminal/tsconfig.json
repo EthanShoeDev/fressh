@@ -1,0 +1,31 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"types": ["node"],
+		"rootDir": ".",
+		"paths": {
+			"@fressh/react-native-terminal": ["./src/index"]
+		},
+		"allowUnreachableCode": false,
+		"allowUnusedLabels": false,
+		"customConditions": ["react-native-strict-api"],
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"jsx": "react-jsx",
+		"lib": ["ESNext"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitReturns": true,
+		"noUncheckedIndexedAccess": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "ESNext",
+		"verbatimModuleSyntax": true,
+		"noUnusedLocals": false,
+		"noUnusedParameters": false
+	},
+	"include": ["src/**/*.ts", "src/**/*.tsx", "nitro/**/*.ts"]
+}

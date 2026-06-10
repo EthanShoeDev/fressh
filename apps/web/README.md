@@ -6,10 +6,10 @@ see the root README.
 ### Commands
 
 ```bash
-pnpm install
-pnpm dev
-pnpm build
-pnpm preview
+bun install
+bun run dev
+bun run build
+bun run preview
 ```
 
 ### Links

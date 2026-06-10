@@ -1,36 +1,86 @@
 {
 	"extends": ["//"],
 	"tasks": {
-		// Default overrides
+		// Override default tasks for mobile.
+		// oxlint runs once at the root; we only add the per-package tsgo typecheck.
+		// expo:doctor is intentionally NOT part of lint — it's a network-bound,
+		// non-blocking (`|| true`) upgrade-time check, run on demand via
+		// `bun run expo:doctor` (mirrors listening-astro).
 		"lint": {
-			"dependsOn": ["fmt", "^build"],
-			"with": ["typecheck", "//#lint:root", "expo:doctor"],
+			"with": ["tsgo:check", "//#oxfmt:fix", "//#oxlint:fix"],
 		},
 		"lint:check": {
-			"dependsOn": ["^build"],
-			"with": ["fmt:check", "typecheck", "//#lint:check:root", "expo:doctor"],
+			"with": ["tsgo:check", "//#oxfmt:check", "//#oxlint:check"],
+		},
+		// expo-env.d.ts is gitignored and only written by Expo's TypeScript
+		// services (normally the `expo start` metro server), so a fresh checkout /
+		// `git clean` has none of the ambient `*.css` (etc.) module declarations it
+		// pulls in from `expo/types` → tsgo fails TS2882 on `import './global.css'`.
+		// `expo customize tsconfig.json` is the headless command that writes it; for
+		// this project it's idempotent (tsconfig already has the right extends +
+		// include, TS deps present, so its tsconfig/dep steps no-op). Regenerate
+		// first so the typecheck is self-sufficient (mirrors the codegen dep in
+		// @fressh/react-native-terminal).
+		"tsgo:check": {
+			"dependsOn": ["^build", "expo:typegen"],
+		},
+		"expo:typegen": {
+			// app.json toggles experiments.typedRoutes, which gates whether Expo
+			// writes vs removes expo-env.d.ts.
+			"inputs": ["app.json"],
+			"outputs": ["expo-env.d.ts"],
 		},
 		"test": {
 			"dependsOn": ["^build"],
-			"with": ["test:e2e"],
+			"with": ["maestro:test"],
 		},
-		"dev:android": {
+		// These task names match the `android` / `ios` package.json scripts
+		// (expo run:*), so `turbo run android --filter=@fressh/mobile` builds the
+		// prerequisites first, then launches. The `^build:android` / `^build:ios`
+		// edges run react-native-terminal's native .so build into jniLibs BEFORE
+		// gradle/xcode's CMake tries to LINK it (it can't build it). Each platform
+		// depends ONLY on its own native build, so an Android run on Linux never
+		// triggers the iOS build, and vice versa on macOS. `^build` brings in that
+		// package's gitignored codegen (nitrogen + ubrn cpp/ts).
+		"android": {
 			"dependsOn": ["^build", "^build:android"],
 			"cache": false,
 			"persistent": true,
 		},
-		"dev:ios": {
+		"ios": {
 			"dependsOn": ["^build", "^build:ios"],
 			"cache": false,
 			"persistent": true,
 		},
-
-		// Special tasks
-		"expo:doctor": {},
-		"test:e2e": {},
-		"build:signed:apk": {
+		// Release builds (Track B — fastlane, no EAS; see
+		// docs/projects/ci-building-and-releasing.md). android = scripts/signed-build.ts
+		// (prebuild + secretspec-injected keystore + gradle); ios = expo prebuild +
+		// fastlane gym (match-signed). Same ordering as the dev `android`/`ios`
+		// tasks: `^build` brings in the terminal package's gitignored codegen
+		// (ubrn + nitrogen), and `^build:android`/`^build:ios` builds its native
+		// .so / xcframework BEFORE gradle/xcode link against it. Platform-split so
+		// an Android build on Linux never triggers the iOS native build (and vice
+		// versa). `cache: false`: release artifacts embed signing + timestamps, so
+		// always build fresh.
+		// passThroughEnv: turbo's strict env mode strips undeclared env vars, so the
+		// secretspec-injected signing secrets must be allowlisted or the build
+		// scripts see nothing. (Passthrough vars are not hashed into cache keys —
+		// irrelevant here anyway with cache:false.)
+		"build:android": {
 			"dependsOn": ["^build", "^build:android"],
-			"outputs": ["android/app/build/outputs/**"],
+			"cache": false,
+			"passThroughEnv": ["FRESSH_ANDROID_*"],
 		},
+		"build:ios": {
+			"dependsOn": ["^build", "^build:ios"],
+			"cache": false,
+			// fastlane gym: bao-stored dist cert + profile, ASC key for pilot/cert
+			// ops; CI toggles setup_ci/keychain handling in the lanes.
+			"passThroughEnv": ["FRESSH_IOS_*", "ASC_API_KEY_P8", "CI"],
+		},
+
+		// Mobile-specific tasks
+		"expo:doctor": { "cache": false },
+		"maestro:test": {},
 	},
 }

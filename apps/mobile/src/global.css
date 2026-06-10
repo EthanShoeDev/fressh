@@ -1,0 +1,203 @@
+@import 'tailwindcss';
+@import 'uniwind';
+
+/*
+ * App color themes. Each `@variant` must define the IDENTICAL set of
+ * `--color-*` tokens (uniwind errors at runtime otherwise). A token like
+ * `--color-text-primary` auto-generates utilities: `bg-text-primary`,
+ * `text-text-primary`, `border-text-primary`, etc.
+ *
+ * `light`/`dark` are the original palettes; `dracula` plus the four
+ * "reimagined" themes (`phosphor`, `graphite`, `aurora`, `monolith`) are
+ * selectable from Settings. Every variant MUST define the full token set,
+ * including `--color-success` / `--color-warning` (server live/idle status).
+ * Tune freely, then restart Metro to pick up new/changed themes.
+ */
+@layer theme {
+	:root {
+		@variant light {
+			--color-background: #f9fafb;
+			--color-surface: #ffffff;
+			--color-terminal-background: #f3f4f6;
+			--color-border: #e5e7eb;
+			--color-border-strong: #d1d5db;
+			--color-text-primary: #111827;
+			--color-text-secondary: #374151;
+			--color-muted: #6b7280;
+			--color-primary: #2563eb;
+			--color-button-text-on-primary: #ffffff;
+			--color-input-background: #ffffff;
+			--color-danger: #dc2626;
+			--color-overlay: rgba(0, 0, 0, 0.2);
+			--color-shadow: #000000;
+			--color-primary-disabled: #93c5fd;
+			--color-success: #16a34a;
+			--color-warning: #d97706;
+		}
+
+		@variant dark {
+			--color-background: #0b1324;
+			--color-surface: #111b34;
+			--color-terminal-background: #0e172b;
+			--color-border: #2a3655;
+			--color-border-strong: #1e293b;
+			--color-text-primary: #e5e7eb;
+			--color-text-secondary: #c6cbd3;
+			--color-muted: #9aa0a6;
+			--color-primary: #2563eb;
+			--color-button-text-on-primary: #ffffff;
+			--color-input-background: #0e172b;
+			--color-danger: #fca5a5;
+			--color-overlay: rgba(0, 0, 0, 0.4);
+			--color-shadow: #000000;
+			--color-primary-disabled: #3b82f6;
+			--color-success: #22c55e;
+			--color-warning: #f59e0b;
+		}
+
+		/*
+		 * Phosphor — retro-modern CRT. Warm espresso-black, amber primary,
+		 * phosphor-green for "live". Pairs with the mono tab-bar voice.
+		 */
+		@variant phosphor {
+			--color-background: #120f0a;
+			--color-surface: #1b1710;
+			--color-terminal-background: #120f0a;
+			--color-border: #3a2f1c;
+			--color-border-strong: #54421f;
+			--color-text-primary: #ece3d0;
+			--color-text-secondary: #bba888;
+			--color-muted: #9c8e76;
+			--color-primary: #ffb454;
+			--color-button-text-on-primary: #1a1206;
+			--color-input-background: #120f0a;
+			--color-danger: #ff8a78;
+			--color-overlay: rgba(0, 0, 0, 0.55);
+			--color-shadow: #000000;
+			--color-primary-disabled: #c9913f;
+			--color-success: #79e08a;
+			--color-warning: #ffb454;
+		}
+
+		/*
+		 * Graphite — premium dev-tool calm. Cool graphite, indigo primary,
+		 * hairline borders. Closest to the native glass bar.
+		 */
+		@variant graphite {
+			--color-background: #0b0c0f;
+			--color-surface: #14161b;
+			--color-terminal-background: #0b0c0f;
+			--color-border: #232733;
+			--color-border-strong: #313644;
+			--color-text-primary: #eceef2;
+			--color-text-secondary: #c2c7d0;
+			--color-muted: #9aa1ae;
+			--color-primary: #818cf8;
+			--color-button-text-on-primary: #ffffff;
+			--color-input-background: #1b1e25;
+			--color-danger: #fb7185;
+			--color-overlay: rgba(0, 0, 0, 0.5);
+			--color-shadow: #000000;
+			--color-primary-disabled: #4f5573;
+			--color-success: #4ade80;
+			--color-warning: #fbbf24;
+		}
+
+		/*
+		 * Aurora — futuristic glass. Ink-black washed teal/violet, teal primary,
+		 * neon glow accents. The native liquid-glass bar already is glass.
+		 */
+		@variant aurora {
+			--color-background: #06070d;
+			--color-surface: #121524;
+			--color-terminal-background: #06070d;
+			--color-border: #232a40;
+			--color-border-strong: #333c58;
+			--color-text-primary: #eaf0ff;
+			--color-text-secondary: #c2cce6;
+			--color-muted: #9aa6ca;
+			--color-primary: #2de6c6;
+			--color-button-text-on-primary: #04130f;
+			--color-input-background: #0e1120;
+			--color-danger: #ff6b81;
+			--color-overlay: rgba(0, 0, 0, 0.5);
+			--color-shadow: #000000;
+			--color-primary-disabled: #1c7e70;
+			--color-success: #2de6c6;
+			--color-warning: #ffb36b;
+		}
+
+		/*
+		 * Native — "feels like the OS". Two variants: `native` (system dark) and
+		 * `native-light` (system light). The app stores a single selectable theme
+		 * `native`; a root hook resolves it to `native`/`native-light` from the
+		 * device color scheme (see `useSystemThemeSync` in theme.tsx). These tokens
+		 * use Apple's system colors for the RN chrome (header, notes, plain cards);
+		 * the actual @expo/ui controls self-color from the platform. Deliberately
+		 * neutral/un-branded — the whole point is to defer to the OS.
+		 */
+		@variant native {
+			--color-background: #000000;
+			--color-surface: #1c1c1e;
+			--color-terminal-background: #000000;
+			--color-border: #38383a;
+			--color-border-strong: #545458;
+			--color-text-primary: #ffffff;
+			--color-text-secondary: #ebebf5;
+			--color-muted: #8e8e93;
+			--color-primary: #0a84ff;
+			--color-button-text-on-primary: #ffffff;
+			--color-input-background: #1c1c1e;
+			--color-danger: #ff453a;
+			--color-overlay: rgba(0, 0, 0, 0.4);
+			--color-shadow: #000000;
+			--color-primary-disabled: #2b6cb0;
+			--color-success: #30d158;
+			--color-warning: #ff9f0a;
+		}
+
+		@variant native-light {
+			--color-background: #f2f2f7;
+			--color-surface: #ffffff;
+			--color-terminal-background: #f2f2f7;
+			--color-border: #c6c6c8;
+			--color-border-strong: #aeaeb2;
+			--color-text-primary: #000000;
+			--color-text-secondary: #3c3c43;
+			--color-muted: #8e8e93;
+			--color-primary: #007aff;
+			--color-button-text-on-primary: #ffffff;
+			--color-input-background: #ffffff;
+			--color-danger: #ff3b30;
+			--color-overlay: rgba(0, 0, 0, 0.2);
+			--color-shadow: #000000;
+			--color-primary-disabled: #99c7ff;
+			--color-success: #34c759;
+			--color-warning: #ff9500;
+		}
+
+		/*
+		 * Monolith — brutalist editorial. Pure black, hairline grid, one
+		 * electric-lime accent. ALL-CAPS, sharp corners (best in stylized nav).
+		 */
+		@variant monolith {
+			--color-background: #0a0a0a;
+			--color-surface: #101010;
+			--color-terminal-background: #0a0a0a;
+			--color-border: #2a2a2a;
+			--color-border-strong: #474747;
+			--color-text-primary: #f4f4f2;
+			--color-text-secondary: #b8b8b6;
+			--color-muted: #8a8a8a;
+			--color-primary: #ccff00;
+			--color-button-text-on-primary: #0a0a0a;
+			--color-input-background: #161616;
+			--color-danger: #ff5c5c;
+			--color-overlay: rgba(0, 0, 0, 0.6);
+			--color-shadow: #000000;
+			--color-primary-disabled: #6f7a33;
+			--color-success: #ccff00;
+			--color-warning: #e5c100;
+		}
+	}
+}

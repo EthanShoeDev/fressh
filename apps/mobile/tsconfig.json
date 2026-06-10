@@ -1,6 +1,7 @@
 {
-	"extends": "expo/tsconfig.base",
+	"extends": ["expo/tsconfig.base", "../../tsconfig.base.json"],
 	"compilerOptions": {
+		"types": ["node"],
 		"strict": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
@@ -10,9 +11,11 @@
 		"noImplicitOverride": true,
 		"allowJs": true,
 		"strictNullChecks": true,
-		"baseUrl": ".",
 		"paths": {
-			"@/*": ["src/*"]
+			"@/*": ["./src/*"],
+			"react-native-animated-glow": [
+				"../../node_modules/react-native-animated-glow/lib/typescript/index"
+			]
 		}
 	},
 	"include": [
@@ -20,7 +23,6 @@
 		"**/*.tsx",
 		".expo/types/**/*.ts",
 		"expo-env.d.ts",
-		"eslint.config.js",
-		".release-it.ts"
+		"eslint.config.js"
 	]
 }
