@@ -56,6 +56,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Vendored alacritty/crossfont rust forks are git submodules.
+          submodules: recursive
 
       - name: Setup (Nix devShell + deps)
         uses: ./.github/actions/setup
@@ -112,6 +115,9 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Vendored alacritty/crossfont rust forks are git submodules.
+          submodules: recursive
 
       - name: Setup (Nix devShell + deps)
         uses: ./.github/actions/setup

@@ -1,4 +1,13 @@
-name: Release
+# Runs on EVERY push to main; the changesets action picks one of two modes:
+#  - pending changesets on main  -> opens/updates the "Version Packages" PR
+#    (no tag, no release, build job skipped)
+#  - none (the Version Packages PR just merged) -> tags + creates the GitHub
+#    Release, then the build job builds & attaches/submits artifacts
+name: Version & Release
+# Make the mode readable from the Actions list without clicking in: merging the
+# Version Packages PR produces a "chore: version packages" head commit -> that
+# run is the one that tags + releases; every other push just updates the PR.
+run-name: "${{ startsWith(github.event.head_commit.message, 'chore: version packages') && 'Cut release (tag + build + publish)' || 'Update Version Packages PR' }}"
 on:
   push:
     branches: [main]
@@ -12,7 +21,7 @@ permissions:
 
 jobs:
   version:
-    name: Version Packages
+    name: Version PR (changesets) or tag release
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Exposed to the `build` job below: the exact @fressh/mobile tag if (and only

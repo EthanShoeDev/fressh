@@ -20,6 +20,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The terminal package vendors forked alacritty/crossfont as git
+          # submodules; cargo:build fails without them.
+          submodules: recursive
 
       - name: Setup (Nix devShell + deps)
         uses: ./.github/actions/setup
