@@ -1,10 +1,17 @@
 // Learn more: https://docs.expo.dev/guides/customizing-metro
-// ESM config: apps/mobile is "type": "module", so this file must use import/export
-// (a CommonJS metro.config.js fails to load under EAS Build / eas-cli config resolution).
-import { getDefaultConfig } from 'expo/metro-config';
+// ESM config: apps/mobile is "type": "module", so a CommonJS metro.config.js
+// fails to load under eas build / eas-cli (loaded as ESM -> "require is not
+// defined"). But `expo/metro-config` and `uniwind/metro` are CommonJS and are
+// NOT resolvable as ESM bare specifiers when Node's import() loads this file
+// (eas build does exactly that). So keep the file ESM but pull those CJS deps in
+// via createRequire — CJS resolution handles their subpaths/exports correctly.
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { withUniwindConfig } from 'uniwind/metro';
+
+const require = createRequire(import.meta.url);
+const { getDefaultConfig } = require('expo/metro-config');
+const { withUniwindConfig } = require('uniwind/metro');
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(projectRoot, '../..');
