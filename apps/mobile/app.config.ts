@@ -16,6 +16,10 @@ const versionCode = semverToCode(packageJson.version);
 const config: ExpoConfig = {
 	name: 'Fressh',
 	slug: 'fressh',
+	// EAS account that owns the project (required for CI builds). `eas init` linked
+	// @sherlockshoe/fressh; projectId lives in extra.eas below (dynamic config can't
+	// be written automatically). See docs/projects/ci-building-and-releasing.md.
+	owner: 'sherlockshoe',
 	version: packageJson.version,
 	orientation: 'portrait',
 	icon: '../../packages/assets/mobile-app-icon-dark.png',
@@ -68,6 +72,9 @@ const config: ExpoConfig = {
 		'expo-image',
 	],
 	experiments: { typedRoutes: true, reactCompiler: true },
+	extra: {
+		eas: { projectId: '97d1010a-896a-45e2-8902-fd0d0c1b4468' },
+	},
 };
 
 export default config;
