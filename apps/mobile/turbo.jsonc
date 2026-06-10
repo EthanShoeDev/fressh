@@ -52,33 +52,35 @@
 			"cache": false,
 			"persistent": true,
 		},
-		// Release builds via `eas build --local` (Track A5 — build on GH Actions /
-		// the devShell, not EAS cloud; see docs/projects/ci-building-and-releasing.md).
-		// Same ordering as the dev `android`/`ios` tasks: `^build` brings in the
-		// terminal package's gitignored codegen (ubrn + nitrogen), and
-		// `^build:android`/`^build:ios` builds its native .so / xcframework BEFORE
-		// eas-build's prebuild + gradle/xcode link against it. Platform-split so an
-		// Android build on Linux never triggers the iOS native build (and vice versa).
-		// `cache: false`: eas build --local fetches credentials over the network and
-		// is non-deterministic, so we always produce a fresh release artifact.
+		// Release builds (Track B — fastlane, no EAS; see
+		// docs/projects/ci-building-and-releasing.md). android = scripts/signed-build.ts
+		// (prebuild + secretspec-injected keystore + gradle); ios = expo prebuild +
+		// fastlane gym (match-signed). Same ordering as the dev `android`/`ios`
+		// tasks: `^build` brings in the terminal package's gitignored codegen
+		// (ubrn + nitrogen), and `^build:android`/`^build:ios` builds its native
+		// .so / xcframework BEFORE gradle/xcode link against it. Platform-split so
+		// an Android build on Linux never triggers the iOS native build (and vice
+		// versa). `cache: false`: release artifacts embed signing + timestamps, so
+		// always build fresh.
+		// passThroughEnv: turbo's strict env mode strips undeclared env vars, so the
+		// secretspec-injected signing secrets must be allowlisted or the build
+		// scripts see nothing. (Passthrough vars are not hashed into cache keys —
+		// irrelevant here anyway with cache:false.)
 		"build:android": {
 			"dependsOn": ["^build", "^build:android"],
 			"cache": false,
+			"passThroughEnv": ["FRESSH_ANDROID_*"],
 		},
 		"build:ios": {
 			"dependsOn": ["^build", "^build:ios"],
 			"cache": false,
+			// fastlane gym: bao-stored dist cert + profile, ASC key for pilot/cert
+			// ops; CI toggles setup_ci/keychain handling in the lanes.
+			"passThroughEnv": ["FRESSH_IOS_*", "ASC_API_KEY_P8", "CI"],
 		},
 
 		// Mobile-specific tasks
 		"expo:doctor": { "cache": false },
 		"maestro:test": {},
-		// Legacy local Android release via gradle + secretspec-injected keystore.
-		// Superseded by `build:android` (eas build --local) above; kept until that
-		// path is verified end-to-end.
-		"build:signed:apk": {
-			"dependsOn": ["^build", "^build:android"],
-			"outputs": ["android/app/build/outputs/**"],
-		},
 	},
 }

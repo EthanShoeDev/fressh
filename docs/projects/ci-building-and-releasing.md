@@ -1,31 +1,100 @@
-# Future project: CI building & releasing — EAS builds + changesets changelog + GitHub Releases
+# CI building & releasing — fastlane (Track B) + changesets changelog + GitHub Releases
 
-**Status:** FOUNDATION LANDED + **build approach DECIDED** (see "What we're doing & why" below).
-The shared changesets + secretspec foundation is implemented (changesets configured, release-it
-removed, `release.yml` Version-Packages PR active, `secretspec.toml` declared, `signed-build.ts`
-reads signing secrets from env). EAS is scaffolded (`eas.json`, project `@sherlockshoe/fressh`
-linked). **A cloud `eas build` was attempted and failed** (Bundle JavaScript phase: the native
-module's gitignored `src/generated` ubrn bindings aren't in the repo). That failure drove the
-decision below: **build compute moves to GitHub Actions running our Nix devShell via turbo — not EAS
-cloud.** The changelog flow (changesets) is shared and tool-agnostic and is unaffected.
+**Status (rev 2026-06-10 pm): FULL FASTLANE (Track B) DECIDED & WIRED — EAS dropped entirely.**
+The Track A5 hybrid (`eas build --local` on GH Actions) was implemented and Android-verified first,
+then superseded the same day: once prod shipping + store-listings-as-code forced fastlane into the
+stack anyway (`eas submit` can't submit iOS for App Review, can't set Play release notes, and
+`eas metadata` is Apple-text-only/no screenshots/no Play), EAS's remaining value was just managed
+iOS signing — covered by storing the dist cert + provisioning profile in OpenBao (the iOS twin of
+the Android keystore; no match repo needed) and creating them via fastlane `cert`/`sigh` with an
+ASC API key. So: **no Expo account, no EXPO_TOKEN, no eas.json/.easignore/requireCommit**.
+`expo prebuild` (CNG, account-free) stays.
 
-> The two-track framing below (Track A = all-EAS, Track B = GH Actions + Fastlane) is retained as
-> background. What we are actually building is a **hybrid (Track A5)**: `eas build --local` on GH
-> Actions runners, keeping EAS only for credentials + `eas submit`. See the decision section next.
+**What's wired now:** changesets versioning → `release.yml` (Version-Packages PR → tag + GH Release
+→ reusable `build-mobile.yml`) → Android `scripts/signed-build.ts` (prebuild + OpenBao/GH-secret
+keystore + gradle) / iOS `expo prebuild + fastlane gym` (bao-stored cert+profile) → fastlane `supply`/`pilot`
+to Play-internal/TestFlight with changesets release notes → **`ship-prod.yml` promote button**
+(supply track-promote + deliver submit-for-review). Store listings live in git
+(`apps/mobile/fastlane/metadata` + `screenshots`). fastlane comes from the Nix devShell.
 
-- **Track A — everything through EAS** (EAS Build + EAS Workflows + EAS Submit).
-- **Track B — custom: GitHub Actions + Fastlane** (self-managed signing/runners).
-- **→ CHOSEN: Track A5 — `eas build --local` on GitHub Actions**, orchestrated by turbo.
+> The Track A/B framing and EAS sections below are retained as **historical background** — the
+> "What we're doing & why" section documents the A5 hybrid era. The current design is this header,
+> the "Release flow" section, and the runbook.
 
-Both tracks consume the **same changesets-produced version + git tag** and attach artifacts to the
-**same GitHub Release**.
+- **Track A — everything through EAS** (EAS Build + EAS Workflows + EAS Submit). *(historical)*
+- **Track A5 — `eas build --local` on GitHub Actions.** *(historical — implemented 2026-06-10 am,
+  Android-verified, superseded the same day)*
+- **→ CHOSEN: Track B — GitHub Actions + fastlane** (bao-stored signing, gradle/gym builds,
+  pilot/supply/deliver submission, listings-as-code), orchestrated by turbo.
 
-**Scope:** `apps/mobile` + repo-root CI (`.github/`, `.eas/`, `fastlane/`, `.changeset/`,
-`secretspec.toml`). No native code changes.
+**Scope:** `apps/mobile` + repo-root CI (`.github/`, `apps/mobile/fastlane/`, `.changeset/`,
+`secretspec.toml`, `flake.nix`). No native code changes.
 
 ---
 
-## What we're doing & why  *(decision, rev 2026-06-09)*
+## Release flow  *(decided 2026-06-10: trunk + auto-beta + promote button)*
+
+Modeled on what the automation-mature OSS RN apps converged on (researched 2026-06-10 against
+their repos): **Bluesky** (trunk; every main merge auto-ships to TestFlight; prod = manual
+`workflow_dispatch`; hotfixes via `1.x.0-ota-N` branches cherry-picked off the shipped tag) and
+**Expensify** (trunk; bot fast-forwards a `staging` pointer branch per merge; closing the QA
+checklist issue promotes the *same staging binaries* to production; hotfixes via a cherry-pick
+workflow). Rocket.Chat RN is the gitflow holdout (develop/master) — also the one without OTA and
+with manual console promotion. fastlane itself is branching-agnostic (lanes map to destinations,
+not branches).
+
+**The flow:**
+
+1. **Feature PRs → `main`** (with a changeset file). Merging to main releases nothing; the
+   changesets bot accumulates pending bumps in one open **"Version Packages" PR** — the release
+   train lever.
+2. **Merge the Version Packages PR = cut a release.** Tag + GitHub Release + builds attached +
+   **auto-submit to the test channels**: Play internal track (`fastlane android beta`) and
+   TestFlight (`fastlane ios beta`), release notes = that version's CHANGELOG section. Production
+   users see nothing. Main being ahead of prod is the normal permanent state; features not ready
+   for users ride along dark (feature-flag them if even testers shouldn't see them).
+3. **Prod = the promote button.** `ship-prod.yml` (`workflow_dispatch`, input: version) promotes
+   the EXACT soaked artifacts — Play: `supply` track-promotes the versionCode internal→production
+   (no re-upload; Play rejects duplicate versionCodes anyway); iOS: `deliver` submits the
+   already-uploaded TestFlight build for App Review with auto-release-on-approval
+   (`skip_binary_upload: true`). Apple review still happens; zero console clicks. Runs on ubuntu —
+   both halves are store-API calls.
+4. **Hotfix while main is dirty** (the documented escape hatch, rare): branch off the shipped tag
+   `git checkout -b hotfix/0.1.5 "@fressh/mobile@0.1.4"`, cherry-pick the fix, bump the patch
+   version in that branch, dispatch `build-mobile.yml` against it with submit on, verify on the
+   test channel, `ship-prod` it, cherry-pick back to main. An afternoon-lived branch — Bluesky's
+   `ota-N` pattern.
+
+**Why one version line (no `-beta.N`, no dev branch):** Play versionCodes are one monotonic
+sequence shared across ALL tracks, and Apple rejects non-numeric `CFBundleShortVersionString` —
+prerelease suffixes can't even surface on iOS. The stores model channels as *tracks*; mirroring
+channels in git creates a second source of truth. Betas consume patch numbers; prod history has
+gaps; users never see them. Everything here is reversible — the only one-way doors in this domain
+are the versionCode encoding and the upload keystore (both settled).
+
+**Future idea — Expensify-style deploy checklist:** instead of a bare button, Expensify's bot
+opens a "StagingDeployCash" issue per release cycle listing every PR riding in it as checkboxes;
+QA checks items off, deploy blockers get a label that holds the train, and *closing the issue* is
+the promote trigger (restricted to their deployers team). A scaled-down version for fressh: the
+release workflow opens a "Promote 0.2.0?" issue with the changeset entries as a test checklist +
+links to the Play-internal/TestFlight builds, and an issue-closed workflow (gated on a label)
+fires ship-prod. Nice ergonomics once there are real testers; not needed for v1 — revisit after
+the first few releases.
+
+**OTA updates (deliberately NOT wired):** dropping EAS build/submit does not foreclose OTA.
+OTA = the open-source `expo-updates` client (not installed yet) + an update server, chosen later:
+**hosted EAS Update** (free tier, build-pipeline-agnostic — works fine with fastlane-built
+binaries; would reintroduce an Expo account + EXPO_TOKEN for that one purpose) vs **self-hosted**
+(Expo publishes the updates protocol + reference server `expo/custom-expo-updates-server`;
+community impls exist; fits the Vaultwarden/OpenBao posture; real work: update code-signing,
+`runtimeVersion`/fingerprint discipline, serving infra). CodePush is dead (retired 2025). What OTA
+buys: JS-only prod fixes in minutes instead of a review cycle (how Bluesky patches same-day) +
+instant PR previews. Until then, the hotfix-branch flow covers prod fixes. Decide when real users
+are waiting on review cycles.
+
+---
+
+## What we're doing & why  *(HISTORICAL — Track A5 era, rev 2026-06-09; superseded by Track B)*
 
 **What:** Build the app on **GitHub Actions runners using our existing Nix devShell**, invoking
 **`eas build --local`** (Track A5) — *not* EAS's cloud builders. The whole build recipe is expressed
@@ -126,33 +195,34 @@ output is a long multi-platform **build**, which we want in its own file. Two wa
 release can tag several packages via `privatePackages.tag` + the `updateInternalDependencies` cascade),
 and only builds when the mobile app was actually part of that release.
 
-### Store submission / beta channels  *(IMPLEMENTED, rev 2026-06-10)*
+### Store submission & shipping  *(IMPLEMENTED — fastlane, rev 2026-06-10 pm)*
 
-"Beta release" = a changesets release whose artifacts also go to the store test channels:
-**Google Play internal testing** (instant, up to 100 testers, no review) and **TestFlight**
-(every EAS iOS submit lands there; internal TestFlight groups need no Apple review).
-We use **`eas submit`** (free) with the **locally built** artifact (`--path`), so this works
-with Track A5 builds.
+All store interaction is fastlane (from the Nix devShell), lanes in `apps/mobile/fastlane/Fastfile`,
+invoked via package scripts:
 
-- **`apps/mobile/scripts/submit.ts`** (effect-ts, mirrors signed-build.ts): materializes the
-  store credential **files** that eas.json requires (`eas submit` cannot read them from env) —
-  `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` → `google-service-account.json`, `ASC_API_KEY_P8` →
-  `asc-api-key.p8` — runs `eas submit -p <platform> --path build/fressh-*.{aab,ipa} --profile
-  production --non-interactive --wait`, then deletes the key files (both gitignored +
-  .easignored). Scripts: `bun run submit:android` / `submit:ios`.
-- **`eas.json` submit.production**: android `track: internal` + `serviceAccountKeyPath`;
-  ios `ascApiKeyPath` + `ascApiKeyId`/`ascApiKeyIssuerId`/`ascAppId` (non-secret IDs,
-  committed — currently `TODO_*` placeholders until the ASC key + app record exist).
-- **`build-mobile.yml`** gained a `submit` boolean input (dispatch + call): after the build,
-  runs the submit script under `secretspec --provider env://`. `release.yml` passes
-  `submit: false` until the store prereqs are done (flip it to make every release a beta).
-- **Play versionCode gotcha:** versionCode is derived from semver (`maj*10000+min*100+pat`),
-  and Play rejects re-used versionCodes — so every Play submission needs a version bump via
-  changesets first. (Changesets `--snapshot` betas don't fit the derivation — prerelease
-  suffixes break `semverToCode` — so betas are just normal patch releases for now.)
-- **One-time store prereqs** (manual, see runbook below): create the Play app + upload the
-  FIRST .aab by hand (Play API limitation) + service-account key; create the ASC app record +
-  API key. PR-preview OTA (EAS Update) remains deferred.
+| script | lane | what it does |
+|---|---|---|
+| `submit:android` | `android beta` | `supply` → Play **internal** track, release notes from changelog file |
+| `submit:ios` | `ios beta` | `pilot` → TestFlight (internal, no Apple review), what-to-test from notes |
+| `promote:android` | `android promote` | `supply` track-promote versionCode internal→**production** (no re-upload) |
+| `promote:ios` | `ios release` | `deliver` `skip_binary_upload` — submits the TestFlight build for App Review, auto-release |
+| `ios:certs` | `ios certs` | `cert`+`sigh`: create/renew dist cert + App Store profile (then store in bao) |
+| `changelog:extract` | — | CHANGELOG section → `build/release-notes.txt` + Play `changelogs/<versionCode>.txt` |
+
+- **Secrets** (env via secretspec): `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` (supply `json_key_data` — no
+  file materialization), `ASC_API_KEY_P8` (key content; the non-secret `ASC_KEY_ID`/`ASC_ISSUER_ID`
+  + `APPLE_TEAM_ID` are constants in the Fastfile — `TODO_*` until runbook §D),
+  `FRESSH_IOS_CERT_P12_BASE64` + `FRESSH_IOS_PROFILE_BASE64` (iOS signing material, stored in
+  OpenBao/GH exactly like the Android keystore — match was dropped: it has no vault backend, and
+  with bao in the stack a cert git repo + MATCH_PASSWORD + PAT would be three redundant secrets).
+- **Store listings as code:** `apps/mobile/fastlane/metadata/` (iOS locale dirs + `android/en-US/`)
+  and `fastlane/screenshots/` are the listings — edit in git, `deliver`/`supply` push them. Seeded
+  with placeholders; wire `scripts/screenshots.ts` (maestro) output into the screenshot dirs later.
+- **versionCode formula lives in THREE places** (keep in sync): `app.config.ts` `semverToCode`,
+  `Fastfile` `version_code`, `scripts/changelog-extract.ts` `semverToCode`.
+- **Play gotchas:** first .aab of a new app must be uploaded manually (API limitation); every Play
+  upload needs a fresh versionCode → version-bump via changesets between betas; production-track
+  promotion requires the store listing to be complete (one-time console setup).
 
 ### Signing / credentials (open sub-decision)
 
@@ -179,95 +249,117 @@ on EAS-managed for both to get a first green build; revisit before relying on it
 
 ---
 
-## Runbook — exact next steps to a working pipeline + first beta  *(rev 2026-06-10)*
+## Runbook — fastlane era: verify pipeline → first beta → first prod  *(rev 2026-06-10 pm)*
 
-Ordered; A is pure verification, B–D are one-time store/secret setup, E is the repeatable beta flow.
+Ordered. §A burns nothing and needs no store accounts; §§C–D are one-time store/credential setup;
+§E is the repeatable flow. Versions are only consumed by merging a Version-Packages PR; Play
+versionCodes only burn on actual Play submission.
 
-### A. Verify the CI pipeline (no store accounts needed)
+### A. Verify the CI pipeline (Android, no store accounts)
 
-1. Commit + push this branch, open the PR → `check.yml` must go green (validates the shared
-   `.github/actions/setup` composite).
-2. Manual CI build off the branch (only `EXPO_TOKEN` is needed; already a GH secret ✅):
-   ```bash
-   gh workflow run build-mobile.yml --ref refresh -f platform=android
-   gh run watch          # then: gh run download -n fressh-android-aab
-   ```
-3. Add a changeset for the release flow test: `bunx changeset` → pick `@fressh/mobile` patch.
-4. Merge the PR → `release.yml` opens the **"Version Packages" PR**.
-5. Merge that PR → same workflow runs `changeset tag`, creates the `@fressh/mobile@<v>` GitHub
-   Release, and the `build` job attaches `fressh-android.aab` to it. Pipeline verified.
+1. Commit + push this branch, open the PR → `check.yml` green (validates the shared setup action
+   incl. fastlane in the devShell).
+2. Optional pre-merge CI smoke test (workflow_dispatch needs the file on the default branch, but a
+   push trigger doesn't): temporarily add `push: {branches: [refresh]}` to `build-mobile.yml`,
+   push, watch the Android job produce `fressh-android-aab`; remove the trigger before merge.
+   The android job needs the `FRESSH_ANDROID_*` GitHub secrets — already set ✓.
+3. The changeset for 0.1.0 is already in the branch (`.changeset/refresh-ios-terminal-release.md`).
+4. Merge the PR → `release.yml` opens the **Version Packages PR**. Merge that → tag
+   `@fressh/mobile@0.1.0` + GitHub Release + signed AAB attached. Pipeline verified.
+   (`release.yml` still passes `submit: false` — flip it in §E.)
 
-### B. (Optional, self-hosting posture) back up the keystore from Vaultwarden → OpenBao
+### B. Keystore — ✅ DONE (2026-06-10)
 
-EAS already holds the original upload keystore (see FINDING above), so this is backup only.
-`bw` isn't installed; use `bunx @bitwarden/cli`:
+`FRESSH_ANDROID_*` live in OpenBao + GitHub Secrets; fingerprint-verified as the original upload
+key. The `bw`/Vaultwarden flow is fully retired.
 
-```bash
-bunx @bitwarden/cli config server https://<your-vaultwarden-host>
-bunx @bitwarden/cli login && export BW_SESSION=$(bunx @bitwarden/cli unlock --raw)
-bunx @bitwarden/cli get item "fressh keystore" --raw > /tmp/ks.json
-jq -r '.fields[] | select(.name=="keystore") | .value' /tmp/ks.json   # KEYSTORE_BASE64
-jq -r '.login.username, .login.password' /tmp/ks.json                  # alias, password
-cd ~/fressh && nix develop   # secretspec + VAULT auth (~/.vault-token)
-secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production FRESSH_ANDROID_KEYSTORE_BASE64
-secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production FRESSH_ANDROID_KEY_ALIAS
-secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production FRESSH_ANDROID_KEYSTORE_PASSWORD
-secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production FRESSH_ANDROID_KEY_PASSWORD
-rm /tmp/ks.json
-```
+### C. Google Play (one-time)
 
-### C. Google Play internal testing (one-time)
-
-1. Play Console (play.google.com/console, $25 one-time dev account): **Create app** with package
-   `dev.fressh.app`; accept **Play App Signing** (our EAS keystore stays the *upload* key).
-2. **The first .aab must be uploaded manually** (Play API limitation): take the AAB from step A
-   and upload it to **Testing → Internal testing → Create release**; add your Gmail as a tester.
-3. Service account for `eas submit`: Play Console → **Users and permissions → Invite new user →
-   ...** is for humans; for the API follow expo.fyi/creating-google-service-account — create a GCP
-   service account + JSON key, then in Play Console grant it **Release manager** on the app.
+1. Play Console ($25 one-time): **Create app**, package `dev.fressh.app`; accept Play App Signing
+   (our keystore is the upload key).
+2. **Manually upload the first .aab** (Play API limitation): use the §A release artifact →
+   Testing → Internal testing → Create release; add your Gmail as tester.
+3. Service account for the API: follow https://docs.fastlane.tools/actions/supply/#setup (create
+   GCP service account + JSON key, invite it in Play Console with release permissions).
 4. Store the key (verbatim JSON):
    ```bash
-   nix develop -c secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production GOOGLE_SERVICE_ACCOUNT_KEY_JSON
    gh secret set GOOGLE_SERVICE_ACCOUNT_KEY_JSON < service-account.json
+   nix develop -c secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production GOOGLE_SERVICE_ACCOUNT_KEY_JSON
    ```
-5. Bump the version first (Play rejects the versionCode the manual upload used — `bunx changeset`
-   + release, or test locally after a local bump), then test:
+5. Test (needs a NEW versionCode vs the manual upload — cut a release first, or test on the next
+   one): `nix develop -c secretspec run -f apps/mobile/secretspec.toml --profile production -- bun run --cwd apps/mobile submit:android`
+6. For §E's prod promotion later: complete the store listing (description/screenshots/privacy/
+   content rating) — the production track requires it. The listing text lives in
+   `fastlane/metadata/android/en-US/` and is pushed by `supply` when you stop skipping metadata.
+
+### D. Apple / iOS (one-time)
+
+1. **ASC API key:** App Store Connect → Users and Access → Integrations → Team Keys → role
+   **App Manager**; download the `.p8` (one chance). `gh secret set ASC_API_KEY_P8 < AuthKey_*.p8`
+   + `secretspec set --provider bao`. Fill the **Key ID / Issuer ID / Team ID** constants in
+   `fastlane/Fastfile` (`ASC_KEY_ID`/`ASC_ISSUER_ID`/`APPLE_TEAM_ID` — non-secret, committed).
+2. **Register the bundle id** (one-time, if not already): developer.apple.com → Identifiers → **+**
+   → App ID `dev.fressh.app`.
+3. **Create the cert + profile:**
+   `nix develop -c secretspec run -f apps/mobile/secretspec.toml --profile production -- bun run --cwd apps/mobile ios:certs`
+   (fastlane `cert` generates the Apple Distribution cert + private key locally and saves a
+   passwordless `.p12`; `sigh` creates the "fressh appstore" provisioning profile; both land in
+   `apps/mobile/build/ios-signing/`).
+4. **Store the signing material — the iOS twin of the Android keystore:**
    ```bash
-   nix develop -c secretspec run -f apps/mobile/secretspec.toml --profile production -- bun run --cwd apps/mobile submit:android
+   base64 -i build/ios-signing/<cert-id>.p12 | gh secret set FRESSH_IOS_CERT_P12_BASE64
+   base64 -i build/ios-signing/appstore.mobileprovision | gh secret set FRESSH_IOS_PROFILE_BASE64
+   # same two values via: nix develop -c secretspec set --provider bao --profile production ...
    ```
+5. **ASC app record:** App Store Connect → My Apps → **+** → bundle `dev.fressh.app` (pilot/deliver
+   need the record to exist).
+6. **First iOS build (the expected-iteration step):**
+   `nix develop -c secretspec run ... -- bunx turbo build:ios --filter @fressh/mobile` — debug the
+   gym archive until green (scheme `Fressh`, workspace generated by prebuild; the build lane
+   imports the cert into a temp keychain on CI and pins manual signing to the "fressh appstore"
+   profile). Then a CI dispatch with `platform: ios`.
+7. iOS listing text: `fastlane/metadata/en-US/` (deliver pushes it during `promote:ios`).
 
-### D. TestFlight (one-time)
+### TODO (next): CI reads OpenBao directly — stop mirroring secrets into GitHub
 
-1. Link EAS ↔ Apple + create iOS dist credentials (interactive, needs Apple ID login):
-   ```bash
-   cd apps/mobile && bunx eas-cli@20.1.0 credentials -p ios
-   # sign in -> let EAS register dev.fressh.app + create dist cert / provisioning profile
-   ```
-   (Required before any CI iOS build — `--non-interactive` can't create credentials.)
-2. App Store Connect → **My Apps → + → New App** for bundle `dev.fressh.app`; note the numeric
-   **Apple ID** of the app (= `ascAppId`).
-3. ASC API key: **Users and Access → Integrations → App Store Connect API → Team Keys → +**,
-   role **App Manager**; download the `.p8` (one chance); note **Key ID** + **Issuer ID**.
-4. Replace the `TODO_*` placeholders in `apps/mobile/eas.json` (`ascApiKeyId`,
-   `ascApiKeyIssuerId`, `ascAppId`) — they're non-secret, commit them.
-5. Store the .p8 (verbatim contents):
-   ```bash
-   nix develop -c secretspec set -f apps/mobile/secretspec.toml --provider bao --profile production ASC_API_KEY_P8
-   gh secret set ASC_API_KEY_P8 < AuthKey_XXXXXXXXXX.p8
-   # (no ASC_KEY_ID/ASC_ISSUER_ID secrets — those IDs are non-secret and live in eas.json)
-   ```
-6. CI iOS build: `gh workflow run build-mobile.yml --ref main -f platform=ios` (first macOS run
-   is slow — uncached Nix + Rust). Then with `-f submit=true` → TestFlight; add yourself to an
-   internal TestFlight group in ASC.
+Today every secret is stored twice (OpenBao for local, GitHub Secrets for CI) and the workflows
+carry per-secret `env:` blocks. Proposed (user idea, 2026-06-10): CI authenticates to OpenBao and
+resolves via secretspec's `bao` provider, so OpenBao becomes the single source of truth. secretspec
+stores keys at **`secret/data/secretspec/fressh-mobile/production/<KEY>`** (`vault.rs`
+`format_secret_path`), so the CI policy is one line:
 
-### E. The repeatable beta release (after C/D)
+```hcl
+path "secret/data/secretspec/fressh-mobile/production/*" { capabilities = ["read"] }
+```
 
-1. Flip `submit: false` → `true` and `platform: android` → `all` in `release.yml`'s build job.
-2. Per beta: `bunx changeset` in the feature PR → merge → merge the "Version Packages" PR.
-   That produces: bumped version + CHANGELOG + git tag + GitHub Release with artifacts **and**
-   a Play internal-track rollout + TestFlight build of the same artifacts.
+Two rungs:
+1. **Scoped static token:** `bao token create -policy=ci-fressh -orphan -period=768h` → single
+   `VAULT_TOKEN` GitHub secret; workflows drop `--provider env://` and all per-secret env blocks.
+   Still a long-lived credential to rotate.
+2. **OIDC (preferred, zero static secrets):** enable OpenBao's `jwt` auth method against GitHub's
+   OIDC issuer (`https://token.actions.githubusercontent.com`), role bound to
+   `repository: EthanShoeDev/fressh` (+ ref binding for prod-only secrets later), mapped to the
+   policy above. Workflow: `permissions: id-token: write`, exchange the job's OIDC token for a
+   short-lived bao token (curl or vault-action), export `VAULT_TOKEN`, run secretspec. No GitHub
+   secrets at all.
 
----
+Notes: keep the GH-secret mirror until OIDC is proven (the `["env","bao"]` chain means env wins
+when present — fallback for bao downtime); CI gains a hard dependency on `bao.ethanshoe.dev`
+being up + reachable from GH runners; runtime-fetched values are not auto-masked in Action logs
+(GH only masks registered secrets) — lanes never echo them, but don't add `set -x`.
+
+### E. The repeatable flow (after C/D)
+
+1. Flip `submit: false → true` and `platform: android → all` in `release.yml`'s build job.
+2. **Beta:** merge feature PRs (each with a changeset) → merge the Version Packages PR → tag +
+   GitHub Release + artifacts + **Play internal + TestFlight automatically**, release notes from
+   the CHANGELOG.
+3. **Prod:** Actions → **Ship Prod** → run with `version: 0.2.0` → same artifacts promoted to Play
+   production + submitted for App Review (auto-release on approval). Optional later: staged
+   rollout (`rollout:` in the promote lane), a GitHub Environment approval gate, or the
+   Expensify-style checklist issue (see Release flow section).
+4. **Hotfix:** see "Release flow" step 4 (branch off the shipped tag, cherry-pick, dispatch
+   build-mobile against the branch, promote).
 
 ## Did EAS prescribe a changelog flow? No.
 

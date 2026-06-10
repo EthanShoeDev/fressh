@@ -1,13 +1,15 @@
 #!/usr/bin/env bun
 /**
- * Local signed Android release build.
+ * Signed Android release build — THE release path (Track B, no EAS).
  *
- * Pulls the upload keystore + passwords, drops them into android/ (keystore
- * file, gradle.properties, release signingConfig in build.gradle), then runs
- * the gradle bundle/assemble task. Optionally cuts a GitHub release with the APK.
+ * Pulls the upload keystore + passwords from env (injected by `secretspec run`),
+ * drops them into android/ (keystore file, gradle.properties, release
+ * signingConfig in build.gradle), runs the gradle bundle/assemble task, and
+ * copies the artifact to --output (default build/fressh-android.aab — the path
+ * CI and the fastlane lanes consume).
  *
- *   bun run build:signed:aab            # signed .aab (Play upload artifact)
- *   bun run build:signed:apk            # signed .apk (sideloadable)
+ *   turbo build:android --filter @fressh/mobile        # via package.json build:android
+ *   secretspec run --profile production -- bun run build:android
  *
  * @see https://docs.expo.dev/guides/local-app-production/
  *
@@ -17,10 +19,9 @@
  * in ./screenshots.ts.
  */
 import { BunRuntime, BunServices } from '@effect/platform-bun';
-import { Data, Effect, FileSystem, Path, Stream } from 'effect';
+import { Data, Effect, FileSystem, Option, Path, Stream } from 'effect';
 import { Command as CliCommand, Flag } from 'effect/unstable/cli';
 import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process';
-import packageJson from '../package.json' with { type: 'json' };
 
 const COMMAND_NAME = 'signed-build';
 
@@ -38,7 +39,7 @@ const runInherit = (label: string, command: ChildProcess.Command) =>
 	Effect.scoped(
 		Effect.gen(function* () {
 			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-			yield* Effect.sync(() => console.log(`\n$ ${label}`));
+			yield* Effect.log(`$ ${label}`);
 			const handle = yield* spawner.spawn(command);
 			yield* handle.all.pipe(
 				Stream.decodeText(),
@@ -96,19 +97,12 @@ const getSecrets = Effect.gen(function* () {
 // build
 // ---------------------------------------------------------------------------
 
-const main = (format: 'aab' | 'apk', ghRelease: boolean) =>
+const main = (format: 'aab' | 'apk', output: Option.Option<string>) =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 
-		if (ghRelease && format !== 'apk') {
-			return yield* new SignedBuildError({
-				message: '--gh-release is only supported for apk builds',
-			});
-		}
-		console.log(
-			`Making signed build. Format: ${format}, GH Release: ${ghRelease}`,
-		);
+		yield* Effect.log(`Making signed build. Format: ${format}`);
 
 		const scriptDir = import.meta.dirname; // apps/mobile/scripts
 		const mobileDir = path.resolve(scriptDir, '..');
@@ -140,7 +134,7 @@ const main = (format: 'aab' | 'apk', ghRelease: boolean) =>
 			keystorePath,
 			Buffer.from(secrets.keystoreBase64, 'base64'),
 		);
-		console.log(`Keystore written to ${keystorePath}`);
+		yield* Effect.log(`Keystore written to ${keystorePath}`);
 
 		// Ensure gradle.properties is configured
 		// https://docs.expo.dev/guides/local-app-production/#update-gradle-variables
@@ -156,7 +150,7 @@ const main = (format: 'aab' | 'apk', ghRelease: boolean) =>
 				gradlePropsPath,
 				`${currentGradleProperties}\n\n${gradlePropertiesSuffix}`,
 			);
-			console.log(`Gradle properties written to ${gradlePropsPath}`);
+			yield* Effect.log(`Gradle properties written to ${gradlePropsPath}`);
 		}
 
 		// Ensure there is a release signing config in android/app/build.gradle
@@ -190,7 +184,7 @@ const main = (format: 'aab' | 'apk', ghRelease: boolean) =>
 					`buildTypes { $1release { $2signingConfig signingConfigs.release`,
 				);
 			yield* fs.writeFileString(buildGradlePath, newBuildGradle);
-			console.log(`Build gradle written to ${buildGradlePath}`);
+			yield* Effect.log(`Build gradle written to ${buildGradlePath}`);
 		}
 
 		const bundleCommand =
@@ -203,26 +197,25 @@ const main = (format: 'aab' | 'apk', ghRelease: boolean) =>
 			}),
 		);
 
-		if (ghRelease) {
-			const apkPath = path.join(
-				androidDir,
-				'app',
-				'build',
-				'outputs',
-				'apk',
-				'release',
-				'app-release.apk',
-			);
-			yield* runInherit(
-				`gh release create v${packageJson.version}`,
-				ChildProcess.make('gh', [
-					'release',
-					'create',
-					`v${packageJson.version}`,
-					apkPath,
-				]),
-			);
-		}
+		// Copy the gradle artifact to the stable path the workflows / fastlane
+		// lanes consume (apps/mobile/build/fressh-android.{aab,apk}).
+		const gradleArtifact =
+			format === 'aab'
+				? path.join(
+						androidDir,
+						'app/build/outputs/bundle/release/app-release.aab',
+					)
+				: path.join(
+						androidDir,
+						'app/build/outputs/apk/release/app-release.apk',
+					);
+		const outputPath = path.resolve(
+			mobileDir,
+			Option.getOrElse(output, () => `build/fressh-android.${format}`),
+		);
+		yield* fs.makeDirectory(path.dirname(outputPath), { recursive: true });
+		yield* fs.copyFile(gradleArtifact, outputPath);
+		yield* Effect.log(`Artifact: ${outputPath}`);
 	});
 
 const command = CliCommand.make(
@@ -233,15 +226,15 @@ const command = CliCommand.make(
 			Flag.withDefault('aab' as const),
 			Flag.withDescription('The format of the build to produce'),
 		),
-		ghRelease: Flag.boolean('gh-release').pipe(
-			Flag.withAlias('g'),
-			Flag.withDefault(false),
+		output: Flag.string('output').pipe(
+			Flag.withAlias('o'),
+			Flag.optional,
 			Flag.withDescription(
-				'Create a GitHub release with the APK (deprecated — release flow is moving to changesets + `gh release upload` in CI; see docs/projects/ci-building-and-releasing.md)',
+				'Where to copy the built artifact (default build/fressh-android.<format>)',
 			),
 		),
 	},
-	({ format, ghRelease }) => main(format, ghRelease),
+	({ format, output }) => main(format, output),
 );
 
 CliCommand.run(command, { version: '0.0.1' }).pipe(

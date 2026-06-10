@@ -69,13 +69,16 @@ jobs:
             ${{ runner.os }}-turbo-build-
 
       # turbo runs the terminal package's codegen (ubrn + nitrogen) + native .so,
-      # then `eas build --local` for the app. In CI, secrets come from GitHub
-      # Secrets as env vars, so force the env:// provider (no OpenBao / global
-      # config in CI; local dev uses the ["env","bao"] chain instead).
-      - name: Build (turbo -> eas build --local)
+      # then scripts/signed-build.ts (prebuild + keystore from env + gradle).
+      # In CI, secrets come from GitHub Secrets as env vars, so force the env://
+      # provider (no OpenBao in CI; local dev uses the ["env","bao"] chain).
+      - name: Build (turbo -> signed gradle bundle)
         run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bunx turbo build:android --filter @fressh/mobile
         env: # GitHub Secrets -> env:// provider, read by secretspec
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          FRESSH_ANDROID_KEYSTORE_BASE64: ${{ secrets.FRESSH_ANDROID_KEYSTORE_BASE64 }}
+          FRESSH_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.FRESSH_ANDROID_KEYSTORE_PASSWORD }}
+          FRESSH_ANDROID_KEY_ALIAS: ${{ secrets.FRESSH_ANDROID_KEY_ALIAS }}
+          FRESSH_ANDROID_KEY_PASSWORD: ${{ secrets.FRESSH_ANDROID_KEY_PASSWORD }}
 
       - name: Attach to GitHub Release
         if: inputs.release-tag != ''
@@ -90,17 +93,16 @@ jobs:
           name: fressh-android-aab
           path: apps/mobile/build/fressh-android.aab
 
-      # eas submit (free service) -> Play "internal testing" track (eas.json
-      # submit.production.android). scripts/submit.ts materializes the
-      # service-account JSON from the env var, submits the .aab, and removes it.
-      # Prereq: the FIRST .aab of a new Play app must be uploaded manually in the
-      # Play Console (Google API limitation) — see the runbook in
-      # docs/projects/ci-building-and-releasing.md.
-      - name: Submit to Play internal track
+      # fastlane supply -> Play "internal testing" track, with this version's
+      # CHANGELOG section as the release notes. Prereq: the FIRST .aab of a new
+      # Play app must be uploaded manually in the Play Console (Google API
+      # limitation) — see the runbook in docs/projects/ci-building-and-releasing.md.
+      - name: Submit to Play internal track (fastlane supply)
         if: inputs.submit
-        run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile submit:android
+        run: |
+          bun run --cwd apps/mobile changelog:extract
+          secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile submit:android
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           GOOGLE_SERVICE_ACCOUNT_KEY_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY_JSON }}
 
   ios:
@@ -122,10 +124,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-build-
 
-      - name: Build (turbo -> eas build --local)
+      # turbo runs codegen + the xcframework, then `expo prebuild -p ios` +
+      # `fastlane ios build` (gym). Signing material comes from secrets exactly
+      # like Android: the bao/GH-stored dist cert (.p12) + provisioning profile
+      # are materialized and imported into a temp keychain by the lane.
+      - name: Build (turbo -> prebuild + fastlane gym)
         run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bunx turbo build:ios --filter @fressh/mobile
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          FRESSH_IOS_CERT_P12_BASE64: ${{ secrets.FRESSH_IOS_CERT_P12_BASE64 }}
+          FRESSH_IOS_PROFILE_BASE64: ${{ secrets.FRESSH_IOS_PROFILE_BASE64 }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
 
       - name: Attach to GitHub Release
         if: inputs.release-tag != ''
@@ -140,12 +148,12 @@ jobs:
           name: fressh-ios-ipa
           path: apps/mobile/build/fressh-ios.ipa
 
-      # eas submit (free service) -> App Store Connect; every iOS submit lands in
-      # TestFlight. Needs the ASC API key (.p8 via env; key/issuer/app IDs are
-      # non-secret and live in eas.json submit.production.ios).
-      - name: Submit to TestFlight
+      # fastlane pilot -> TestFlight (internal testing, no Apple review), with
+      # this version's CHANGELOG section as the what-to-test note.
+      - name: Submit to TestFlight (fastlane pilot)
         if: inputs.submit
-        run: secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile submit:ios
+        run: |
+          bun run --cwd apps/mobile changelog:extract
+          secretspec run -f apps/mobile/secretspec.toml --provider env:// --profile production -- bun run --cwd apps/mobile submit:ios
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}

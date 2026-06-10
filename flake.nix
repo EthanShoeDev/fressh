@@ -82,34 +82,40 @@
           fen.targets.aarch64-apple-ios-sim.stable.rust-std
         ];
 
-        defaultPkgs = with pkgs; [
-          bash
-          git
-          pkg-config
-          # crossfont (alacritty font rasterization) needs FreeType + fontconfig
-          # for the host build of the vendored renderer. (react-native-terminal)
-          freetype
-          fontconfig
-          jq
-          nodejs_22
-          turbo
-          bun
-          watchman
-          rustToolchain
-          cargo-ndk
-          jdk17
-          gradle_8
-          scrcpy
-          cmake
-          ninja
-          just
-          alejandra
-          clang-tools
-          maestro # mobile UI automation, drives the screenshot flow
-          secretspec # declarative secrets for signed builds / releases (secretspec.toml)
-          # eas-cli is pinned as an apps/mobile devDependency (run via `bunx eas`) —
-          # nixpkgs lags the EAS release cadence, so we resolve it through bun instead.
-        ];
+        defaultPkgs = with pkgs;
+          [
+            bash
+            git
+            pkg-config
+            # crossfont (alacritty font rasterization) needs FreeType + fontconfig
+            # for the host build of the vendored renderer. (react-native-terminal)
+            freetype
+            fontconfig
+            jq
+            nodejs_22
+            turbo
+            bun
+            watchman
+            rustToolchain
+            cargo-ndk
+            jdk17
+            gradle_8
+            scrcpy
+            cmake
+            ninja
+            just
+            alejandra
+            clang-tools
+            maestro # mobile UI automation, drives the screenshot flow
+            secretspec # declarative secrets for signed builds / releases (secretspec.toml)
+            # Store automation (Track B, no EAS): match (iOS signing), pilot/deliver
+            # (TestFlight/App Store), supply (Play tracks + listings). Lanes live in
+            # apps/mobile/fastlane/. See docs/projects/ci-building-and-releasing.md.
+            fastlane
+          ]
+          # gym (fastlane ios build) archives the expo-prebuild workspace, which
+          # needs CocoaPods on the PATH (prebuild runs `pod install`).
+          ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [pkgs.cocoapods];
 
         mkShellFn =
           if pkgs.stdenv.isDarwin
