@@ -18,6 +18,19 @@ inputs:
 runs:
   using: composite
   steps:
+    # GitHub's ubuntu runners ship ~25GB of preinstalled toolchains we never
+    # touch (their Android SDK — ours comes from Nix — dotnet, Haskell, CodeQL).
+    # Our jobs stack the Nix store + node_modules + two Rust workspaces; without
+    # this, the disk fills mid-build and the linker dies with SIGBUS.
+    - name: Free disk space (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        df -h /
+        sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force >/dev/null 2>&1 || true
+        df -h /
+
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
 
