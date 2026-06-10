@@ -437,14 +437,8 @@ export default defineConfig({
 			},
 		},
 		{
-			// Build/release tooling: release-it config uses literal `${...}`
-			// placeholders in plain strings, and config/dev entrypoints log.
-			files: [
-				'**/.release-it.ts',
-				'**/*.config.ts',
-				'**/*.config.*.ts',
-				'**/src-internal/**',
-			],
+			// Build tooling: config/dev entrypoints log to the console.
+			files: ['**/*.config.ts', '**/*.config.*.ts', '**/src-internal/**'],
 			rules: {
 				'no-template-curly-in-string': 'off',
 				'no-console': 'off',

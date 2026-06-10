@@ -91,6 +91,7 @@
           alejandra
           clang-tools
           maestro # mobile UI automation, drives the screenshot flow
+          secretspec # declarative secrets for signed builds / releases (secretspec.toml)
         ];
 
         mkShellFn =

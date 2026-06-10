@@ -24,9 +24,7 @@
 		"screenshots": "bun scripts/screenshots.ts",
 		"screenshots:ios": "bun scripts/screenshots.ts --platform ios",
 		"screenshots:android": "bun scripts/screenshots.ts --platform android",
-		"adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done",
-		"release": "GITHUB_TOKEN=$(gh auth token) release-it",
-		"release:dry": "release-it --dry-run"
+		"adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done"
 	},
 	"dependencies": {
 		"@effect/atom-react": "catalog:",
@@ -83,10 +81,8 @@
 		"zustand": "^5.0.14"
 	},
 	"devDependencies": {
-		"@release-it/conventional-changelog": "catalog:",
 		"@types/react": "catalog:",
 		"cross-env": "catalog:",
-		"release-it": "catalog:",
 		"tsx": "^4.22.4",
 		"typescript": "catalog:"
 	},

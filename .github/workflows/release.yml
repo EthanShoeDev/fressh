@@ -1,0 +1,54 @@
+name: Release
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  version:
+    name: Version Packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Cache Nix Store
+        uses: nix-community/cache-nix-action@main
+        with:
+          primary-key: ${{ runner.os }}-nix-${{ hashFiles('flake.lock') }}
+
+      - name: Load devShell environment
+        uses: nicknovitski/nix-develop@main
+        with:
+          arguments: .#default
+
+      - uses: actions/cache@v3
+        name: Setup Bun cache
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-store-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-store-
+
+      - run: bun install --frozen-lockfile
+
+      # Opens/updates the "Version Packages" PR. Merging it bumps package.json,
+      # rewrites CHANGELOG.md, and (privatePackages.tag) tags @fressh/mobile@<version>.
+      # No `publish:` — apps/mobile is private and never goes to npm.
+      - name: Create Version Packages PR
+        uses: changesets/action@v1
+        with:
+          version: bun run version
+          commit: "chore: version packages"
+          title: "Version Packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

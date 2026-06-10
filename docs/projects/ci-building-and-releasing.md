@@ -1,6 +1,10 @@
 # Future project: CI building & releasing — EAS builds + changesets changelog + GitHub Releases
 
-**Status:** NOT STARTED — planning. This doc proposes a build/release pipeline for `apps/mobile`.
+**Status:** FOUNDATION LANDED — the shared changesets + secretspec foundation is implemented
+(changesets configured, release-it removed, `release.yml` Version-Packages PR active,
+`secretspec.toml` declared, `signed-build.ts` reads signing secrets from env). **Build track not
+started** — decided **Track A (EAS)** as the v1 target; EAS scaffolding (`eas.json`, build/release
+workflow) is the next phase. This doc proposes a build/release pipeline for `apps/mobile`.
 The **changelog flow (changesets)** is shared and tool-agnostic; the **build/release** half is
 written as **two tracks** so we can start simple and migrate without redoing the changelog work:
 
@@ -82,7 +86,7 @@ our hand-off point to whichever build track.
    ```jsonc
    {
      "$schema": "https://unpkg.com/@changesets/config/schema.json",
-     "changelog": "@changesets/cli/changelog",   // no token; or @changesets/changelog-github for PR links
+     "changelog": ["@changesets/changelog-github", { "repo": "EthanShoeDev/fressh" }],  // PR/author links (uses Actions GITHUB_TOKEN)
      "commit": false,
      "access": "restricted",
      "baseBranch": "main",
@@ -129,7 +133,10 @@ our hand-off point to whichever build track.
            env: { GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
    ```
    Merging the auto-opened **"Version Packages" PR** lands the bumped version on `main`, and (because
-   `tag: true`) a `@fressh/mobile-v${version}` tag is produced. **That tag triggers the build track.**
+   `tag: true`) a `@fressh/mobile@${version}` tag is produced. **That tag triggers the build track.**
+   > **Tag format:** in this multi-package monorepo, changesets tags as `<pkgName>@<version>` →
+   > `@fressh/mobile@0.0.5` (the old release-it `@fressh/mobile-v0.0.5` `-v` form is gone). Build-track
+   > workflow triggers below use the `@fressh/mobile@*` glob to match.
 6. **Remove the old flow:** delete `apps/mobile/.release-it.ts`, drop `release-it` +
    `@release-it/conventional-changelog` (from `apps/mobile/package.json` + root catalog) and the
    `release`/`release:dry` scripts. Keep the existing `apps/mobile/CHANGELOG.md` (changesets prepends).
@@ -296,7 +303,7 @@ GH Actions job that runs on the changesets tag → triggers the EAS build, waits
 ```yaml
 release_artifacts:
   needs: version
-  if: startsWith(github.ref, 'refs/tags/@fressh/mobile-v')
+  if: startsWith(github.ref, 'refs/tags/@fressh/mobile@')
   runs-on: ubuntu-latest
   steps:
     - uses: actions/checkout@v4
@@ -361,7 +368,7 @@ end
 
 ### B3. `.github/workflows/release-fastlane.yml` (triggered by the changesets tag)
 ```yaml
-on: { push: { tags: ['@fressh/mobile-v*'] } }
+on: { push: { tags: ['@fressh/mobile@*'] } }
 jobs:
   android:
     runs-on: ubuntu-latest
@@ -407,7 +414,7 @@ jobs:
 ## Migration path (why two tracks, one changelog)
 
 The changesets foundation produces `package.json` version + `CHANGELOG.md` + git tag regardless of
-build track. Track A and Track B both: (1) trigger on the `@fressh/mobile-v*` tag, (2) build, (3)
+build track. Track A and Track B both: (1) trigger on the `@fressh/mobile@*` tag, (2) build, (3)
 `gh release upload` to that tag's release. So switching A→B (or running both during a transition) is
 **just swapping which workflow listens to the tag** — no changelog rework. Start on **Track A**;
 adopt **A5 (`--local`)** if minutes bite; go full **Track B** only if you need the control.

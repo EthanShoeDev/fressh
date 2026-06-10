@@ -18,7 +18,6 @@
  */
 import { BunRuntime, BunServices } from '@effect/platform-bun';
 import { Data, Effect, FileSystem, Path, Stream } from 'effect';
-import * as Schema from 'effect/Schema';
 import { Command as CliCommand, Flag } from 'effect/unstable/cli';
 import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process';
 import packageJson from '../package.json' with { type: 'json' };
@@ -56,71 +55,41 @@ const runInherit = (label: string, command: ChildProcess.Command) =>
 		}),
 	);
 
-/** Spawn a command and return its buffered stdout. */
-const runString = (command: ChildProcess.Command) =>
-	Effect.scoped(
-		Effect.gen(function* () {
-			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-			const handle = yield* spawner.spawn(command);
-			return yield* handle.stdout.pipe(Stream.decodeText(), Stream.mkString);
-		}),
-	);
-
 // ---------------------------------------------------------------------------
 // secrets
 // ---------------------------------------------------------------------------
 
-const BwItem = Schema.Struct({
-	login: Schema.Struct({
-		username: Schema.String,
-		password: Schema.String,
-	}),
-	fields: Schema.Array(
-		Schema.Struct({
-			name: Schema.String,
-			value: Schema.String,
-		}),
-	),
-});
-
 /**
- * Read the upload keystore from the personal Bitwarden vault via the `bw` CLI.
+ * Read the upload keystore + signing passwords from the environment.
  *
- * TODO(secrets-migration): per docs/projects/future/ci-building-and-releasing.md
- * this `bw` call is being replaced by reading the keystore from env vars injected
- * by `secretspec run` (keyring locally / GitHub Secrets in CI). `bw` is not a
- * secretspec provider, and `bws` (Bitwarden Secrets Manager) is unavailable on
- * our self-hosted Vaultwarden. Until then, this preserves the current behavior.
+ * Values are injected by `secretspec run` (keyring locally / GitHub Secrets in
+ * CI) — see apps/mobile/secretspec.toml and
+ * docs/projects/ci-building-and-releasing.md. This replaces the old `bw get item`
+ * call: `bw` is not a secretspec provider, and `bws` (Bitwarden Secrets Manager)
+ * isn't available on our self-hosted Vaultwarden.
+ *
+ *   secretspec run --profile production -- bun run build:signed:aab
  */
 const getSecrets = Effect.gen(function* () {
-	const statusOut = yield* runString(ChildProcess.make('bw', ['status']));
-	const status = yield* Schema.decodeUnknownEffect(
-		Schema.fromJsonString(Schema.Struct({ status: Schema.String })),
-	)(statusOut);
-	if (status.status !== 'unlocked') {
-		return yield* new SignedBuildError({
-			message: 'Bitwarden is not unlocked (run `bw unlock`).',
+	const read = (name: string) =>
+		Effect.gen(function* () {
+			const value = process.env[name];
+			if (!value) {
+				return yield* new SignedBuildError({
+					message: `Missing ${name}. Run via \`secretspec run --profile production -- ...\` so signing secrets are injected (see apps/mobile/secretspec.toml).`,
+				});
+			}
+			return value;
 		});
-	}
 
-	const raw = yield* runString(
-		ChildProcess.make('bw', ['get', 'item', 'fressh keystore', '--raw']),
-	);
-	const item = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(BwItem))(
-		raw,
-	);
+	const keystoreBase64 = yield* read('FRESSH_ANDROID_KEYSTORE_BASE64');
+	const keystoreAlias = yield* read('FRESSH_ANDROID_KEY_ALIAS');
+	const keystorePassword = yield* read('FRESSH_ANDROID_KEYSTORE_PASSWORD');
+	// Key password defaults to the store password (single-password keystores).
+	const keyPassword =
+		process.env.FRESSH_ANDROID_KEY_PASSWORD ?? keystorePassword;
 
-	const keystoreBase64 = item.fields.find((f) => f.name === 'keystore')?.value;
-	if (!keystoreBase64) {
-		return yield* new SignedBuildError({
-			message: 'No `keystore` field on the "fressh keystore" item.',
-		});
-	}
-	return {
-		keystoreBase64,
-		keystoreAlias: item.login.username,
-		keystorePassword: item.login.password,
-	};
+	return { keystoreBase64, keystoreAlias, keystorePassword, keyPassword };
 });
 
 // ---------------------------------------------------------------------------
@@ -179,7 +148,7 @@ const main = (format: 'aab' | 'apk', ghRelease: boolean) =>
         FRESSH_UPLOAD_STORE_FILE=${keystoreFileName}
         FRESSH_UPLOAD_KEY_ALIAS=${secrets.keystoreAlias}
         FRESSH_UPLOAD_STORE_PASSWORD=${secrets.keystorePassword}
-        FRESSH_UPLOAD_KEY_PASSWORD=${secrets.keystorePassword}
+        FRESSH_UPLOAD_KEY_PASSWORD=${secrets.keyPassword}
         `;
 		const currentGradleProperties = yield* fs.readFileString(gradlePropsPath);
 		if (!currentGradleProperties.includes(gradlePropertiesSuffix.trim())) {
@@ -268,7 +237,7 @@ const command = CliCommand.make(
 			Flag.withAlias('g'),
 			Flag.withDefault(false),
 			Flag.withDescription(
-				'Create a GitHub release with the APK (deprecated — release flow is moving to changesets + `gh release upload` in CI; see docs/projects/future/ci-building-and-releasing.md)',
+				'Create a GitHub release with the APK (deprecated — release flow is moving to changesets + `gh release upload` in CI; see docs/projects/ci-building-and-releasing.md)',
 			),
 		),
 	},
