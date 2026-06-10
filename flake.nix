@@ -2,6 +2,10 @@
   description = "Expo RN devshells (local emulator / remote AVD)";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Newer pin for fast-moving tools that lag in the main locked nixpkgs.
+    # secretspec's vault/OpenBao provider needs >= 0.10 (locked nixpkgs has 0.3.3,
+    # which has no `openbao` backend). Additive: does not move the main toolchain.
+    nixpkgs-recent.url = "github:NixOS/nixpkgs/nixos-unstable";
     android-nixpkgs = {
       url = "github:tadfisher/android-nixpkgs";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -26,6 +30,7 @@
   outputs = {
     self,
     nixpkgs,
+    nixpkgs-recent,
     android-nixpkgs,
     fenix,
     ...
@@ -34,6 +39,16 @@
 
     overlays = [
       android-nixpkgs.overlays.default
+      # Pull secretspec from the newer pin so its vault/OpenBao provider exists
+      # (the locked nixpkgs ships 0.3.3, which has no `openbao` backend).
+      (_final: prev: {
+        secretspec =
+          (import nixpkgs-recent {
+            inherit (prev) system;
+            config.allowUnfree = true;
+          })
+          .secretspec;
+      })
     ];
 
     forAllSystems = f:

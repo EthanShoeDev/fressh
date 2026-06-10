@@ -1,10 +1,12 @@
 // Learn more: https://docs.expo.dev/guides/customizing-metro
-const { getDefaultConfig } = require('expo/metro-config');
-const { withUniwindConfig } = require('uniwind/metro');
-const path = require('node:path');
+// ESM config: apps/mobile is "type": "module", so this file must use import/export
+// (a CommonJS metro.config.js fails to load under EAS Build / eas-cli config resolution).
+import { getDefaultConfig } from 'expo/metro-config';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { withUniwindConfig } from 'uniwind/metro';
 
-/** @type {string} */
-const projectRoot = __dirname;
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
@@ -32,7 +34,7 @@ config.resolver.blockList = config.resolver.blockList
 	: [rustTargetRE];
 
 // `withUniwindConfig` must be the OUTERMOST wrapper.
-module.exports = withUniwindConfig(config, {
+export default withUniwindConfig(config, {
 	cssEntryFile: './src/global.css',
 	dtsFile: './src/uniwind-types.d.ts',
 	// `native` + `native-light` back the system-following "Native" theme (the app

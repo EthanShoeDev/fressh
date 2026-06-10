@@ -9,6 +9,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Release artifacts from `eas build --local` (turbo build:android / build:ios)
+build/
+
 # Native
 .kotlin/
 *.orig.*
