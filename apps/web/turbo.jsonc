@@ -1,4 +1,13 @@
 {
 	"extends": ["//"],
-	"tasks": {},
+	"tasks": {
+		// nitro/vite writes .output/ locally and .vercel/output/ on Vercel
+		// (Build Output API). Both must be cached outputs or a turbo cache hit
+		// on Vercel would restore dist/ only and the deploy would have no
+		// functions/static output.
+		"build": {
+			"outputs": ["dist/**", ".output/**", ".vercel/output/**"],
+			"dependsOn": ["^build"],
+		},
+	},
 }
