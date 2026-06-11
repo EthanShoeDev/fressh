@@ -21,6 +21,33 @@
 require "base64"
 require "fileutils"
 require "json"
+require "googleauth"
+require "googleauth/external_account"
+
+# BACKPORT — delete once nixpkgs ships fastlane >= 2.234.0.
+# supply < 2.234.0 assumes json_key is a service-account key and dies with
+# "missing client_email" on the external_account credentials file that
+# google-github-actions/auth (WIF) writes. fastlane PR #29982 (in 2.234.0,
+# https://github.com/fastlane/fastlane/pull/29982) dispatches on the JSON's
+# "type"; replicate that at the one make_creds call
+# supply's client performs. googleauth 1.8.1 already understands
+# external_account — only supply's hardcoded credential class is the problem.
+module SupplyExternalAccountBackport
+  def make_creds(options = {})
+    io = options[:json_key_io]
+    if io
+      type = begin
+        JSON.parse(io.read)["type"]
+      rescue JSON::ParserError
+        nil
+      end
+      io.rewind
+      return Google::Auth::ExternalAccount::Credentials.make_creds(options) if type == "external_account"
+    end
+    super
+  end
+end
+Google::Auth::ServiceAccountCredentials.singleton_class.prepend(SupplyExternalAccountBackport)
 
 MOBILE_DIR = File.expand_path("..", __dir__)
 SIGNING_DIR = File.join(MOBILE_DIR, "build", "ios-signing")
