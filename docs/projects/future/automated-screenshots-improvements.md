@@ -6,6 +6,43 @@ hit while building it, and the improvements worth making — chiefly **seeding a
 host** so the terminal / smart-terminal screenshots are actually representative. It's a
 "what next + why" doc, not a committed plan.
 
+## Direction (decided 2026-06-11, not yet implemented)
+
+The end state we want — superseding parts of the original plan below where they
+conflict:
+
+1. **Fully automated, zero manual setup.** The orchestration script should spin up
+   **temporary SSH servers itself** before running the Maestro flows — using the
+   effect-ts `Command` executor (`CommandUtils` in `packages/shared/src/cli-utils.ts`)
+   to shell out to **docker** (or similar: `docker run -d -p 2222:22 <sshd image>`,
+   podman, or a tiny embedded sshd). Throwaway credentials are generated per run, so
+   the default path needs **no secrets at all** — the secretspec/VPS plan below
+   becomes the optional override, not the prerequisite. The containers get torn down
+   after the run. (Networking note: the iOS simulator can reach the host's
+   `localhost` directly; the Android emulator reaches the host via `10.0.2.2`.)
+   A real local sshd with bash also unlocks the smart-terminal (OSC 633) shots that
+   test.rebex.net can't provide.
+2. **Capture every theme — ideally all of them.** The flow should iterate the app's
+   themes (currently `phosphor`, `graphite`, `aurora`, `monolith`, `native` — see
+   `APP_THEMES` in `apps/mobile/src/lib/theme.tsx`) by switching the theme in
+   Settings between capture passes, on **both platforms**. Output naming extends to
+   `<screen>-<theme>-<platform>.png`.
+3. **One pipeline feeds every surface.** The captured set is the single source for:
+   - the **README** (a small subset, displayed small),
+   - the **website** — `apps/web/src/routes/index.tsx` already has a
+     `screenshotManifest` keyed by theme × platform driving theme/platform switcher
+     components; new captures slot into it (eventually the script could generate the
+     manifest),
+   - **fastlane store pages** (`apps/mobile/fastlane/`) — the stores only want a
+     handful, so the script (or a config list) **selects a subset** to copy into
+     fastlane's screenshots dirs.
+4. **Resize as part of the script.** The raw captures are far too big for the README
+   (and heavier than the website needs). Add a resize/derivative step using **Bun's
+   built-in image API** (<https://bun.com/docs/runtime/image>) — e.g.
+   `await Bun.file(src).image().resize(400, 400, { fit: 'inside' }).png().write(out)`
+   — emitting small variants for README/website alongside the full-size originals
+   for the stores. No sharp/imagemagick dependency needed.
+
 **Scope (if pursued):** `apps/mobile` only — the Maestro flow
 ([`test/e2e/screenshots.yml`](../../../apps/mobile/test/e2e/screenshots.yml)), the
 orchestration script
@@ -51,6 +88,11 @@ the terminal shot, and that has two problems:
   Those are some of the most compelling things to screenshot, and we currently *can't*.
 
 ### Proposed fix: inject a real host at connect-time (not into the bundle)
+
+> **2026-06-11:** the default host should now be a **docker-spawned temp sshd**
+> started by the script itself (see *Direction* above) — throwaway creds, no secrets.
+> The secretspec plumbing below stays relevant only as an optional override for
+> pointing the flow at an external host.
 
 Connect the flow to a real host with a normal bash/zsh shell and "Smart terminal" on.
 The credentials handling is the design crux:
@@ -171,18 +213,25 @@ is the easy-but-wrong shortcut of putting real hosts/passwords behind the same
 
 ## Phasing
 
-1. **Real host for the terminal** (the headline win): parameterize the flow's connect step,
-   read `SCREENSHOT_SSH_*` in the script (forward via Maestro `--env`), and source them from
-   a secretspec `screenshots` profile. Unlocks the smart-terminal screenshots. Blocked on the
-   secretspec rollout (see [ci-building-and-releasing.md](./ci-building-and-releasing.md)).
+1. **Temp SSH server, fully automated** (the headline win): the script spins up a
+   docker sshd via the effect-ts `Command` executor before the Maestro flows,
+   parameterizes the flow's connect step with the container's throwaway creds, and
+   tears it down after. `SCREENSHOT_SSH_*` env vars (via a secretspec `screenshots`
+   profile) remain as an optional override for an external host. Unlocks the
+   smart-terminal screenshots with zero manual setup.
 2. **Clean iOS selectors**: `accessible={false}` on `ConnectField` → drop the placeholder /
    point-tap hacks for `id:` selectors.
 3. **Deterministic seed**: fire `CONNECTIONS` reactivity from the seed; capture Servers
    without depending on a connect.
-4. **Android pass**: validate selectors + capture the `-android.png` set.
-5. **CI**: run the pipeline in CI to keep screenshots fresh — folds into
+4. **All themes**: loop the capture pass per theme (switch in Settings), emit
+   `<screen>-<theme>-<platform>.png`.
+5. **Android pass**: validate selectors + capture the `-android` sets.
+6. **Resize + fan-out**: Bun image-API resize step for README/website variants; select
+   and copy the store subset into `apps/mobile/fastlane/` screenshots dirs; feed the
+   website's `screenshotManifest`.
+7. **CI**: run the pipeline in CI to keep screenshots fresh — folds into
    [ci-building-and-releasing.md](./ci-building-and-releasing.md). Note the iOS driver /
-   port caveat and the secrets source in the CI environment.
+   port caveat; docker is available on the runners, so the temp-sshd path works there too.
 
 ## Pointers
 
