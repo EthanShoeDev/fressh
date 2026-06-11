@@ -1,4 +1,7 @@
 import { runCommand } from '@fressh/react-native-terminal';
+import { useAtomValue } from '@effect/atom-react';
+import * as Effect from 'effect/Effect';
+import * as Fiber from 'effect/Fiber';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
@@ -8,12 +11,10 @@ import {
 	type DiffLineKind,
 	gitDiffCommand,
 } from '@/lib/git-diff';
-import { rootLogger } from '@/lib/logger';
-import { useSshStore } from '@/lib/ssh-store';
+import { appRuntime } from '@/lib/runtime';
+import { sshShellsAtom, type StoreShell } from '@/lib/ssh-store';
 import { useShellContext } from '@/lib/terminal-semantics';
 import { useThemeSkin } from '@/lib/theme-skin';
-
-const logger = rootLogger.extend('GitDiff');
 
 /** Cap rendered lines — a huge diff would build thousands of <Text> nodes. */
 const LINE_CAP = 3000;
@@ -41,7 +42,13 @@ export default function GitDiffScreen() {
 	const { shellId, file } = params;
 	const untracked = params.untracked === '1';
 
-	const connectionId = useSshStore((s) => s.shells[shellId]?.connectionId);
+	const connectionId = useAtomValue(
+		sshShellsAtom,
+		React.useCallback(
+			(shells: Record<string, StoreShell>) => shells[shellId]?.connectionId,
+			[shellId],
+		),
+	);
 	const cwd = useShellContext(shellId)?.cwd;
 	const skin = useThemeSkin();
 	const monoFamily = skin.mono ? skin.monoFamily : undefined;
@@ -54,46 +61,52 @@ export default function GitDiffScreen() {
 			setState({ kind: 'error', message: 'Session no longer available.' });
 			return;
 		}
-		let cancelled = false;
 		setState({ kind: 'loading' });
-		// Fire-and-forget: the IIFE handles its own errors (try/catch below) and
-		// cancellation (the `cancelled` flag), so it never rejects — void it to
-		// satisfy no-floating-promises.
-		void (async () => {
-			try {
-				const res = await runCommand(
-					connectionId,
-					gitDiffCommand(cwd, file, { untracked }),
+		// Fire-and-forget fiber: it handles its own errors (Effect.catch below),
+		// and unmount/dep-change cancellation is interruption — an interrupted
+		// fiber never reaches the setState calls.
+		const fiber = appRuntime.runFork(
+			Effect.gen(function* () {
+				const res = yield* Effect.tryPromise(() =>
+					runCommand(connectionId, gitDiffCommand(cwd, file, { untracked })),
 				);
-				if (cancelled) return;
-				// `--no-index` (untracked) exits 1 when a diff exists — that's success here,
-				// so only treat a non-zero exit as an error for tracked files.
-				if (!untracked && res.exitCode !== 0) {
+				yield* Effect.sync(() => {
+					// `--no-index` (untracked) exits 1 when a diff exists — that's success
+					// here, so only treat a non-zero exit as an error for tracked files.
+					if (!untracked && res.exitCode !== 0) {
+						setState({
+							kind: 'error',
+							message: res.stderr.trim() || `git diff exited ${res.exitCode}`,
+						});
+						return;
+					}
+					const text = res.stdout.replace(/\n$/, '');
+					if (!text) {
+						setState({ kind: 'empty' });
+						return;
+					}
+					const all = text.split('\n');
 					setState({
-						kind: 'error',
-						message: res.stderr.trim() || `git diff exited ${res.exitCode}`,
+						kind: 'ok',
+						lines: all.slice(0, LINE_CAP),
+						truncated: all.length > LINE_CAP,
 					});
-					return;
-				}
-				const text = res.stdout.replace(/\n$/, '');
-				if (!text) {
-					setState({ kind: 'empty' });
-					return;
-				}
-				const all = text.split('\n');
-				setState({
-					kind: 'ok',
-					lines: all.slice(0, LINE_CAP),
-					truncated: all.length > LINE_CAP,
 				});
-			} catch (error) {
-				if (cancelled) return;
-				logger.warn('git diff failed', file, error);
-				setState({ kind: 'error', message: String(error) });
-			}
-		})();
+			}).pipe(
+				Effect.catch((error) =>
+					Effect.gen(function* () {
+						yield* Effect.logWarning('git diff failed', file, error);
+						yield* Effect.sync(() =>
+							// Show the underlying failure, not the UnknownError wrapper.
+							setState({ kind: 'error', message: String(error.cause) }),
+						);
+					}),
+				),
+				Effect.annotateLogs({ module: 'GitDiff' }),
+			),
+		);
 		return () => {
-			cancelled = true;
+			appRuntime.runFork(Fiber.interrupt(fiber));
 		};
 	}, [connectionId, cwd, file, untracked]);
 

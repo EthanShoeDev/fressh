@@ -1,3 +1,7 @@
+import * as Effect from 'effect/Effect';
+import * as Option from 'effect/Option';
+import * as Schema from 'effect/Schema';
+
 /**
  * Known-hosts pure logic — TOFU host-key pinning à la OpenSSH `known_hosts`.
  *
@@ -12,16 +16,20 @@
  * docs/projects/host-key-verification.md.
  */
 
-export interface KnownHostEntry {
-	host: string;
-	port: number;
+const knownHostEntrySchema = Schema.Struct({
+	host: Schema.String,
+	port: Schema.Number,
 	/** Key algorithm, e.g. "ssh-ed25519". */
-	algorithm: string;
+	algorithm: Schema.String,
 	/** The identity we compare on (what the prompt shows the user). */
-	fingerprintSha256: string;
-	keyBase64: string;
-	trustedAtMs: number;
-}
+	fingerprintSha256: Schema.String,
+	keyBase64: Schema.String,
+	trustedAtMs: Schema.Number.pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed(0)),
+	),
+});
+
+export type KnownHostEntry = Schema.Schema.Type<typeof knownHostEntrySchema>;
 
 /** What a HostKeyPending event presents (subset of ServerPublicKeyInfo). */
 export interface PresentedHostKey {
@@ -37,41 +45,29 @@ export type HostKeyVerdict =
 	| { kind: 'unknown' }
 	| { kind: 'changed'; prior: KnownHostEntry };
 
+const decodeJson = Schema.decodeUnknownOption(Schema.UnknownFromJsonString);
+const decodeEntry = Schema.decodeUnknownOption(knownHostEntrySchema);
+
+/** The persisted shape: the whole pin list as one JSON string. */
+const knownHostsJsonSchema = Schema.fromJsonString(
+	Schema.Array(knownHostEntrySchema),
+);
+
+/** Serialize the pin list for the `knownHosts` pref. */
+export const encodeKnownHosts = Schema.encodeSync(knownHostsJsonSchema);
+
 /** Tolerant parse: drop anything that isn't a well-formed entry, `[]` on
- *  garbage. Fails safe — a corrupt store re-prompts, it never silently trusts. */
+ *  garbage. Fails safe — a corrupt store re-prompts, it never silently trusts.
+ *  (Decoded per entry, NOT via {@link knownHostsJsonSchema} — one malformed
+ *  entry must not invalidate every other pin.) */
 export function parseKnownHosts(json: string): KnownHostEntry[] {
-	let raw: unknown;
-	try {
-		raw = JSON.parse(json);
-	} catch {
+	const raw = decodeJson(json);
+	if (Option.isNone(raw) || !Array.isArray(raw.value)) {
 		return [];
 	}
-	if (!Array.isArray(raw)) {
-		return [];
-	}
-	return raw.flatMap((entry): KnownHostEntry[] => {
-		if (
-			entry &&
-			typeof entry === 'object' &&
-			typeof (entry as KnownHostEntry).host === 'string' &&
-			typeof (entry as KnownHostEntry).port === 'number' &&
-			typeof (entry as KnownHostEntry).algorithm === 'string' &&
-			typeof (entry as KnownHostEntry).fingerprintSha256 === 'string' &&
-			typeof (entry as KnownHostEntry).keyBase64 === 'string'
-		) {
-			const e = entry as KnownHostEntry;
-			return [
-				{
-					host: e.host,
-					port: e.port,
-					algorithm: e.algorithm,
-					fingerprintSha256: e.fingerprintSha256,
-					keyBase64: e.keyBase64,
-					trustedAtMs: typeof e.trustedAtMs === 'number' ? e.trustedAtMs : 0,
-				},
-			];
-		}
-		return [];
+	return raw.value.flatMap((item) => {
+		const entry = decodeEntry(item);
+		return Option.isSome(entry) ? [entry.value] : [];
 	});
 }
 

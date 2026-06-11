@@ -15,16 +15,6 @@ export const asyncResultErrorMessage = (
 	return error instanceof Error ? error.message : String(error);
 };
 
-export const AbortSignalTimeout = (timeout: number) => {
-	// AbortSignal.timeout is not available as of expo 54
-	// TypeError: AbortSignal.timeout is not a function (it is undefined)
-	const controller = new AbortController();
-	setTimeout(() => {
-		controller.abort();
-	}, timeout);
-	return controller.signal;
-};
-
 export const useContextSafe = <T>(context: Context<T>) => {
 	const contextValue = use(context);
 	if (!contextValue) {

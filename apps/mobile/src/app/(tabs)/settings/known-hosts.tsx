@@ -5,6 +5,7 @@ import { Button } from '@/components/themed/Button';
 import { ThemedText } from '@/components/themed/ThemedText';
 import { revokeHost, useKnownHosts } from '@/lib/host-keys';
 import { hostPortLabel, type KnownHostEntry } from '@/lib/known-hosts';
+import { appRuntime } from '@/lib/runtime';
 
 /**
  * Settings → Security → Known hosts: every host key the user has trusted
@@ -65,7 +66,7 @@ export default function KnownHostsSettings() {
 								variant='danger'
 								title='Revoke'
 								onPress={() => {
-									revokeHost(group.host, group.port);
+									appRuntime.runSync(revokeHost(group.host, group.port));
 								}}
 							/>
 						</View>

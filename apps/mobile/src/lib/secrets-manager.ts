@@ -4,15 +4,23 @@ import {
 	validatePrivateKey,
 } from '@fressh/react-native-terminal';
 import * as Crypto from 'expo-crypto';
+import * as Clock from 'effect/Clock';
+import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
-import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 import * as Atom from 'effect/unstable/reactivity/Atom';
 import * as Keychain from 'react-native-keychain';
-import { rootLogger } from './logger';
+import { appLayer, appRuntime } from './runtime';
 import type { StrictOmit } from './utils';
 
-const logger = rootLogger.extend('SecretsManager');
+const annotateModule = Effect.annotateLogs({ module: 'SecretsManager' });
+
+/** A keychain write/validation that failed in a way the user may need to see
+ *  (the sheets surface `message` via the atom failure). */
+class KeychainError extends Data.TaggedError('KeychainError')<{
+	message: string;
+	cause?: unknown;
+}> {}
 
 /**
  * A thin store over the device keychain (iOS Keychain / Android Keystore-backed
@@ -37,21 +45,28 @@ const logger = rootLogger.extend('SecretsManager');
 // - deleteEntry removes both services; getEntry then throws
 // - half-finished write/delete (only one service present) can't surface a
 //   listed-but-valueless entry
-function makeKeychainStore<Metadata, Value = string>(params: {
+function makeKeychainStore<Metadata, Value>(params: {
 	prefix: string;
-	decodeMetadata: (raw: unknown) => Metadata;
-	parseValue: (raw: string) => Value;
+	/** Codec between the typed metadata and the keychain's string payload. */
+	metadataSchema: Schema.Codec<Metadata, string>;
+	/** Codec between the typed value and the keychain's string payload. */
+	valueSchema: Schema.Codec<Value, string>;
 }) {
 	const metaPrefix = `${params.prefix}.meta.`;
 	const metaService = (id: string) => `${metaPrefix}${id}`;
 	const valueService = (id: string) => `${params.prefix}.value.${id}`;
+
+	const decodeMetadata = Schema.decodeSync(params.metadataSchema);
+	const encodeMetadata = Schema.encodeSync(params.metadataSchema);
+	const decodeValue = Schema.decodeSync(params.valueSchema);
+	const encodeValue = Schema.encodeSync(params.valueSchema);
 
 	type Entry = { id: string; metadata: Metadata };
 
 	function parseMetadata(creds: Keychain.UserCredentials) {
 		return {
 			id: creds.username,
-			metadata: params.decodeMetadata(JSON.parse(creds.password)),
+			metadata: decodeMetadata(creds.password),
 		} satisfies Entry;
 	}
 
@@ -83,7 +98,7 @@ function makeKeychainStore<Metadata, Value = string>(params: {
 		}
 		return {
 			...parseMetadata(metaCreds),
-			value: params.parseValue(valueCreds.password),
+			value: decodeValue(valueCreds.password),
 		};
 	}
 
@@ -95,20 +110,22 @@ function makeKeychainStore<Metadata, Value = string>(params: {
 	async function upsertEntry(input: {
 		id: string;
 		metadata: Metadata;
-		value: string;
+		value: Value;
 	}) {
 		// Write the secret first, then the metadata. Listing is driven by the
 		// metadata service, so even a half-finished write never surfaces an entry
 		// whose value is missing.
-		await Keychain.setGenericPassword(input.id, input.value, {
+		await Keychain.setGenericPassword(input.id, encodeValue(input.value), {
 			service: valueService(input.id),
 		});
 		await Keychain.setGenericPassword(
 			input.id,
-			JSON.stringify(input.metadata),
+			encodeMetadata(input.metadata),
 			{ service: metaService(input.id) },
 		);
-		logger.info(`Stored entry ${input.id}`);
+		appRuntime.runSync(
+			Effect.logInfo(`Stored entry ${input.id}`).pipe(annotateModule),
+		);
 	}
 
 	async function deleteEntry(id: string) {
@@ -116,7 +133,9 @@ function makeKeychainStore<Metadata, Value = string>(params: {
 		// leave a listed-but-valueless entry.
 		await Keychain.resetGenericPassword({ service: metaService(id) });
 		await Keychain.resetGenericPassword({ service: valueService(id) });
-		logger.info(`Deleted entry ${id}`);
+		appRuntime.runSync(
+			Effect.logInfo(`Deleted entry ${id}`).pipe(annotateModule),
+		);
 	}
 
 	return {
@@ -140,11 +159,11 @@ export type KeyMetadata = Schema.Schema.Type<typeof keyMetadataSchema>;
 
 const keyStore = makeKeychainStore({
 	prefix: 'fressh.key',
-	decodeMetadata: Schema.decodeUnknownSync(keyMetadataSchema),
-	parseValue: (value) => value,
+	metadataSchema: Schema.fromJsonString(keyMetadataSchema),
+	valueSchema: Schema.String,
 });
 
-async function upsertPrivateKey(params: {
+const upsertPrivateKey = Effect.fnUntraced(function* (params: {
 	keyId?: string;
 	metadata: StrictOmit<KeyMetadata, 'createdAtMs'>;
 	value: string;
@@ -152,46 +171,59 @@ async function upsertPrivateKey(params: {
 	// Throws SshError on invalid input; returns the canonical OpenSSH form. We
 	// persist the CANONICAL form (not the raw paste) so what round-trips is
 	// always a key russh can actually use.
-	let canonical: string;
-	try {
-		canonical = validatePrivateKey(params.value);
-	} catch (error) {
-		logger.info('Invalid private key', error);
-		throw new Error('Invalid private key', { cause: error });
-	}
+	const canonical = yield* Effect.try({
+		try: () => validatePrivateKey(params.value),
+		catch: (cause) => new KeychainError({ message: 'Invalid private key', cause }),
+	}).pipe(
+		Effect.tapError((error) => Effect.logInfo('Invalid private key', error)),
+	);
 	if (!canonical) {
-		throw new Error('Private key validation produced an empty key');
+		return yield* new KeychainError({
+			message: 'Private key validation produced an empty key',
+		});
 	}
 	const keyId = params.keyId ?? `key_${Crypto.randomUUID()}`;
-	logger.info(`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`);
+	yield* Effect.logInfo(
+		`${params.keyId ? 'Upserting' : 'Creating'} private key ${keyId}`,
+	);
 	// Preserve createdAtMs if the entry already exists
-	const existing = await keyStore.getEntry(keyId).catch(() => undefined);
-	const createdAtMs = existing?.metadata.createdAtMs ?? Date.now();
+	const existing = yield* Effect.promise(() =>
+		keyStore.getEntry(keyId).catch(() => undefined),
+	);
+	const createdAtMs =
+		existing?.metadata.createdAtMs ?? (yield* Clock.currentTimeMillis);
 
-	await keyStore.upsertEntry({
-		id: keyId,
-		metadata: { ...params.metadata, createdAtMs },
-		value: canonical,
-	});
+	yield* Effect.tryPromise(() =>
+		keyStore.upsertEntry({
+			id: keyId,
+			metadata: { ...params.metadata, createdAtMs },
+			value: canonical,
+		}),
+	);
 
 	// Read-after-write: the keychain has silently dropped values before (entries
 	// that list but whose secret is missing → a cryptic "Value is undefined,
 	// expected a String" at connect time). Verify the secret round-trips so a
 	// broken write fails HERE, loudly, instead of creating an unusable key. The
 	// log records only the LENGTH, never the key material.
-	const stored = await keyStore.getEntry(keyId).catch(() => undefined);
-	logger.info(
+	const stored = yield* Effect.promise(() =>
+		keyStore.getEntry(keyId).catch(() => undefined),
+	);
+	yield* Effect.logInfo(
 		`Key ${keyId} round-trip: stored length ${stored?.value?.length ?? 'MISSING'}`,
 	);
 	if (!stored?.value) {
-		await keyStore.deleteEntry(keyId).catch(() => undefined);
-		throw new Error(
-			'Keychain failed to persist the private key (value did not round-trip). The key was not saved.',
+		yield* Effect.promise(() =>
+			keyStore.deleteEntry(keyId).catch(() => undefined),
 		);
+		return yield* new KeychainError({
+			message:
+				'Keychain failed to persist the private key (value did not round-trip). The key was not saved.',
+		});
 	}
 
 	return keyId;
-}
+}, annotateModule);
 
 /**
  * Enforce the invariant that AT MOST ONE key is the default. Rewrites only the
@@ -260,16 +292,15 @@ export type ConnectionMetadata = Schema.Schema.Type<
 
 const connectionStore = makeKeychainStore({
 	prefix: 'fressh.connection',
-	decodeMetadata: Schema.decodeUnknownSync(connectionMetadataSchema),
-	parseValue: (value) =>
-		Schema.decodeUnknownSync(connectionDetailsSchema)(JSON.parse(value)),
+	metadataSchema: Schema.fromJsonString(connectionMetadataSchema),
+	valueSchema: Schema.fromJsonString(connectionDetailsSchema),
 });
 
 export type InputConnectionDetails = Schema.Schema.Type<
 	typeof connectionDetailsSchema
 >;
 
-async function upsertConnection(params: {
+const upsertConnection = Effect.fnUntraced(function* (params: {
 	details: InputConnectionDetails;
 	priority: number;
 	label?: string;
@@ -282,35 +313,45 @@ async function upsertConnection(params: {
 			'_',
 		);
 	// Preserve the original creation time across re-saves (reconnect re-upserts).
-	const existing = await connectionStore.getEntry(id).catch(() => undefined);
-	await connectionStore.upsertEntry({
-		id,
-		metadata: {
-			priority: params.priority,
-			modifiedAtMs: Date.now(),
-			createdAtMs: existing?.metadata.createdAtMs ?? Date.now(),
-			label: params.label,
-			shellIntegration: params.shellIntegration,
-		},
-		value: JSON.stringify(params.details),
-	});
+	const existing = yield* Effect.promise(() =>
+		connectionStore.getEntry(id).catch(() => undefined),
+	);
+	const now = yield* Clock.currentTimeMillis;
+	yield* Effect.tryPromise(() =>
+		connectionStore.upsertEntry({
+			id,
+			metadata: {
+				priority: params.priority,
+				modifiedAtMs: now,
+				createdAtMs: existing?.metadata.createdAtMs ?? now,
+				label: params.label,
+				shellIntegration: params.shellIntegration,
+			},
+			value: params.details,
+		}),
+	);
 	return params.details;
-}
+});
 
 /** Patch one or more metadata fields of a saved connection without touching its
  *  secret value or the untouched metadata fields. Used by rename + the per-host
  *  shell-integration toggle. No-op (throws) if the connection doesn't exist. */
-async function updateConnectionMetadata(
+const updateConnectionMetadata = Effect.fnUntraced(function* (
 	id: string,
-	patch: Partial<Pick<ConnectionMetadata, 'label' | 'shellIntegration' | 'priority'>>,
+	patch: Partial<
+		Pick<ConnectionMetadata, 'label' | 'shellIntegration' | 'priority'>
+	>,
 ) {
-	const entry = await connectionStore.getEntry(id);
-	await connectionStore.upsertEntry({
-		id,
-		metadata: { ...entry.metadata, ...patch, modifiedAtMs: Date.now() },
-		value: JSON.stringify(entry.value),
-	});
-}
+	const entry = yield* Effect.tryPromise(() => connectionStore.getEntry(id));
+	const now = yield* Clock.currentTimeMillis;
+	yield* Effect.tryPromise(() =>
+		connectionStore.upsertEntry({
+			id,
+			metadata: { ...entry.metadata, ...patch, modifiedAtMs: now },
+			value: entry.value,
+		}),
+	);
+});
 
 async function deleteConnection(id: string) {
 	await connectionStore.deleteEntry(id);
@@ -330,7 +371,7 @@ async function deleteConnection(id: string) {
  * `query-fns`) can build atoms whose `reactivityKeys` invalidate the query atoms
  * defined here — reactivity is scoped to a single runtime's Reactivity service.
  */
-export const atomRuntime = Atom.runtime(Layer.empty);
+export const atomRuntime = Atom.runtime(appLayer);
 const runtime = atomRuntime;
 
 const KEYS = ['keys'] as const;
@@ -351,15 +392,17 @@ const listKeysAtom = runtime
 						: b,
 				);
 				yield* Effect.tryPromise(() => enforceSingleDefault(keep.id));
-				logger.warn(`Repaired ${defaults.length} default keys → kept ${keep.id}`);
+				yield* Effect.logWarning(
+					`Repaired ${defaults.length} default keys → kept ${keep.id}`,
+				);
 				return results.map((r) => ({
 					...r,
 					metadata: { ...r.metadata, isDefault: r.id === keep.id },
 				}));
 			}
-			logger.info(`Listed ${results.length} private keys`);
+			yield* Effect.logInfo(`Listed ${results.length} private keys`);
 			return results;
-		}),
+		}).pipe(annotateModule),
 	)
 	.pipe(Atom.withReactivity(KEYS));
 
@@ -372,12 +415,10 @@ const getKeyAtom = Atom.family((keyId: string) =>
 const generateKeyAtom = runtime.fn(
 	Effect.fnUntraced(function* () {
 		const pair = generateKeyPair(KeyType.Ed25519);
-		yield* Effect.tryPromise(() =>
-			upsertPrivateKey({
-				metadata: { priority: 0, label: 'New Key', isDefault: false },
-				value: pair,
-			}),
-		);
+		yield* upsertPrivateKey({
+			metadata: { priority: 0, label: 'New Key', isDefault: false },
+			value: pair,
+		});
 	}),
 	{ reactivityKeys: KEYS },
 );
@@ -388,16 +429,14 @@ const importKeyAtom = runtime.fn(
 		label: string;
 		isDefault: boolean;
 	}) {
-		const keyId = yield* Effect.tryPromise(() =>
-			upsertPrivateKey({
-				metadata: {
-					priority: 0,
-					label: input.label,
-					isDefault: input.isDefault,
-				},
-				value: input.value,
-			}),
-		);
+		const keyId = yield* upsertPrivateKey({
+			metadata: {
+				priority: 0,
+				label: input.label,
+				isDefault: input.isDefault,
+			},
+			value: input.value,
+		});
 		// Setting this key default means UN-setting every other one.
 		if (input.isDefault) {
 			yield* Effect.tryPromise(() => enforceSingleDefault(keyId));
@@ -413,17 +452,15 @@ const renameKeyAtom = Atom.family((entryId: string) =>
 	runtime.fn(
 		Effect.fnUntraced(function* (newLabel: string) {
 			const entry = yield* Effect.tryPromise(() => keyStore.getEntry(entryId));
-			yield* Effect.tryPromise(() =>
-				upsertPrivateKey({
-					keyId: entry.id,
-					value: entry.value,
-					metadata: {
-						priority: entry.metadata.priority,
-						label: newLabel,
-						isDefault: entry.metadata.isDefault,
-					},
-				}),
-			);
+			yield* upsertPrivateKey({
+				keyId: entry.id,
+				value: entry.value,
+				metadata: {
+					priority: entry.metadata.priority,
+					label: newLabel,
+					isDefault: entry.metadata.isDefault,
+				},
+			});
 		}),
 		{ reactivityKeys: KEYS },
 	),
@@ -472,7 +509,7 @@ const upsertConnectionAtom = runtime.fn(
 		priority: number;
 		label?: string;
 	}) {
-		yield* Effect.tryPromise(() => upsertConnection(params));
+		yield* upsertConnection(params);
 	}),
 	{ reactivityKeys: CONNECTIONS },
 );
@@ -484,7 +521,7 @@ const updateConnectionMetadataAtom = Atom.family((id: string) =>
 				Pick<ConnectionMetadata, 'label' | 'shellIntegration' | 'priority'>
 			>,
 		) {
-			yield* Effect.tryPromise(() => updateConnectionMetadata(id, patch));
+			yield* updateConnectionMetadata(id, patch);
 		}),
 		{ reactivityKeys: CONNECTIONS },
 	),

@@ -2,6 +2,7 @@ import { useAtomRefresh, useAtomValue } from '@effect/atom-react';
 import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useStore } from '@tanstack/react-form';
 import { useRouter } from 'expo-router';
+import * as Effect from 'effect/Effect';
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
 import React from 'react';
 import {
@@ -24,20 +25,18 @@ import { ThemedText } from '@/components/themed/ThemedText';
 import { useAppForm, useFieldContext } from '@/components/form-components';
 import { KeyList } from '@/components/key-manager/KeyList';
 import { useHostKeyPromptPending } from '@/lib/host-keys';
-import { rootLogger } from '@/lib/logger';
 import { preferences } from '@/lib/preferences';
 import {
 	useSshConnMutation,
 	type SshConnectionProgress,
 } from '@/lib/query-fns';
+import { appRuntime } from '@/lib/runtime';
 import {
 	connectionDetailsStandardSchema,
 	secretsManager,
 	type InputConnectionDetails,
 } from '@/lib/secrets-manager';
 import { useThemeSkin } from '@/lib/theme-skin';
-
-const logger = rootLogger.extend('ServersConnect');
 
 const defaultValues: InputConnectionDetails = {
 	host: '',
@@ -124,7 +123,11 @@ export default function ConnectScreen() {
 	})();
 
 	const submit = () => {
-		logger.info('Connect button pressed', { isSubmitting });
+		appRuntime.runSync(
+			Effect.logInfo('Connect button pressed', { isSubmitting }).pipe(
+				Effect.annotateLogs({ module: 'ServersConnect' }),
+			),
+		);
 		if (isSubmitting) {
 			return;
 		}

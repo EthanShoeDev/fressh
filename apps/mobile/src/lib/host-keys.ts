@@ -2,38 +2,75 @@ import {
 	respondToHostKey,
 	type ServerPublicKeyInfo,
 } from '@fressh/react-native-terminal';
+import { useAtomValue } from '@effect/atom-react';
+import * as Clock from 'effect/Clock';
+import * as Context from 'effect/Context';
+import * as Data from 'effect/Data';
+import * as Effect from 'effect/Effect';
+import * as Layer from 'effect/Layer';
+import * as Atom from 'effect/unstable/reactivity/Atom';
 import { useMemo } from 'react';
-import { create } from 'zustand';
+import { atomRegistry } from './atom-registry';
 import {
+	encodeKnownHosts,
 	evaluateHostKey,
+	type HostKeyVerdict,
 	type KnownHostEntry,
 	parseKnownHosts,
 	removeHost,
 	upsertEntry,
 } from './known-hosts';
-import { rootLogger } from './logger';
 import { preferences } from './preferences';
 
-const logger = rootLogger.extend('HostKeys');
-
 /**
- * Host-key wiring — the MMKV-backed known-hosts CRUD and the global trust
- * prompt queue. `ssh-store.ts` routes every `HostKeyPending` event here
- * (replacing the old auto-accept); the globally mounted `<HostKeyPrompt/>`
- * renders the queue head and answers via `resolveHostKeyPrompt`. The pure
- * verdict logic lives in `lib/known-hosts.ts`.
+ * Host-key wiring — the MMKV-backed known-hosts store (as the {@link KnownHosts}
+ * service) and the global trust prompt queue. `ssh-store.ts` routes every
+ * `HostKeyPending` event here (replacing the old auto-accept); the globally
+ * mounted `<HostKeyPrompt/>` renders the queue head and answers via
+ * {@link resolveHostKeyPrompt}. The pure verdict logic lives in
+ * `lib/known-hosts.ts`.
+ *
+ * Everything here returns Effects; callers at the React/event-plane boundary
+ * run them through `appRuntime` (which provides {@link KnownHosts}).
  */
 
-// ---------------------------------------------------------------------------
-// Known-hosts CRUD over the `knownHosts` pref (presets.ts pattern).
-
-/** Read the pinned host keys imperatively (outside React). */
-function getKnownHosts(): KnownHostEntry[] {
-	return parseKnownHosts(preferences.knownHosts.get());
-}
-
-function save(entries: KnownHostEntry[]) {
-	preferences.knownHosts.set(JSON.stringify(entries));
+export class KnownHosts extends Context.Service<
+	KnownHosts,
+	{
+		/** Pinned host keys, parsed from the `knownHosts` pref. */
+		readonly entries: Effect.Effect<KnownHostEntry[]>;
+		/** Verdict for a presented key against the pins. */
+		evaluate(info: ServerPublicKeyInfo): Effect.Effect<HostKeyVerdict>;
+		/** Pin (or re-pin) the presented key for its (host, port, algorithm). */
+		trust(info: ServerPublicKeyInfo): Effect.Effect<void>;
+		/** Forget every pinned key for host:port — the next connect re-prompts. */
+		revoke(host: string, port: number): Effect.Effect<void>;
+	}
+>()('fressh/KnownHosts') {
+	static readonly layer = Layer.sync(KnownHosts, () => {
+		const read = () => parseKnownHosts(preferences.knownHosts.get());
+		const write = (entries: KnownHostEntry[]) =>
+			preferences.knownHosts.set(encodeKnownHosts(entries));
+		return KnownHosts.of({
+			entries: Effect.sync(read),
+			evaluate: (info) => Effect.sync(() => evaluateHostKey(read(), info)),
+			trust: (info) =>
+				Effect.map(Clock.currentTimeMillis, (now) =>
+					write(
+						upsertEntry(read(), {
+							host: info.host,
+							port: info.port,
+							algorithm: info.algorithm,
+							fingerprintSha256: info.fingerprintSha256,
+							keyBase64: info.keyBase64,
+							trustedAtMs: now,
+						}),
+					),
+				),
+			revoke: (host, port) =>
+				Effect.sync(() => write(removeHost(read(), host, port))),
+		});
+	});
 }
 
 /** Reactive list of pinned host keys (re-renders when the pref changes). */
@@ -42,24 +79,14 @@ export function useKnownHosts(): KnownHostEntry[] {
 	return useMemo(() => parseKnownHosts(raw), [raw]);
 }
 
-/** Pin (or re-pin) the presented key for its (host, port, algorithm). */
-function trustHostKey(info: ServerPublicKeyInfo): void {
-	save(
-		upsertEntry(getKnownHosts(), {
-			host: info.host,
-			port: info.port,
-			algorithm: info.algorithm,
-			fingerprintSha256: info.fingerprintSha256,
-			keyBase64: info.keyBase64,
-			trustedAtMs: Date.now(),
-		}),
-	);
-}
-
-/** Forget every pinned key for host:port — the next connect re-prompts. */
-export function revokeHost(host: string, port: number): void {
-	save(removeHost(getKnownHosts(), host, port));
-}
+/** Forget every pinned key for host:port (the Settings → Known hosts screen). */
+export const revokeHost = Effect.fnUntraced(function* (
+	host: string,
+	port: number,
+) {
+	const knownHosts = yield* KnownHosts;
+	yield* knownHosts.revoke(host, port);
+});
 
 // ---------------------------------------------------------------------------
 // Prompt queue. Concurrent connects (connect form + the Commands-tab one-off
@@ -74,9 +101,19 @@ export interface PendingHostKey {
 	prior?: KnownHostEntry;
 }
 
-export const useHostKeyPromptStore = create<{ queue: PendingHostKey[] }>(
-	() => ({ queue: [] }),
+/** The pending-prompt queue. `keepAlive`: the event plane enqueues whether or
+ *  not the prompt UI is currently subscribed. */
+export const hostKeyPromptQueueAtom = Atom.make<PendingHostKey[]>([]).pipe(
+	Atom.keepAlive,
 );
+
+/** Head of the queue — what the globally mounted `<HostKeyPrompt/>` renders. */
+export const hostKeyPromptHeadAtom = Atom.map(
+	hostKeyPromptQueueAtom,
+	(queue) => queue[0],
+);
+
+const hasPending = (queue: PendingHostKey[]) => queue.length > 0;
 
 /**
  * True while a trust prompt is waiting for the user. RN modals that can be up
@@ -85,77 +122,92 @@ export const useHostKeyPromptStore = create<{ queue: PendingHostKey[] }>(
  * would otherwise sit on top of (or outright block) the in-tree prompt.
  */
 export function useHostKeyPromptPending(): boolean {
-	return useHostKeyPromptStore((s) => s.queue.length > 0);
+	return useAtomValue(hostKeyPromptQueueAtom, hasPending);
 }
 
 function dequeue(connectionId: string) {
-	useHostKeyPromptStore.setState((s) => ({
-		queue: s.queue.filter((p) => p.connectionId !== connectionId),
-	}));
-}
-
-/** The connection may have died while the prompt was up — the native side then
- *  has nothing parked under this id, so the sync uniffi call can throw. */
-function respond(connectionId: string, accept: boolean) {
-	try {
-		respondToHostKey(connectionId, accept);
-	} catch (error) {
-		logger.warn('respondToHostKey failed (connection gone?)', error);
-	}
-}
-
-/** Decide a `HostKeyPending` event: pinned key matches → accept silently (the
- *  friction-free common case); unknown/changed → park it on the prompt queue
- *  for the user. Called from ssh-store's global event listener. */
-export function handleHostKeyPending(
-	connectionId: string,
-	info: ServerPublicKeyInfo,
-): void {
-	const verdict = evaluateHostKey(getKnownHosts(), info);
-	if (verdict.kind === 'trusted') {
-		logger.debug('host key matches pin, accepting', info.fingerprintSha256);
-		respond(connectionId, true);
-		return;
-	}
-	logger.info(`host key ${verdict.kind}, prompting`, info.fingerprintSha256);
-	useHostKeyPromptStore.setState((s) =>
-		s.queue.some((p) => p.connectionId === connectionId)
-			? s
-			: {
-					queue: [
-						...s.queue,
-						{
-							connectionId,
-							info,
-							verdict: verdict.kind,
-							prior: verdict.kind === 'changed' ? verdict.prior : undefined,
-						},
-					],
-				},
+	atomRegistry.update(hostKeyPromptQueueAtom, (queue) =>
+		queue.filter((p) => p.connectionId !== connectionId),
 	);
 }
 
+class RespondToHostKeyError extends Data.TaggedError('RespondToHostKeyError')<{
+	cause: unknown;
+}> {}
+
+/** The connection may have died while the prompt was up — the native side then
+ *  has nothing parked under this id, so the sync uniffi call can throw. */
+const respond = (connectionId: string, accept: boolean) =>
+	Effect.try({
+		try: () => respondToHostKey(connectionId, accept),
+		catch: (cause) => new RespondToHostKeyError({ cause }),
+	}).pipe(
+		Effect.catch((error) =>
+			Effect.logWarning('respondToHostKey failed (connection gone?)', error),
+		),
+	);
+
+/** Decide a `HostKeyPending` event: pinned key matches → accept silently (the
+ *  friction-free common case); unknown/changed → park it on the prompt queue
+ *  for the user. Run from ssh-store's global event listener. */
+export const handleHostKeyPending = Effect.fnUntraced(
+	function* (connectionId: string, info: ServerPublicKeyInfo) {
+		const knownHosts = yield* KnownHosts;
+		const verdict = yield* knownHosts.evaluate(info);
+		if (verdict.kind === 'trusted') {
+			yield* Effect.logDebug(
+				'host key matches pin, accepting',
+				info.fingerprintSha256,
+			);
+			yield* respond(connectionId, true);
+			return;
+		}
+		yield* Effect.logInfo(
+			`host key ${verdict.kind}, prompting`,
+			info.fingerprintSha256,
+		);
+		yield* Effect.sync(() =>
+			atomRegistry.update(hostKeyPromptQueueAtom, (queue) =>
+				queue.some((p) => p.connectionId === connectionId)
+					? queue
+					: [
+							...queue,
+							{
+								connectionId,
+								info,
+								verdict: verdict.kind,
+								prior: verdict.kind === 'changed' ? verdict.prior : undefined,
+							},
+						],
+			),
+		);
+	},
+	Effect.annotateLogs({ module: 'HostKeys' }),
+);
+
 /** Answer the prompt for a parked connection. Pins the key BEFORE responding
  *  on accept, so a fast reconnect can't race a re-prompt. */
-export function resolveHostKeyPrompt(
-	connectionId: string,
-	accept: boolean,
-): void {
-	const pending = useHostKeyPromptStore
-		.getState()
-		.queue.find((p) => p.connectionId === connectionId);
-	dequeue(connectionId);
-	if (!pending) {
-		return;
-	}
-	if (accept) {
-		trustHostKey(pending.info);
-	}
-	respond(connectionId, accept);
-}
+export const resolveHostKeyPrompt = Effect.fnUntraced(
+	function* (connectionId: string, accept: boolean) {
+		const pending = yield* Effect.sync(() =>
+			atomRegistry.modify(hostKeyPromptQueueAtom, (queue) => [
+				queue.find((p) => p.connectionId === connectionId),
+				queue.filter((p) => p.connectionId !== connectionId),
+			]),
+		);
+		if (!pending) {
+			return;
+		}
+		if (accept) {
+			const knownHosts = yield* KnownHosts;
+			yield* knownHosts.trust(pending.info);
+		}
+		yield* respond(connectionId, accept);
+	},
+	Effect.annotateLogs({ module: 'HostKeys' }),
+);
 
 /** Drop a queued prompt without answering — the connection closed underneath
- *  it. Called from ssh-store's ConnectionClosed case. */
-export function dismissHostKeyPrompt(connectionId: string): void {
-	dequeue(connectionId);
-}
+ *  it. Run from ssh-store's ConnectionClosed case. */
+export const dismissHostKeyPrompt = (connectionId: string) =>
+	Effect.sync(() => dequeue(connectionId));

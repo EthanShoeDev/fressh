@@ -2,6 +2,7 @@ import { useAtomSet, useAtomValue } from '@effect/atom-react';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Effect from 'effect/Effect';
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
 import React from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -15,16 +16,16 @@ import {
 import { ThemedText } from '@/components/themed/ThemedText';
 import { RenameDialog } from '@/components/RenameDialog';
 import { Section, ToggleRow } from '@/components/settings-controls';
-import { rootLogger } from '@/lib/logger';
 import { preferences } from '@/lib/preferences';
 import { useSshConnMutation } from '@/lib/query-fns';
+import { appRuntime } from '@/lib/runtime';
 import { secretsManager } from '@/lib/secrets-manager';
 import { useConnectionShells, useLiveConnection } from '@/lib/server-status';
-import { useSshStore, type StoreShell } from '@/lib/ssh-store';
+import { renameShell, type StoreShell } from '@/lib/ssh-store';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
 import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 
-const logger = rootLogger.extend('ServerDetail');
+const annotateModule = Effect.annotateLogs({ module: 'ServerDetail' });
 
 export default function ServerDetailScreen() {
 	const { id } = useLocalSearchParams<{ id: string }>();
@@ -87,42 +88,58 @@ function ServerDetailContent({ id }: { id: string }) {
 	const onToggleShellIntegration = React.useCallback(
 		(next: boolean) => {
 			setSiOverride(next);
-			void setShellIntegrationMeta({ shellIntegration: next }).catch(
-				(error: unknown) => {
-					logger.warn('Failed to save shell-integration preference', error);
-					setSiOverride(null); // revert the optimistic flip
-				},
+			appRuntime.runFork(
+				Effect.tryPromise(() =>
+					setShellIntegrationMeta({ shellIntegration: next }),
+				).pipe(
+					Effect.catch((error) =>
+						Effect.gen(function* () {
+							yield* Effect.logWarning(
+								'Failed to save shell-integration preference',
+								error,
+							);
+							yield* Effect.sync(() => setSiOverride(null)); // revert the optimistic flip
+						}),
+					),
+					annotateModule,
+				),
 			);
 		},
 		[setShellIntegrationMeta],
 	);
 
-	const onNewShell = React.useCallback(async () => {
+	const onNewShell = React.useCallback(() => {
 		if (busy || !details) {
 			return;
 		}
 		setBusy(true);
-		try {
-			if (live) {
-				// New shell on an already-live connection calls the store directly, so
-				// it gets the EFFECTIVE value (global kill-switch ∧ this host's choice).
-				const effective =
-					preferences.shellIntegrationEnabled.get() && shellIntegration;
-				const shell = await live.startShell({ shellIntegration: effective });
-				openTerminal(live.connectionId, shell.channelId);
-			} else {
-				// Reconnect goes through the mutation, which ANDs the global setting in
-				// itself — pass the per-host CHOICE.
-				const success = await sshConnMutation.mutateAsync(details, {
-					shellIntegration,
-				});
-				openTerminal(success.connectionId, success.channelId);
-			}
-		} catch (error) {
-			logger.warn('Failed to start shell', error);
-		} finally {
-			setBusy(false);
-		}
+		appRuntime.runFork(
+			Effect.gen(function* () {
+				if (live) {
+					// New shell on an already-live connection calls the store directly, so
+					// it gets the EFFECTIVE value (global kill-switch ∧ this host's choice).
+					const effective =
+						preferences.shellIntegrationEnabled.get() && shellIntegration;
+					const shell = yield* Effect.tryPromise(() =>
+						live.startShell({ shellIntegration: effective }),
+					);
+					openTerminal(live.connectionId, shell.channelId);
+				} else {
+					// Reconnect goes through the mutation, which ANDs the global setting in
+					// itself — pass the per-host CHOICE.
+					const success = yield* Effect.tryPromise(() =>
+						sshConnMutation.mutateAsync(details, { shellIntegration }),
+					);
+					openTerminal(success.connectionId, success.channelId);
+				}
+			}).pipe(
+				Effect.catch((error) =>
+					Effect.logWarning('Failed to start shell', error),
+				),
+				Effect.ensuring(Effect.sync(() => setBusy(false))),
+				annotateModule,
+			),
+		);
 	}, [busy, details, live, openTerminal, sshConnMutation, shellIntegration]);
 
 	const monoFamily = skin.mono ? skin.monoFamily : undefined;
@@ -159,9 +176,7 @@ function ServerDetailContent({ id }: { id: string }) {
 					loading={busy}
 					loadingTitle='Connecting…'
 					disabled={!details}
-					onPress={() => {
-						void onNewShell();
-					}}
+					onPress={onNewShell}
 					icon={<FontAwesome6 name='plus' size={15} color={onPrimaryColor} />}
 				/>
 
@@ -260,7 +275,6 @@ function ShellRow({
 	const skin = useThemeSkin();
 	const cardStyle = useSurfaceStyle();
 	const primaryColor = useCSSVariable('--color-primary') as string;
-	const renameShell = useSshStore((s) => s.renameShell);
 	const [renaming, setRenaming] = React.useState(false);
 	const since = formatDistanceToNow(new Date(shell.createdAtMs), {
 		addSuffix: true,

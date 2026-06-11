@@ -10,13 +10,16 @@ import {
 	startShell as fresshStartShell,
 	TerminalType,
 	type ConnectionDetails,
+	type FresshEvent,
 } from '@fressh/react-native-terminal';
-import { create } from 'zustand';
+import * as Clock from 'effect/Clock';
+import * as Effect from 'effect/Effect';
+import * as Match from 'effect/Match';
+import * as Atom from 'effect/unstable/reactivity/Atom';
+import { atomRegistry } from './atom-registry';
 import { dismissHostKeyPrompt, handleHostKeyPending } from './host-keys';
-import { rootLogger } from './logger';
 import { preferences } from './preferences';
-
-const logger = rootLogger.extend('SshStore');
+import { appRuntime } from './runtime';
 
 export type StoreConnectionDetails = {
 	host: string;
@@ -69,142 +72,167 @@ export type ConnectArgs = {
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 
-interface SshRegistryStore {
-	connections: Record<string, StoreConnection>;
-	shells: Record<string, StoreShell>;
-	connect: (args: ConnectArgs) => Promise<StoreConnection>;
-	/** Set (or clear, with '') a session's local name. Runtime-only. */
-	renameShell: (shellId: string, label: string) => void;
-}
+/**
+ * Live connections / shells by runtime id. `keepAlive`: the event plane writes
+ * these whether or not any screen currently subscribes, so the registry must
+ * never garbage-collect their state.
+ */
+export const sshConnectionsAtom = Atom.make<Record<string, StoreConnection>>(
+	{},
+).pipe(Atom.keepAlive);
+export const sshShellsAtom = Atom.make<Record<string, StoreShell>>({}).pipe(
+	Atom.keepAlive,
+);
+
+/** Fine-grained per-connection selection — `Object.is` dedupe means a
+ *  subscriber only re-renders when ITS connection object changes. */
+export const connectionAtom = Atom.family((connectionId: string) =>
+	Atom.map(sshConnectionsAtom, (connections) => connections[connectionId]),
+);
 
 function channelIdFromShellId(shellId: string): number {
 	const n = Number.parseInt(shellId.slice(shellId.lastIndexOf(':') + 1), 10);
 	return Number.isNaN(n) ? 0 : n;
 }
 
-export const useSshStore = create<SshRegistryStore>((set) => {
-	function makeShell(shellId: string, connectionId: string): StoreShell {
-		return {
-			shellId,
-			connectionId,
-			channelId: channelIdFromShellId(shellId),
-			createdAtMs: Date.now(),
-			pty: 'xterm-256color',
-			sendData: (data) => fresshSendData(shellId, data),
-			resize: (cols, rows) => fresshResize(shellId, cols, rows),
-			close: () => fresshCloseShell(shellId),
-		};
-	}
-
-	function makeConnection(
-		connectionId: string,
-		details: StoreConnectionDetails,
-	): StoreConnection {
-		return {
-			connectionId,
-			connectionDetails: details,
-			createdAtMs: Date.now(),
-			disconnect: () => fresshDisconnect(connectionId),
-			startShell: async (opts) => {
-				const shellId = await fresshStartShell(connectionId, {
-					term: TerminalType.Xterm256,
-					cols: opts?.cols ?? DEFAULT_COLS,
-					rows: opts?.rows ?? DEFAULT_ROWS,
-					// Read at shell-creation time: scrollback is a control-plane,
-						// creation-only knob (ring buffer allocated in fressh-core).
-						scrollbackLines: preferences.terminalScrollback.get(),
-					// undefined ⇒ native default (on); the connect flow passes the
-					// effective global∧per-host value. See terminal-semantic-events.md.
-					shellIntegration: opts?.shellIntegration,
-				});
-				const shell = makeShell(shellId, connectionId);
-				set((s) => ({ shells: { ...s.shells, [shellId]: shell } }));
-				return shell;
-			},
-		};
-	}
-
+function makeShell(shellId: string, connectionId: string): StoreShell {
 	return {
-		connections: {},
-		shells: {},
-		connect: async (args) => {
-			const security =
-				args.security.type === 'password'
-					? Security.Password.new({ password: args.security.password })
-					: Security.Key.new({ privateKeyContent: args.security.privateKey });
-			const details: ConnectionDetails = {
-				host: args.host,
-				port: args.port,
-				username: args.username,
-				security,
-			};
-			const connectionId = await fresshConnect(details);
-			const connection = makeConnection(connectionId, {
-				host: args.host,
-				port: args.port,
-				username: args.username,
-			});
-			set((s) => ({
-				connections: { ...s.connections, [connectionId]: connection },
-			}));
-			return connection;
-		},
-		renameShell: (shellId, label) =>
-			set((s) => {
-				const shell = s.shells[shellId];
-				if (!shell) {
-					return s;
-				}
-				return {
-					shells: {
-						...s.shells,
-						[shellId]: { ...shell, label: label || undefined },
-					},
-				};
-			}),
+		shellId,
+		connectionId,
+		channelId: channelIdFromShellId(shellId),
+		createdAtMs: appRuntime.runSync(Clock.currentTimeMillis),
+		pty: 'xterm-256color',
+		sendData: (data) => fresshSendData(shellId, data),
+		resize: (cols, rows) => fresshResize(shellId, cols, rows),
+		close: () => fresshCloseShell(shellId),
 	};
+}
+
+function makeConnection(
+	connectionId: string,
+	details: StoreConnectionDetails,
+): StoreConnection {
+	return {
+		connectionId,
+		connectionDetails: details,
+		createdAtMs: appRuntime.runSync(Clock.currentTimeMillis),
+		disconnect: () => fresshDisconnect(connectionId),
+		startShell: async (opts) => {
+			const shellId = await fresshStartShell(connectionId, {
+				term: TerminalType.Xterm256,
+				cols: opts?.cols ?? DEFAULT_COLS,
+				rows: opts?.rows ?? DEFAULT_ROWS,
+				// Read at shell-creation time: scrollback is a control-plane,
+				// creation-only knob (ring buffer allocated in fressh-core).
+				scrollbackLines: preferences.terminalScrollback.get(),
+				// undefined ⇒ native default (on); the connect flow passes the
+				// effective global∧per-host value. See terminal-semantic-events.md.
+				shellIntegration: opts?.shellIntegration,
+			});
+			const shell = makeShell(shellId, connectionId);
+			atomRegistry.update(sshShellsAtom, (shells) => ({
+				...shells,
+				[shellId]: shell,
+			}));
+			return shell;
+		},
+	};
+}
+
+/** Open an SSH connection and register it in {@link sshConnectionsAtom}. */
+export const connectSsh = Effect.fnUntraced(function* (args: ConnectArgs) {
+	const security =
+		args.security.type === 'password'
+			? Security.Password.new({ password: args.security.password })
+			: Security.Key.new({ privateKeyContent: args.security.privateKey });
+	const details: ConnectionDetails = {
+		host: args.host,
+		port: args.port,
+		username: args.username,
+		security,
+	};
+	const connectionId = yield* Effect.tryPromise(() => fresshConnect(details));
+	const connection = makeConnection(connectionId, {
+		host: args.host,
+		port: args.port,
+		username: args.username,
+	});
+	yield* Effect.sync(() =>
+		atomRegistry.update(sshConnectionsAtom, (connections) => ({
+			...connections,
+			[connectionId]: connection,
+		})),
+	);
+	return connection;
 });
+
+/** Set (or clear, with '') a session's local name. Runtime-only. */
+export function renameShell(shellId: string, label: string): void {
+	atomRegistry.update(sshShellsAtom, (shells) => {
+		const shell = shells[shellId];
+		if (!shell) {
+			return shells;
+		}
+		return { ...shells, [shellId]: { ...shell, label: label || undefined } };
+	});
+}
+
+const onLifecycleEvent = Match.type<FresshEvent>().pipe(
+	// TOFU verification: pinned key → silent accept; unknown/changed key →
+	// the global <HostKeyPrompt/> asks the user. See lib/host-keys.ts.
+	Match.discriminator('tag')(
+		FresshEvent_Tags.HostKeyPending,
+		Effect.fnUntraced(function* (event) {
+			const { connectionId, info } = event.inner;
+			yield* Effect.logInfo('host key pending', info.fingerprintSha256);
+			yield* handleHostKeyPending(connectionId, info);
+		}),
+	),
+	Match.discriminator('tag')(
+		FresshEvent_Tags.ConnectionClosed,
+		Effect.fnUntraced(function* (event) {
+			const { connectionId } = event.inner;
+			yield* Effect.logDebug('connection closed', connectionId);
+			// If a trust prompt was parked on this connection, drop it — there is
+			// nothing left to answer.
+			yield* dismissHostKeyPrompt(connectionId);
+			yield* Effect.sync(() => {
+				atomRegistry.update(sshConnectionsAtom, (connections) => {
+					const { [connectionId]: _omit, ...rest } = connections;
+					return rest;
+				});
+				atomRegistry.update(sshShellsAtom, (shells) =>
+					Object.fromEntries(
+						Object.entries(shells).filter(
+							([, shell]) => shell.connectionId !== connectionId,
+						),
+					),
+				);
+			});
+		}),
+	),
+	Match.discriminator('tag')(
+		FresshEvent_Tags.ShellClosed,
+		Effect.fnUntraced(function* (event) {
+			const { shellId } = event.inner;
+			yield* Effect.logDebug('shell closed', shellId);
+			yield* Effect.sync(() =>
+				atomRegistry.update(sshShellsAtom, (shells) => {
+					const { [shellId]: _omit, ...rest } = shells;
+					return rest;
+				}),
+			);
+		}),
+	),
+	// ConnectProgress (and the byte-stream-adjacent OSC tags) are consumed
+	// elsewhere — the connect flow (query-fns) and terminal-semantics.
+	Match.orElse(() => Effect.void),
+);
 
 // One global event subscription drives store lifecycle (§10 event plane). The
 // byte stream never comes through here — only low-frequency lifecycle events.
-addFresshEventListener((event) => {
-	switch (event.tag) {
-		case FresshEvent_Tags.HostKeyPending: {
-			// TOFU verification: pinned key → silent accept; unknown/changed key →
-			// the global <HostKeyPrompt/> asks the user. See lib/host-keys.ts.
-			const { connectionId, info } = event.inner;
-			logger.info('host key pending', info.fingerprintSha256);
-			handleHostKeyPending(connectionId, info);
-			break;
-		}
-		case FresshEvent_Tags.ConnectionClosed: {
-			const { connectionId } = event.inner;
-			logger.debug('connection closed', connectionId);
-			// If a trust prompt was parked on this connection, drop it — there is
-			// nothing left to answer.
-			dismissHostKeyPrompt(connectionId);
-			useSshStore.setState((s) => {
-				const { [connectionId]: _omit, ...connections } = s.connections;
-				const shells = Object.fromEntries(
-					Object.entries(s.shells).filter(
-						([, shell]) => shell.connectionId !== connectionId,
-					),
-				);
-				return { connections, shells };
-			});
-			break;
-		}
-		case FresshEvent_Tags.ShellClosed: {
-			const { shellId } = event.inner;
-			logger.debug('shell closed', shellId);
-			useSshStore.setState((s) => {
-				const { [shellId]: _omit, ...shells } = s.shells;
-				return { shells };
-			});
-			break;
-		}
-		default:
-			// ConnectProgress is consumed by the connect flow (query-fns).
-			break;
-	}
-});
+addFresshEventListener((event) =>
+	appRuntime.runSync(
+		Effect.annotateLogs(onLifecycleEvent(event), { module: 'SshStore' }),
+	),
+);

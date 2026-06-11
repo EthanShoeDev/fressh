@@ -1,4 +1,6 @@
 import '../global.css';
+import { RegistryContext } from '@effect/atom-react';
+import * as Effect from 'effect/Effect';
 import * as DevClient from 'expo-dev-client';
 import { useFonts } from 'expo-font';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -7,19 +9,22 @@ import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { HostKeyPrompt } from '@/components/HostKeyPrompt';
-import { rootLogger } from '@/lib/logger';
+import { atomRegistry } from '@/lib/atom-registry';
+import { appRuntime } from '@/lib/runtime';
 import { appFonts } from '../lib/fonts';
 import { seedScreenshotData } from '../lib/screenshot-seed';
 import { initAppTheme, useSystemThemeSync } from '../lib/theme';
 
-rootLogger.info('Fressh App Init', {
-	isLiquidGlassAvailable: isLiquidGlassAvailable(),
-});
+appRuntime.runSync(
+	Effect.logInfo('Fressh App Init', {
+		isLiquidGlassAvailable: isLiquidGlassAvailable(),
+	}),
+);
 
 void DevClient.registerDevMenuItems([
 	{
 		callback: () => {
-			rootLogger.info('Hello from dev menu');
+			appRuntime.runSync(Effect.logInfo('Hello from dev menu'));
 		},
 		name: 'Hello from dev menu',
 	},
@@ -42,7 +47,7 @@ export default function RootLayout() {
 	// Seed demo data for marketing screenshots. No-op unless the build sets
 	// EXPO_PUBLIC_SCREENSHOT_SEED=1, so this never runs in production.
 	useEffect(() => {
-		void seedScreenshotData();
+		appRuntime.runFork(seedScreenshotData);
 	}, []);
 
 	// Load the design typefaces before first paint (runtime, via expo-font).
@@ -53,13 +58,17 @@ export default function RootLayout() {
 	}
 
 	return (
-		<GestureHandlerRootView style={{ flex: 1 }}>
-			<KeyboardProvider>
-				<Stack screenOptions={{ headerShown: false }} />
-				{/* Global host-key trust prompt — one mount covers every connect
-				    path (connect form, reconnect, Commands-tab runner). */}
-				<HostKeyPrompt />
-			</KeyboardProvider>
-		</GestureHandlerRootView>
+		// Supply OUR registry (lib/atom-registry.ts) so the atom hooks share the
+		// instance the event plane and Effect programs write to imperatively.
+		<RegistryContext.Provider value={atomRegistry}>
+			<GestureHandlerRootView style={{ flex: 1 }}>
+				<KeyboardProvider>
+					<Stack screenOptions={{ headerShown: false }} />
+					{/* Global host-key trust prompt — one mount covers every connect
+					    path (connect form, reconnect, Commands-tab runner). */}
+					<HostKeyPrompt />
+				</KeyboardProvider>
+			</GestureHandlerRootView>
+		</RegistryContext.Provider>
 	);
 }

@@ -9,6 +9,8 @@ import {
 	Terminal,
 } from '@fressh/react-native-terminal';
 import * as Clipboard from 'expo-clipboard';
+import * as Effect from 'effect/Effect';
+import * as Fiber from 'effect/Fiber';
 
 import {
 	Stack,
@@ -38,9 +40,14 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { KeyboardEvents } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
-import { rootLogger } from '@/lib/logger';
+import { useAtomValue } from '@effect/atom-react';
 import { preferences, useTerminalRenderConfig } from '@/lib/preferences';
-import { useSshStore } from '@/lib/ssh-store';
+import { appRuntime } from '@/lib/runtime';
+import {
+	connectionAtom,
+	sshShellsAtom,
+	type StoreShell,
+} from '@/lib/ssh-store';
 import { ContextBar } from '@/components/terminal/ContextBar';
 import { PresetsToolbarPage } from '@/components/terminal/PresetsToolbarPage';
 import type { Preset } from '@/lib/presets';
@@ -56,22 +63,25 @@ type TerminalRenderConfig = ReturnType<typeof useTerminalRenderConfig>;
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-const logger = rootLogger.extend('TabsShellDetail');
+const annotateModule = Effect.annotateLogs({ module: 'TabsShellDetail' });
 
 export default function TabsShellDetail() {
 	const [ready, setReady] = useState(false);
 
 	useFocusEffect(
 		React.useCallback(() => {
-			startTransition(() => {
-				setTimeout(() => {
-					// TODO: This is gross. It would be much better to switch
-					// after the navigation animation completes.
-					setReady(true);
-				}, 16);
-			});
+			// TODO: This is gross. It would be much better to switch
+			// after the navigation animation completes.
+			const fiber = appRuntime.runFork(
+				Effect.sleep('16 millis').pipe(
+					Effect.andThen(
+						Effect.sync(() => startTransition(() => setReady(true))),
+					),
+				),
+			);
 
 			return () => {
+				appRuntime.runFork(Fiber.interrupt(fiber));
 				setReady(false);
 			};
 		}, []),
@@ -177,21 +187,30 @@ function ShellDetail() {
 
 	// Shells are keyed in the store by their native `shellId` (opaque), but the
 	// route only carries connectionId + channelId — so resolve by those fields.
-	const shell = useSshStore((s) =>
-		Object.values(s.shells).find(
-			(candidate) =>
-				candidate.connectionId === connectionId &&
-				candidate.channelId === channelId,
+	const shell = useAtomValue(
+		sshShellsAtom,
+		useCallback(
+			(shells: Record<string, StoreShell>) =>
+				Object.values(shells).find(
+					(candidate) =>
+						candidate.connectionId === connectionId &&
+						candidate.channelId === channelId,
+				),
+			[connectionId, channelId],
 		),
 	);
-	const connection = useSshStore((s) => s.connections[connectionId]);
+	const connection = useAtomValue(connectionAtom(connectionId));
 	const terminalConfig = useTerminalRenderConfig();
 
 	useEffect(() => {
 		if (shell && connection) {
 			return;
 		}
-		logger.info('shell or connection not found, navigating back');
+		appRuntime.runSync(
+			Effect.logInfo('shell or connection not found, navigating back').pipe(
+				annotateModule,
+			),
+		);
 		router.back();
 	}, [connection, router, shell]);
 
@@ -221,10 +240,17 @@ function ShellDetail() {
 					modifiedBytes = m.applyModifierToBytes(modifiedBytes);
 				});
 
-			shell.sendData(modifiedBytes.buffer).catch((error: unknown) => {
-				logger.warn('sendData failed', error);
-				router.back();
-			});
+			appRuntime.runFork(
+				Effect.tryPromise(() => shell.sendData(modifiedBytes.buffer)).pipe(
+					Effect.catch((error) =>
+						Effect.gen(function* () {
+							yield* Effect.logWarning('sendData failed', error);
+							yield* Effect.sync(() => router.back());
+						}),
+					),
+					annotateModule,
+				),
+			);
 		},
 		[shell, router, modifierKeysActive],
 	);
@@ -250,16 +276,20 @@ function ShellDetail() {
 					),
 					headerRight: () => (
 						<CloseShellButton
-							onPress={async () => {
-								logger.info('Close Shell button pressed');
-								if (!shell) {
-									return;
-								}
-								try {
-									await shell.close();
-								} catch (error) {
-									logger.warn('Failed to close shell', error);
-								}
+							onPress={() => {
+								appRuntime.runFork(
+									Effect.gen(function* () {
+										yield* Effect.logInfo('Close Shell button pressed');
+										if (!shell) {
+											return;
+										}
+										yield* Effect.tryPromise(() => shell.close()).pipe(
+											Effect.catch((error) =>
+												Effect.logWarning('Failed to close shell', error),
+											),
+										);
+									}).pipe(annotateModule),
+								);
 							}}
 						/>
 					),
@@ -403,13 +433,15 @@ function TerminalSurface({
 			.runOnJS(true)
 			.onStart(() => setPendingCopy(null))
 			.onChange((e) => {
-				void scroll(
-					shellId,
-					e.changeY / Math.max(1, sizeRef.current.height),
-				).catch((error: unknown) => {
-					// Scroll is best-effort (a dropped frame is non-fatal), but still log.
-					logger.warn('scroll failed', error);
-				});
+				appRuntime.runFork(
+					Effect.tryPromise(() =>
+						scroll(shellId, e.changeY / Math.max(1, sizeRef.current.height)),
+					).pipe(
+						// Scroll is best-effort (a dropped frame is non-fatal), but still log.
+						Effect.catch((error) => Effect.logWarning('scroll failed', error)),
+						annotateModule,
+					),
+				);
 			});
 
 		// Hold-then-drag → select. Word-snap on start, extend on move, surface the

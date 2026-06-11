@@ -1,3 +1,7 @@
+import * as Crypto from 'expo-crypto';
+import * as Effect from 'effect/Effect';
+import * as Option from 'effect/Option';
+import * as Schema from 'effect/Schema';
 import { useMemo } from 'react';
 import { preferences } from './preferences';
 
@@ -8,52 +12,41 @@ import { preferences } from './preferences';
  *
  * See docs/projects/future/preset-command-buttons.md.
  */
-export interface Preset {
-	id: string;
+const presetSchema = Schema.Struct({
+	id: Schema.String,
 	/** Button text, e.g. "git status". */
-	label: string;
+	label: Schema.String,
 	/** The command line to send, e.g. "git status -sb". */
-	command: string;
+	command: Schema.String,
 	/** Send a trailing Enter so it runs immediately. Off ⇒ insert only (the user
 	 *  edits, then submits). Default true. */
-	autoRun: boolean;
-}
+	autoRun: Schema.Boolean.pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed(true)),
+	),
+});
+
+export type Preset = Schema.Schema.Type<typeof presetSchema>;
+
+const decodeJson = Schema.decodeUnknownOption(Schema.UnknownFromJsonString);
+const decodePreset = Schema.decodeUnknownOption(presetSchema);
+const encodePresets = Schema.encodeSync(
+	Schema.fromJsonString(Schema.Array(presetSchema)),
+);
 
 /** Tolerant parse: drop anything that isn't a well-formed preset. */
 function parse(json: string): Preset[] {
-	let raw: unknown;
-	try {
-		raw = JSON.parse(json);
-	} catch {
+	const raw = decodeJson(json);
+	if (Option.isNone(raw) || !Array.isArray(raw.value)) {
 		return [];
 	}
-	if (!Array.isArray(raw)) {
-		return [];
-	}
-	return raw.flatMap((entry): Preset[] => {
-		if (
-			entry &&
-			typeof entry === 'object' &&
-			typeof (entry as Preset).id === 'string' &&
-			typeof (entry as Preset).label === 'string' &&
-			typeof (entry as Preset).command === 'string'
-		) {
-			const e = entry as Preset;
-			return [
-				{
-					id: e.id,
-					label: e.label,
-					command: e.command,
-					autoRun: e.autoRun !== false,
-				},
-			];
-		}
-		return [];
+	return raw.value.flatMap((item) => {
+		const preset = decodePreset(item);
+		return Option.isSome(preset) ? [preset.value] : [];
 	});
 }
 
 function save(list: Preset[]) {
-	preferences.presetCommands.set(JSON.stringify(list));
+	preferences.presetCommands.set(encodePresets(list));
 }
 
 /** Read presets imperatively (outside React). Exported for non-React readers
@@ -69,7 +62,7 @@ export function usePresets(): Preset[] {
 }
 
 function genId(): string {
-	return `p_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+	return `p_${Crypto.randomUUID()}`;
 }
 
 /** Add a new preset; returns its id. */

@@ -1,6 +1,7 @@
 import {
 	addFresshEventListener,
 	FresshEvent_Tags,
+	runCommand,
 	SshConnectionProgressEvent,
 	SshError_Tags,
 } from '@fressh/react-native-terminal';
@@ -8,18 +9,20 @@ import { useAtomSet, useAtomValue } from '@effect/atom-react';
 import * as Cause from 'effect/Cause';
 import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
+import * as Match from 'effect/Match';
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
-import { useHostKeyPromptStore } from './host-keys';
-import { rootLogger } from './logger';
+import { atomRegistry } from './atom-registry';
+import { hostKeyPromptQueueAtom } from './host-keys';
 import { preferences } from './preferences';
+import { appRuntime } from './runtime';
 import {
 	atomRuntime,
 	secretsManager,
 	type InputConnectionDetails,
 } from './secrets-manager';
-import { useSshStore } from './ssh-store';
+import { connectSsh, sshConnectionsAtom } from './ssh-store';
 
-const logger = rootLogger.extend('QueryFns');
+const annotateModule = Effect.annotateLogs({ module: 'QueryFns' });
 
 /** Connection-progress states surfaced to the UI (mapped from the native enum). */
 export type SshConnectionProgress = 'tcpConnected' | 'sshHandshake';
@@ -40,6 +43,12 @@ export interface FriendlyError {
 class SshConnectError extends Data.TaggedError('SshConnectError')<{
 	cause: unknown;
 	friendly: FriendlyError;
+}> {}
+
+class MissingPrivateKeyError extends Data.TaggedError(
+	'MissingPrivateKeyError',
+)<{
+	message: string;
 }> {}
 
 /**
@@ -109,34 +118,34 @@ function classifyConnectError(error: unknown): FriendlyError {
 		? inner.find((v): v is string => typeof v === 'string')
 		: undefined;
 
-	switch (tag) {
-		case SshError_Tags.Auth:
-			return {
-				title: 'Authentication failed',
-				hint: 'The server rejected your credentials — check the username, and that this key/password is authorized on the host.',
-				detail,
-			};
-		case SshError_Tags.HostKeyRejected:
-			return {
-				title: 'Host key rejected',
-				hint: 'You declined the server’s host key, or its identity didn’t match what was expected.',
-				detail,
-			};
-		case SshError_Tags.Keys:
-			return {
-				title: 'Problem with the private key',
-				hint: 'The key couldn’t be used — try re-importing it in the Keys tab.',
-				detail,
-			};
-		case SshError_Tags.NotFound:
-			return { title: 'Not found', detail };
-		case SshError_Tags.Disconnected:
-			return { title: 'Disconnected', hint: 'The connection dropped — try again.', detail };
-		case SshError_Tags.Ssh:
-			return { ...classifyRusshMessage(innerMessage ?? detail), detail };
-		default:
-			return { title: 'Failed to connect', detail };
-	}
+	return Match.value(tag).pipe(
+		Match.when(SshError_Tags.Auth, () => ({
+			title: 'Authentication failed',
+			hint: 'The server rejected your credentials — check the username, and that this key/password is authorized on the host.',
+			detail,
+		})),
+		Match.when(SshError_Tags.HostKeyRejected, () => ({
+			title: 'Host key rejected',
+			hint: 'You declined the server’s host key, or its identity didn’t match what was expected.',
+			detail,
+		})),
+		Match.when(SshError_Tags.Keys, () => ({
+			title: 'Problem with the private key',
+			hint: 'The key couldn’t be used — try re-importing it in the Keys tab.',
+			detail,
+		})),
+		Match.when(SshError_Tags.NotFound, () => ({ title: 'Not found', detail })),
+		Match.when(SshError_Tags.Disconnected, () => ({
+			title: 'Disconnected',
+			hint: 'The connection dropped — try again.',
+			detail,
+		})),
+		Match.when(SshError_Tags.Ssh, () => ({
+			...classifyRusshMessage(innerMessage ?? detail),
+			detail,
+		})),
+		Match.orElse(() => ({ title: 'Failed to connect', detail })),
+	);
 }
 
 /**
@@ -163,57 +172,112 @@ function describeSshError(error: unknown) {
 
 /** Credential resolution shared by the connect form and the one-off runner:
  *  password passes through; a `keyId` is resolved to its stored private key. */
-type ResolvedSecurity =
-	| { type: 'password'; password: string }
-	| { type: 'key'; privateKey: string };
-
-async function resolveSecurity(
-	details: InputConnectionDetails,
-): Promise<ResolvedSecurity> {
-	if (details.security.type === 'password') {
-		return { type: 'password', password: details.security.password };
-	}
-	const { keyId } = details.security;
-	const entry = await secretsManager.keys.utils.getPrivateKey(keyId);
-	// Length only — never log key material.
-	logger.info(
-		`Resolved key ${keyId}: value length ${entry.value?.length ?? 'MISSING'}`,
-	);
-	if (!entry.value) {
-		throw new Error(
-			`The selected key (${keyId}) has no stored private key. Re-import it in the Keys tab.`,
+const resolveSecurity = Effect.fnUntraced(
+	function* (details: InputConnectionDetails) {
+		if (details.security.type === 'password') {
+			return {
+				type: 'password' as const,
+				password: details.security.password,
+			};
+		}
+		const { keyId } = details.security;
+		const entry = yield* Effect.tryPromise(() =>
+			secretsManager.keys.utils.getPrivateKey(keyId),
 		);
-	}
-	return { type: 'key', privateKey: entry.value };
-}
+		// Length only — never log key material.
+		yield* Effect.logInfo(
+			`Resolved key ${keyId}: value length ${entry.value?.length ?? 'MISSING'}`,
+		);
+		if (!entry.value) {
+			return yield* new MissingPrivateKeyError({
+				message: `The selected key (${keyId}) has no stored private key. Re-import it in the Keys tab.`,
+			});
+		}
+		return { type: 'key' as const, privateKey: entry.value };
+	},
+	annotateModule,
+);
 
 /**
  * Ensure there is a live connection to `details`'s host, reusing one if present.
  * Returns the `connectionId` and `fresh` — true when WE opened it (the caller
  * should disconnect it when done; a reused connection is left alone). No shell is
- * opened. Host-key is auto-accepted app-wide for now (see host-key-verification.md).
+ * opened. The host key goes through the TOFU prompt like any other connect.
  */
-export async function ensureConnection(
+const ensureConnection = Effect.fnUntraced(function* (
 	details: InputConnectionDetails,
-): Promise<{ connectionId: string; fresh: boolean }> {
-	const existing = Object.values(useSshStore.getState().connections).find(
-		(c) =>
-			c.connectionDetails.host === details.host &&
-			c.connectionDetails.port === details.port &&
-			c.connectionDetails.username === details.username,
+) {
+	const existing = yield* Effect.sync(() =>
+		Object.values(atomRegistry.get(sshConnectionsAtom)).find(
+			(c) =>
+				c.connectionDetails.host === details.host &&
+				c.connectionDetails.port === details.port &&
+				c.connectionDetails.username === details.username,
+		),
 	);
 	if (existing) {
 		return { connectionId: existing.connectionId, fresh: false };
 	}
-	const security = await resolveSecurity(details);
-	const conn = await useSshStore.getState().connect({
+	const security = yield* resolveSecurity(details);
+	const conn = yield* connectSsh({
 		host: details.host,
 		port: details.port,
 		username: details.username,
 		security,
 	});
 	return { connectionId: conn.connectionId, fresh: true };
+});
+
+/** Reused / fresh connection handle the one-off runner threads between runs. */
+export interface OneOffConnection {
+	connectionId: string;
+	fresh: boolean;
 }
+
+class RunCommandError extends Data.TaggedError('RunCommandError')<{
+	message: string;
+	cause: unknown;
+}> {}
+
+/**
+ * One-off command runner (the Commands-tab sheet): connect-if-needed, then run
+ * on a no-PTY `exec` channel in the login/home dir. An atom mutation so the
+ * sheet reads pending / result / failure reactively instead of hand-rolling
+ * state around a fiber.
+ */
+export const runCommandOneOffAtom = atomRuntime.fn(
+	Effect.fnUntraced(
+		function* (input: {
+			details: InputConnectionDetails;
+			command: string;
+			/** Connection from a previous run in this sheet (reused, not reopened). */
+			conn: OneOffConnection | null;
+			onPhase?: (phase: 'connecting' | 'running') => void;
+			/** Reports a freshly opened connection so the sheet can disconnect it
+			 *  when it closes. */
+			onConnection?: (conn: OneOffConnection) => void;
+		}) {
+			let conn = input.conn;
+			if (!conn) {
+				input.onPhase?.('connecting');
+				conn = yield* ensureConnection(input.details);
+				input.onConnection?.(conn);
+			}
+			input.onPhase?.('running');
+			const target = conn;
+			return yield* Effect.tryPromise(() =>
+				runCommand(target.connectionId, input.command),
+			);
+		},
+		// One user-facing failure shape; unwrap tryPromise's UnknownError so the
+		// sheet shows the actual SSH/keychain cause.
+		Effect.mapError((error) => {
+			const cause = Cause.isUnknownError(error) ? error.cause : error;
+			return new RunCommandError({ message: describeSshError(cause), cause });
+		}),
+		annotateModule,
+	),
+);
 
 type ConnectInput = {
 	connectionDetails: InputConnectionDetails;
@@ -239,56 +303,53 @@ const connectAtom = atomRuntime.fn(
 		// disables it everywhere regardless of the per-host toggle.
 		const shellIntegration =
 			preferences.shellIntegrationEnabled.get() && perHostShellIntegration;
-		// Every step is a promise-boundary call; classify failures into the one
-		// user-facing error shape at that boundary.
-		const connectStep = <A>(step: () => Promise<A>) =>
-			Effect.tryPromise({
-				try: step,
-				catch: (error) =>
-					new SshConnectError({
-						cause: error,
-						friendly: classifyConnectError(error),
-					}),
+		// Every step's failure is classified into the one user-facing error shape
+		// at its boundary. tryPromise wraps the thrown value in UnknownError —
+		// classify the original, not the wrapper.
+		const toConnectError = (error: unknown) => {
+			const cause = Cause.isUnknownError(error) ? error.cause : error;
+			return new SshConnectError({
+				cause,
+				friendly: classifyConnectError(cause),
 			});
+		};
+		const connectStep = <A>(step: () => Promise<A>) =>
+			Effect.tryPromise({ try: step, catch: toConnectError });
 
 		const attempt = Effect.gen(function* () {
-			yield* Effect.sync(() => logger.info('Connecting to SSH server...'));
-			const security = yield* connectStep(() =>
-				resolveSecurity(connectionDetails),
+			yield* Effect.logInfo('Connecting to SSH server...');
+			const security = yield* resolveSecurity(connectionDetails).pipe(
+				Effect.mapError(toConnectError),
 			);
 
-			const sshConnection = yield* connectStep(() =>
-				useSshStore.getState().connect({
-					host: connectionDetails.host,
-					port: connectionDetails.port,
-					username: connectionDetails.username,
-					security,
-				}),
-			);
+			const sshConnection = yield* connectSsh({
+				host: connectionDetails.host,
+				port: connectionDetails.port,
+				username: connectionDetails.username,
+				security,
+			}).pipe(Effect.mapError(toConnectError));
 
 			if (save) {
-				yield* connectStep(() =>
-					secretsManager.connections.utils.upsertConnection({
+				yield* secretsManager.connections.utils
+					.upsertConnection({
 						label: `${connectionDetails.username}@${connectionDetails.host}:${connectionDetails.port}`,
 						details: connectionDetails,
 						priority: 0,
 						// Store the per-host CHOICE (not the global-gated effective
 						// value) so toggling the global setting later still honors it.
 						shellIntegration: perHostShellIntegration,
-					}),
-				);
+					})
+					.pipe(Effect.mapError(toConnectError));
 			}
 
 			const shellHandle = yield* connectStep(() =>
 				sshConnection.startShell({ shellIntegration }),
 			);
 
-			yield* Effect.sync(() =>
-				logger.info(
-					'Connected to SSH server',
-					sshConnection.connectionId,
-					shellHandle.channelId,
-				),
+			yield* Effect.logInfo(
+				'Connected to SSH server',
+				sshConnection.connectionId,
+				shellHandle.channelId,
 			);
 			return {
 				connectionId: sshConnection.connectionId,
@@ -305,9 +366,12 @@ const connectAtom = atomRuntime.fn(
 					resume(Effect.void);
 				}
 			});
-			const unsubscribeQueue = useHostKeyPromptStore.subscribe(() => {
-				resume(Effect.void);
-			});
+			const unsubscribeQueue = atomRegistry.subscribe(
+				hostKeyPromptQueueAtom,
+				() => {
+					resume(Effect.void);
+				},
+			);
 			return Effect.sync(() => {
 				unsubscribeEvents();
 				unsubscribeQueue();
@@ -323,7 +387,7 @@ const connectAtom = atomRuntime.fn(
 		// if it ever resolves after we've given up, the connection just lands in
 		// the store like any other.
 		const watchdog = Effect.suspend(() =>
-			useHostKeyPromptStore.getState().queue.length > 0
+			atomRegistry.get(hostKeyPromptQueueAtom).length > 0
 				? nextActivity
 				: nextActivity.pipe(
 						Effect.timeoutOrElse({
@@ -355,7 +419,12 @@ const connectAtom = atomRuntime.fn(
 						event.inner.event === SshConnectionProgressEvent.TcpConnected
 							? 'tcpConnected'
 							: 'sshHandshake';
-					logger.info('SSH connect progress event', progress);
+					// Plain callback outside the connect fiber — log via the runtime.
+					appRuntime.runSync(
+						Effect.logInfo('SSH connect progress event', progress).pipe(
+							annotateModule,
+						),
+					);
 					onProgress?.(progress);
 				}),
 			),
@@ -372,13 +441,12 @@ const connectAtom = atomRuntime.fn(
 			// and swallow the russh detail, which lives in `inner`. Surface it so
 			// the cause is actually diagnosable.
 			Effect.tapError((error) =>
-				Effect.sync(() =>
-					logger.error(
-						`Error connecting to SSH server: ${describeSshError(error.cause)}`,
-						error.cause,
-					),
+				Effect.logError(
+					`Error connecting to SSH server: ${describeSshError(error.cause)}`,
+					error.cause,
 				),
 			),
+			annotateModule,
 		);
 	}),
 	{ reactivityKeys: secretsManager.reactivityKeys.connections },

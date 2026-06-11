@@ -19,11 +19,9 @@
  * CONNECTIONS reactivity invalidation (which re-reads the keychain and surfaces
  * these seeded servers too).
  */
+import * as Effect from 'effect/Effect';
 import { addPreset, getPresets } from './presets';
-import { rootLogger } from './logger';
 import { secretsManager } from './secrets-manager';
-
-const logger = rootLogger.extend('ScreenshotSeed');
 
 /** True when this build was made with the screenshot seed flag. */
 export const SCREENSHOT_SEED_ENABLED =
@@ -57,38 +55,39 @@ const DEMO_PRESETS = [
 ] as const;
 
 /**
- * Pre-populate demo servers + command presets. Safe to call unconditionally — it
+ * Pre-populate demo servers + command presets. Safe to run unconditionally — it
  * no-ops unless {@link SCREENSHOT_SEED_ENABLED}. Idempotent: servers upsert by
  * deterministic id, and presets are only seeded when none exist yet.
+ * `_layout.tsx` forks this on the app runtime at startup.
  */
-export async function seedScreenshotData() {
+export const seedScreenshotData = Effect.gen(function* () {
 	if (!SCREENSHOT_SEED_ENABLED) return;
 
-	logger.info('Seeding demo data for screenshots');
+	yield* Effect.logInfo('Seeding demo data for screenshots');
 
-	try {
-		await Promise.all(
-			DEMO_SERVERS.map((server, index) =>
-				secretsManager.connections.utils.upsertConnection({
-					details: {
-						host: server.host,
-						port: server.port,
-						username: server.username,
-						security: { type: 'password', password: 'demo-password' },
-					},
-					// Higher priority sorts first; keep the array order in the list.
-					priority: DEMO_SERVERS.length - index,
-					label: server.label,
-				}),
-			),
-		);
+	yield* Effect.forEach(
+		DEMO_SERVERS,
+		(server, index) =>
+			secretsManager.connections.utils.upsertConnection({
+				details: {
+					host: server.host,
+					port: server.port,
+					username: server.username,
+					security: { type: 'password', password: 'demo-password' },
+				},
+				// Higher priority sorts first; keep the array order in the list.
+				priority: DEMO_SERVERS.length - index,
+				label: server.label,
+			}),
+		{ concurrency: 'unbounded' },
+	);
 
-		if (getPresets().length === 0) {
-			for (const preset of DEMO_PRESETS) addPreset(preset);
-		}
-
-		logger.info('Demo data seeded');
-	} catch (error) {
-		logger.error('Failed to seed demo data', { error });
+	if (getPresets().length === 0) {
+		for (const preset of DEMO_PRESETS) addPreset(preset);
 	}
-}
+
+	yield* Effect.logInfo('Demo data seeded');
+}).pipe(
+	Effect.catch((error) => Effect.logError('Failed to seed demo data', error)),
+	Effect.annotateLogs({ module: 'ScreenshotSeed' }),
+);

@@ -10,6 +10,8 @@
  * docs/projects/git-diff-integration.md.
  */
 
+import * as Match from 'effect/Match';
+
 /** One changed path in `git status` porcelain v2. `x`/`y` are the index (staged)
  *  and worktree (unstaged) status chars; `.` means unchanged on that side. */
 export interface GitFile {
@@ -75,24 +77,23 @@ export function parsePorcelainV2(stdout: string): GitStatus {
 			i++;
 			continue;
 		}
-		switch (tok[0]) {
-			case '#':
+		// Each branch returns how many tokens the entry consumed.
+		i += Match.value(tok[0]).pipe(
+			Match.when('#', () => {
 				parseHeader(tok, status);
-				i++;
-				break;
-			case '1': {
+				return 1;
+			}),
+			Match.when('1', () => {
 				const parts = tok.split(' ');
 				addTracked(status, parts[1], parts.slice(8).join(' '));
-				i++;
-				break;
-			}
-			case '2': {
+				return 1;
+			}),
+			Match.when('2', () => {
 				const parts = tok.split(' ');
 				addTracked(status, parts[1], parts.slice(9).join(' '), tokens[i + 1]);
-				i += 2; // the next token is the rename's original path
-				break;
-			}
-			case 'u': {
+				return 2; // the next token is the rename's original path
+			}),
+			Match.when('u', () => {
 				const parts = tok.split(' ');
 				status.conflicted++;
 				status.files.push({
@@ -101,19 +102,21 @@ export function parsePorcelainV2(stdout: string): GitStatus {
 					y: parts[1]?.[1] ?? '?',
 					kind: 'unmerged',
 				});
-				i++;
-				break;
-			}
-			case '?':
+				return 1;
+			}),
+			Match.when('?', () => {
 				status.untracked++;
-				status.files.push({ path: tok.slice(2), x: '?', y: '?', kind: 'untracked' });
-				i++;
-				break;
-			default:
-				// '!' ignored entries, or anything unrecognized — skip.
-				i++;
-				break;
-		}
+				status.files.push({
+					path: tok.slice(2),
+					x: '?',
+					y: '?',
+					kind: 'untracked',
+				});
+				return 1;
+			}),
+			// '!' ignored entries, or anything unrecognized — skip.
+			Match.orElse(() => 1),
+		);
 	}
 	return status;
 }
@@ -137,25 +140,23 @@ function parseHeader(tok: string, status: GitStatus) {
 	const sp = body.indexOf(' ');
 	const key = sp === -1 ? body : body.slice(0, sp);
 	const value = sp === -1 ? '' : body.slice(sp + 1);
-	switch (key) {
-		case 'branch.head':
+	Match.value(key).pipe(
+		Match.when('branch.head', () => {
 			if (value === '(detached)') {
 				status.detached = true;
 			} else {
 				status.branch = value;
 			}
-			break;
-		case 'branch.upstream':
+		}),
+		Match.when('branch.upstream', () => {
 			status.upstream = value;
-			break;
-		case 'branch.ab': {
+		}),
+		Match.when('branch.ab', () => {
 			// "+<ahead> -<behind>"
 			const [a, b] = value.split(' ');
 			status.ahead = Number.parseInt(a ?? '', 10) || 0;
 			status.behind = Math.abs(Number.parseInt(b ?? '', 10) || 0);
-			break;
-		}
-		default:
-			break;
-	}
+		}),
+		Match.orElse(() => undefined),
+	);
 }

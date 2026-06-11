@@ -3,12 +3,14 @@ import { BackHandler, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 import { Button } from '@/components/themed/Button';
 import { ThemedText } from '@/components/themed/ThemedText';
+import { useAtomValue } from '@effect/atom-react';
 import {
+	hostKeyPromptHeadAtom,
 	type PendingHostKey,
 	resolveHostKeyPrompt,
-	useHostKeyPromptStore,
 } from '@/lib/host-keys';
 import { hostPortLabel } from '@/lib/known-hosts';
+import { appRuntime } from '@/lib/runtime';
 import { useThemeSkin } from '@/lib/theme-skin';
 
 /**
@@ -31,7 +33,7 @@ import { useThemeSkin } from '@/lib/theme-skin';
  * Android back rejects.
  */
 export function HostKeyPrompt() {
-	const head = useHostKeyPromptStore((s) => s.queue[0]);
+	const head = useAtomValue(hostKeyPromptHeadAtom);
 	if (!head) {
 		return null;
 	}
@@ -76,7 +78,7 @@ function HostKeyDialog({ pending }: { pending: PendingHostKey }) {
 				return;
 			}
 			answeredRef.current = true;
-			resolveHostKeyPrompt(pending.connectionId, accept);
+			appRuntime.runSync(resolveHostKeyPrompt(pending.connectionId, accept));
 		},
 		[pending.connectionId],
 	);

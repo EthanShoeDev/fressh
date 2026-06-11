@@ -1,23 +1,19 @@
-import {
-	type CommandResult,
-	disconnect,
-	runCommand,
-} from '@fressh/react-native-terminal';
+import { type CommandResult, disconnect } from '@fressh/react-native-terminal';
+import { useAtomSet, useAtomValue } from '@effect/atom-react';
+import * as Effect from 'effect/Effect';
+import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
 import React from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/themed/Button';
 import { ThemedText } from '@/components/themed/ThemedText';
-import { rootLogger } from '@/lib/logger';
 import { usePresets } from '@/lib/presets';
-import { ensureConnection } from '@/lib/query-fns';
+import { runCommandOneOffAtom, type OneOffConnection } from '@/lib/query-fns';
+import { appRuntime } from '@/lib/runtime';
 import type { InputConnectionDetails } from '@/lib/secrets-manager';
 import { useThemeSkin } from '@/lib/theme-skin';
-
-const logger = rootLogger.extend('RunCommand');
-
-type Phase = 'idle' | 'connecting' | 'running';
+import { asyncResultErrorMessage } from '@/lib/utils';
 
 /**
  * Run a one-off command on a saved host without a persistent shell. Reuses a live
@@ -43,14 +39,21 @@ export function RunCommandSheet({
 		skin.mono && skin.monoFamily ? { fontFamily: skin.monoFamily } : undefined;
 
 	const [command, setCommand] = React.useState('');
-	const [phase, setPhase] = React.useState<Phase>('idle');
-	const [result, setResult] = React.useState<CommandResult | null>(null);
-	const [error, setError] = React.useState<string | null>(null);
+	// 'connecting' vs 'running' while the mutation is pending (the atom reports
+	// it via onPhase — pending/result/failure come from the atom itself).
+	const [phase, setPhase] = React.useState<'connecting' | 'running'>(
+		'connecting',
+	);
 	// The connection we're using; `fresh` = we opened it, so disconnect on unmount.
-	const [conn, setConn] = React.useState<{
-		connectionId: string;
-		fresh: boolean;
-	} | null>(null);
+	const [conn, setConn] = React.useState<OneOffConnection | null>(null);
+
+	const runState = useAtomValue(runCommandOneOffAtom);
+	const triggerRun = useAtomSet(runCommandOneOffAtom);
+
+	const running = runState.waiting;
+	const result =
+		!running && AsyncResult.isSuccess(runState) ? runState.value : null;
+	const error = !running ? asyncResultErrorMessage(runState) : null;
 
 	// Tear down a fresh connection when the sheet goes away (ref so the unmount
 	// cleanup sees the latest connection, not a stale closure).
@@ -60,34 +63,26 @@ export function RunCommandSheet({
 		() => () => {
 			const c = connRef.current;
 			if (c?.fresh) {
-				void disconnect(c.connectionId).catch(() => undefined);
+				appRuntime.runFork(
+					Effect.ignore(Effect.tryPromise(() => disconnect(c.connectionId))),
+				);
 			}
 		},
 		[],
 	);
 
-	const run = async () => {
+	const run = () => {
 		const cmd = command.trim();
-		if (!cmd || phase !== 'idle') {
+		if (!cmd || running) {
 			return;
 		}
-		setResult(null);
-		setError(null);
-		try {
-			let c = conn;
-			if (!c) {
-				setPhase('connecting');
-				c = await ensureConnection(details);
-				setConn(c);
-			}
-			setPhase('running');
-			setResult(await runCommand(c.connectionId, cmd));
-		} catch (error) {
-			logger.warn('run command failed', error);
-			setError(error instanceof Error ? error.message : String(error));
-		} finally {
-			setPhase('idle');
-		}
+		triggerRun({
+			details,
+			command: cmd,
+			conn,
+			onPhase: setPhase,
+			onConnection: setConn,
+		});
 	};
 
 	return (
@@ -152,7 +147,7 @@ export function RunCommandSheet({
 
 				<Button
 					title='Run'
-					loading={phase !== 'idle'}
+					loading={running}
 					loadingTitle={phase === 'connecting' ? 'Connecting…' : 'Running…'}
 					disabled={command.trim().length === 0}
 					onPress={run}
