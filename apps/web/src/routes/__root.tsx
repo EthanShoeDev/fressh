@@ -54,7 +54,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 			<head>
 				<HeadContent />
 			</head>
-			<body>
+			<body className='bg-white antialiased dark:bg-gray-950'>
 				{children}
 				<Analytics />
 				<Scripts />

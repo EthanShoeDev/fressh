@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
 export const Route = createFileRoute('/privacy')({
@@ -17,7 +17,13 @@ export const Route = createFileRoute('/privacy')({
 function PrivacyPage() {
 	return (
 		<main className='mx-auto max-w-3xl px-6 py-16 text-gray-800 dark:text-gray-100'>
-			<h1 className='text-4xl font-bold tracking-tight'>Privacy Policy</h1>
+			<Link
+				to='/'
+				className='text-sm text-gray-500 underline decoration-dotted hover:decoration-solid dark:text-gray-400'
+			>
+				← Back to home
+			</Link>
+			<h1 className='mt-6 text-4xl font-bold tracking-tight'>Privacy Policy</h1>
 			<p className='mt-3 text-sm text-gray-500 dark:text-gray-400'>
 				Effective date: October 9, 2025
 			</p>

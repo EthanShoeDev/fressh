@@ -5,7 +5,7 @@ import npmLogoRed from '@fressh/assets/third-party-brands/npm-js/npm-logo-red.pn
 import mobileAppIconDark from '@fressh/assets/mobile-app-icon-dark.png';
 import serversScreenshot from '@fressh/assets/mobile-screenshots/servers-ios.png';
 import keysScreenshot from '@fressh/assets/mobile-screenshots/keys-ios.png';
-import { createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
 const title = 'Fressh - Mobile SSH Client';
@@ -194,6 +194,23 @@ function HomePage() {
 						</div>
 					</div>
 				</div>
+
+				<footer className='flex flex-wrap items-center justify-center gap-6 text-sm text-gray-500 dark:text-gray-400'>
+					<Link
+						to='/privacy'
+						className='underline decoration-dotted hover:decoration-solid'
+					>
+						Privacy Policy
+					</Link>
+					<a
+						href='https://github.com/EthanShoeDev/fressh'
+						target='_blank'
+						rel='noopener noreferrer'
+						className='underline decoration-dotted hover:decoration-solid'
+					>
+						GitHub
+					</a>
+				</footer>
 			</div>
 		</section>
 	);
