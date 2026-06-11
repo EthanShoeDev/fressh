@@ -88,6 +88,12 @@ function NativeSettings() {
 						onPress={() => router.push('/(tabs)/settings/terminal')}
 					/>
 				</NativeSection>
+				<NativeSection title='Security'>
+					<NativeNavRow
+						label='Known hosts'
+						onPress={() => router.push('/(tabs)/settings/known-hosts')}
+					/>
+				</NativeSection>
 			</NativeForm>
 		</ThemedScreen>
 	);
@@ -135,9 +141,13 @@ function CustomSettings() {
 					</ThemedText>
 				</Section>
 
-				{/* Manage Keys moved to its own bottom-nav tab; Security section dropped. */}
+				{/* Manage Keys moved to its own bottom-nav tab. */}
 				<Section title='Terminal'>
 					<LinkRow href='/(tabs)/settings/terminal' label='Terminal settings' />
+				</Section>
+
+				<Section title='Security'>
+					<LinkRow href='/(tabs)/settings/known-hosts' label='Known hosts' />
 				</Section>
 			</ScrollView>
 		</ThemedScreen>

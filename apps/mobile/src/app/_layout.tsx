@@ -6,6 +6,7 @@ import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { HostKeyPrompt } from '@/components/HostKeyPrompt';
 import { rootLogger } from '@/lib/logger';
 import { appFonts } from '../lib/fonts';
 import { seedScreenshotData } from '../lib/screenshot-seed';
@@ -55,6 +56,9 @@ export default function RootLayout() {
 		<GestureHandlerRootView style={{ flex: 1 }}>
 			<KeyboardProvider>
 				<Stack screenOptions={{ headerShown: false }} />
+				{/* Global host-key trust prompt — one mount covers every connect
+				    path (connect form, reconnect, Commands-tab runner). */}
+				<HostKeyPrompt />
 			</KeyboardProvider>
 		</GestureHandlerRootView>
 	);

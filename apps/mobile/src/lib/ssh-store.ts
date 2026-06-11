@@ -5,7 +5,6 @@ import {
 	disconnect as fresshDisconnect,
 	FresshEvent_Tags,
 	resize as fresshResize,
-	respondToHostKey,
 	Security,
 	sendData as fresshSendData,
 	startShell as fresshStartShell,
@@ -13,6 +12,7 @@ import {
 	type ConnectionDetails,
 } from '@fressh/react-native-terminal';
 import { create } from 'zustand';
+import { dismissHostKeyPrompt, handleHostKeyPending } from './host-keys';
 import { rootLogger } from './logger';
 import { preferences } from './preferences';
 
@@ -170,18 +170,19 @@ export const useSshStore = create<SshRegistryStore>((set) => {
 addFresshEventListener((event) => {
 	switch (event.tag) {
 		case FresshEvent_Tags.HostKeyPending: {
-			// Auto-accept (preserves the previous onServerKey -> true behavior).
-			// TODO: surface a trust prompt and call respondToHostKey accordingly.
-			logger.info(
-				'host key pending (auto-accept)',
-				event.inner.info.fingerprintSha256,
-			);
-			respondToHostKey(event.inner.connectionId, true);
+			// TOFU verification: pinned key → silent accept; unknown/changed key →
+			// the global <HostKeyPrompt/> asks the user. See lib/host-keys.ts.
+			const { connectionId, info } = event.inner;
+			logger.info('host key pending', info.fingerprintSha256);
+			handleHostKeyPending(connectionId, info);
 			break;
 		}
 		case FresshEvent_Tags.ConnectionClosed: {
 			const { connectionId } = event.inner;
 			logger.debug('connection closed', connectionId);
+			// If a trust prompt was parked on this connection, drop it — there is
+			// nothing left to answer.
+			dismissHostKeyPrompt(connectionId);
 			useSshStore.setState((s) => {
 				const { [connectionId]: _omit, ...connections } = s.connections;
 				const shells = Object.fromEntries(

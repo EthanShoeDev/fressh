@@ -33,10 +33,10 @@ const DEFAULT_THEME: AppThemeName = 'graphite';
 type ShellListViewMode = 'flat' | 'grouped';
 
 /** Terminal font size bounds (logical points), shared by the UI + resolver. */
-export const TERMINAL_FONT_SIZE = { min: 8, max: 28, default: 16, step: 1 } as const;
+export const TERMINAL_FONT_SIZE = { min: 8, max: 28, default: 10, step: 1 } as const;
 
 /** Terminal inner padding bounds (logical points). */
-export const TERMINAL_PADDING = { min: 0, max: 32, default: 0, step: 2 } as const;
+export const TERMINAL_PADDING = { min: 0, max: 32, default: 4, step: 2 } as const;
 
 /** Scrollback line bounds. Applies to *new* shells (ring buffer is allocated at
  * creation in fressh-core), matching desktop alacritty's restart-to-apply. */
@@ -281,6 +281,16 @@ export const preferences = {
 	// above it. See docs/projects/future/preset-command-buttons.md.
 	presetCommands: definePref({
 		key: 'presetCommands',
+		kind: 'string',
+		resolve: (raw) => raw ?? '[]',
+	}),
+	// Trusted SSH host keys (TOFU known-hosts) as a JSON array string. Host keys
+	// are PUBLIC data, so MMKV (not the keychain) is fine. The typed accessors +
+	// verdict logic live in `lib/host-keys.ts` / `lib/known-hosts.ts` —
+	// definePref's `resolve` must return a `string`, so the parsing layer sits
+	// above it. See docs/projects/host-key-verification.md.
+	knownHosts: definePref({
+		key: 'knownHosts',
 		kind: 'string',
 		resolve: (raw) => raw ?? '[]',
 	}),

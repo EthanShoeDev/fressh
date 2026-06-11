@@ -23,6 +23,7 @@
 		"**/dist-internal/**",
 		"**/lib/**",
 		"**/.expo/**",
+		"**/*.gen.*",
 		"**/android/**",
 		"**/ios/**",
 		"**/uniwind-types.d.ts",

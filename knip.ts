@@ -10,6 +10,12 @@ const config: KnipConfig = {
 		'@effect/language-service', // tsconfig plugin embedded by @effect/tsgo
 		'@effect/tsgo', // patches @typescript/native-preview via the prepare script
 	],
+	workspaces: {
+		'apps/mobile': {
+			// `bun test` suites (no test-framework plugin claims them as entries).
+			entry: ['src/**/*.test.ts'],
+		},
+	},
 };
 
 export default config;

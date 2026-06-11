@@ -1,7 +1,7 @@
 {
 	"extends": ["expo/tsconfig.base", "../../tsconfig.base.json"],
 	"compilerOptions": {
-		"types": ["node"],
+		"types": ["node", "bun"],
 		"strict": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,

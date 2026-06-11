@@ -23,6 +23,7 @@ import {
 import { ThemedText } from '@/components/themed/ThemedText';
 import { useAppForm, useFieldContext } from '@/components/form-components';
 import { KeyList } from '@/components/key-manager/KeyList';
+import { useHostKeyPromptPending } from '@/lib/host-keys';
 import { rootLogger } from '@/lib/logger';
 import { preferences } from '@/lib/preferences';
 import {
@@ -100,6 +101,7 @@ export default function ConnectScreen() {
 
 	const values = useStore(connectionForm.store, (state) => state.values);
 	const securityType = values.security.type;
+	const hostKeyPromptPending = useHostKeyPromptPending();
 	const isSubmitting = useStore(
 		connectionForm.store,
 		(state) => state.isSubmitting,
@@ -270,8 +272,11 @@ export default function ConnectScreen() {
 				</KeyboardAvoidingView>
 			</connectionForm.AppForm>
 
+			{/* Hidden while a host-key trust prompt is up: this Modal would block the
+			    in-tree prompt (iOS presents one modal at a time), leaving the user
+			    stuck on "Connecting…" with the question invisible underneath. */}
 			<ConnectingOverlay
-				visible={sshConnMutation.isPending}
+				visible={sshConnMutation.isPending && !hostKeyPromptPending}
 				target={`${values.username || 'user'}@${values.host || 'host'}:${values.port}`}
 				progress={lastConnectionProgressEvent}
 			/>

@@ -9,6 +9,7 @@ import * as Cause from 'effect/Cause';
 import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
+import { useHostKeyPromptStore } from './host-keys';
 import { rootLogger } from './logger';
 import { preferences } from './preferences';
 import {
@@ -22,6 +23,11 @@ const logger = rootLogger.extend('QueryFns');
 
 /** Connection-progress states surfaced to the UI (mapped from the native enum). */
 export type SshConnectionProgress = 'tcpConnected' | 'sshHandshake';
+
+/** Fail a connect after this long with no progress event and no host-key
+ *  prompt awaiting the user. Generous per-phase: every activity opens a fresh
+ *  window. */
+const CONNECT_INACTIVITY_TIMEOUT = '30 seconds';
 
 /** A connect failure shaped for humans: a headline, optional next step, and the
  *  raw technical detail kept around for logs / a "show details" affordance. */
@@ -92,7 +98,7 @@ function classifyRusshMessage(message: string): { title: string; hint?: string }
  * variant name, so we branch on the `tag` and dig the real message out of
  * `inner` — the russh `Ssh` variant gets a second pass for network specifics.
  */
-export function classifyConnectError(error: unknown): FriendlyError {
+function classifyConnectError(error: unknown): FriendlyError {
 	const detail = describeSshError(error);
 	const tag =
 		error && typeof error === 'object' && 'tag' in error
@@ -113,7 +119,7 @@ export function classifyConnectError(error: unknown): FriendlyError {
 		case SshError_Tags.HostKeyRejected:
 			return {
 				title: 'Host key rejected',
-				hint: 'The server’s identity didn’t match what was expected.',
+				hint: 'You declined the server’s host key, or its identity didn’t match what was expected.',
 				detail,
 			};
 		case SshError_Tags.Keys:
@@ -233,11 +239,115 @@ const connectAtom = atomRuntime.fn(
 		// disables it everywhere regardless of the per-host toggle.
 		const shellIntegration =
 			preferences.shellIntegrationEnabled.get() && perHostShellIntegration;
-		return yield* Effect.tryPromise({
-			try: async () => {
-				// Progress events are global (the connectionId isn't known until connect
-				// resolves), so subscribe for the duration of this connect attempt.
-				const unsubscribe = addFresshEventListener((event) => {
+		// Every step is a promise-boundary call; classify failures into the one
+		// user-facing error shape at that boundary.
+		const connectStep = <A>(step: () => Promise<A>) =>
+			Effect.tryPromise({
+				try: step,
+				catch: (error) =>
+					new SshConnectError({
+						cause: error,
+						friendly: classifyConnectError(error),
+					}),
+			});
+
+		const attempt = Effect.gen(function* () {
+			yield* Effect.sync(() => logger.info('Connecting to SSH server...'));
+			const security = yield* connectStep(() =>
+				resolveSecurity(connectionDetails),
+			);
+
+			const sshConnection = yield* connectStep(() =>
+				useSshStore.getState().connect({
+					host: connectionDetails.host,
+					port: connectionDetails.port,
+					username: connectionDetails.username,
+					security,
+				}),
+			);
+
+			if (save) {
+				yield* connectStep(() =>
+					secretsManager.connections.utils.upsertConnection({
+						label: `${connectionDetails.username}@${connectionDetails.host}:${connectionDetails.port}`,
+						details: connectionDetails,
+						priority: 0,
+						// Store the per-host CHOICE (not the global-gated effective
+						// value) so toggling the global setting later still honors it.
+						shellIntegration: perHostShellIntegration,
+					}),
+				);
+			}
+
+			const shellHandle = yield* connectStep(() =>
+				sshConnection.startShell({ shellIntegration }),
+			);
+
+			yield* Effect.sync(() =>
+				logger.info(
+					'Connected to SSH server',
+					sshConnection.connectionId,
+					shellHandle.channelId,
+				),
+			);
+			return {
+				connectionId: sshConnection.connectionId,
+				channelId: shellHandle.channelId,
+			};
+		});
+
+		// "Something happened": a connect-progress event fired, or the host-key
+		// prompt queue changed (a prompt appeared / was answered). One-shot:
+		// listeners register per wait and are removed on resume or interrupt.
+		const nextActivity = Effect.callback<void>((resume) => {
+			const unsubscribeEvents = addFresshEventListener((event) => {
+				if (event.tag === FresshEvent_Tags.ConnectProgress) {
+					resume(Effect.void);
+				}
+			});
+			const unsubscribeQueue = useHostKeyPromptStore.subscribe(() => {
+				resume(Effect.void);
+			});
+			return Effect.sync(() => {
+				unsubscribeEvents();
+				unsubscribeQueue();
+			});
+		});
+
+		// The native connect has no timeout of its own, so a black-holed TCP
+		// connect / handshake would leave the UI on "Connecting…" forever. Fail
+		// after CONNECT_INACTIVITY_TIMEOUT without activity: each progress event
+		// opens a fresh window (per-phase), and while a host-key trust prompt is
+		// waiting on the user the wait is untimed (their reading time isn't the
+		// network's). The underlying native attempt isn't cancellable from here —
+		// if it ever resolves after we've given up, the connection just lands in
+		// the store like any other.
+		const watchdog = Effect.suspend(() =>
+			useHostKeyPromptStore.getState().queue.length > 0
+				? nextActivity
+				: nextActivity.pipe(
+						Effect.timeoutOrElse({
+							duration: CONNECT_INACTIVITY_TIMEOUT,
+							orElse: () =>
+								Effect.fail(
+									new SshConnectError({
+										cause: new Error('connect inactivity timeout'),
+										friendly: {
+											title: 'Connection timed out',
+											hint: 'No response from the server — check the host, port, and your network, then try again.',
+											detail: `No progress for ${CONNECT_INACTIVITY_TIMEOUT}`,
+										},
+									}),
+								),
+						}),
+					),
+		).pipe(Effect.forever);
+
+		// Progress events are global (the connectionId isn't known until connect
+		// resolves), so stay subscribed for the duration of this connect attempt.
+		const progressSubscription = Effect.acquireRelease(
+			Effect.sync(() =>
+				addFresshEventListener((event) => {
 					if (event.tag !== FresshEvent_Tags.ConnectProgress) {
 						return;
 					}
@@ -247,62 +357,29 @@ const connectAtom = atomRuntime.fn(
 							: 'sshHandshake';
 					logger.info('SSH connect progress event', progress);
 					onProgress?.(progress);
-				});
-
-				try {
-					logger.info('Connecting to SSH server...');
-					const security = await resolveSecurity(connectionDetails);
-
-					const sshConnection = await useSshStore.getState().connect({
-						host: connectionDetails.host,
-						port: connectionDetails.port,
-						username: connectionDetails.username,
-						security,
-					});
-
-					if (save) {
-						await secretsManager.connections.utils.upsertConnection({
-							label: `${connectionDetails.username}@${connectionDetails.host}:${connectionDetails.port}`,
-							details: connectionDetails,
-							priority: 0,
-							// Store the per-host CHOICE (not the global-gated effective
-							// value) so toggling the global setting later still honors it.
-							shellIntegration: perHostShellIntegration,
-						});
-					}
-
-					const shellHandle = await sshConnection.startShell({
-						shellIntegration,
-					});
-
-					logger.info(
-						'Connected to SSH server',
-						sshConnection.connectionId,
-						shellHandle.channelId,
-					);
-					return {
-						connectionId: sshConnection.connectionId,
-						channelId: shellHandle.channelId,
-					};
-				} catch (error) {
-					// uniffi errors render as just the variant name (e.g.
-					// "SshError.Ssh") and swallow the russh detail, which lives in
-					// `inner`. Surface it so the cause is actually diagnosable.
-					logger.error(
-						`Error connecting to SSH server: ${describeSshError(error)}`,
-						error,
-					);
-					throw error;
-				} finally {
-					unsubscribe();
-				}
-			},
-			catch: (error) =>
-				new SshConnectError({
-					cause: error,
-					friendly: classifyConnectError(error),
 				}),
-		});
+			),
+			(unsubscribe) => Effect.sync(unsubscribe),
+		);
+
+		return yield* Effect.scoped(
+			Effect.gen(function* () {
+				yield* progressSubscription;
+				return yield* Effect.raceFirst(attempt, watchdog);
+			}),
+		).pipe(
+			// uniffi errors render as just the variant name (e.g. "SshError.Ssh")
+			// and swallow the russh detail, which lives in `inner`. Surface it so
+			// the cause is actually diagnosable.
+			Effect.tapError((error) =>
+				Effect.sync(() =>
+					logger.error(
+						`Error connecting to SSH server: ${describeSshError(error.cause)}`,
+						error.cause,
+					),
+				),
+			),
+		);
 	}),
 	{ reactivityKeys: secretsManager.reactivityKeys.connections },
 );

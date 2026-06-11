@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { KeyboardEvents } from 'react-native-keyboard-controller';
 import { useCSSVariable } from 'uniwind';
+import { useHostKeyPromptPending } from '@/lib/host-keys';
 import { useThemeSkin } from '@/lib/theme-skin';
 
 /**
@@ -56,8 +57,19 @@ export function BottomSheet({
 				? `${maxHeightPct}%`
 				: undefined;
 
+	// Step aside while a host-key trust prompt is up: the command runner connects
+	// from inside this sheet, and a presented Modal would block the in-tree prompt
+	// (iOS presents one modal at a time). React state survives — the sheet
+	// re-presents as soon as the prompt is answered.
+	const hostKeyPromptPending = useHostKeyPromptPending();
+
 	return (
-		<Modal transparent visible animationType='slide' onRequestClose={onClose}>
+		<Modal
+			transparent
+			visible={!hostKeyPromptPending}
+			animationType='slide'
+			onRequestClose={onClose}
+		>
 			<View className='flex-1 justify-end'>
 				<Pressable className='absolute inset-0 bg-overlay' onPress={onClose} />
 				<View

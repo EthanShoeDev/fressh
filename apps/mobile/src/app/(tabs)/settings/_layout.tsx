@@ -12,6 +12,10 @@ export default function SettingsStackLayout() {
 				name='terminal'
 				options={{ title: header.title('Terminal') }}
 			/>
+			<Stack.Screen
+				name='known-hosts'
+				options={{ title: header.title('Known hosts') }}
+			/>
 		</Stack>
 	);
 }

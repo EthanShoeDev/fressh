@@ -1,14 +1,36 @@
-# Future project: host-key verification — known-hosts store + trust prompt
+# Project: host-key verification — known-hosts store + trust prompt
 
-**Status:** NOT STARTED — exploratory, but **higher priority than most "future" docs
-because it closes a real security gap.** Today fressh **auto-accepts every server host
-key** (see Current state), which means no protection against a man-in-the-middle or a
-spoofed server. This doc records what TOFU host-key verification should look like and how
-it slots into the existing event plane.
+**Status:** COMPLETE — the full v0+v1+v2 scope from "Suggested phasing" shipped in one
+pass: the known-hosts store (`lib/known-hosts.ts` pure logic + `lib/host-keys.ts` MMKV
+wiring), the global trust prompt (`components/HostKeyPrompt.tsx`, mounted in
+`app/_layout.tsx`), the auto-accept in `ssh-store.ts` replaced, and a Settings →
+Security → Known hosts management screen (view/revoke). Pure logic is unit-tested
+(`lib/known-hosts.test.ts`, the app's first `bun test` suite — `@types/bun` added).
 
-**Scope (if pursued):** `apps/mobile` — a known-hosts store, a global trust-prompt UI, and
+**How the open questions resolved:**
+
+- **First-use: prompt** (OpenSSH-style), not silent-pin — host, algorithm, and SHA-256
+  fingerprint with Trust/Reject.
+- **Storage: MMKV** via the `knownHosts` pref + a typed CRUD layer (the `presets.ts`
+  pattern). Host keys are public data; the keychain wasn't needed.
+- **Scope: per-(host, port, algorithm)** pinning. A new algorithm on a known host is a
+  *first-use* prompt, never a changed-key warning — so ed25519 + rsa coexist and an
+  algorithm change isn't mistaken for MITM. Only a same-algorithm fingerprint mismatch
+  triggers the danger dialog.
+- **Async plumbing: a Zustand prompt queue** (`useHostKeyPromptStore`). Concurrent
+  connects queue rather than clobber; the UI renders the head. `ConnectionClosed`
+  dismisses a parked prompt; `respondToHostKey` is try/caught in case the native side
+  already tore down.
+- **Changed-key UX:** red-bordered dialog showing both fingerprints (previously trusted +
+  offered now); **Reject is the filled default**, "Trust new key" is the distinct danger
+  button. No type-to-confirm. Accepting *replaces* the old pin. The scrim is inert and
+  Android back rejects — only an explicit button press answers.
+
+**Scope (as pursued):** `apps/mobile` — a known-hosts store, a global trust-prompt UI, and
 replacing the auto-accept in `ssh-store.ts`. No `@fressh/react-native-terminal` (native)
-change: the seam (`HostKeyPending` event + `respondToHostKey`) already exists.
+change: the seam (`HostKeyPending` event + `respondToHostKey`) already existed.
+
+The rest of this doc is the original plan, kept for context.
 
 ## Current state (the gap)
 
