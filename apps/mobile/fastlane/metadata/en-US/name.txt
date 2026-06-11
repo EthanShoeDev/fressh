@@ -1,1 +1,1 @@
-Fressh
+Fressh - Mobile SSH Client

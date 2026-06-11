@@ -80,6 +80,8 @@
           fen.targets.i686-linux-android.stable.rust-std
           fen.targets.aarch64-apple-ios.stable.rust-std
           fen.targets.aarch64-apple-ios-sim.stable.rust-std
+          # build-ios.sh also builds the Intel-simulator slice of the xcframework
+          fen.targets.x86_64-apple-ios.stable.rust-std
         ];
 
         defaultPkgs = with pkgs;

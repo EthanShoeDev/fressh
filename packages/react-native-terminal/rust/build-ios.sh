@@ -45,6 +45,15 @@ OUT_XCFRAMEWORK="../${LIB}.xcframework" # package root (gitignored; globbed into
 # sync with apps/mobile's IPHONEOS_DEPLOYMENT_TARGET / Podfile `platform :ios`.
 export IPHONEOS_DEPLOYMENT_TARGET=16.4
 
+# Force freetype-sys to compile its BUNDLED FreeType into the staticlib. Its
+# build.rs prefers a pkg-config-resolved system freetype, and the nix devShell's
+# host PKG_CONFIG_PATH (which the HOST build needs for fontconfig) leaks into
+# this cross-compile — the resulting .a then references _FT_* symbols nothing on
+# iOS provides ("Undefined symbols for architecture arm64:
+# _FT_Add_Default_Modules" at the app link). The pkg-config crate honors
+# <LIB>_NO_PKG_CONFIG.
+export FREETYPE2_NO_PKG_CONFIG=1
+
 cargo_flags=(-p shim-uniffi)
 [ "$PROFILE" = "release" ] && cargo_flags+=(--release)
 
