@@ -121,7 +121,10 @@ jobs:
   ios:
     name: iOS
     if: contains(fromJSON('["ios","all"]'), inputs.platform)
-    runs-on: macos-15 # iOS Rust build + xcframework + signing need macOS
+    # macOS for the Rust xcframework + gym. macos-26 specifically: its default
+    # Xcode is 26.x, which this app requires (expo-modules are patched for
+    # Xcode 26/Swift 6.2; macos-15's default Xcode 16.4 fails SPM resolution).
+    runs-on: macos-26
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
