@@ -1,16 +1,21 @@
 import AppStoreBadge from '@fressh/assets/third-party-brands/apple-app-store/Black_lockup/SVG/Download_on_the_App_Store_Badge_US-UK_RGB_blk_092917.svg';
 import GithubMark from '@fressh/assets/third-party-brands/github-mark/github-mark.svg';
 import GooglePlayBadge from '@fressh/assets/third-party-brands/google-play/GetItOnGooglePlay_Badge_Web_color_English.svg';
-import npmLogoRed from '@fressh/assets/third-party-brands/npm-js/npm-logo-red.png';
 import mobileAppIconDark from '@fressh/assets/mobile-app-icon-dark.png';
-import serversScreenshot from '@fressh/assets/mobile-screenshots/servers-ios.png';
+import commandsScreenshot from '@fressh/assets/mobile-screenshots/commands-ios.png';
+import connectScreenshot from '@fressh/assets/mobile-screenshots/connect-ios.png';
 import keysScreenshot from '@fressh/assets/mobile-screenshots/keys-ios.png';
+import serversScreenshot from '@fressh/assets/mobile-screenshots/servers-ios.png';
+import settingsScreenshot from '@fressh/assets/mobile-screenshots/settings-ios.png';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
-const title = 'Fressh - Mobile SSH Client';
+const title = 'Fressh — Mobile SSH Client Powered by Alacritty';
 const description =
-	'A clean, powerful open-source mobile SSH client. Built with React Native and powered by Russh (Rust-based SSH).';
+	'An open-source mobile SSH client built around the real Alacritty terminal engine. Rust SSH via russh, alacritty_terminal as the VT core, and a native GPU renderer — no WebView.';
 
 export const Route = createFileRoute('/')({
 	head: () => ({
@@ -30,283 +35,772 @@ export const Route = createFileRoute('/')({
 	component: HomePage,
 });
 
+// Mirrors APP_THEMES in apps/mobile/src/lib/theme.tsx — keep the swatches in
+// sync when a theme is added or retuned there.
+const themes = [
+	{
+		id: 'phosphor',
+		label: 'Phosphor',
+		bg: '#120f0a',
+		accent: '#ffb454',
+		accent2: '#79e08a',
+		voice: 'warm CRT amber, scanlines, lowercase mono',
+	},
+	{
+		id: 'graphite',
+		label: 'Graphite',
+		bg: '#14161b',
+		accent: '#818cf8',
+		accent2: '#a78bfa',
+		voice: 'cool indigo, quiet and focused',
+	},
+	{
+		id: 'aurora',
+		label: 'Aurora',
+		bg: '#06070d',
+		accent: '#2de6c6',
+		accent2: '#a487ff',
+		voice: 'frosted glass, drifting gradient blobs',
+	},
+	{
+		id: 'monolith',
+		label: 'Monolith',
+		bg: '#0a0a0a',
+		accent: '#ccff00',
+		accent2: '#f4f4f2',
+		voice: 'brutalist, sharp edges, ALL CAPS',
+	},
+	{
+		id: 'native',
+		label: 'Native',
+		bg: '#1c1c1e',
+		accent: '#0a84ff',
+		accent2: '#30d158',
+		voice: 'feels like the OS — SwiftUI / Material 3',
+	},
+] as const;
+
+// Google Play closed testing: testers must be on the email list in Play
+// Console before the opt-in link works for them, so the form collects the
+// Google-account email first.
+const betaSignupFormUrl =
+	'https://docs.google.com/forms/d/e/1FAIpQLScxZegRtkI8zXL33fi5Mzj8VUf6LS9_AeC1fwo1x7Bq5r02IQ/viewform';
+const playOptInUrl = 'https://play.google.com/apps/testing/dev.fressh.app';
+const playStoreUrl =
+	'https://play.google.com/store/apps/details?id=dev.fressh.app';
+
+type ThemeId = (typeof themes)[number]['id'];
+type Platform = 'ios' | 'android';
+
+const platforms = [
+	{ id: 'ios', label: 'iOS' },
+	{ id: 'android', label: 'Android' },
+] as const satisfies readonly { id: Platform; label: string }[];
+
+type Screenshot = { src: string; alt: string };
+
+// The screenshot pipeline currently captures the default theme (graphite) on
+// iOS only. As it learns to capture every theme × platform, new sets get
+// imported and slotted in here and the switchers light up automatically.
+const screenshotManifest: Partial<
+	Record<ThemeId, Partial<Record<Platform, readonly Screenshot[]>>>
+> = {
+	graphite: {
+		ios: [
+			{
+				src: serversScreenshot,
+				alt: 'Servers tab — saved hosts with live session status',
+			},
+			{ src: connectScreenshot, alt: 'New connection form' },
+			{ src: keysScreenshot, alt: 'Keys tab — generate or import SSH keys' },
+			{
+				src: commandsScreenshot,
+				alt: 'Commands tab — one-tap command presets',
+			},
+			{
+				src: settingsScreenshot,
+				alt: 'Settings tab — themes and terminal options',
+			},
+		],
+	},
+};
+
 function HomePage() {
 	return (
-		<section className='bg-gradient-to-b from-gray-50 via-white to-white dark:from-gray-950 dark:via-gray-950 dark:to-black'>
-			<div className='mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center gap-16 px-6 py-24'>
-				<div className='grid gap-16 lg:max-w-4xl'>
-					<div className='space-y-8'>
-						<div className='flex items-start gap-4'>
-							<img
-								src={mobileAppIconDark}
-								alt='Fressh app icon'
-								className='h-20 w-20 shrink-0 rounded-3xl border border-white/30 shadow-xl shadow-emerald-500/10 dark:border-white/10'
-								loading='eager'
-							/>
-							<div className='flex flex-col items-start gap-2'>
-								<span className='inline-flex items-center gap-2 rounded-full border border-emerald-300/70 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 dark:border-emerald-500/50 dark:bg-emerald-500/15 dark:text-emerald-200'>
-									<span className='inline-block h-2 w-2 rounded-full bg-emerald-500' />
-									Coming soon
-								</span>
-								<span className='text-sm font-semibold tracking-[0.3em] text-gray-500 uppercase dark:text-gray-400'>
-									Mobile SSH Client
-								</span>
-							</div>
-						</div>
-						<h1 className='text-4xl font-black tracking-tight text-gray-900 sm:text-5xl lg:text-6xl dark:text-white'>
-							Fressh - Mobile SSH Client
-						</h1>
-						<p className='max-w-xl text-lg leading-relaxed text-gray-600 dark:text-gray-300'>
-							A clean, powerful open-source mobile SSH client. Built with React
-							Native and powered by Russh (Rust-based SSH).
-						</p>
-						<div className='flex flex-wrap items-center gap-4'>
-							<a
-								href='https://github.com/EthanShoeDev/fressh'
-								target='_blank'
-								rel='noopener noreferrer'
-								className='group inline-flex items-center gap-3 rounded-full border border-gray-200 bg-white/70 px-5 py-3 text-sm font-medium text-gray-900 shadow-sm backdrop-blur transition hover:border-gray-300 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/10'
-							>
-								<img
-									src={GithubMark}
-									alt=''
-									className='h-5 w-5'
-									aria-hidden='true'
-								/>
-								<span>View the source on GitHub</span>
-							</a>
-							<div className='flex flex-col gap-2 text-xs text-gray-500 dark:text-gray-400'>
-								<div className='flex items-center gap-6'>
-									<div className='flex flex-col items-start gap-2'>
-										<img
-											src={GooglePlayBadge}
-											className='h-12 w-auto select-none'
-											alt='Get it on Google Play badge'
-										/>
-										<span className='inline-flex items-center gap-2 rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-[11px] font-medium tracking-wider text-gray-500 uppercase dark:border-gray-700 dark:text-gray-400'>
-											Coming soon
-										</span>
-									</div>
-									<div className='flex flex-col items-start gap-2'>
-										<div className='flex h-12 items-center rounded-lg'>
-											<img
-												src={AppStoreBadge}
-												className='h-9 w-auto select-none'
-												alt='Download on the App Store badge'
-											/>
-										</div>
-										<span className='inline-flex items-center gap-2 rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-[11px] font-medium tracking-wider text-gray-500 uppercase dark:border-gray-700 dark:text-gray-400'>
-											Coming soon
-										</span>
-									</div>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
+		<div className='dark min-h-screen bg-[#07090c] text-gray-200 selection:bg-emerald-400/30'>
+			{/* ambient glow */}
+			<div
+				aria-hidden='true'
+				className='pointer-events-none fixed inset-0 overflow-hidden'
+			>
+				<div className='absolute -top-48 left-1/2 h-[32rem] w-[56rem] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl' />
+				<div className='absolute top-1/3 -right-40 h-96 w-96 rounded-full bg-cyan-500/5 blur-3xl' />
+			</div>
 
-				<div className='grid gap-6 lg:grid-cols-3'>
-					<FeatureCard
-						title='Features'
-						titleClassName='text-emerald-600 dark:text-emerald-300'
-						hoverClassName='hover:border-emerald-200 dark:hover:border-emerald-500/30'
-						items={[
-							'Securely store previous connections',
-							'Generate or import SSH keys',
-							'One-tap command presets',
-							'Native terminal renderer — no WebView',
-							'Configurable themes',
-						]}
-						marker='check'
-						markerClassName='bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+			<div className='relative mx-auto w-full max-w-6xl px-6'>
+				<Header />
+				<main>
+					<Hero />
+					<AndroidBeta />
+					<PoweredByAlacritty />
+					<Features />
+					<Themes />
+					<Screenshots />
+					<OpenSource />
+				</main>
+				<Footer />
+			</div>
+		</div>
+	);
+}
+
+function Header() {
+	return (
+		<header className='flex items-center justify-between py-6'>
+			<div className='flex items-center gap-3'>
+				<img
+					src={mobileAppIconDark}
+					alt='Fressh app icon'
+					className='h-10 w-10 rounded-xl border border-white/10 shadow-lg shadow-emerald-500/10'
+					loading='eager'
+				/>
+				<span className='font-mono text-lg font-semibold tracking-tight text-white'>
+					fressh
+				</span>
+			</div>
+			<div className='flex items-center gap-3'>
+				<a
+					href='https://github.com/EthanShoeDev/fressh'
+					target='_blank'
+					rel='noopener noreferrer'
+					className='inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-200 transition hover:border-white/25 hover:bg-white/10'
+				>
+					<img
+						src={GithubMark}
+						alt=''
+						aria-hidden='true'
+						className='h-4 w-4 invert'
 					/>
-					<FeatureCard
-						title='Coming soon'
-						titleClassName='text-amber-600 dark:text-amber-300'
-						hoverClassName='hover:border-amber-200 dark:hover:border-amber-400/30'
-						items={[
-							'On-device LLM for command completion and output summarization',
-						]}
-						marker='dot'
-						markerClassName='bg-amber-500/10 text-amber-600 dark:text-amber-300'
-					/>
-					<article className='rounded-3xl border border-gray-200/80 bg-white/80 p-8 backdrop-blur-sm transition hover:border-blue-200 dark:border-white/10 dark:bg-white/5 dark:hover:border-blue-400/30'>
-						<h2 className='text-sm font-semibold tracking-wider text-blue-600 uppercase dark:text-blue-300'>
-							Technical specs
-						</h2>
-						<ul className='mt-4 space-y-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300'>
-							<TechSpec>UI built with React Native</TechSpec>
-							<TechSpec>
-								SSH core powered by{' '}
-								<a
-									href='https://github.com/Eugeny/russh'
-									target='_blank'
-									rel='noopener noreferrer'
-									className='text-blue-600 underline decoration-dotted hover:decoration-solid dark:text-blue-400'
-								>
-									Russh
-								</a>{' '}
-								(Rust-based SSH library)
-							</TechSpec>
-							<TechSpec>
-								Open source on{' '}
-								<a
-									href='https://github.com/EthanShoeDev/fressh'
-									target='_blank'
-									rel='noopener noreferrer'
-									className='text-blue-600 underline decoration-dotted hover:decoration-solid dark:text-blue-400'
-								>
-									GitHub
-								</a>
-							</TechSpec>
-						</ul>
-					</article>
-				</div>
+					GitHub
+				</a>
+				<a
+					href='#beta'
+					className='inline-flex items-center gap-2 rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300'
+				>
+					Join the beta
+				</a>
+			</div>
+		</header>
+	);
+}
 
-				<div className='mx-auto grid max-w-xl gap-6'>
-					<PackageCard
-						href='https://github.com/EthanShoeDev/fressh/tree/main/packages/react-native-terminal'
-						title='@fressh/react-native-terminal'
-						description='One native package: SSH via russh, a durable VT engine via alacritty_terminal, and a native GLES renderer — all in one .so. Replaces the old uniffi-russh + xterm.js WebView packages.'
-						hoverClassName='hover:border-emerald-200 dark:hover:border-emerald-500/30'
-						titleHoverClassName='group-hover:text-emerald-600 dark:group-hover:text-emerald-300'
-						logo={GithubMark}
-						logoAlt='GitHub'
-						logoClassName='dark:invert'
-					/>
-				</div>
-
-				<div className='mt-16'>
-					<div className='mx-auto max-w-5xl rounded-[2.5rem] border border-gray-200/70 bg-white/80 px-8 py-12 shadow-xl shadow-emerald-500/5 backdrop-blur dark:border-white/10 dark:bg-white/5 dark:shadow-emerald-500/10'>
-						<div className='flex flex-col items-center gap-8 lg:flex-row lg:justify-center'>
-							<img
-								src={serversScreenshot}
-								alt='Servers tab screenshot'
-								className='w-full max-w-xs rounded-3xl border border-white/60 shadow-xl ring-1 shadow-emerald-500/15 ring-emerald-500/10 dark:border-white/10 dark:ring-white/10'
-								loading='lazy'
-							/>
-							<img
-								src={keysScreenshot}
-								alt='Keys tab screenshot'
-								className='w-full max-w-xs rounded-3xl border border-white/60 shadow-xl ring-1 shadow-slate-900/10 ring-slate-900/10 dark:border-white/10 dark:ring-white/10'
-								loading='lazy'
-							/>
-						</div>
-					</div>
-				</div>
-
-				<footer className='flex flex-wrap items-center justify-center gap-6 text-sm text-gray-500 dark:text-gray-400'>
-					<Link
-						to='/privacy'
-						className='underline decoration-dotted hover:decoration-solid'
-					>
-						Privacy Policy
-					</Link>
+function Hero() {
+	return (
+		<section className='grid items-center gap-14 py-16 lg:grid-cols-[1.1fr_1fr] lg:py-24'>
+			<div className='space-y-7'>
+				<p className='inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 font-mono text-xs text-emerald-300'>
+					<span className='inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400' />
+					open source · MIT · android closed beta open now
+				</p>
+				<h1 className='text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl'>
+					A real terminal,
+					<br />
+					in your pocket.
+				</h1>
+				<p className='max-w-xl text-lg leading-relaxed text-gray-400'>
+					Fressh is a mobile SSH client built around the{' '}
 					<a
-						href='https://github.com/EthanShoeDev/fressh'
+						href='https://github.com/alacritty/alacritty'
 						target='_blank'
 						rel='noopener noreferrer'
-						className='underline decoration-dotted hover:decoration-solid'
+						className='font-semibold text-emerald-300 underline decoration-emerald-300/40 decoration-dotted underline-offset-4 hover:decoration-solid'
 					>
-						GitHub
-					</a>
-				</footer>
+						Alacritty
+					</a>{' '}
+					terminal engine — the same battle-tested VT core and GPU renderer that
+					powers one of the fastest terminals on the desktop, running natively
+					on your phone. No WebView. No compromises.
+				</p>
+				<div className='flex flex-wrap items-center gap-x-6 gap-y-4 pt-2'>
+					<StoreBadge
+						src={GooglePlayBadge}
+						alt='Get it on Google Play badge'
+						note='in closed beta — join the test'
+						href='#beta'
+					/>
+					<StoreBadge
+						src={AppStoreBadge}
+						alt='Download on the App Store badge'
+					/>
+				</div>
 			</div>
+			<TerminalWindow />
 		</section>
 	);
 }
 
-function FeatureCard({
-	title,
-	titleClassName,
-	hoverClassName,
-	items,
-	marker,
-	markerClassName,
-}: Readonly<{
-	title: string;
-	titleClassName: string;
-	hoverClassName: string;
-	items: ReadonlyArray<string>;
-	marker: 'check' | 'dot';
-	markerClassName: string;
-}>) {
-	return (
-		<article
-			className={`rounded-3xl border border-gray-200/80 bg-white/80 p-8 backdrop-blur-sm transition dark:border-white/10 dark:bg-white/5 ${hoverClassName}`}
+function StoreBadge({
+	src,
+	alt,
+	note = 'coming soon',
+	href,
+}: Readonly<{ src: string; alt: string; note?: string; href?: string }>) {
+	const pill = (
+		<span
+			className={`rounded-full border border-dashed px-2 py-0.5 font-mono text-[10px] tracking-wider uppercase ${
+				href
+					? 'border-emerald-400/50 text-emerald-300 transition hover:border-emerald-300 hover:bg-emerald-400/10'
+					: 'border-gray-700 text-gray-500'
+			}`}
 		>
-			<h2
-				className={`text-sm font-semibold tracking-wider uppercase ${titleClassName}`}
-			>
-				{title}
-			</h2>
-			<ul className='mt-4 space-y-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300'>
-				{items.map((item) => (
-					<li className='flex items-start gap-3' key={item}>
-						<span
-							className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-sm font-semibold ${markerClassName}`}
-						>
-							{marker === 'check' ? '✓' : '•'}
+			{note}
+		</span>
+	);
+	return (
+		<div className='flex flex-col items-start gap-2'>
+			<img src={src} alt={alt} className='h-11 w-auto select-none' />
+			{href ? <a href={href}>{pill}</a> : pill}
+		</div>
+	);
+}
+
+function TerminalWindow() {
+	return (
+		<div className='overflow-hidden rounded-2xl border border-white/10 bg-[#0b0e13] shadow-2xl shadow-emerald-500/10'>
+			<div className='flex items-center gap-2 border-b border-white/5 bg-white/5 px-4 py-3'>
+				<span className='h-3 w-3 rounded-full bg-red-500/80' />
+				<span className='h-3 w-3 rounded-full bg-yellow-500/80' />
+				<span className='h-3 w-3 rounded-full bg-green-500/80' />
+				<span className='ml-3 font-mono text-xs text-gray-500'>
+					fressh — ssh
+				</span>
+			</div>
+			<div className='space-y-1.5 px-5 py-5 font-mono text-[13px] leading-relaxed'>
+				<p>
+					<span className='text-emerald-400'>$</span>{' '}
+					<span className='text-gray-200'>ssh deploy@prod-web-01</span>
+				</p>
+				<p className='text-gray-500'>
+					host key verified · ed25519 · trusted on first use
+				</p>
+				<p>
+					<span className='text-cyan-400'>deploy@prod-web-01</span>
+					<span className='text-gray-500'>:</span>
+					<span className='text-violet-400'>~</span>
+					<span className='text-gray-500'>$</span>{' '}
+					<span className='text-gray-200'>uptime</span>
+				</p>
+				<p className='text-gray-400'>
+					{' '}
+					14:32:07 up 212 days, 3:11, 1 user, load average: 0.04, 0.07, 0.05
+				</p>
+				<p>
+					<span className='text-cyan-400'>deploy@prod-web-01</span>
+					<span className='text-gray-500'>:</span>
+					<span className='text-violet-400'>~</span>
+					<span className='text-gray-500'>$</span>{' '}
+					<span className='text-gray-200'>
+						echo &quot;rendered by alacritty&quot;
+					</span>
+				</p>
+				<p className='text-emerald-300'>rendered by alacritty</p>
+				<p>
+					<span className='text-cyan-400'>deploy@prod-web-01</span>
+					<span className='text-gray-500'>:</span>
+					<span className='text-violet-400'>~</span>
+					<span className='text-gray-500'>$</span>{' '}
+					<span className='inline-block h-4 w-2 translate-y-0.5 animate-pulse bg-emerald-400' />
+				</p>
+			</div>
+		</div>
+	);
+}
+
+function AndroidBeta() {
+	const steps = [
+		{
+			title: 'Share your Google email',
+			detail: (
+				<>
+					Fill out the{' '}
+					<a
+						href={betaSignupFormUrl}
+						target='_blank'
+						rel='noopener noreferrer'
+						className='text-emerald-300 underline decoration-dotted underline-offset-4 hover:decoration-solid'
+					>
+						30-second signup form
+					</a>{' '}
+					with the email tied to your Google Play account. Google only lets
+					listed testers in, so this step is required.
+				</>
+			),
+		},
+		{
+			title: 'Opt in to the test',
+			detail: (
+				<>
+					Once you&apos;re added (usually within a day), accept the invite at{' '}
+					<a
+						href={playOptInUrl}
+						target='_blank'
+						rel='noopener noreferrer'
+						className='break-all text-emerald-300 underline decoration-dotted underline-offset-4 hover:decoration-solid'
+					>
+						play.google.com/apps/testing/dev.fressh.app
+					</a>
+					.
+				</>
+			),
+		},
+		{
+			title: 'Install and keep it',
+			detail: (
+				<>
+					Grab the app from{' '}
+					<a
+						href={playStoreUrl}
+						target='_blank'
+						rel='noopener noreferrer'
+						className='text-emerald-300 underline decoration-dotted underline-offset-4 hover:decoration-solid'
+					>
+						Google Play
+					</a>{' '}
+					and stay opted in — Google counts testers over a continuous 14-day
+					window.
+				</>
+			),
+		},
+	] as const;
+	return (
+		<section
+			id='beta'
+			className='scroll-mt-8 rounded-3xl border border-emerald-400/25 bg-emerald-400/[0.06] p-8 sm:p-10'
+		>
+			<p className='font-mono text-xs tracking-[0.25em] text-emerald-400 uppercase'>
+				android beta
+			</p>
+			<div className='mt-3 flex flex-wrap items-end justify-between gap-6'>
+				<div className='max-w-2xl'>
+					<h2 className='text-2xl font-bold tracking-tight text-white sm:text-3xl'>
+						Help Fressh launch on Google Play.
+					</h2>
+					<p className='mt-4 text-base leading-relaxed text-gray-400'>
+						Before an app can go live on the Play Store, Google requires a
+						closed test with at least 12 opted-in testers for 14 days. Three
+						steps and you&apos;ve directly unblocked the launch — and you get
+						the app first.
+					</p>
+				</div>
+				<a
+					href={betaSignupFormUrl}
+					target='_blank'
+					rel='noopener noreferrer'
+					className='inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-400 px-6 py-3 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-300'
+				>
+					Become a tester →
+				</a>
+			</div>
+			<ol className='mt-8 grid gap-4 lg:grid-cols-3'>
+				{steps.map((step, i) => (
+					<li
+						key={step.title}
+						className='rounded-2xl border border-white/10 bg-[#07090c]/60 p-6'
+					>
+						<span className='font-mono text-xs text-emerald-400/70'>
+							{String(i + 1).padStart(2, '0')}
 						</span>
-						<span>{item}</span>
+						<h3 className='mt-2 text-sm font-semibold text-white'>
+							{step.title}
+						</h3>
+						<p className='mt-2 text-sm leading-relaxed text-gray-400'>
+							{step.detail}
+						</p>
 					</li>
 				))}
-			</ul>
-		</article>
+			</ol>
+			<p className='mt-6 text-xs leading-relaxed text-gray-500'>
+				iPhone user? The iOS build goes through TestFlight instead — watch the{' '}
+				<a
+					href='https://github.com/EthanShoeDev/fressh'
+					target='_blank'
+					rel='noopener noreferrer'
+					className='underline decoration-dotted underline-offset-4 hover:text-gray-300 hover:decoration-solid'
+				>
+					GitHub repo
+				</a>{' '}
+				for updates.
+			</p>
+		</section>
 	);
 }
 
-function TechSpec({ children }: Readonly<{ children: ReactNode }>) {
+function PoweredByAlacritty() {
+	const stages: readonly { name: string; detail: string; href?: string }[] = [
+		{
+			name: 'russh',
+			detail: 'Rust SSH transport — auth, channels, and crypto, fully native',
+			href: 'https://github.com/Eugeny/russh',
+		},
+		{
+			name: 'alacritty_terminal',
+			detail:
+				'Alacritty’s VT engine parses every byte into durable terminal state',
+			href: 'https://github.com/alacritty/alacritty',
+		},
+		{
+			name: 'GPU renderer',
+			detail:
+				'Alacritty’s GLES renderer draws the grid — ANGLE→Metal on iOS, GLES on Android',
+		},
+	];
 	return (
-		<li className='flex items-start gap-3'>
-			<span className='mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 text-sm font-semibold text-blue-600 dark:text-blue-300'>
-				•
-			</span>
-			<span>{children}</span>
-		</li>
+		<Section
+			eyebrow='powered by alacritty'
+			title='SSH bytes never touch JavaScript.'
+			lead='Most mobile SSH apps render the terminal in a WebView. Fressh ships the real thing: Alacritty’s terminal core and renderer compiled into one native library, with React Native only driving the chrome around it.'
+		>
+			<ol className='grid gap-4 lg:grid-cols-3'>
+				{stages.map((stage, i) => (
+					<li
+						key={stage.name}
+						className='relative rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-emerald-400/30'
+					>
+						<span className='font-mono text-xs text-emerald-400/70'>
+							{String(i + 1).padStart(2, '0')}
+						</span>
+						<h3 className='mt-2 font-mono text-base font-semibold text-white'>
+							{stage.href ? (
+								<a
+									href={stage.href}
+									target='_blank'
+									rel='noopener noreferrer'
+									className='hover:text-emerald-300'
+								>
+									{stage.name}
+								</a>
+							) : (
+								stage.name
+							)}
+						</h3>
+						<p className='mt-2 text-sm leading-relaxed text-gray-400'>
+							{stage.detail}
+						</p>
+					</li>
+				))}
+			</ol>
+			<div className='mt-6 grid gap-4 sm:grid-cols-2'>
+				<Callout title='Consistent visuals'>
+					One render layer for both platforms — iOS and Android draw the exact
+					same glyphs, colors, and cursor.
+				</Callout>
+				<Callout title='Fast and durable'>
+					Rendering stays off the JS thread, and the terminal state lives in
+					native code — sessions reattach tmux-style with full scrollback.
+				</Callout>
+			</div>
+		</Section>
 	);
 }
 
-function PackageCard({
-	href,
+function Callout({
 	title,
-	description,
-	hoverClassName,
-	titleHoverClassName,
-	logo = npmLogoRed,
-	logoAlt = 'npm',
-	logoClassName = '',
+	children,
+}: Readonly<{ title: string; children: ReactNode }>) {
+	return (
+		<div className='rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-6'>
+			<h3 className='text-sm font-semibold text-emerald-300'>{title}</h3>
+			<p className='mt-2 text-sm leading-relaxed text-gray-400'>{children}</p>
+		</div>
+	);
+}
+
+function Features() {
+	const features = [
+		{
+			title: 'Secure connection history',
+			detail:
+				'Hosts and credentials live in the device keychain, never in plain storage.',
+		},
+		{
+			title: 'SSH keys',
+			detail:
+				'Generate ed25519 keys on-device or import the ones you already use.',
+		},
+		{
+			title: 'Host-key verification',
+			detail: 'Trust-on-first-use prompts backed by a known-hosts store.',
+		},
+		{
+			title: 'Command presets',
+			detail: 'Your most-used commands, one tap away on the terminal toolbar.',
+		},
+		{
+			title: 'Session reattach',
+			detail:
+				'Leave and come back — sessions survive with full scrollback, tmux-style.',
+		},
+		{
+			title: 'Theming',
+			detail:
+				'Five distinct themes that restyle the whole app, not just the terminal colors.',
+		},
+	] as const;
+	return (
+		<Section
+			eyebrow='features'
+			title='Clean and simple, without giving anything up.'
+		>
+			<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+				{features.map((feature) => (
+					<div
+						key={feature.title}
+						className='rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-white/25'
+					>
+						<h3 className='flex items-center gap-2 text-sm font-semibold text-white'>
+							<span className='text-emerald-400'>✓</span>
+							{feature.title}
+						</h3>
+						<p className='mt-2 text-sm leading-relaxed text-gray-400'>
+							{feature.detail}
+						</p>
+					</div>
+				))}
+			</div>
+			<div className='mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-6'>
+				<h3 className='font-mono text-xs tracking-wider text-amber-300 uppercase'>
+					coming soon
+				</h3>
+				<p className='mt-2 text-sm leading-relaxed text-gray-400'>
+					On-device LLM for command completion and output summarization — no
+					cloud round-trips for your shell history.
+				</p>
+			</div>
+		</Section>
+	);
+}
+
+function Themes() {
+	return (
+		<Section
+			eyebrow='themes'
+			title='Pick a personality.'
+			lead='Each theme restyles the entire app — typography, shapes, glow, and canvas — not just a color palette.'
+		>
+			<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-5'>
+				{themes.map((theme) => (
+					<div
+						key={theme.id}
+						className='overflow-hidden rounded-2xl border border-white/10 transition hover:-translate-y-1 hover:border-white/25'
+						style={{ backgroundColor: theme.bg }}
+					>
+						<div className='flex gap-2 px-5 pt-5'>
+							<span
+								className='h-8 w-8 rounded-full'
+								style={{ backgroundColor: theme.accent }}
+							/>
+							<span
+								className='h-8 w-8 rounded-full opacity-80'
+								style={{ backgroundColor: theme.accent2 }}
+							/>
+						</div>
+						<div className='px-5 pt-4 pb-5'>
+							<h3
+								className='font-mono text-sm font-bold'
+								style={{ color: theme.accent }}
+							>
+								{theme.label}
+							</h3>
+							<p className='mt-1 text-xs leading-relaxed text-gray-400'>
+								{theme.voice}
+							</p>
+						</div>
+					</div>
+				))}
+			</div>
+		</Section>
+	);
+}
+
+function Screenshots() {
+	const [themeId, setThemeId] = useState<ThemeId>('graphite');
+	const [platform, setPlatform] = useState<Platform>('ios');
+	const theme = themes.find((t) => t.id === themeId) ?? themes[0];
+	const shots = screenshotManifest[themeId]?.[platform];
+	return (
+		<Section
+			eyebrow='screenshots'
+			title='See it in your theme.'
+			lead='Browse every screen, per theme and per platform.'
+		>
+			<div className='flex flex-wrap items-center justify-between gap-4'>
+				<Tabs
+					value={themeId}
+					onValueChange={(value) => {
+						setThemeId(value as ThemeId);
+					}}
+				>
+					<TabsList className='h-auto flex-wrap'>
+						{themes.map((t) => (
+							<TabsTrigger key={t.id} value={t.id} className='gap-2 px-3 py-1'>
+								<span
+									aria-hidden='true'
+									className='h-2.5 w-2.5 rounded-full'
+									style={{ backgroundColor: t.accent }}
+								/>
+								{t.label}
+							</TabsTrigger>
+						))}
+					</TabsList>
+				</Tabs>
+				<ToggleGroup
+					value={[platform]}
+					variant='outline'
+					spacing={0}
+					onValueChange={(value: unknown[]) => {
+						const next = value.at(0);
+						if (next === 'ios' || next === 'android') setPlatform(next);
+					}}
+				>
+					{platforms.map((p) => (
+						<ToggleGroupItem
+							key={p.id}
+							value={p.id}
+							aria-label={`Show ${p.label} screenshots`}
+						>
+							{p.label}
+						</ToggleGroupItem>
+					))}
+				</ToggleGroup>
+			</div>
+			<div className='mt-8'>
+				{shots ? (
+					<div className='flex snap-x gap-5 overflow-x-auto pb-4 lg:grid lg:grid-cols-5 lg:overflow-visible'>
+						{shots.map((shot) => (
+							<img
+								key={shot.alt}
+								src={shot.src}
+								alt={shot.alt}
+								className='w-44 shrink-0 snap-center rounded-2xl border border-white/10 shadow-xl shadow-black/40 lg:w-full'
+								loading='lazy'
+							/>
+						))}
+					</div>
+				) : (
+					<div
+						className='flex min-h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 p-10 text-center'
+						style={{ backgroundColor: theme.bg }}
+					>
+						<p
+							className='font-mono text-sm font-semibold'
+							style={{ color: theme.accent }}
+						>
+							{theme.label} · {platform === 'ios' ? 'iOS' : 'Android'}
+						</p>
+						<p className='max-w-sm text-sm leading-relaxed text-gray-400'>
+							Not captured yet — the screenshot pipeline will soon generate
+							every theme on both platforms automatically.
+						</p>
+					</div>
+				)}
+			</div>
+		</Section>
+	);
+}
+
+function OpenSource() {
+	return (
+		<Section
+			eyebrow='open source'
+			title='Free. No paywalled SSH.'
+			lead='Some mobile SSH clients lock basics like one-off commands behind a subscription. Fressh is MIT-licensed and free — the whole stack is on GitHub.'
+		>
+			<a
+				href='https://github.com/EthanShoeDev/fressh/tree/main/packages/react-native-terminal'
+				target='_blank'
+				rel='noopener noreferrer'
+				className='group block rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:-translate-y-1 hover:border-emerald-400/30 hover:shadow-xl hover:shadow-emerald-500/5'
+			>
+				<div className='flex items-start justify-between gap-4'>
+					<h3 className='font-mono text-base font-semibold text-white transition group-hover:text-emerald-300'>
+						@fressh/react-native-terminal
+					</h3>
+					<img
+						src={GithubMark}
+						alt='GitHub'
+						className='h-5 w-5 shrink-0 opacity-70 invert'
+						loading='lazy'
+					/>
+				</div>
+				<p className='mt-3 max-w-2xl text-sm leading-relaxed text-gray-400'>
+					The native terminal package: SSH via russh, a durable VT engine via
+					alacritty_terminal, and Alacritty’s GPU renderer — all in one native
+					library you can drop into your own React Native app.
+				</p>
+			</a>
+		</Section>
+	);
+}
+
+function Section({
+	eyebrow,
+	title,
+	lead,
+	children,
 }: Readonly<{
-	href: string;
+	eyebrow: string;
 	title: string;
-	description: string;
-	hoverClassName: string;
-	titleHoverClassName: string;
-	logo?: string;
-	logoAlt?: string;
-	logoClassName?: string;
+	lead?: string;
+	children: ReactNode;
 }>) {
 	return (
-		<a
-			href={href}
-			target='_blank'
-			rel='noopener noreferrer'
-			className={`group relative overflow-hidden rounded-3xl border border-gray-200 bg-white/80 p-8 backdrop-blur-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-white/5 ${hoverClassName}`}
-		>
-			<img
-				src={logo}
-				alt={logoAlt}
-				className={`absolute top-5 right-5 h-4 w-auto opacity-80 ${logoClassName}`}
-				loading='lazy'
-			/>
-			<h3
-				className={`pr-12 text-lg font-semibold text-gray-900 transition dark:text-gray-100 ${titleHoverClassName}`}
-			>
-				{title}
-			</h3>
-			<p className='mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300'>
-				{description}
+		<section className='border-t border-white/5 py-16 lg:py-20'>
+			<p className='font-mono text-xs tracking-[0.25em] text-emerald-400 uppercase'>
+				{eyebrow}
 			</p>
-		</a>
+			<h2 className='mt-3 max-w-2xl text-2xl font-bold tracking-tight text-white sm:text-3xl'>
+				{title}
+			</h2>
+			{lead ? (
+				<p className='mt-4 max-w-2xl text-base leading-relaxed text-gray-400'>
+					{lead}
+				</p>
+			) : null}
+			<div className='mt-10'>{children}</div>
+		</section>
+	);
+}
+
+function Footer() {
+	return (
+		<footer className='flex flex-wrap items-center justify-between gap-4 border-t border-white/5 py-10 text-sm text-gray-500'>
+			<p className='font-mono text-xs'>
+				fressh · powered by{' '}
+				<a
+					href='https://github.com/alacritty/alacritty'
+					target='_blank'
+					rel='noopener noreferrer'
+					className='text-emerald-400/80 hover:text-emerald-300'
+				>
+					alacritty
+				</a>
+			</p>
+			<div className='flex items-center gap-6'>
+				<Link
+					to='/privacy'
+					className='underline decoration-dotted underline-offset-4 hover:text-gray-300 hover:decoration-solid'
+				>
+					Privacy Policy
+				</Link>
+				<a
+					href='https://github.com/EthanShoeDev/fressh'
+					target='_blank'
+					rel='noopener noreferrer'
+					className='underline decoration-dotted underline-offset-4 hover:text-gray-300 hover:decoration-solid'
+				>
+					GitHub
+				</a>
+			</div>
+		</footer>
 	);
 }

@@ -15,6 +15,11 @@ const config: KnipConfig = {
 			// `bun test` suites (no test-framework plugin claims them as entries).
 			entry: ['src/**/*.test.ts'],
 		},
+		'apps/web': {
+			// shadcn-vendored primitives keep their full export surface even when
+			// the site only uses part of it.
+			ignore: ['src/components/ui/**'],
+		},
 	},
 };
 
