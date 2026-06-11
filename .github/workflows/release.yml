@@ -70,21 +70,19 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
   # When the Version PR merge produced a release (published==true), build the app
-  # and attach it to the freshly-created GitHub Release. Calls the reusable
+  # and attach it to the freshly-created GitHub Release, then submit to the store
+  # test channels (Play internal track / TestFlight). Calls the reusable
   # build-mobile workflow so the build recipe lives in exactly one place.
-  # NOTE: android-only for now; switch to `all` once iOS credentials are wired.
+  # Public release stays a manual step: the ship-prod.yml promote button.
   build:
-    name: Build & attach artifacts
+    name: Build, attach & submit to test channels
     needs: version
     if: needs.version.outputs.mobile-tag != ''
     uses: ./.github/workflows/build-mobile.yml
     with:
-      platform: android
+      platform: all
       release-tag: ${{ needs.version.outputs.mobile-tag }}
-      # Flip to true once the store prereqs are done (Play app created + first
-      # manual .aab upload + service-account secret; ASC app + API key for iOS).
-      # Then every changesets release auto-lands in Play internal / TestFlight.
-      submit: false
+      submit: true
     secrets: inherit
     # A caller's permissions block CAPS what the called workflow may request —
     # build-mobile.yml needs id-token for Google WIF, so it must be granted here.
