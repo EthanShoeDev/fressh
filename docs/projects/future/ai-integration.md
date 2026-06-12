@@ -223,7 +223,7 @@ describe:
 - **v2 (autocomplete):** Solve the in-progress-line signal, add inline ghost-text
   suggestions (latency-sensitive → on-device/Haiku), accept-on-tap.
 - **v3 (richer context):** Fold in git status (ties into
-  [git-diff-integration.md](git-diff-integration.md)) and multi-command history for
+  [git-diff-integration.md](../git-diff-integration.md)) and multi-command history for
   better "what should I do next" suggestions.
 
 ## Open questions
@@ -282,4 +282,4 @@ one:
 - On-device toolkit + provider matrix (Apple / Llama / MLC) and usage examples:
   [`docs/cloned-repos-as-docs/ai/README.md`](../../cloned-repos-as-docs/ai/README.md).
 - The context source this all depends on: [terminal-semantic-events.md](../complete/terminal-semantic-events.md).
-- A sibling consumer of the same per-shell context: [git-diff-integration.md](git-diff-integration.md).
+- A sibling consumer of the same per-shell context: [git-diff-integration.md](../git-diff-integration.md).

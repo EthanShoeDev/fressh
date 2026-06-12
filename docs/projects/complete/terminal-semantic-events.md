@@ -9,7 +9,7 @@ per-host settings** to control it all shipped. This is the foundational pipeline
 "smart terminal" features sit on; **the product surface that consumes it now lives in
 [smart-terminal-surface.md](../smart-terminal-surface.md)** (the context bar + paged
 toolbar that replace the debug panel). Consumers:
-[git-diff-integration.md](../future/git-diff-integration.md),
+[git-diff-integration.md](../git-diff-integration.md),
 [ai-integration.md](../future/ai-integration.md),
 [preset-command-buttons.md](../future/preset-command-buttons.md).
 

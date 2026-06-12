@@ -171,7 +171,7 @@ look" that the rest of the theme system never had.
 ## How this relates to the other future docs
 
 Unlike [terminal-semantic-events.md](../complete/terminal-semantic-events.md) /
-[git-diff-integration.md](git-diff-integration.md) (terminal data plane) and
+[git-diff-integration.md](../git-diff-integration.md) (terminal data plane) and
 [on-device-shell.md](on-device-shell.md) / [preview-terminal-theme.md](preview-terminal-theme.md)
 (byte-source / renderer), this one is purely **app-shell UI** — it touches the theme
 system and settings controls, not the `Term`/SSH/render stack at all. It's the most

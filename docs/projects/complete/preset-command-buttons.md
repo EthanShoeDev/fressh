@@ -7,13 +7,13 @@ what it shares with the other smart-terminal features so we don't re-derive them
 **Scope (if pursued):** `apps/mobile` (a presets store + a new bottom-tab **"Commands"**
 surface that both manages presets and runs one-offs + the in-shell toolbar page) and a
 small `@fressh/react-native-terminal` addition (an out-of-band `exec(cmd) -> output` helper
-— **the same one [git-diff-integration.md](git-diff-integration.md) needs**, so the two
+— **the same one [git-diff-integration.md](../git-diff-integration.md) needs**, so the two
 features share it).
 
 **Related:**
 - [smart-terminal-surface.md](../smart-terminal-surface.md) — defines the paged toolbar;
   preset buttons are **page 2** of it.
-- [git-diff-integration.md](git-diff-integration.md) — shares the out-of-band `exec` helper.
+- [git-diff-integration.md](../git-diff-integration.md) — shares the out-of-band `exec` helper.
 - The host model + the `definePref` prefs factory + `RenameDialog` are already in the app
   (we just built per-host settings + rename), so the config UI reuses proven patterns.
 
