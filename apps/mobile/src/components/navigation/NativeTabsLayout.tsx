@@ -42,6 +42,9 @@ export function NativeTabsLayout() {
 			// android
 			backBehavior='initialRoute'
 			indicatorColor={primary}
+			// always show every tab's text label (default 'auto' labels only the
+			// active tab on Android); no-op on iOS.
+			labelVisibilityMode='labeled'
 			// ios — theme-driven blur (frosted glass for Aurora, chrome for the
 			// terminal-flavored themes); falls back to the system default.
 			blurEffect={tabStyle?.blurEffect}
