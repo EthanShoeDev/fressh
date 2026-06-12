@@ -1,10 +1,42 @@
 # Project: themes refactor — native-first default, fix the rough edges, kill the tab-switch lag
 
-**Status:** PROPOSED (2026-06-12) — planning only, nothing implemented. This doc records the
-problems, their root causes (with file:line), and a proposed direction for each. The biggest
-unknown (problem 5, the perf regression) ends in a **research task**, not a chosen solution —
-we clone the candidate GPU libraries into `docs/cloned-repos-as-docs/` and evaluate before
-committing.
+**Status:** IN PROGRESS (2026-06-12) — problems 1–4 implemented; problem 5 research done,
+implementation gated on step-0 profiling. This doc records the problems, their root causes
+(with file:line), and the direction for each.
+
+- **Problem 1 ✅** — `DEFAULT_THEME` is now `native`; separate `appearance` pref
+  (`'system' | 'light' | 'dark'`, `preferences.tsx`) consulted by `resolveUniwindTheme` and read
+  in `initAppTheme()` (no cold-start flash). `useAppTheme()` exposes `appearance`/`setAppearance`.
+- **Problem 2 ✅** — went with option (a): on Native, the pinned swatch grid is gone; Settings has
+  an "Appearance" `NativeNavRow` → new `settings/appearance` screen (theme select rows +
+  System/Light/Dark segmented control, all inside the scrolling `NativeForm`). Swatch grid
+  extracted to `components/theme-grid.tsx`, still used by the stylized path.
+- **Problem 3 ✅** — `<Text maxLines={1}>` in `native-segmented-control.android.tsx` (note: the
+  jetpack-compose `Text` prop is `maxLines`; `numberOfLines` only exists on the universal
+  `@expo/ui` Text). Same one-line guard added to the custom `Segmented`.
+- **Problem 4 ✅** — `useThemedHeader` now sets `headerBackTitle` derived from the parent tab's
+  `TAB_ROUTES` label (via `useSegments`), themed casing applied; `headerBackButtonDisplayMode:
+  'minimal'` fallback outside a known tab. All four tab stacks get it with no per-layout edits.
+- **Problem 5 ✅ (implemented, on-device verification pending)** — research in
+  [themes-refactor-gpu-eval.md](themes-refactor-gpu-eval.md). **Decision: skipped step-0
+  profiling** (user call, 2026-06-12) and went straight to the educated guess: the common factor
+  across all laggy themes was the continuously-animating `react-native-animated-glow` buttons,
+  with aurora's `useClock` blob canvas stacking on top. Both Skia suspects are gone:
+  - `ThemedBackground` now renders via `react-native-effects` `ShaderView` (WebGPU, render loop
+    on a background worklet runtime; `isStatic` for non-aurora themes — one frame then the loop
+    stops). Per-theme WGSL is generated with blob constants baked in; same single-file seam.
+  - `Button` uses the static `boxShadow` glow; `react-native-animated-glow` and
+    `@shopify/react-native-skia` are removed from the app entirely (the terminal renderer never
+    used Skia).
+  - Setup that came with it: worklets **Bundle Mode** (babel.config.cjs + metro wrap +
+    `worklets.staticFeatureFlags` in package.json), `expo-build-properties` minSdk 26 (drops
+    Android 7.x), and a `bun patch` on react-native-effects forwarding `transparent` to the
+    webgpu `Canvas` (upstream consumes the prop for clearValue but never marks the native
+    surface transparent — needed because the ShaderView overlays the theme's background color).
+  - **Needs a native rebuild** (`expo prebuild` + run) and a real-device pass: verify the
+    overlay compositing, the Mali/Vulkan story (no-adapter devices gracefully fall back to the
+    flat background color — the canvas just never presents), and that aurora actually animates
+    off-thread.
 
 **Scope:** `apps/mobile` only. The theming system lives entirely in JS/RN — no native (Rust /
 `react-native-terminal`) change is implied by anything here.
@@ -242,11 +274,13 @@ shader* — measured against the Step 1 baseline.
 
 ## Decisions needed before / during implementation
 
-- Problem 1: separate `appearance` pref vs. expanded theme enum? (leaning: separate pref). Light
-  variants for stylized themes — in or out? (leaning: out, for now).
-- Problem 2: native theme picker as a pushed Appearance sub-screen vs. an in-form native control?
-  (leaning: pushed sub-screen, shared with the appearance choice).
-- Problem 5: is the cheap static-gradient fix acceptable visually (do we lose the aurora motion we
-  like), or is animated motion a hard requirement that justifies a WebGPU dependency?
+- Problem 1: ~~separate `appearance` pref vs. expanded theme enum?~~ **Decided: separate pref**
+  (implemented). Light variants for stylized themes — still out, for now.
+- Problem 2: ~~pushed Appearance sub-screen vs. in-form control?~~ **Decided: pushed sub-screen**
+  (implemented), shared with the appearance choice.
+- Problem 5 (still open): is the cheap static-gradient fix acceptable visually (do we lose the
+  aurora motion we like), or is animated motion a hard requirement that justifies a WebGPU
+  dependency? And: step-0 profiling on a real mid-range Android still needs doing — see
+  [themes-refactor-gpu-eval.md](themes-refactor-gpu-eval.md) for the measurement plan.
 </content>
 </invoke>

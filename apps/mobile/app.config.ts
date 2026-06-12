@@ -54,6 +54,10 @@ const config: ExpoConfig = {
 		softwareKeyboardLayoutMode: 'resize',
 	},
 	plugins: [
+		// react-native-webgpu (under react-native-effects, the themed-background
+		// renderer) uses AHardwareBuffer APIs that require Android 8.0 (API 26);
+		// Expo's default minSdk is lower, so raise it explicitly.
+		['expo-build-properties', { android: { minSdkVersion: 26 } }],
 		'expo-router',
 		[
 			'expo-splash-screen',

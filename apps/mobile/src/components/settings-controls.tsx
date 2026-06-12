@@ -129,7 +129,10 @@ export function Segmented<T extends string>({
 								: 'flex-1 items-center justify-center rounded-lg bg-transparent py-2'
 						}
 					>
+						{/* Truncate instead of wrapping — the flex-1 segments get narrow on
+						    small devices and a two-line label makes the row lopsided. */}
 						<ThemedText
+							numberOfLines={1}
 							className={
 								selected
 									? 'text-sm font-semibold text-background'

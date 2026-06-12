@@ -11,13 +11,34 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const { getDefaultConfig } = require('expo/metro-config');
 const { withUniwindConfig } = require('uniwind/metro');
+const {
+	getBundleModeMetroConfig,
+} = require('react-native-worklets/bundleMode');
 
 // Cast: this .js file is type-checked without bun-types, so import.meta.dirname
 // (Node >=20.11 / bun, what eas-cli's import() runs under) is unknown to it.
 const projectRoot = /** @type {string} */ (import.meta.dirname);
 const workspaceRoot = path.resolve(projectRoot, '../..');
 
-const config = getDefaultConfig(projectRoot);
+// Worklets Bundle Mode (react-native-effects' off-thread render loop runs on a
+// worklet runtime that loads a real bundle). Pairs with babel.config.cjs
+// (`bundleMode: true`) and the `worklets.staticFeatureFlags` key in package.json.
+// Cast: the bundleMode helper's .d.ts returns `any`; it merges into and returns
+// the Expo metro config it's given.
+const config = /** @type {import('expo/metro-config').MetroConfig} */ (
+	getBundleModeMetroConfig(getDefaultConfig(projectRoot))
+);
+
+// CRITICAL per react-native-worklets bundle-mode docs: inlineRequires must be on.
+config.transformer = {
+	...config.transformer,
+	getTransformOptions: () =>
+		Promise.resolve({
+			transform: {
+				inlineRequires: true,
+			},
+		}),
+};
 
 // Monorepo resolution: watch the workspace root and resolve modules from both
 // the app's and the workspace's node_modules.

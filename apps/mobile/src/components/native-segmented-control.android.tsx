@@ -28,7 +28,10 @@ export function NativeSegmentedControl<T extends string>({
 					}}
 				>
 					<SegmentedButton.Label>
-						<Text>{option.label}</Text>
+						{/* Truncate (ellipsis) instead of wrapping — a wrapped label
+						    ("Underline" on narrow devices) blows up that one segment's
+						    height and the row looks lopsided. */}
+						<Text maxLines={1}>{option.label}</Text>
 					</SegmentedButton.Label>
 				</SegmentedButton>
 			))}

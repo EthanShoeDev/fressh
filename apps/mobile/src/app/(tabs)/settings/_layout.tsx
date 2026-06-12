@@ -9,6 +9,10 @@ export default function SettingsStackLayout() {
 			    sub-screen keeps the native bar (it's a deeper form route). */}
 			<Stack.Screen name='index' options={{ headerShown: false }} />
 			<Stack.Screen
+				name='appearance'
+				options={{ title: header.title('Appearance') }}
+			/>
+			<Stack.Screen
 				name='terminal'
 				options={{ title: header.title('Terminal') }}
 			/>

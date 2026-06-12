@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView } from 'react-native';
 import {
 	NativeForm,
 	NativeNavRow,
@@ -16,16 +16,12 @@ import {
 	Segmented,
 	ToggleRow,
 } from '@/components/settings-controls';
+import { ThemeGrid } from '@/components/theme-grid';
 import { preferences } from '@/lib/preferences';
 import type { TabBarImpl } from '@/lib/tab-bar-config';
 import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
-import {
-	type AppThemeName,
-	APP_THEMES,
-	useAppTheme,
-	type ThemeSwatch,
-} from '@/lib/theme';
-import { applyCase, useIsNativeTheme, useThemeSkin } from '@/lib/theme-skin';
+import { APP_THEMES, useAppTheme } from '@/lib/theme';
+import { useIsNativeTheme } from '@/lib/theme-skin';
 
 const TAB_BAR_OPTIONS: readonly { id: TabBarImpl; label: string }[] = [
 	{ id: 'native', label: 'Native' },
@@ -42,27 +38,28 @@ export default function Tab() {
 	return useIsNativeTheme() ? <NativeSettings /> : <CustomSettings />;
 }
 
-/** Native theme: one full-screen `<Host>` form of platform controls. */
+/** Native theme: one full-screen `<Host>` form of platform controls. Theme
+ *  selection lives on the pushed Appearance sub-screen (a nav row, the native
+ *  idiom) — a swatch grid pinned above the form didn't scroll with it. */
 function NativeSettings() {
-	const { themeName, setThemeName } = useAppTheme();
+	const { themeName } = useAppTheme();
 	const [tabBarImpl, setTabBarImpl] = preferences.tabBarImpl.useValue();
 	const [shellIntegration, setShellIntegration] =
 		preferences.shellIntegrationEnabled.useValue();
 	const router = useRouter();
+	const themeLabel = APP_THEMES.find((t) => t.id === themeName)?.label;
 
 	return (
 		<ThemedScreen edges={['top']}>
 			<ScreenHeader title='Settings' />
-			{/* The theme picker keeps the swatch-grid look from the other themes,
-			    rendered in RN above the native form (RN views can't live inside the
-			    @expo/ui Host). A 5-wide segmented control was too cramped. */}
-			<View className='px-4 pt-2'>
-				<ThemedText className='mb-2 text-sm text-text-secondary'>
-					Theme
-				</ThemedText>
-				<ThemeGrid themeName={themeName} setThemeName={setThemeName} />
-			</View>
 			<NativeForm>
+				<NativeSection>
+					<NativeNavRow
+						label='Appearance'
+						value={themeLabel}
+						onPress={() => router.push('/(tabs)/settings/appearance')}
+					/>
+				</NativeSection>
 				<NativeSection>
 					<NativeSegmentedRow
 						layout='inline'
@@ -151,114 +148,5 @@ function CustomSettings() {
 				</Section>
 			</ScrollView>
 		</ThemedScreen>
-	);
-}
-
-/** The swatch-grid theme picker, shared by both the Native and stylized settings. */
-function ThemeGrid({
-	themeName,
-	setThemeName,
-}: {
-	themeName: AppThemeName;
-	setThemeName: (name: AppThemeName) => void;
-}) {
-	return (
-		<View className='flex-row flex-wrap justify-between gap-y-3'>
-			{APP_THEMES.map((appTheme) => (
-				<ThemeCard
-					key={appTheme.id}
-					label={appTheme.label}
-					swatch={appTheme.swatch}
-					selected={themeName === appTheme.id}
-					onPress={() => {
-						setThemeName(appTheme.id);
-					}}
-				/>
-			))}
-		</View>
-	);
-}
-
-function ThemeCard({
-	label,
-	swatch,
-	selected,
-	onPress,
-}: {
-	label: string;
-	swatch: ThemeSwatch;
-	selected: boolean;
-	onPress: () => void;
-}) {
-	const skin = useThemeSkin();
-	return (
-		<Pressable
-			onPress={onPress}
-			accessibilityRole='button'
-			accessibilityState={{ selected }}
-			style={{ width: '48%', borderRadius: skin.radius }}
-			className={
-				selected
-					? 'border-2 border-primary bg-surface p-2.5'
-					: 'border border-border bg-surface p-2.5'
-			}
-		>
-			<ThemeSwatchPreview swatch={swatch} radius={skin.controlRadius} />
-			<View className='mt-2 flex-row items-center justify-between'>
-				<ThemedText
-					className='text-[13px] font-semibold text-text-primary'
-					style={skin.mono ? { fontFamily: skin.monoFamily } : undefined}
-				>
-					{applyCase(skin, label)}
-				</ThemedText>
-				{selected ? (
-					<ThemedText className='text-sm font-extrabold text-primary'>
-						✓
-					</ThemedText>
-				) : null}
-			</View>
-		</Pressable>
-	);
-}
-
-/** A tiny palette preview using the theme's *literal* colors (not tokens). */
-function ThemeSwatchPreview({
-	swatch,
-	radius,
-}: {
-	swatch: ThemeSwatch;
-	radius: number;
-}) {
-	return (
-		<View
-			className='h-10 flex-row items-center gap-2 overflow-hidden px-2.5'
-			style={{
-				backgroundColor: swatch.bg,
-				borderWidth: 1,
-				borderColor: 'rgba(255,255,255,0.10)',
-				borderRadius: radius,
-			}}
-		>
-			<ThemedText
-				className='text-[13px] font-bold'
-				style={{ color: swatch.accent }}
-			>
-				{'>_'}
-			</ThemedText>
-			<View className='flex-1 gap-1'>
-				<View
-					className='h-1 rounded-full'
-					style={{ width: '70%', backgroundColor: swatch.accent, opacity: 0.9 }}
-				/>
-				<View
-					className='h-1 rounded-full'
-					style={{
-						width: '45%',
-						backgroundColor: swatch.accent2,
-						opacity: 0.6,
-					}}
-				/>
-			</View>
-		</View>
 	);
 }

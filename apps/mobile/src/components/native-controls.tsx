@@ -9,7 +9,7 @@ import {
 	Text,
 } from '@expo/ui';
 import type { ReactNode } from 'react';
-import { useCSSVariable } from 'uniwind';
+import { useCSSVariable, useUniwind } from 'uniwind';
 import { NativeSegmentedControl } from '@/components/native-segmented-control';
 
 /**
@@ -34,8 +34,16 @@ import { NativeSegmentedControl } from '@/components/native-segmented-control';
  * Children are `NativeSection`s. Place RN header/preview above this, not inside.
  */
 export function NativeForm({ children }: { children: ReactNode }) {
+	// Pass the scheme explicitly, derived from the RESOLVED uniwind theme (the
+	// same source the color tokens use): the SwiftUI/Compose host does not
+	// reliably follow `Appearance.setColorScheme`'s window override, so a forced
+	// Light/Dark (the Appearance pref) flipped the RN chrome but left the form
+	// on the device scheme. `native-light` is the only light variant; every
+	// other resolved theme (native dark + the stylized themes) is dark.
+	const { theme } = useUniwind();
+	const colorScheme = theme === 'native-light' ? 'light' : 'dark';
 	return (
-		<Host style={{ flex: 1 }}>
+		<Host style={{ flex: 1 }} colorScheme={colorScheme}>
 			<FieldGroup>{children}</FieldGroup>
 		</Host>
 	);
@@ -199,12 +207,15 @@ export function NativeStepperRow({
 	);
 }
 
-/** A tappable row that navigates elsewhere (trailing chevron). */
+/** A tappable row that navigates elsewhere (trailing chevron), with an optional
+ *  muted current-value readout before the chevron — the settings-row idiom. */
 export function NativeNavRow({
 	label,
+	value,
 	onPress,
 }: {
 	label: string;
+	value?: string;
 	onPress: () => void;
 }) {
 	const muted = useCSSVariable('--color-muted') as string;
@@ -212,6 +223,7 @@ export function NativeNavRow({
 		<Row onPress={onPress} alignment='center' spacing={12}>
 			<Text>{label}</Text>
 			<Spacer flexible />
+			{value ? <Text textStyle={{ color: muted }}>{value}</Text> : null}
 			<Text textStyle={{ color: muted }}>›</Text>
 		</Row>
 	);

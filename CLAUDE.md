@@ -8,6 +8,12 @@ Default to using Bun instead of Node.js.
 - Use `bunx <package> <command>` instead of `npx <package> <command>`
 - Bun automatically loads .env, so don't use dotenv.
 
+## Patched dependencies
+
+Every `bun patch` entry in `patchedDependencies` is documented in
+`docs/bun-patches.md` — why it exists and its upstream issue. Whenever you add,
+update, or remove a patch, update that doc in the same change.
+
 ## TypeScript Return Types
 
 Prefer inferred return types over explicit ones. Explicit return types add verbosity, are harder to maintain, and become brittle when implementation changes.

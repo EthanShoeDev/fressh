@@ -7,7 +7,7 @@ import {
 	useColorScheme,
 } from 'react-native';
 import { Uniwind } from 'uniwind';
-import { preferences } from './preferences';
+import { type AppearanceMode, preferences } from './preferences';
 
 /**
  * A tiny preview palette for each theme, used by the Settings theme picker.
@@ -124,56 +124,89 @@ export const NATIVE_TAB_STYLES: Partial<Record<AppThemeName, NativeTabStyle>> = 
 type UniwindThemeName = AppThemeName | 'native-light';
 
 /**
- * Fold the device color scheme into the stored theme. Only `native` splits by
- * appearance (→ `native`/`native-light`); the four stylized themes are always
- * dark and pass through unchanged.
+ * Fold the device color scheme + the user's appearance override into the stored
+ * theme. Only `native` splits by appearance (→ `native`/`native-light`); the
+ * four stylized themes are always dark and pass through unchanged. A forced
+ * `light`/`dark` appearance wins over the device scheme; `system` follows it.
  */
 function resolveUniwindTheme(
 	name: AppThemeName,
 	scheme: ColorSchemeName | null | undefined,
+	appearance: AppearanceMode,
 ): UniwindThemeName {
 	if (name === 'native') {
-		return scheme === 'light' ? 'native-light' : 'native';
+		const effective = appearance === 'system' ? scheme : appearance;
+		return effective === 'light' ? 'native-light' : 'native';
 	}
 	return name;
 }
 
 /**
- * Apply the persisted theme once at module load (before first render) so the
- * app doesn't flash the default theme then switch. Reads the current system
- * appearance imperatively so Native lands on the right light/dark variant.
+ * Push a forced appearance into the OS trait environment. Uniwind tokens alone
+ * aren't enough for the Native theme: its @expo/ui SwiftUI / Material 3
+ * controls color themselves from the system trait collection
+ * (`userInterfaceStyle: 'automatic'`), so without this a forced Dark shows a
+ * dark RN chrome around a still-light native form. `'unspecified'` returns to
+ * the device setting.
  */
-export function initAppTheme() {
-	Uniwind.setTheme(
-		resolveUniwindTheme(preferences.theme.get(), Appearance.getColorScheme()),
+function applyAppearanceOverride(appearance: AppearanceMode) {
+	Appearance.setColorScheme(
+		appearance === 'system' ? 'unspecified' : appearance,
 	);
 }
 
 /**
- * Read + change the active app theme. Persists to MMKV and drives uniwind's
- * className re-render via `Uniwind.setTheme` (resolving Native against the
- * current system appearance so the switch is immediate, no flash).
+ * Apply the persisted theme once at module load (before first render) so the
+ * app doesn't flash the default theme then switch. Reads the current system
+ * appearance imperatively — and the appearance override pref — so Native lands
+ * on the right light/dark variant with no cold-start scheme flash.
+ */
+export function initAppTheme() {
+	const appearance = preferences.appearance.get();
+	applyAppearanceOverride(appearance);
+	Uniwind.setTheme(
+		resolveUniwindTheme(
+			preferences.theme.get(),
+			Appearance.getColorScheme(),
+			appearance,
+		),
+	);
+}
+
+/**
+ * Read + change the active app theme and its appearance override. Persists to
+ * MMKV and drives uniwind's className re-render via `Uniwind.setTheme`
+ * (resolving Native against the current system appearance so the switch is
+ * immediate, no flash).
  */
 export function useAppTheme() {
 	const [themeName, setPref] = preferences.theme.useValue();
+	const [appearance, setAppearancePref] = preferences.appearance.useValue();
 	const scheme = useColorScheme();
 	const setThemeName = (name: AppThemeName) => {
 		setPref(name);
-		Uniwind.setTheme(resolveUniwindTheme(name, scheme));
+		Uniwind.setTheme(resolveUniwindTheme(name, scheme, appearance));
 	};
-	return { themeName, setThemeName };
+	const setAppearance = (mode: AppearanceMode) => {
+		setAppearancePref(mode);
+		applyAppearanceOverride(mode);
+		Uniwind.setTheme(resolveUniwindTheme(themeName, scheme, mode));
+	};
+	return { themeName, setThemeName, appearance, setAppearance };
 }
 
 /**
  * Keep the live uniwind theme in sync with the system light/dark setting while
- * Native is selected. Mount once near the app root. For the stylized themes this
- * is a no-op (they pass through), so it's safe to always run. Idempotent with
- * {@link useAppTheme}'s direct set — both resolve to the same variant.
+ * Native is selected (and following the system). Mount once near the app root.
+ * For the stylized themes this is a no-op (they pass through), so it's safe to
+ * always run. Idempotent with {@link useAppTheme}'s direct set — both resolve
+ * to the same variant.
  */
 export function useSystemThemeSync() {
 	const [themeName] = preferences.theme.useValue();
+	const [appearance] = preferences.appearance.useValue();
 	const scheme = useColorScheme();
 	useEffect(() => {
-		Uniwind.setTheme(resolveUniwindTheme(themeName, scheme));
-	}, [themeName, scheme]);
+		Uniwind.setTheme(resolveUniwindTheme(themeName, scheme, appearance));
+	}, [themeName, scheme, appearance]);
 }

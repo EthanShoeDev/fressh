@@ -63,7 +63,7 @@ export function TerminalPreview() {
 					style={{ flex: 1 }}
 				/>
 			</View>
-			<ThemedText className='mt-1.5 text-xs text-text-secondary'>
+			<ThemedText className='mb-2.5 mt-1.5 text-xs text-text-secondary'>
 				Live preview — shows the terminal palette, not the app theme.
 			</ThemedText>
 		</View>

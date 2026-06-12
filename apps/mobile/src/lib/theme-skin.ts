@@ -40,8 +40,6 @@ export type ThemeSkin = {
 	glass: boolean;
 	/** `boxShadow` glow applied to active accents / status dots ('' = none). */
 	glow: string;
-	/** Accent color for the *animated* glow around primary buttons (undefined = no glow). */
-	glowColor?: string;
 	/** Casing for titles + emphasized labels. */
 	textCase: 'upper' | 'lower' | 'none';
 	/** Use a monospace face for headings/labels (terminal voice). */
@@ -115,7 +113,6 @@ const THEME_SKINS: Partial<Record<AppThemeName, ThemeSkin>> = {
 		scanlines: true,
 		glass: false,
 		glow: '0px 0px 24px rgba(255,180,84,0.30)',
-		glowColor: '#ffb454',
 		textCase: 'lower',
 		mono: true,
 		edgeToEdge: false,
@@ -140,7 +137,6 @@ const THEME_SKINS: Partial<Record<AppThemeName, ThemeSkin>> = {
 		scanlines: false,
 		glass: false,
 		glow: '0px 6px 20px rgba(99,102,241,0.40)',
-		glowColor: '#818cf8',
 		textCase: 'none',
 		mono: false,
 		edgeToEdge: false,
@@ -173,7 +169,6 @@ const THEME_SKINS: Partial<Record<AppThemeName, ThemeSkin>> = {
 		// shadow doesn't bleed onto adjacent cards/inputs — matches the design's
 		// gentle accent glow rather than a heavy halo.
 		glow: '0px 4px 16px rgba(45,230,198,0.22)',
-		glowColor: '#2de6c6',
 		textCase: 'none',
 		mono: false,
 		edgeToEdge: false,

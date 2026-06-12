@@ -44,11 +44,11 @@
 		"@fressh/react-native-terminal": "workspace:*",
 		"@react-native-segmented-control/segmented-control": "2.5.7",
 		"@shopify/flash-list": "2.0.2",
-		"@shopify/react-native-skia": "2.6.2",
 		"@tanstack/react-form": "^1.33.0",
 		"date-fns": "^4.4.0",
 		"effect": "catalog:",
 		"expo": "~56.0.9",
+		"expo-build-properties": "^56.0.18",
 		"expo-clipboard": "~56.0.3",
 		"expo-constants": "~56.0.14",
 		"expo-crypto": "~56.0.4",
@@ -68,7 +68,7 @@
 		"react": "catalog:",
 		"react-dom": "catalog:",
 		"react-native": "catalog:",
-		"react-native-animated-glow": "^3.1.0",
+		"react-native-effects": "^0.2.0",
 		"react-native-gesture-handler": "~2.31.2",
 		"react-native-keyboard-controller": "1.21.6",
 		"react-native-keychain": "10.0.0",
@@ -78,6 +78,7 @@
 		"react-native-safe-area-context": "~5.7.0",
 		"react-native-screens": "4.25.2",
 		"react-native-web": "~0.21.2",
+		"react-native-webgpu": "^0.5.15",
 		"react-native-webview": "catalog:",
 		"react-native-worklets": "~0.8.3",
 		"tailwindcss": "catalog:",
@@ -104,6 +105,12 @@
 					"@dylankenneally/react-native-ssh-sftp"
 				]
 			}
+		}
+	},
+	"worklets": {
+		"staticFeatureFlags": {
+			"BUNDLE_MODE_ENABLED": true,
+			"FETCH_PREVIEW_ENABLED": true
 		}
 	}
 }

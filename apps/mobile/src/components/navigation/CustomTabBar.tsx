@@ -1,6 +1,5 @@
-import { Canvas } from '@shopify/react-native-skia';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { Scanlines } from '@/components/themed/ThemedBackground';
@@ -79,11 +78,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 					overflow: skin.scanlines ? 'hidden' : 'visible',
 				}}
 			>
-				{skin.scanlines ? (
-					<Canvas style={StyleSheet.absoluteFill} pointerEvents='none'>
-						<Scanlines />
-					</Canvas>
-				) : null}
+				{skin.scanlines ? <Scanlines /> : null}
 
 				{state.routes.map((route, index) => {
 					const meta = TAB_ROUTES.find((r) => r.name === route.name);

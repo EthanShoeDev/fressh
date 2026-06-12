@@ -27,8 +27,23 @@ const APP_THEME_NAMES = [
 	'native',
 ] as const;
 
-/** Default theme when none is stored (or a stale/removed one was). */
-const DEFAULT_THEME: AppThemeName = 'graphite';
+/** Default theme when none is stored (or a stale/removed one was). Native, so a
+ * fresh install feels like a stock OS app; the stylized themes are an opt-in. */
+const DEFAULT_THEME: AppThemeName = 'native';
+
+/**
+ * Appearance override consulted by `resolveUniwindTheme`: follow the device
+ * light/dark setting or force a scheme. Today only the Native theme has a light
+ * variant, so this only changes anything while Native is selected — the four
+ * stylized themes are dark-only and pass through (kept orthogonal to `theme` so
+ * stylized themes could opt into light later).
+ */
+export const APPEARANCE_MODES = [
+	{ id: 'system', label: 'System' },
+	{ id: 'light', label: 'Light' },
+	{ id: 'dark', label: 'Dark' },
+] as const;
+export type AppearanceMode = (typeof APPEARANCE_MODES)[number]['id'];
 
 type ShellListViewMode = 'flat' | 'grouped';
 
@@ -199,6 +214,12 @@ export const preferences = {
 			APP_THEME_NAMES.includes(raw as AppThemeName)
 				? (raw as AppThemeName)
 				: DEFAULT_THEME,
+	}),
+	appearance: definePref({
+		key: 'appearance',
+		kind: 'string',
+		resolve: (raw): AppearanceMode =>
+			raw === 'light' || raw === 'dark' ? raw : 'system',
 	}),
 	tabBarImpl: definePref({
 		key: 'tabBarImpl',

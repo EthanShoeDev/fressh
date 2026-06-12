@@ -1,5 +1,4 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import AnimatedGlow from 'react-native-animated-glow';
 import { applyCase, resolveFont, useThemeSkin } from '@/lib/theme-skin';
 
 export type ButtonVariant = 'primary' | 'outline' | 'danger';
@@ -9,9 +8,11 @@ export type ButtonSize = 'md' | 'sm';
  * The single theme-aware button used across every screen. Corner radius, casing,
  * and monospace voice come from the active theme's skin, so a primary action
  * looks identical (sharp lime on Monolith, glowing teal on Aurora, …) whether
- * it's on the server detail, the Keys tab, or a form. Primary `md` buttons on
- * glow themes get an animated Skia glow (`react-native-animated-glow`); Monolith
- * has no glow by design.
+ * it's on the server detail, the Keys tab, or a form. Primary buttons on glow
+ * themes get the skin's static `boxShadow` bloom; Monolith has no glow by
+ * design. (The previous *animated* glow — react-native-animated-glow — was a
+ * continuously-repainting Skia layer per button, one of the two suspects in the
+ * Android tab-switch lag; see themes-refactor.md problem 5.)
  */
 export function Button({
 	title,
@@ -39,9 +40,6 @@ export function Button({
 }) {
 	const skin = useThemeSkin();
 	const isDisabled = disabled || loading;
-	const glowColor = skin.glowColor;
-	const animatedGlow =
-		variant === 'primary' && size === 'md' && !!glowColor && !isDisabled;
 
 	const bg =
 		variant === 'primary'
@@ -64,8 +62,20 @@ export function Button({
 	const indicatorClass =
 		variant === 'primary' ? 'accent-button-text-on-primary' : 'accent-muted';
 
-	const inner = (
-		<>
+	return (
+		<Pressable
+			testID={testID}
+			onPress={onPress}
+			disabled={isDisabled}
+			className={`flex-row items-center justify-center gap-2 ${pad} ${bg} ${isDisabled ? 'opacity-60' : ''} ${className ?? ''}`}
+			style={{
+				borderRadius: skin.controlRadius,
+				boxShadow:
+					variant === 'primary' && !isDisabled && skin.glow
+						? skin.glow
+						: undefined,
+			}}
+		>
 			{loading ? (
 				<ActivityIndicator colorClassName={indicatorClass} />
 			) : icon ? (
@@ -79,61 +89,6 @@ export function Button({
 			>
 				{applyCase(skin, loading ? (loadingTitle ?? title) : title)}
 			</Text>
-		</>
-	);
-
-	const pressable = (
-		<Pressable
-			testID={testID}
-			onPress={onPress}
-			disabled={isDisabled}
-			className={`flex-row items-center justify-center gap-2 ${pad} ${bg} ${isDisabled ? 'opacity-60' : ''} ${animatedGlow ? 'w-full' : (className ?? '')}`}
-			style={{
-				borderRadius: skin.controlRadius,
-				// Static boxShadow glow only when we're NOT drawing the animated one.
-				boxShadow:
-					!animatedGlow && variant === 'primary' && !isDisabled && skin.glow
-						? skin.glow
-						: undefined,
-			}}
-		>
-			{inner}
 		</Pressable>
 	);
-
-	if (animatedGlow && glowColor) {
-		return (
-			<View className={className} style={{ alignSelf: 'stretch' }}>
-				<AnimatedGlow
-					style={{ alignSelf: 'stretch' }}
-					preset={{
-						states: [
-							{
-								name: 'default',
-								preset: {
-									cornerRadius: skin.controlRadius,
-									glowLayers: [
-										{
-											colors: [glowColor],
-											// Tight, soft halo that hugs the button. The earlier
-											// large/strong glow bled past the button and overlapped
-											// neighbouring cards/inputs; the designs use only a
-											// gentle accent bloom, so keep it small + low-opacity.
-											opacity: 0.32,
-											glowSize: 6,
-											glowPlacement: 'behind',
-										},
-									],
-								},
-							},
-						],
-					}}
-				>
-					{pressable}
-				</AnimatedGlow>
-			</View>
-		);
-	}
-
-	return pressable;
 }

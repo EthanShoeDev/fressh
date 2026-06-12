@@ -1,0 +1,30 @@
+diff --git a/lib/module/components/ShaderView/index.js b/lib/module/components/ShaderView/index.js
+index 83490a4f7a09bde0b9d74d16b2f3368531d4f064..f81167db03b7ad5406ebcc59966e7e50a07c546e 100644
+--- a/lib/module/components/ShaderView/index.js
++++ b/lib/module/components/ShaderView/index.js
+@@ -240,6 +240,7 @@ export default function ShaderView({
+   }, [resources, runtime, propsSync, paramsSynchronizable, fragmentShader, isStatic, transparent]);
+   return /*#__PURE__*/_jsx(Canvas, {
+     ref: canvasRef,
++    transparent: transparent,
+     style: [styles.canvas, style],
+     ...viewProps
+   });
+diff --git a/src/components/ShaderView/index.tsx b/src/components/ShaderView/index.tsx
+index ced33f933318ef942485e4714051425f69d1c3e0..ac6a31c9c5e6f31b17e77311707737aaffd20244 100644
+--- a/src/components/ShaderView/index.tsx
++++ b/src/components/ShaderView/index.tsx
+@@ -251,7 +251,12 @@ export default function ShaderView({
+   ]);
+ 
+   return (
+-    <Canvas ref={canvasRef} style={[styles.canvas, style]} {...viewProps} />
++    <Canvas
++      ref={canvasRef}
++      transparent={transparent}
++      style={[styles.canvas, style]}
++      {...viewProps}
++    />
+   );
+ }
+ 
