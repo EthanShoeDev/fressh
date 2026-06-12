@@ -15,6 +15,7 @@ import { appRuntime } from '@/lib/runtime';
 import { sshShellsAtom, type StoreShell } from '@/lib/ssh-store';
 import { useShellContext } from '@/lib/terminal-semantics';
 import { useThemeSkin } from '@/lib/theme-skin';
+import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 
 /** Cap rendered lines — a huge diff would build thousands of <Text> nodes. */
 const LINE_CAP = 3000;
@@ -53,6 +54,7 @@ export default function GitDiffScreen() {
 	const skin = useThemeSkin();
 	const monoFamily = skin.mono ? skin.monoFamily : undefined;
 	const mono = monoFamily ? { fontFamily: monoFamily } : undefined;
+	const bottomSpace = useBottomTabSpacing();
 
 	const [state, setState] = React.useState<State>({ kind: 'loading' });
 
@@ -141,7 +143,10 @@ export default function GitDiffScreen() {
 					</ThemedText>
 				</View>
 			) : (
-				<ScrollView className='flex-1'>
+				<ScrollView
+					className='flex-1'
+					contentContainerStyle={{ paddingBottom: bottomSpace }}
+				>
 					<ScrollView horizontal contentContainerStyle={{ paddingVertical: 8 }}>
 						<View className='px-3'>
 							{state.lines.map((line, i) => (

@@ -4,7 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { Scanlines } from '@/components/themed/ThemedBackground';
 import { JS_TAB_BAR_HEIGHT, TAB_ROUTES } from '@/lib/tab-bar-config';
-import { applyCase, resolveFont, useThemeSkin } from '@/lib/theme-skin';
+import {
+	applyCase,
+	resolveFont,
+	skinHasCanvas,
+	useThemeSkin,
+} from '@/lib/theme-skin';
 
 /** `#rrggbb` → `rgba(r,g,b,a)` for translucent accent tints (active-pill fill). */
 function hexToRgba(hex: string, alpha: number) {
@@ -45,8 +50,13 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 
 	const glass = skin.glass;
 	const float = !skin.edgeToEdge;
+	// Canvas themes float the bar OVER the scene (absolute at the bottom) so the
+	// theme's gradient/scanline canvas runs underneath it — the scene fills the
+	// full window and pads its scroll content via useBottomTabSpacing. Flat
+	// themes keep the bar in flow below the scene (see useJsTabBarOverlay).
+	const overlay = skinHasCanvas(skin);
 
-	// The bar reserves `JS_TAB_BAR_HEIGHT + insets.bottom` (see useBottomTabSpacing).
+	// The bar occupies `JS_TAB_BAR_HEIGHT + insets.bottom` (see useBottomTabSpacing).
 	// For the floating variant we spend a little of that on top padding so the pill
 	// hovers; the inner height shrinks to keep the reserved footprint identical.
 	const topPad = float ? 8 : 0;
@@ -55,6 +65,9 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 	return (
 		<View
 			style={{
+				...(overlay
+					? { position: 'absolute' as const, left: 0, right: 0, bottom: 0 }
+					: null),
 				paddingTop: topPad,
 				paddingBottom: insets.bottom,
 				paddingHorizontal: float ? 14 : 0,

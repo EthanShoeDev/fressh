@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed/ThemedText';
 import { revokeHost, useKnownHosts } from '@/lib/host-keys';
 import { hostPortLabel, type KnownHostEntry } from '@/lib/known-hosts';
 import { appRuntime } from '@/lib/runtime';
+import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 
 /**
  * Settings → Security → Known hosts: every host key the user has trusted
@@ -19,6 +20,7 @@ import { appRuntime } from '@/lib/runtime';
  */
 export default function KnownHostsSettings() {
 	const entries = useKnownHosts();
+	const bottomSpace = useBottomTabSpacing();
 
 	// Group per host:port — a host can be pinned under several algorithms.
 	const groups = useMemo(() => {
@@ -51,7 +53,11 @@ export default function KnownHostsSettings() {
 
 	return (
 		<View className='flex-1 bg-background'>
-			<ScrollView className='flex-1' contentContainerClassName='p-4'>
+			<ScrollView
+				className='flex-1'
+				contentContainerClassName='p-4'
+				contentContainerStyle={{ paddingBottom: bottomSpace + 16 }}
+			>
 				{groups.map(([label, group]) => (
 					<Section key={label} title={label}>
 						<View className='gap-2'>

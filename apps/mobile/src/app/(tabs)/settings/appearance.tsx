@@ -10,6 +10,7 @@ import { ThemeGrid } from '@/components/theme-grid';
 import { APPEARANCE_MODES } from '@/lib/preferences';
 import { APP_THEMES, useAppTheme } from '@/lib/theme';
 import { useIsNativeTheme } from '@/lib/theme-skin';
+import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 
 const APPEARANCE_FOOTER =
 	'System follows your device’s light/dark setting. Only the Native theme has a light variant — the stylized themes are always dark.';
@@ -58,9 +59,14 @@ function NativeAppearance() {
 /** Stylized themes (reached by picking one above): the swatch-grid picker. */
 function CustomAppearance() {
 	const { themeName, setThemeName } = useAppTheme();
+	const bottomSpace = useBottomTabSpacing();
 	return (
 		<View className='flex-1 bg-background'>
-			<ScrollView className='flex-1' contentContainerClassName='p-4'>
+			<ScrollView
+				className='flex-1'
+				contentContainerClassName='p-4'
+				contentContainerStyle={{ paddingBottom: bottomSpace + 16 }}
+			>
 				<Section title='Theme'>
 					<ThemeGrid themeName={themeName} setThemeName={setThemeName} />
 				</Section>

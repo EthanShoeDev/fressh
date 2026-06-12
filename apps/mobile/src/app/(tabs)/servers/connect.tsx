@@ -13,7 +13,10 @@ import {
 	TextInput,
 	View,
 } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import {
+	KeyboardAvoidingView,
+	useKeyboardState,
+} from 'react-native-keyboard-controller';
 import { useCSSVariable } from 'uniwind';
 import { Button } from '@/components/themed/Button';
 import { ScreenHeader } from '@/components/themed/ScreenHeader';
@@ -36,7 +39,9 @@ import {
 	secretsManager,
 	type InputConnectionDetails,
 } from '@/lib/secrets-manager';
+import { JS_TAB_BAR_HEIGHT } from '@/lib/tab-bar-config';
 import { useThemeSkin } from '@/lib/theme-skin';
+import { useJsTabBarOverlay } from '@/lib/useBottomTabSpacing';
 
 const defaultValues: InputConnectionDetails = {
 	host: '',
@@ -54,6 +59,16 @@ export default function ConnectScreen() {
 	const mutedColor = useCSSVariable('--color-muted') as string;
 	const [lastConnectionProgressEvent, setLastConnectionProgressEvent] =
 		React.useState<SshConnectionProgress | null>(null);
+
+	// When the JS tab bar overlays the scene (canvas themes), the pinned footer
+	// must clear it while the keyboard is down. SafeAreaView (edges includes
+	// 'bottom') already supplies insets.bottom, so only the bar height remains.
+	// With the keyboard up it covers the bar, and the KeyboardAvoidingView's
+	// padding alone places the footer right above the keyboard — clearance off.
+	const jsBarOverlay = useJsTabBarOverlay();
+	const keyboardVisible = useKeyboardState((state) => state.isVisible);
+	const footerClearance =
+		jsBarOverlay && !keyboardVisible ? JS_TAB_BAR_HEIGHT : 0;
 
 	// Honour the design's "Save to my servers" toggle. The connect mutation always
 	// saved before; now it's conditional. A ref keeps the submit closure current.
@@ -262,7 +277,10 @@ export default function ConnectScreen() {
 
 					{/* Pinned footer — rides up with the KeyboardAvoidingView so Connect
 					    sits right above the keyboard, never covered. */}
-					<View className='bg-background px-[18px] pb-2 pt-3'>
+					<View
+						className='bg-background px-[18px] pb-2 pt-3'
+						style={{ marginBottom: footerClearance }}
+					>
 						<Button
 							title='Connect'
 							loadingTitle={buttonLabel}

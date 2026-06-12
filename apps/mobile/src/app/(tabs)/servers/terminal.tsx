@@ -57,6 +57,7 @@ import {
 	NATIVE_TAB_BAR_TOOLBAR_OFFSET,
 } from '@/lib/tab-bar-config';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
+import { useJsTabBarOverlay } from '@/lib/useBottomTabSpacing';
 import { useContextSafe } from '@/lib/utils';
 
 type TerminalRenderConfig = ReturnType<typeof useTerminalRenderConfig>;
@@ -163,10 +164,16 @@ function ShellDetail() {
 	// subtract `spaceBelowColumn` (everything between the column's bottom edge and the
 	// screen bottom) to get the keyboard's actual overlap with the column.
 	//
-	// For the JS bar `spaceBelowColumn` is exact and POSITIVE: we render that bar, so
-	// it's literally JS_TAB_BAR_HEIGHT + inset. For the NATIVE bar it's a hand-tuned
-	// correction (the OS doesn't expose the bar height — rns#3627) whose sign DIFFERS
-	// per platform, because `softwareKeyboardLayoutMode: 'resize'` is Android-only:
+	// For the JS bar `spaceBelowColumn` is exact and depends on the bar's mode
+	// (see useJsTabBarOverlay):
+	//   - overlay (canvas themes): the bar floats OVER the scene, so the column runs
+	//     to the physical screen bottom → 0. The bar's footprint moves into the
+	//     RESTING margin instead, so the toolbar sits above the floating bar.
+	//   - in flow (flat themes): the bar sits below the column, so it's literally
+	//     JS_TAB_BAR_HEIGHT + inset.
+	// For the NATIVE bar it's a hand-tuned correction (the OS doesn't expose the bar
+	// height — rns#3627) whose sign DIFFERS per platform, because
+	// `softwareKeyboardLayoutMode: 'resize'` is Android-only:
 	//   - Android (resize): the window shrinks to the keyboard top, so the band below
 	//     the column is a real positive height (~80 + inset). Subtracting it is right.
 	//   - iOS (overlay): the window does NOT resize; the column runs to the physical
@@ -177,13 +184,23 @@ function ShellDetail() {
 	// Single knob: increasing the offset lowers the toolbar, decreasing it raises it.
 	// See docs/projects/complete/toolbar-keyboard-by-construction.md.
 	const [tabBarImpl] = preferences.tabBarImpl.useValue();
+	const jsBarOverlay = useJsTabBarOverlay();
 	const spaceBelowColumn =
-		(tabBarImpl === 'js' ? JS_TAB_BAR_HEIGHT : NATIVE_TAB_BAR_TOOLBAR_OFFSET) +
-		insets.bottom;
+		tabBarImpl === 'js'
+			? jsBarOverlay
+				? 0
+				: JS_TAB_BAR_HEIGHT + insets.bottom
+			: NATIVE_TAB_BAR_TOOLBAR_OFFSET + insets.bottom;
+	// Resting (keyboard down): the overlaying JS bar now lives INSIDE the column's
+	// extent, so its full footprint (height + inset) is added to the same
+	// insets.bottom cushion the in-flow layout had — identical visual position.
+	const restingToolbarMargin = jsBarOverlay
+		? JS_TAB_BAR_HEIGHT + insets.bottom + insets.bottom
+		: insets.bottom;
 	const toolbarMarginBottom =
 		keyboardHeight > 0
 			? Math.max(keyboardHeight - spaceBelowColumn, insets.bottom)
-			: insets.bottom;
+			: restingToolbarMargin;
 
 	// Shells are keyed in the store by their native `shellId` (opaque), but the
 	// route only carries connectionId + channelId — so resolve by those fields.

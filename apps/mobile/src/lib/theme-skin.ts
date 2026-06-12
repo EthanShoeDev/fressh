@@ -243,6 +243,16 @@ export function useThemeSkin(): ThemeSkin {
 	return THEME_SKINS[key as AppThemeName] ?? DEFAULT_SKIN;
 }
 
+/**
+ * Whether a skin paints a screen canvas (gradient blobs and/or scanlines).
+ * Single source of truth shared by `ThemedBackground` (whether to mount the
+ * shader at all) and the JS tab bar layout (a canvas theme floats the bar OVER
+ * the scene so the canvas runs under it; a flat theme keeps the bar in flow).
+ */
+export function skinHasCanvas(skin: ThemeSkin) {
+	return skin.blobs.length > 0 || skin.scanlines;
+}
+
 /** Whether the system-following Native theme is active (either light or dark
  *  variant). The control/container layer branches on this to render @expo/ui. */
 export function useIsNativeTheme() {

@@ -1,7 +1,11 @@
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ShaderView } from 'react-native-effects';
-import { type GradientBlob, useThemeSkin } from '@/lib/theme-skin';
+import {
+	type GradientBlob,
+	skinHasCanvas,
+	useThemeSkin,
+} from '@/lib/theme-skin';
 
 /**
  * The per-theme screen canvas: soft radial gradient blobs + an optional CRT
@@ -25,7 +29,7 @@ export function ThemedBackground() {
 	const skin = useThemeSkin();
 	const fragmentShader = useMemo(
 		() =>
-			skin.blobs.length > 0 || skin.scanlines
+			skinHasCanvas(skin)
 				? buildChromeShader({
 						blobs: skin.blobs,
 						animate: skin.animateBlobs,
@@ -120,12 +124,17 @@ function buildChromeShader(spec: {
 		.map((blob, i) => {
 			const c = parseColor(blob.color);
 			const color = `vec4<f32>(${f(c.r)}, ${f(c.g)}, ${f(c.b)}, ${f(c.a)})`;
-			// Aurora's drift: the same slow sin/cos wander the Skia clock drove
-			// (t was ms there, seconds here: /4200ms -> /4.2s).
+			// Aurora's drift: a slow lava-lamp wander (~18s/23s loops, ±10%/±8% of
+			// the screen) plus a gentle radius pulse, phase-offset per blob so they
+			// move independently. Tuned to be clearly alive within a few seconds of
+			// looking, while staying slow enough to read as ambient.
 			const center = spec.animate
-				? `vec2<f32>((${f(blob.cx)} + sin(t / 4.2 + ${f(i)}) * 0.05) * res.x, (${f(blob.cy)} + cos(t / 5.3 + ${f(i)}) * 0.035) * res.y)`
+				? `vec2<f32>((${f(blob.cx)} + sin(t / 2.8 + ${f(i)} * 2.1) * 0.10) * res.x, (${f(blob.cy)} + cos(t / 3.7 + ${f(i)} * 1.3) * 0.08) * res.y)`
 				: `vec2<f32>(${f(blob.cx)} * res.x, ${f(blob.cy)} * res.y)`;
-			return `  acc = blobOver(p, ${center}, ${f(blob.r)} * maxDim, ${color}, acc);`;
+			const radius = spec.animate
+				? `(${f(blob.r)} * (1.0 + sin(t / 3.1 + ${f(i)} * 2.6) * 0.06)) * maxDim`
+				: `${f(blob.r)} * maxDim`;
+			return `  acc = blobOver(p, ${center}, ${radius}, ${color}, acc);`;
 		})
 		.join('\n');
 

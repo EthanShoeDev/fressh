@@ -29,6 +29,7 @@ import {
 	TERMINAL_SCROLLBACK,
 } from '@/lib/preferences';
 import { useIsNativeTheme } from '@/lib/theme-skin';
+import { useBottomTabSpacing } from '@/lib/useBottomTabSpacing';
 
 /** Shared terminal-settings state (prefs + bounds helpers) for both render paths. */
 function useTerminalSettingsState() {
@@ -203,6 +204,7 @@ function NativeTerminal() {
 /** Every stylized theme: the custom-drawn terminal settings. */
 function CustomTerminal() {
 	const s = useTerminalSettingsState();
+	const bottomSpace = useBottomTabSpacing();
 	return (
 		<View className='flex-1 bg-background'>
 			{/* Sticky preview pinned above the scrolling settings list so it stays
@@ -213,6 +215,7 @@ function CustomTerminal() {
 			<ScrollView
 				className='flex-1'
 				contentContainerClassName='p-4'
+				contentContainerStyle={{ paddingBottom: bottomSpace + 16 }}
 				contentInsetAdjustmentBehavior='automatic'
 			>
 				<Section title='Theme'>
