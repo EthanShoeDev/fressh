@@ -282,5 +282,30 @@ shader* — measured against the Step 1 baseline.
   aurora motion we like), or is animated motion a hard requirement that justifies a WebGPU
   dependency? And: step-0 profiling on a real mid-range Android still needs doing — see
   [themes-refactor-gpu-eval.md](themes-refactor-gpu-eval.md) for the measurement plan.
+
+## Addendum (2026-06-12, Android bring-up findings)
+
+- **Problem 5, second cause found:** after the WebGPU migration, tab switches were *still*
+  sluggish on the JS bar across ALL themes (even Native, which draws no chrome) while the
+  native bar was instant. The GPU chrome was only half the story — `expo-router/js-tabs`
+  defaults `detachInactiveScreens` to true on Android, so every switch detached and
+  re-attached the hidden tab's native fragment tree. `JsTabsLayout` now passes
+  `detachInactiveScreens={false}` (hidden scenes stay attached, `display:none`).
+  Details + the WebGPU-canvas persistence work that pairs with it:
+  [debug-wgpu-shader-android.md](debug-wgpu-shader-android.md).
+- **Native theme, Android tap targets:** `FieldGroup.Section` rows on Android wrap each child
+  in a Material `ListItem` (full-height visual surface) but our `onPress` sat on the inner
+  `@expo/ui` `Row`, whose natural height is one text line — so only a thin strip was tappable.
+  Root cause confirmed from source: `FieldGroup.Section`'s ListItem wrapper is **never**
+  `clickable` (`FieldSection.android.tsx`), and there's no escape hatch — `@expo/ui`'s
+  *universal* `ListItem` DOES support full-bleed `onPress` (`ListItemView.kt` applies the
+  `clickable` modifier to the Material ListItem itself), it's just not what `FieldGroup.Section`
+  uses. No upstream issue exists. **Fix:** Android now has its own `native-controls.android.tsx`
+  (Metro platform resolution; `native-controls.tsx` stays the iOS/default — SwiftUI `Form`
+  already taps full-row) that rebuilds the grouped form from the same Compose primitives
+  (`LazyColumn` + `ListItem` + `clip` + `useMaterialColors`, mirroring `FieldGroup`/`FieldSection`)
+  but puts `clickable` on each row's `ListItem` → true edge-to-edge ripple + touch target. The
+  earlier `defaultMinSize`/`fillMaxWidth` stopgap remains only in the iOS/default file (a no-op
+  on iOS). No native module needed — every primitive is JS-exposed by `@expo/ui`.
 </content>
 </invoke>

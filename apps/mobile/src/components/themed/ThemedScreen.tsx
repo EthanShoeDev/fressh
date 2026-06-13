@@ -1,8 +1,10 @@
+import { useIsFocused } from 'expo-router';
+import { use } from 'react';
 import { View, type ViewProps, type ViewStyle } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { useThemeSkin } from '@/lib/theme-skin';
-import { ThemedBackground } from './ThemedBackground';
+import { CanvasHoistedContext, ThemedBackground } from './ThemedBackground';
 
 const DEFAULT_EDGES: readonly Edge[] = ['top'];
 
@@ -10,6 +12,16 @@ const DEFAULT_EDGES: readonly Edge[] = ['top'];
  * Screen scaffold that paints the active theme's canvas (gradient blobs +
  * scanlines) behind a safe-area content area. Use in place of a bare
  * `SafeAreaView` so every screen inherits the theme's background character.
+ *
+ * Under the JS tab navigator (`CanvasHoistedContext`) the canvas — and the
+ * background color — live ABOVE the navigator in `JsTabsLayout`, so this
+ * scaffold stays fully transparent to let the one persistent surface show
+ * through; per-screen surfaces would be torn down (and re-init black) on every
+ * tab switch. Everywhere else (native tabs, modals) the canvas renders per
+ * screen, because opaque native-tab scenes occlude anything hosted behind the
+ * navigator. The teardown crash per-screen rendering risks (surface destroyed
+ * mid-render-loop) is handled by the react-native-webgpu patch (see
+ * docs/bun-patches.md), which guards the null texture instead of crashing.
  */
 export function ThemedScreen({
 	children,
@@ -18,10 +30,24 @@ export function ThemedScreen({
 	children: React.ReactNode;
 	edges?: readonly Edge[];
 }) {
+	const hoisted = use(CanvasHoistedContext);
 	const background = useCSSVariable('--color-background') as string;
+	// Per-screen canvases mount only while the screen is FOCUSED. The native tab
+	// navigator destroys a hidden tab's surface regardless, so a blurred screen's
+	// render loop would spin on an abandoned surface — observed as the canvas
+	// stuck solid black after a switch (the loop kept drawing into the webgpu
+	// patch's discarded fallback texture and never re-attached), and as worklet
+	// JNI aborts (tombstones: uncaught JniException on the worklet thread).
+	// Unmounting on blur stops the loop cleanly; refocus mounts a fresh surface.
+	// The re-init fade on return is inherent to per-screen surfaces — the hoisted
+	// path above is the seamless one. (Does not apply to the hoisted canvas,
+	// which lives outside any screen and must never unmount.)
+	const focused = useIsFocused();
 	return (
-		<View style={{ flex: 1, backgroundColor: background }}>
-			<ThemedBackground />
+		<View
+			style={{ flex: 1, backgroundColor: hoisted ? 'transparent' : background }}
+		>
+			{hoisted || !focused ? null : <ThemedBackground />}
 			<SafeAreaView style={{ flex: 1 }} edges={edges}>
 				{children}
 			</SafeAreaView>

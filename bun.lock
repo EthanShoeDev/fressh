@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "fressh",
@@ -159,10 +158,11 @@
   },
   "patchedDependencies": {
     "expo-modules-jsi@56.0.8": "patches/expo-modules-jsi@56.0.8.patch",
+    "expo-modules-core@56.0.15": "patches/expo-modules-core@56.0.15.patch",
+    "react-native-webgpu@0.5.15": "patches/react-native-webgpu@0.5.15.patch",
+    "metro-runtime@0.84.4": "patches/metro-runtime@0.84.4.patch",
     "react-native-effects@0.2.0": "patches/react-native-effects@0.2.0.patch",
     "metro@0.84.4": "patches/metro@0.84.4.patch",
-    "expo-modules-core@56.0.15": "patches/expo-modules-core@56.0.15.patch",
-    "metro-runtime@0.84.4": "patches/metro-runtime@0.84.4.patch",
     "nitrogen@0.35.9": "patches/nitrogen@0.35.9.patch",
   },
   "overrides": {

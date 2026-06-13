@@ -5,11 +5,16 @@
 // NOT resolvable as ESM bare specifiers when Node's import() loads this file
 // (eas build does exactly that). So keep the file ESM but pull those CJS deps in
 // via createRequire — CJS resolution handles their subpaths/exports correctly.
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { getDefaultConfig } = require('expo/metro-config');
+// Expo's binary FileStore (the same class its default config uses) — reused so the
+// relocated transform cache keeps Expo's msgpackr serialization rather than metro's
+// slower JSON one. See the cache-relocation block below.
+const { FileStore } = require('@expo/metro-config/file-store');
 const { withUniwindConfig } = require('uniwind/metro');
 const {
 	getBundleModeMetroConfig,
@@ -61,6 +66,30 @@ const rustTargetRE = /[\\/]rust[\\/]target[\\/].*/;
 config.resolver.blockList = config.resolver.blockList
 	? [].concat(config.resolver.blockList, rustTargetRE)
 	: [rustTargetRE];
+
+// Keep Metro's caches INSIDE the repo so `git clean -fxd` actually clears them.
+// Both default to `os.tmpdir()/metro-cache` (and `os.tmpdir()` for the file map),
+// which under nix-shell is `/tmp/nix-shell.XXXX/…` — outside the tree, so a repo
+// clean leaves stale transform results behind that reference now-deleted generated
+// files (e.g. worklets Bundle Mode's `.worklets/<id>.js`), giving ENOENT bundling
+// errors. `node_modules/.cache` is git-ignored and removed by `git clean -fxd`, so
+// the cache lifecycle now matches the rest of node_modules.
+const metroCacheRoot = path.join(
+	workspaceRoot,
+	'node_modules',
+	'.cache',
+	'metro',
+);
+const transformCacheDir = path.join(metroCacheRoot, 'transform');
+const fileMapCacheDir = path.join(metroCacheRoot, 'file-map');
+// Pre-create both dirs: the transform FileStore mkdirs on its own, but
+// @expo/metro-file-map's DiskCacheManager writes the cache file without creating
+// its parent (it always assumed the pre-existing os.tmpdir()), so a fresh repo
+// would ENOENT on first cache write.
+fs.mkdirSync(transformCacheDir, { recursive: true });
+fs.mkdirSync(fileMapCacheDir, { recursive: true });
+config.cacheStores = [new FileStore({ root: transformCacheDir })];
+config.fileMapCacheDirectory = fileMapCacheDir;
 
 // `withUniwindConfig` must be the OUTERMOST wrapper.
 export default withUniwindConfig(config, {

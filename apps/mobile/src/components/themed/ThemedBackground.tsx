@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { createContext, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ShaderView } from 'react-native-effects';
 import {
@@ -6,6 +6,49 @@ import {
 	skinHasCanvas,
 	useThemeSkin,
 } from '@/lib/theme-skin';
+import {
+	ViewScanlines,
+	ViewThemedBackground,
+} from './ThemedBackground.views';
+
+/**
+ * Which renderer paints the themed background:
+ * - `'views'` — RN views + native `radial-gradient` (`ThemedBackground.views`).
+ *   Composites behind BOTH tab bars, no GPU surface lifecycle. Default.
+ * - `'wgpu'` — the WebGPU `ShaderView` renderer below. Seamless on JS tabs only
+ *   (its surface can't sit behind the native tab bar's fragments) and carries
+ *   the teardown/Dawn-patch complexity, but renders a true fragment shader.
+ *
+ * Both implementations live in the tree; flip this one constant to switch. See
+ * docs/projects/debug-wgpu-shader-android.md for the trade-off.
+ */
+const THEMED_BACKGROUND_RENDERER: 'views' | 'wgpu' = 'views';
+
+/**
+ * True when a single persistent `ThemedBackground` is hosted ABOVE the tab
+ * navigator (`JsTabsLayout`), so per-screen scaffolds must not paint their own
+ * canvas or an opaque background over it. Hoisting is what makes tab switches
+ * seamless: a per-screen WebGPU surface is torn down whenever its tab hides,
+ * so coming back means a from-scratch surface re-init (black, then a frame
+ * ~1s later). One canvas above the navigator never unmounts. (The RN-view
+ * renderer has no such teardown, but hoisting is harmless there.)
+ *
+ * Screens outside the JS tab navigator (native tabs, modals) get the default
+ * `false` and keep their own per-screen canvas — there the teardown crash is
+ * handled by the react-native-webgpu patch (see docs/bun-patches.md).
+ */
+export const CanvasHoistedContext = createContext(false);
+
+/** The active themed background. Both renderers share the `ThemedScreen` seam,
+ *  so screens never know which one is mounted. */
+export const ThemedBackground =
+	THEMED_BACKGROUND_RENDERER === 'views'
+		? ViewThemedBackground
+		: WgpuThemedBackground;
+
+/** The active standalone scanline overlay (Phosphor's JS tab bar). */
+export const Scanlines =
+	THEMED_BACKGROUND_RENDERER === 'views' ? ViewScanlines : WgpuScanlines;
 
 /**
  * The per-theme screen canvas: soft radial gradient blobs + an optional CRT
@@ -25,7 +68,7 @@ import {
  * generated WGSL string (memoized per skin) instead of fed through ShaderView's
  * small uniform budget (2 colors / 8 floats).
  */
-export function ThemedBackground() {
+function WgpuThemedBackground() {
 	const skin = useThemeSkin();
 	const fragmentShader = useMemo(
 		() =>
@@ -57,7 +100,7 @@ export function ThemedBackground() {
 
 /** Faint CRT scanline overlay on its own (Phosphor's JS tab bar). One static
  *  frame — the loop stops after presenting it. */
-export function Scanlines() {
+function WgpuScanlines() {
 	return (
 		<View pointerEvents='none' style={StyleSheet.absoluteFill}>
 			<ShaderView

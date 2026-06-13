@@ -8,6 +8,16 @@ import { NATIVE_TAB_STYLES, type AppThemeName } from '@/lib/theme';
  * platform-correct (iOS liquid-glass / Material), but only partially styleable —
  * see `JsTabsLayout` + `CustomTabBar` for the fully theme-driven alternative.
  * `(tabs)/_layout.tsx` picks between the two.
+ *
+ * No themed canvas is hosted here. The native tab navigator hosts each scene in
+ * a fragment and tears it down on switch (`remove+add`, rn-screens
+ * `TabsContainer`), and ANYTHING placed behind the tab host is occluded by that
+ * fragment layer at the Android compositing level — verified for both the WebGPU
+ * `TextureView` AND a plain RN view (both showed a solid background color, no
+ * gradient). So canvas themes fall back to the per-screen `ThemedBackground` in
+ * `ThemedScreen` (the gradient shows, but repaints on each switch). A seamless
+ * animated background needs the JS tab bar; see
+ * docs/projects/debug-wgpu-shader-android.md.
  */
 export function NativeTabsLayout() {
 	// NativeTabs is a third-party component taking plain color strings, so

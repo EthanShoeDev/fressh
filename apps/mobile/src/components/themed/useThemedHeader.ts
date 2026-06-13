@@ -1,7 +1,9 @@
 import { useSegments } from 'expo-router';
+import { use } from 'react';
 import { useCSSVariable } from 'uniwind';
 import { TAB_ROUTES } from '@/lib/tab-bar-config';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
+import { CanvasHoistedContext } from './ThemedBackground';
 
 /**
  * Themed options for a native stack header so its title carries the active
@@ -26,9 +28,18 @@ export function useThemedHeader() {
 	const textPrimary = useCSSVariable('--color-text-primary') as string;
 	const segments = useSegments();
 	const tab = TAB_ROUTES.find((route) => route.name === segments[1]);
+	// When the theme canvas is hoisted above the tab navigator, every native-stack
+	// screen must be transparent too — the navigator's default contentStyle paints
+	// the opaque navigation-theme background, which would occlude the canvas.
+	// Screens that want an opaque background (terminal, settings sub-screens)
+	// paint their own.
+	const hoistedCanvas = use(CanvasHoistedContext);
 
 	return {
 		screenOptions: {
+			contentStyle: hoistedCanvas
+				? { backgroundColor: 'transparent' as const }
+				: undefined,
 			headerStyle: { backgroundColor: surface },
 			headerTintColor: textPrimary,
 			headerTitleStyle: {

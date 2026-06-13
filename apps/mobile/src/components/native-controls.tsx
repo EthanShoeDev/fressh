@@ -8,9 +8,28 @@ import {
 	Switch,
 	Text,
 } from '@expo/ui';
-import type { ReactNode } from 'react';
+import {
+	defaultMinSize,
+	fillMaxWidth,
+} from '@expo/ui/jetpack-compose/modifiers';
+import { isValidElement, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { useCSSVariable, useUniwind } from 'uniwind';
 import { NativeSegmentedControl } from '@/components/native-segmented-control';
+
+/**
+ * Android: a `FieldGroup.Section` wraps each row in a Material `ListItem` that
+ * draws the full-height row surface, but `onPress` lives on OUR inner `Row` —
+ * whose natural height is one text line, so only that thin strip was tappable.
+ * Stretch pressable rows to the ListItem's full content box (width + Material
+ * minimum touch-target height) so the whole row hits. The Compose `clickable`
+ * is applied outside these layout modifiers, so the hit area includes the
+ * expanded box. iOS needs nothing — SwiftUI Form rows hit-test the full row.
+ */
+const PRESSABLE_ROW_MODIFIERS =
+	Platform.OS === 'android'
+		? [fillMaxWidth(), defaultMinSize({ minHeight: 40 })]
+		: undefined;
 
 /**
  * The Native theme's UI, built from real platform controls via `@expo/ui` —
@@ -42,24 +61,85 @@ export function NativeForm({ children }: { children: ReactNode }) {
 	// other resolved theme (native dark + the stylized themes) is dark.
 	const { theme } = useUniwind();
 	const colorScheme = theme === 'native-light' ? 'light' : 'dark';
+	const muted = useCSSVariable('--color-muted') as string;
 	return (
 		<Host style={{ flex: 1 }} colorScheme={colorScheme}>
-			<FieldGroup>{children}</FieldGroup>
+			<FieldGroup>{resolveSections(children, muted)}</FieldGroup>
 		</Host>
 	);
 }
 
-/** A grouped (inset card) section inside a {@link NativeForm}, with an optional
- *  muted footer — the native section-footer idiom for explanatory prose. */
-export function NativeSection({
-	title,
-	footer,
-	children,
-}: {
+type NativeSectionProps = {
 	title?: string;
 	footer?: string;
 	children: ReactNode;
-}) {
+};
+
+/**
+ * Rewrite `<NativeSection>` children into REAL `FieldGroup.Section` elements.
+ * Android's `FieldGroup` groups its children by element-type identity
+ * (`child.type === FieldGroup.Section` in @expo/ui's groupFieldGroupChildren);
+ * a wrapper component fails that check, so every `NativeSection` was treated
+ * as a loose row and wrapped in an extra Material `ListItem` card — each whole
+ * section got ListItem padding/min-height, which read as huge dead gaps
+ * between groups. (iOS never noticed: SwiftUI `Form` resolves wrapper
+ * components natively.) Recurses into arrays so conditional lists still work.
+ */
+function resolveSections(
+	children: ReactNode,
+	muted: string,
+	index?: number,
+): ReactNode {
+	if (Array.isArray(children)) {
+		return (children as ReactNode[]).map((child, i) =>
+			resolveSections(child, muted, i),
+		);
+	}
+	if (!isValidElement(children) || children.type !== NativeSection) {
+		return children;
+	}
+	const {
+		title,
+		footer,
+		children: rows,
+	} = children.props as NativeSectionProps;
+	// @expo/ui's slot extractor pushes EVERY non-element child — including the
+	// `null` of a `{cond ? <Row/> : null}` — as a row, and each row becomes a
+	// Material ListItem, so a stray null renders as an empty settings row.
+	// Filter them out (the elements keep their identity, so no key churn).
+	const rowList = (Array.isArray(rows) ? (rows as ReactNode[]) : [rows]).filter(
+		(row) => row !== null && row !== undefined && typeof row !== 'boolean',
+	);
+	// Static JSX siblings carry no key (null), so fall back to the array
+	// position, like React's own implicit keying. The element identity
+	// (FieldGroup.Section) is the whole point here — it must be the DIRECT
+	// child the FieldGroup sees, not hidden behind another wrapper component.
+	// The footer branch duplicates the Section instead of embedding
+	// `{footer ? … : null}` — that null would itself become an empty row.
+	const key = children.key ?? index;
+	if (!footer) {
+		return (
+			<FieldGroup.Section key={key} title={title}>
+				{rowList}
+			</FieldGroup.Section>
+		);
+	}
+	return (
+		<FieldGroup.Section key={key} title={title}>
+			{rowList}
+			<FieldGroup.SectionFooter>
+				<Text textStyle={{ fontSize: 13, color: muted }}>{footer}</Text>
+			</FieldGroup.SectionFooter>
+		</FieldGroup.Section>
+	);
+}
+
+/** A grouped (inset card) section inside a {@link NativeForm}, with an optional
+ *  muted footer — the native section-footer idiom for explanatory prose.
+ *  MUST be a direct child of `NativeForm`, which replaces it with a real
+ *  `FieldGroup.Section` (see {@link resolveSections}) — this component itself
+ *  never renders there. */
+export function NativeSection({ title, footer, children }: NativeSectionProps) {
 	const muted = useCSSVariable('--color-muted') as string;
 	return (
 		<FieldGroup.Section title={title}>
@@ -160,7 +240,12 @@ export function NativeSelectRow({
 	// platform's default label color.
 	const primary = useCSSVariable('--color-primary') as string;
 	return (
-		<Row onPress={onPress} alignment='center' spacing={12}>
+		<Row
+			onPress={onPress}
+			alignment='center'
+			spacing={12}
+			modifiers={PRESSABLE_ROW_MODIFIERS}
+		>
 			<Text>{label}</Text>
 			<Spacer flexible />
 			{selected ? (
@@ -220,7 +305,12 @@ export function NativeNavRow({
 }) {
 	const muted = useCSSVariable('--color-muted') as string;
 	return (
-		<Row onPress={onPress} alignment='center' spacing={12}>
+		<Row
+			onPress={onPress}
+			alignment='center'
+			spacing={12}
+			modifiers={PRESSABLE_ROW_MODIFIERS}
+		>
 			<Text>{label}</Text>
 			<Spacer flexible />
 			{value ? <Text textStyle={{ color: muted }}>{value}</Text> : null}

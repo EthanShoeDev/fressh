@@ -1,0 +1,82 @@
+diff --git a/android/build.gradle b/android/build.gradle
+index 043ab862a0012d66afda1181536d56ab73b6ba9b..bbb0e34a66d140f496a49897dfa495d31669b805 100644
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -65,6 +65,15 @@ def supportsNamespace() {
+ android {
+   compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
+ 
++  // Pin to the project's NDK instead of AGP's baked-in default. This module
++  // builds native code via CMake but ships no ndkVersion, so AGP would request
++  // its default NDK (e.g. 27.0.12077973) which isn't installed by our nix SDK
++  // env (it provides one pinned NDK). rootProject.ext.ndkVersion is set by
++  // expo-root-project and used by every other native module (see expo-modules-core).
++  if (rootProject.ext.has("ndkVersion")) {
++    ndkVersion rootProject.ext.ndkVersion
++  }
++
+   defaultConfig {
+     minSdkVersion getExtOrIntegerDefault("minSdkVersion")
+     targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
+diff --git a/cpp/rnwgpu/SurfaceRegistry.h b/cpp/rnwgpu/SurfaceRegistry.h
+index 5e96ee48043e301354745acea22167b58e992b45..a484e9b27468fe2bdf2a279f6ddf5a1624345700 100644
+--- a/cpp/rnwgpu/SurfaceRegistry.h
++++ b/cpp/rnwgpu/SurfaceRegistry.h
+@@ -151,10 +151,31 @@ public:
+     if (surface) {
+       wgpu::SurfaceTexture surfaceTexture;
+       surface.GetCurrentTexture(&surfaceTexture);
+-      return surfaceTexture.texture;
+-    } else {
++      if (surfaceTexture.texture != nullptr) {
++        return surfaceTexture.texture;
++      }
++    } else if (texture != nullptr) {
+       return texture;
+     }
++    // The surface was torn down mid-frame (e.g. Android surfaceDestroyed on a
++    // tab switch) while a worklet render loop is still presenting. Hand back a
++    // throwaway texture so getCurrentTexture().createView() renders into a
++    // discarded target instead of dereferencing null in Dawn — which crashed
++    // the process (SIGSEGV, or SIGABRT once guarded with a throw). Only reached
++    // when the live surface yields no texture, so steady-state rendering on a
++    // focused screen is untouched. See docs/bun-patches.md.
++    if (config.device != nullptr &&
++        config.format != wgpu::TextureFormat::Undefined) {
++      wgpu::TextureDescriptor fallback;
++      fallback.format = config.format;
++      fallback.size.width = config.width > 0 ? config.width : 1;
++      fallback.size.height = config.height > 0 ? config.height : 1;
++      fallback.usage = wgpu::TextureUsage::RenderAttachment |
++                       wgpu::TextureUsage::CopySrc |
++                       wgpu::TextureUsage::TextureBinding;
++      return config.device.CreateTexture(&fallback);
++    }
++    return nullptr;
+   }
+ 
+   // True when an on-screen wgpu::Surface is attached (vs offscreen texture).
+diff --git a/cpp/rnwgpu/api/GPUTexture.cpp b/cpp/rnwgpu/api/GPUTexture.cpp
+index f1d84b99c24d2ff663ef3af5d16631658f9fc589..3fcd28ef76ded393b42c5db610a4097dae948be7 100644
+--- a/cpp/rnwgpu/api/GPUTexture.cpp
++++ b/cpp/rnwgpu/api/GPUTexture.cpp
+@@ -10,6 +10,19 @@ void GPUTexture::destroy() { _instance.Destroy(); }
+ 
+ std::shared_ptr<GPUTextureView> GPUTexture::createView(
+     std::optional<std::shared_ptr<GPUTextureViewDescriptor>> descriptor) {
++  // Guard a null/destroyed Dawn texture. An off-thread render loop (e.g.
++  // react-native-effects' ShaderView on a worklet runtime) can call
++  // getCurrentTexture().createView() one more time after the canvas surface was
++  // torn down — on Android, surfaceDestroyed() nulls the surface on tab switch /
++  // unmount, so getCurrentTexture() returns a null texture. Returning an empty
++  // view here avoids dereferencing null in dawn::native (SIGSEGV). We must NOT
++  // throw — an exception is uncaught on the worklet runtime and SIGABRTs the
++  // process. An empty view at most yields a recoverable Dawn validation error
++  // for that one teardown frame; this never runs on a live surface, so steady-
++  // state rendering is untouched. See docs/bun-patches.md.
++  if (_instance == nullptr) {
++    return std::make_shared<GPUTextureView>(wgpu::TextureView(nullptr), "");
++  }
+   wgpu::TextureViewDescriptor desc;
+   Convertor conv;
+   if (!conv(desc, descriptor)) {
