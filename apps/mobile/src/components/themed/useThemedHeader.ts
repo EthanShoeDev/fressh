@@ -26,7 +26,10 @@ export function useThemedHeader() {
 	const skin = useThemeSkin();
 	const surface = useCSSVariable('--color-surface') as string;
 	const textPrimary = useCSSVariable('--color-text-primary') as string;
-	const segments = useSegments();
+	// Type as a plain array: with typed routes, `useSegments()` is a union of
+	// per-route segment tuples (some length 1, e.g. `['_sitemap']`), so indexing
+	// `[1]` on the raw union is a tuple-out-of-bounds type error (TS2493).
+	const segments: readonly string[] = useSegments();
 	const tab = TAB_ROUTES.find((route) => route.name === segments[1]);
 	// When the theme canvas is hoisted above the tab navigator, every native-stack
 	// screen must be transparent too — the navigator's default contentStyle paints

@@ -16,6 +16,7 @@ import {
 	ToggleRow,
 } from '@/components/settings-controls';
 import { TerminalPreview } from '@/components/terminal-preview';
+import { ThemedScreen } from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
 import {
 	COLOR_SCHEMES,
@@ -78,7 +79,7 @@ export default function TerminalSettings() {
 function NativeTerminal() {
 	const s = useTerminalSettingsState();
 	return (
-		<View className='flex-1 bg-background'>
+		<ThemedScreen edges={[]}>
 			<View className='p-4 pb-0'>
 				<TerminalPreview />
 			</View>
@@ -197,7 +198,7 @@ function NativeTerminal() {
 					/>
 				</NativeSection>
 			</NativeForm>
-		</View>
+		</ThemedScreen>
 	);
 }
 
@@ -206,7 +207,7 @@ function CustomTerminal() {
 	const s = useTerminalSettingsState();
 	const bottomSpace = useBottomTabSpacing();
 	return (
-		<View className='flex-1 bg-background'>
+		<ThemedScreen edges={[]}>
 			{/* Sticky preview pinned above the scrolling settings list so it stays
 			    visible while you adjust theme / font / cursor and watch it reflow. */}
 			<View className='p-4 pb-0'>
@@ -338,6 +339,6 @@ function CustomTerminal() {
 					</View>
 				</Section>
 			</ScrollView>
-		</View>
+		</ThemedScreen>
 	);
 }

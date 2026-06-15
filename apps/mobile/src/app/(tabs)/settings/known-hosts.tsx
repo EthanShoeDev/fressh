@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Section } from '@/components/settings-controls';
 import { Button } from '@/components/themed/Button';
+import { ThemedScreen } from '@/components/themed/ThemedScreen';
 import { ThemedText } from '@/components/themed/ThemedText';
 import { revokeHost, useKnownHosts } from '@/lib/host-keys';
 import { hostPortLabel, type KnownHostEntry } from '@/lib/known-hosts';
@@ -43,16 +44,18 @@ export default function KnownHostsSettings() {
 
 	if (groups.length === 0) {
 		return (
-			<View className='flex-1 items-center justify-center bg-background p-8'>
-				<ThemedText className='text-center text-base text-muted'>
-					No known hosts yet — servers you trust will appear here.
-				</ThemedText>
-			</View>
+			<ThemedScreen edges={[]}>
+				<View className='flex-1 items-center justify-center p-8'>
+					<ThemedText className='text-center text-base text-muted'>
+						No known hosts yet — servers you trust will appear here.
+					</ThemedText>
+				</View>
+			</ThemedScreen>
 		);
 	}
 
 	return (
-		<View className='flex-1 bg-background'>
+		<ThemedScreen edges={[]}>
 			<ScrollView
 				className='flex-1'
 				contentContainerClassName='p-4'
@@ -79,7 +82,7 @@ export default function KnownHostsSettings() {
 					</Section>
 				))}
 			</ScrollView>
-		</View>
+		</ThemedScreen>
 	);
 }
 
