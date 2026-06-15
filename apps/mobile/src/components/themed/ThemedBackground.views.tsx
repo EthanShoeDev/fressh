@@ -13,7 +13,11 @@ import Animated, {
 	withRepeat,
 	withTiming,
 } from 'react-native-reanimated';
-import { type GradientBlob, skinHasCanvas, useThemeSkin } from '@/lib/theme-skin';
+import {
+	type GradientBlob,
+	skinHasCanvas,
+	useThemeSkin,
+} from '@/lib/theme-skin';
 
 /**
  * RN-view implementation of the themed background — the non-WebGPU alternative

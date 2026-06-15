@@ -292,7 +292,7 @@ shader* — measured against the Step 1 baseline.
   re-attached the hidden tab's native fragment tree. `JsTabsLayout` now passes
   `detachInactiveScreens={false}` (hidden scenes stay attached, `display:none`).
   Details + the WebGPU-canvas persistence work that pairs with it:
-  [debug-wgpu-shader-android.md](debug-wgpu-shader-android.md).
+  [themed-gradient-background.md](themed-gradient-background.md).
 - **Native theme, Android tap targets:** `FieldGroup.Section` rows on Android wrap each child
   in a Material `ListItem` (full-height visual surface) but our `onPress` sat on the inner
   `@expo/ui` `Row`, whose natural height is one text line — so only a thin strip was tappable.

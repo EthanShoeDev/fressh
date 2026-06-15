@@ -6,10 +6,7 @@ import {
 	skinHasCanvas,
 	useThemeSkin,
 } from '@/lib/theme-skin';
-import {
-	ViewScanlines,
-	ViewThemedBackground,
-} from './ThemedBackground.views';
+import { ViewScanlines, ViewThemedBackground } from './ThemedBackground.views';
 
 /**
  * Which renderer paints the themed background:
@@ -20,7 +17,7 @@ import {
  *   the teardown/Dawn-patch complexity, but renders a true fragment shader.
  *
  * Both implementations live in the tree; flip this one constant to switch. See
- * docs/projects/debug-wgpu-shader-android.md for the trade-off.
+ * docs/projects/themed-gradient-background.md for the trade-off.
  */
 const THEMED_BACKGROUND_RENDERER: 'views' | 'wgpu' = 'views';
 

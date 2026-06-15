@@ -1,35 +1,17 @@
-import {
-	Button,
-	Column,
-	FieldGroup,
-	Host,
-	Row,
-	Spacer,
-	Switch,
-	Text,
-} from '@expo/ui';
-import {
-	defaultMinSize,
-	fillMaxWidth,
-} from '@expo/ui/jetpack-compose/modifiers';
+import { FieldGroup, Host, Text } from '@expo/ui';
 import { isValidElement, type ReactNode } from 'react';
-import { Platform } from 'react-native';
 import { useCSSVariable, useUniwind } from 'uniwind';
-import { NativeSegmentedControl } from '@/components/native-segmented-control';
 
-/**
- * Android: a `FieldGroup.Section` wraps each row in a Material `ListItem` that
- * draws the full-height row surface, but `onPress` lives on OUR inner `Row` —
- * whose natural height is one text line, so only that thin strip was tappable.
- * Stretch pressable rows to the ListItem's full content box (width + Material
- * minimum touch-target height) so the whole row hits. The Compose `clickable`
- * is applied outside these layout modifiers, so the hit area includes the
- * expanded box. iOS needs nothing — SwiftUI Form rows hit-test the full row.
- */
-const PRESSABLE_ROW_MODIFIERS =
-	Platform.OS === 'android'
-		? [fillMaxWidth(), defaultMinSize({ minHeight: 40 })]
-		: undefined;
+// The settings rows are platform-agnostic; only this file's form container and
+// section grouping are iOS-specific (SwiftUI `FieldGroup`). See
+// `native-controls-rows` for the rows and the Android `NativeSection`.
+export {
+	NativeNavRow,
+	NativeSegmentedRow,
+	NativeSelectRow,
+	NativeStepperRow,
+	NativeToggleRow,
+} from '@/components/native-controls-rows';
 
 /**
  * The Native theme's UI, built from real platform controls via `@expo/ui` —
@@ -150,171 +132,5 @@ export function NativeSection({ title, footer, children }: NativeSectionProps) {
 				</FieldGroup.SectionFooter>
 			) : null}
 		</FieldGroup.Section>
-	);
-}
-
-/** `label … <trailing control>` — the standard settings row layout. */
-function LabeledRow({
-	label,
-	children,
-}: {
-	label: string;
-	children: ReactNode;
-}) {
-	return (
-		<Row alignment='center' spacing={12}>
-			<Text>{label}</Text>
-			<Spacer flexible />
-			{children}
-		</Row>
-	);
-}
-
-export function NativeToggleRow({
-	label,
-	value,
-	onChange,
-}: {
-	label: string;
-	value: boolean;
-	onChange: (value: boolean) => void;
-}) {
-	return (
-		<LabeledRow label={label}>
-			<Switch value={value} onValueChange={onChange} />
-		</LabeledRow>
-	);
-}
-
-export function NativeSegmentedRow<T extends string>({
-	label,
-	options,
-	value,
-	onChange,
-	layout = 'stack',
-}: {
-	/** A caption for the control. With `layout='stack'` it sits above (omit when
-	 *  the section title already names it); with `layout='inline'` it's required
-	 *  and sits to the left, the control trailing. */
-	label?: string;
-	options: readonly { id: T; label: string }[];
-	value: T;
-	onChange: (id: T) => void;
-	/** `stack` = full-width control under an optional caption; `inline` = compact
-	 *  control trailing a left-hand `label` (best for 2–3 options so a full-width
-	 *  segmented control doesn't dominate a row). */
-	layout?: 'stack' | 'inline';
-}) {
-	// A real native segmented control, not the dropdown menu Picker.
-	const muted = useCSSVariable('--color-muted') as string;
-	const control = (
-		<NativeSegmentedControl
-			options={options}
-			value={value}
-			onChange={onChange}
-		/>
-	);
-	if (layout === 'inline') {
-		return <LabeledRow label={label ?? ''}>{control}</LabeledRow>;
-	}
-	return (
-		<Column spacing={6} alignment='start'>
-			{label ? (
-				<Text textStyle={{ fontSize: 13, color: muted }}>{label}</Text>
-			) : null}
-			{control}
-		</Column>
-	);
-}
-
-export function NativeSelectRow({
-	label,
-	selected,
-	onPress,
-}: {
-	label: string;
-	selected?: boolean;
-	onPress: () => void;
-}) {
-	// Tint the checkmark with the (system) primary; the label defers to the
-	// platform's default label color.
-	const primary = useCSSVariable('--color-primary') as string;
-	return (
-		<Row
-			onPress={onPress}
-			alignment='center'
-			spacing={12}
-			modifiers={PRESSABLE_ROW_MODIFIERS}
-		>
-			<Text>{label}</Text>
-			<Spacer flexible />
-			{selected ? (
-				<Text textStyle={{ color: primary, fontWeight: '600' }}>✓</Text>
-			) : null}
-		</Row>
-	);
-}
-
-export function NativeStepperRow({
-	label,
-	value,
-	onDec,
-	onInc,
-	decDisabled,
-	incDisabled,
-}: {
-	label: string;
-	value: number | string;
-	onDec: () => void;
-	onInc: () => void;
-	decDisabled?: boolean;
-	incDisabled?: boolean;
-}) {
-	const display = typeof value === 'number' ? value.toLocaleString() : value;
-	return (
-		<LabeledRow label={label}>
-			<Row alignment='center' spacing={8}>
-				<Button
-					variant='outlined'
-					disabled={decDisabled}
-					onPress={onDec}
-					label='−'
-				/>
-				<Text>{display}</Text>
-				<Button
-					variant='outlined'
-					disabled={incDisabled}
-					onPress={onInc}
-					label='+'
-				/>
-			</Row>
-		</LabeledRow>
-	);
-}
-
-/** A tappable row that navigates elsewhere (trailing chevron), with an optional
- *  muted current-value readout before the chevron — the settings-row idiom. */
-export function NativeNavRow({
-	label,
-	value,
-	onPress,
-}: {
-	label: string;
-	value?: string;
-	onPress: () => void;
-}) {
-	const muted = useCSSVariable('--color-muted') as string;
-	return (
-		<Row
-			onPress={onPress}
-			alignment='center'
-			spacing={12}
-			modifiers={PRESSABLE_ROW_MODIFIERS}
-		>
-			<Text>{label}</Text>
-			<Spacer flexible />
-			{value ? <Text textStyle={{ color: muted }}>{value}</Text> : null}
-			<Text textStyle={{ color: muted }}>›</Text>
-		</Row>
 	);
 }

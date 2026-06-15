@@ -17,7 +17,7 @@ import { NATIVE_TAB_STYLES, type AppThemeName } from '@/lib/theme';
  * gradient). So canvas themes fall back to the per-screen `ThemedBackground` in
  * `ThemedScreen` (the gradient shows, but repaints on each switch). A seamless
  * animated background needs the JS tab bar; see
- * docs/projects/debug-wgpu-shader-android.md.
+ * docs/projects/themed-gradient-background.md.
  */
 export function NativeTabsLayout() {
 	// NativeTabs is a third-party component taking plain color strings, so

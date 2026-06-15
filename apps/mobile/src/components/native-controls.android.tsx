@@ -1,5 +1,9 @@
-import { Button, Column, Host, Row, Spacer, Switch, Text } from '@expo/ui';
-import { LazyColumn, ListItem, useMaterialColors } from '@expo/ui/jetpack-compose';
+import { Column, Host, Text } from '@expo/ui';
+import {
+	LazyColumn,
+	ListItem,
+	useMaterialColors,
+} from '@expo/ui/jetpack-compose';
 import {
 	background,
 	clickable,
@@ -10,7 +14,18 @@ import {
 } from '@expo/ui/jetpack-compose/modifiers';
 import { isValidElement, type ReactNode } from 'react';
 import { useCSSVariable, useUniwind } from 'uniwind';
-import { NativeSegmentedControl } from '@/components/native-segmented-control';
+
+// The settings rows are platform-agnostic; only this file's Compose form
+// container and the `NativeSection` below — which puts the `clickable` ripple on
+// the row's own `ListItem` (the whole reason this `.android` file exists) — are
+// Android-specific. See `native-controls-rows` for the rows.
+export {
+	NativeNavRow,
+	NativeSegmentedRow,
+	NativeSelectRow,
+	NativeStepperRow,
+	NativeToggleRow,
+} from '@/components/native-controls-rows';
 
 /**
  * ANDROID native settings UI. The iOS version (`native-controls.tsx`) uses
@@ -129,9 +144,24 @@ const FULL = 20;
 const SMALL = 4;
 const CORNER_RADII = {
 	only: { topStart: FULL, topEnd: FULL, bottomStart: FULL, bottomEnd: FULL },
-	leading: { topStart: FULL, topEnd: FULL, bottomStart: SMALL, bottomEnd: SMALL },
-	trailing: { topStart: SMALL, topEnd: SMALL, bottomStart: FULL, bottomEnd: FULL },
-	middle: { topStart: SMALL, topEnd: SMALL, bottomStart: SMALL, bottomEnd: SMALL },
+	leading: {
+		topStart: FULL,
+		topEnd: FULL,
+		bottomStart: SMALL,
+		bottomEnd: SMALL,
+	},
+	trailing: {
+		topStart: SMALL,
+		topEnd: SMALL,
+		bottomStart: FULL,
+		bottomEnd: FULL,
+	},
+	middle: {
+		topStart: SMALL,
+		topEnd: SMALL,
+		bottomStart: SMALL,
+		bottomEnd: SMALL,
+	},
 } as const;
 
 function cornerRadii(position: keyof typeof CORNER_RADII) {
@@ -149,158 +179,4 @@ function getFieldItemPosition(index: number, total: number) {
 		return 'trailing' as const;
 	}
 	return 'middle' as const;
-}
-
-// --- Rows -------------------------------------------------------------------
-// Rows render only their VISUAL content (label + trailing) and fill the row
-// width so the trailing `Spacer` pushes the control to the edge. Interactivity
-// for tappable rows lives on the wrapping `ListItem` (NativeSection reads the
-// row element's `onPress` and applies `clickable`), which is what gives the
-// edge-to-edge ripple — so these rows never set `onPress` on their own `Row`.
-
-/** `label … <trailing control>` — the standard settings row layout. */
-function LabeledRow({
-	label,
-	children,
-}: {
-	label: string;
-	children: ReactNode;
-}) {
-	return (
-		<Row alignment='center' spacing={12} modifiers={[fillMaxWidth()]}>
-			<Text>{label}</Text>
-			<Spacer flexible />
-			{children}
-		</Row>
-	);
-}
-
-export function NativeToggleRow({
-	label,
-	value,
-	onChange,
-}: {
-	label: string;
-	value: boolean;
-	onChange: (value: boolean) => void;
-}) {
-	return (
-		<LabeledRow label={label}>
-			<Switch value={value} onValueChange={onChange} />
-		</LabeledRow>
-	);
-}
-
-export function NativeSegmentedRow<T extends string>({
-	label,
-	options,
-	value,
-	onChange,
-	layout = 'stack',
-}: {
-	label?: string;
-	options: readonly { id: T; label: string }[];
-	value: T;
-	onChange: (id: T) => void;
-	layout?: 'stack' | 'inline';
-}) {
-	const muted = useCSSVariable('--color-muted') as string;
-	const control = (
-		<NativeSegmentedControl
-			options={options}
-			value={value}
-			onChange={onChange}
-		/>
-	);
-	if (layout === 'inline') {
-		return <LabeledRow label={label ?? ''}>{control}</LabeledRow>;
-	}
-	return (
-		<Column spacing={6} alignment='start' modifiers={[fillMaxWidth()]}>
-			{label ? (
-				<Text textStyle={{ fontSize: 13, color: muted }}>{label}</Text>
-			) : null}
-			{control}
-		</Column>
-	);
-}
-
-export function NativeSelectRow({
-	label,
-	selected,
-}: {
-	label: string;
-	selected?: boolean;
-	/** Read by {@link NativeSection} and applied to the row's `ListItem`. */
-	onPress: () => void;
-}) {
-	const primary = useCSSVariable('--color-primary') as string;
-	return (
-		<Row alignment='center' spacing={12} modifiers={[fillMaxWidth()]}>
-			<Text>{label}</Text>
-			<Spacer flexible />
-			{selected ? (
-				<Text textStyle={{ color: primary, fontWeight: '600' }}>✓</Text>
-			) : null}
-		</Row>
-	);
-}
-
-export function NativeStepperRow({
-	label,
-	value,
-	onDec,
-	onInc,
-	decDisabled,
-	incDisabled,
-}: {
-	label: string;
-	value: number | string;
-	onDec: () => void;
-	onInc: () => void;
-	decDisabled?: boolean;
-	incDisabled?: boolean;
-}) {
-	const display = typeof value === 'number' ? value.toLocaleString() : value;
-	return (
-		<LabeledRow label={label}>
-			<Row alignment='center' spacing={8}>
-				<Button
-					variant='outlined'
-					disabled={decDisabled}
-					onPress={onDec}
-					label='−'
-				/>
-				<Text>{display}</Text>
-				<Button
-					variant='outlined'
-					disabled={incDisabled}
-					onPress={onInc}
-					label='+'
-				/>
-			</Row>
-		</LabeledRow>
-	);
-}
-
-/** A tappable row that navigates elsewhere (trailing chevron), with an optional
- *  muted current-value readout before the chevron. */
-export function NativeNavRow({
-	label,
-	value,
-}: {
-	label: string;
-	value?: string;
-	/** Read by {@link NativeSection} and applied to the row's `ListItem`. */
-	onPress: () => void;
-}) {
-	const muted = useCSSVariable('--color-muted') as string;
-	return (
-		<Row alignment='center' spacing={12} modifiers={[fillMaxWidth()]}>
-			<Text>{label}</Text>
-			<Spacer flexible />
-			{value ? <Text textStyle={{ color: muted }}>{value}</Text> : null}
-			<Text textStyle={{ color: muted }}>›</Text>
-		</Row>
-	);
 }
