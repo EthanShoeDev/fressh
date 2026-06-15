@@ -2,6 +2,11 @@ import { createContext, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ShaderView } from 'react-native-effects';
 import {
+	DEBUG_RENDERER_TINT,
+	DEBUG_TINT_WGPU,
+	debugTintBlobs,
+} from '@/lib/theme-debug';
+import {
 	type GradientBlob,
 	skinHasCanvas,
 	useThemeSkin,
@@ -11,15 +16,23 @@ import { ViewScanlines, ViewThemedBackground } from './ThemedBackground.views';
 /**
  * Which renderer paints the themed background:
  * - `'views'` — RN views + native `radial-gradient` (`ThemedBackground.views`).
- *   Composites behind BOTH tab bars, no GPU surface lifecycle. Default.
- * - `'wgpu'` — the WebGPU `ShaderView` renderer below. Seamless on JS tabs only
- *   (its surface can't sit behind the native tab bar's fragments) and carries
- *   the teardown/Dawn-patch complexity, but renders a true fragment shader.
+ *   Composites behind BOTH tab bars, no GPU surface lifecycle. The shipped value.
+ * - `'wgpu'` — the WebGPU `ShaderView` renderer below. Renders a true fragment
+ *   shader. With the focus-gate gone it no longer flickers on the native bar, but
+ *   it still CRASHES there (its off-thread render loop hits the torn-down surface
+ *   on a tab switch — the Dawn patch doesn't cover every path), so it's JS-bar
+ *   only. Kept behind the flag for A/B.
  *
  * Both implementations live in the tree; flip this one constant to switch. See
  * docs/projects/themed-gradient-background.md for the trade-off.
+ *
+ * Debug aid: `theme-debug.ts` tints each renderer a distinct color (views =
+ * magenta, wgpu = cyan) so you can confirm which is live; set `DEBUG_RENDERER_TINT`
+ * false to restore real theme colors.
  */
-const THEMED_BACKGROUND_RENDERER: 'views' | 'wgpu' = 'views';
+// `as` the union (not a literal) so flipping the value doesn't make the
+// `=== 'views'` selectors below type-narrow to a dead branch (TS2367).
+const THEMED_BACKGROUND_RENDERER = 'views' as 'views' | 'wgpu';
 
 /**
  * True when a single persistent `ThemedBackground` is hosted ABOVE the tab
@@ -67,17 +80,19 @@ export const Scanlines =
  */
 function WgpuThemedBackground() {
 	const skin = useThemeSkin();
-	const fragmentShader = useMemo(
-		() =>
-			skinHasCanvas(skin)
-				? buildChromeShader({
-						blobs: skin.blobs,
-						animate: skin.animateBlobs,
-						scanlines: skin.scanlines,
-					})
-				: null,
-		[skin],
-	);
+	const fragmentShader = useMemo(() => {
+		if (!skinHasCanvas(skin)) {
+			return null;
+		}
+		const blobs = DEBUG_RENDERER_TINT
+			? debugTintBlobs(skin.blobs, DEBUG_TINT_WGPU)
+			: skin.blobs;
+		return buildChromeShader({
+			blobs,
+			animate: skin.animateBlobs,
+			scanlines: skin.scanlines,
+		});
+	}, [skin]);
 
 	if (!fragmentShader) {
 		return null;
@@ -164,15 +179,15 @@ function buildChromeShader(spec: {
 		.map((blob, i) => {
 			const c = parseColor(blob.color);
 			const color = `vec4<f32>(${f(c.r)}, ${f(c.g)}, ${f(c.b)}, ${f(c.a)})`;
-			// Aurora's drift: a slow lava-lamp wander (~18s/23s loops, ±10%/±8% of
-			// the screen) plus a gentle radius pulse, phase-offset per blob so they
-			// move independently. Tuned to be clearly alive within a few seconds of
-			// looking, while staying slow enough to read as ambient.
+			// Aurora's lava-lamp drift (~18s/23s loops): ±14% width / ±18% height
+			// wander plus a ±12% radius pulse, phase-offset per blob so they move
+			// independently. Alive within a few seconds of looking, but slow enough
+			// to read as ambient.
 			const center = spec.animate
-				? `vec2<f32>((${f(blob.cx)} + sin(t / 2.8 + ${f(i)} * 2.1) * 0.10) * res.x, (${f(blob.cy)} + cos(t / 3.7 + ${f(i)} * 1.3) * 0.08) * res.y)`
+				? `vec2<f32>((${f(blob.cx)} + sin(t / 2.8 + ${f(i)} * 2.1) * 0.14) * res.x, (${f(blob.cy)} + cos(t / 3.7 + ${f(i)} * 1.3) * 0.18) * res.y)`
 				: `vec2<f32>(${f(blob.cx)} * res.x, ${f(blob.cy)} * res.y)`;
 			const radius = spec.animate
-				? `(${f(blob.r)} * (1.0 + sin(t / 3.1 + ${f(i)} * 2.6) * 0.06)) * maxDim`
+				? `(${f(blob.r)} * (1.0 + sin(t / 3.1 + ${f(i)} * 2.6) * 0.12)) * maxDim`
 				: `${f(blob.r)} * maxDim`;
 			return `  acc = blobOver(p, ${center}, ${radius}, ${color}, acc);`;
 		})

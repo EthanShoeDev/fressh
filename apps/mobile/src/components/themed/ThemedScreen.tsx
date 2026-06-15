@@ -1,4 +1,3 @@
-import { useIsFocused } from 'expo-router';
 import { use } from 'react';
 import { View, type ViewProps, type ViewStyle } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
@@ -32,22 +31,20 @@ export function ThemedScreen({
 }) {
 	const hoisted = use(CanvasHoistedContext);
 	const background = useCSSVariable('--color-background') as string;
-	// Per-screen canvases mount only while the screen is FOCUSED. The native tab
-	// navigator destroys a hidden tab's surface regardless, so a blurred screen's
-	// render loop would spin on an abandoned surface — observed as the canvas
-	// stuck solid black after a switch (the loop kept drawing into the webgpu
-	// patch's discarded fallback texture and never re-attached), and as worklet
-	// JNI aborts (tombstones: uncaught JniException on the worklet thread).
-	// Unmounting on blur stops the loop cleanly; refocus mounts a fresh surface.
-	// The re-init fade on return is inherent to per-screen surfaces — the hoisted
-	// path above is the seamless one. (Does not apply to the hoisted canvas,
-	// which lives outside any screen and must never unmount.)
-	const focused = useIsFocused();
+	// Non-hoisted screens (native tabs, modals) always paint their own canvas, and
+	// it STAYS mounted while the screen is blurred. We deliberately do not gate it
+	// on focus: any GPU-surface teardown when a native tab hides is the renderer's
+	// problem and is handled inside react-native-webgpu (the Dawn `bun patch` — see
+	// docs/bun-patches.md), NOT by manually unmounting from app code. An earlier
+	// `useIsFocused()` gate that dropped the canvas on blur was the *cause* of the
+	// native-bar "black flicker" — it tore the gradient down mid-switch so the flat
+	// per-screen `background` flashed through. See
+	// docs/projects/themed-gradient-background.md.
 	return (
 		<View
 			style={{ flex: 1, backgroundColor: hoisted ? 'transparent' : background }}
 		>
-			{hoisted || !focused ? null : <ThemedBackground />}
+			{hoisted ? null : <ThemedBackground />}
 			<SafeAreaView style={{ flex: 1 }} edges={edges}>
 				{children}
 			</SafeAreaView>

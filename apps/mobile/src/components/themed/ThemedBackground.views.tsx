@@ -14,6 +14,11 @@ import Animated, {
 	withTiming,
 } from 'react-native-reanimated';
 import {
+	DEBUG_RENDERER_TINT,
+	DEBUG_TINT_VIEWS,
+	debugTintBlobs,
+} from '@/lib/theme-debug';
+import {
 	type GradientBlob,
 	skinHasCanvas,
 	useThemeSkin,
@@ -37,9 +42,12 @@ export function ViewThemedBackground() {
 	if (!skinHasCanvas(skin)) {
 		return null;
 	}
+	const blobs = DEBUG_RENDERER_TINT
+		? debugTintBlobs(skin.blobs, DEBUG_TINT_VIEWS)
+		: skin.blobs;
 	return (
 		<View pointerEvents='none' style={StyleSheet.absoluteFill}>
-			{skin.blobs.map((blob, i) => (
+			{blobs.map((blob, i) => (
 				<Blob
 					// Blobs are a fixed per-theme list; index is a stable identity.
 					key={i}
@@ -66,10 +74,11 @@ function Blob({
 	const { width: w, height: h } = useWindowDimensions();
 	const maxDim = Math.max(w, h);
 	const diameter = 2 * blob.r * maxDim;
-	// Drift amplitudes mirror the WGSL renderer: ±10% width / ±8% height, ±6%
-	// radius (here a scale), with ~18s/23s/19s periods phase-offset per blob.
-	const ampX = 0.1 * w;
-	const ampY = 0.08 * h;
+	// Lava-lamp drift, mirrored in the WGSL renderer: ±14% width / ±18% height
+	// travel (taller vertical wander reads as rising/sinking) + a ±12% radius
+	// pulse (here a scale), with ~18s/23s/20s periods phase-offset per blob.
+	const ampX = 0.14 * w;
+	const ampY = 0.18 * h;
 
 	const base: ViewStyle = {
 		position: 'absolute',
@@ -122,7 +131,7 @@ function Blob({
 		transform: [
 			{ translateX: (x.value - 0.5) * 2 * ampX },
 			{ translateY: (y.value - 0.5) * 2 * ampY },
-			{ scale: 1 + (s.value - 0.5) * 2 * 0.06 },
+			{ scale: 1 + (s.value - 0.5) * 2 * 0.12 },
 		],
 	}));
 

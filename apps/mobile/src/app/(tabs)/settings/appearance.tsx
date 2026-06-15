@@ -1,4 +1,4 @@
-import { ScrollView, View } from 'react-native';
+import { ScrollView } from 'react-native';
 import {
 	NativeForm,
 	NativeSection,
@@ -6,6 +6,7 @@ import {
 	NativeSelectRow,
 } from '@/components/native-controls';
 import { Section } from '@/components/settings-controls';
+import { ThemedScreen } from '@/components/themed/ThemedScreen';
 import { ThemeGrid } from '@/components/theme-grid';
 import { APPEARANCE_MODES } from '@/lib/preferences';
 import { APP_THEMES, useAppTheme } from '@/lib/theme';
@@ -26,11 +27,13 @@ export default function AppearanceScreen() {
 	return useIsNativeTheme() ? <NativeAppearance /> : <CustomAppearance />;
 }
 
-/** Native theme: one full-screen `<Host>` form of platform controls. */
+/** Native theme: one full-screen `<Host>` form of platform controls. `edges={[]}`
+ *  because this route has a native stack header (see `_layout`), which already
+ *  consumes the top inset. */
 function NativeAppearance() {
 	const { themeName, setThemeName, appearance, setAppearance } = useAppTheme();
 	return (
-		<View className='flex-1 bg-background'>
+		<ThemedScreen edges={[]}>
 			<NativeForm>
 				<NativeSection title='Appearance' footer={APPEARANCE_FOOTER}>
 					<NativeSegmentedRow
@@ -52,16 +55,19 @@ function NativeAppearance() {
 					))}
 				</NativeSection>
 			</NativeForm>
-		</View>
+		</ThemedScreen>
 	);
 }
 
-/** Stylized themes (reached by picking one above): the swatch-grid picker. */
+/** Stylized themes (reached by picking one above): the swatch-grid picker.
+ *  Wrapped in `ThemedScreen` so the canvas gradient shows the moment you switch
+ *  off the Native theme while standing on this route (it previously rendered a
+ *  bare opaque `bg-background` with no `ThemedBackground`). */
 function CustomAppearance() {
 	const { themeName, setThemeName } = useAppTheme();
 	const bottomSpace = useBottomTabSpacing();
 	return (
-		<View className='flex-1 bg-background'>
+		<ThemedScreen edges={[]}>
 			<ScrollView
 				className='flex-1'
 				contentContainerClassName='p-4'
@@ -71,6 +77,6 @@ function CustomAppearance() {
 					<ThemeGrid themeName={themeName} setThemeName={setThemeName} />
 				</Section>
 			</ScrollView>
-		</View>
+		</ThemedScreen>
 	);
 }

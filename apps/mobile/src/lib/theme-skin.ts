@@ -157,10 +157,14 @@ const THEME_SKINS: Partial<Record<AppThemeName, ThemeSkin>> = {
 	aurora: {
 		radius: 18,
 		controlRadius: 14,
+		// Lava-lamp aurora: large, saturated blobs that overlap and blend as they
+		// drift (drift constants live in ThemedBackground.views + the WGSL). Four
+		// blobs give the field more depth than three.
 		blobs: [
-			{ cx: 0.12, cy: 0.06, r: 0.6, color: 'rgba(45,230,198,0.24)' },
-			{ cx: 0.92, cy: 0.82, r: 0.66, color: 'rgba(164,135,255,0.22)' },
-			{ cx: 0.62, cy: 0.45, r: 0.5, color: 'rgba(255,122,198,0.16)' },
+			{ cx: 0.12, cy: 0.08, r: 0.72, color: 'rgba(45,230,198,0.45)' },
+			{ cx: 0.9, cy: 0.84, r: 0.8, color: 'rgba(164,135,255,0.42)' },
+			{ cx: 0.64, cy: 0.36, r: 0.62, color: 'rgba(255,122,198,0.34)' },
+			{ cx: 0.3, cy: 0.7, r: 0.62, color: 'rgba(94,150,255,0.32)' },
 		],
 		animateBlobs: true,
 		scanlines: false,
