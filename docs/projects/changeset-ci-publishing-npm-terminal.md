@@ -10,7 +10,7 @@ for the app; this extends it without breaking it.
 
 **Scope:** `packages/react-native-terminal/package.json` + `README.md`, root `README.md`
 (badge), `.changeset/config.json`, root `package.json` scripts, `.github/workflows/`
-(new `release-npm.yml`, `canary-npm.yml`, `canary-app.yml`; edits to `release.yml` +
+(new `release-npm.yml`, `canary-app.yml`; canary folded into `release.yml`; edits to `release.yml` +
 `build-mobile.yml`), and the app build-number plumbing (`apps/mobile/app.config.ts`,
 `changelog-extract.ts`, `fastlane/Fastfile`). No terminal native/runtime code changes
 (one optional Rust `[profile.release]` size tweak is called out as a follow-up).
@@ -33,14 +33,12 @@ first publish is a manual bootstrap, then CI/OIDC forever after.
 
 ### 0 · Pre-checks
 
-- [ ] **Repo must be PUBLIC for provenance.** Confirm `github.com/EthanShoeDev/fressh` is
-  public. If private, the `--provenance` publish **errors** — make it public, or drop
-  `--provenance` + `NPM_CONFIG_PROVENANCE` from `release-npm.yml` (you keep tokenless OIDC,
-  lose the attestation).
+- [x] **Repo is PUBLIC** (verified 2026-06-25 via `gh repo view` → `"visibility":"PUBLIC"`),
+  so `--provenance` is good to go.
 - [ ] **Org access:** `npm org ls fressh` lists you; `npm access list packages @fressh` shows
-  the old packages. (You already publish here — this should just confirm.)
+  the old packages. (Confirm once logged in — see step 2.)
 
-### 1 · Build the complete tarball (Mac, in `nix develop`)
+### 1 · Build the complete tarball (Mac, in `nix develop`) — ✅ DONE 2026-06-25
 
 Only the Mac yields the iOS xcframework **and** the Android `.so`:
 
@@ -52,6 +50,13 @@ npm pack --dry-run   # MUST list shim_uniffi.xcframework/… , android/src/main/
 
 If `shim_uniffi.xcframework/` is absent, the iOS build didn't run — fix before publishing (a
 tarball without it fails to link on iOS).
+
+**Result (2026-06-25):** 5/5 turbo tasks succeeded. `npm pack --dry-run` lists the full set —
+`shim_uniffi.xcframework/{ios-arm64 (40.2MB), ios-arm64_x86_64-simulator (80.0MB)}`,
+`android/src/main/jniLibs/{arm64-v8a,x86_64}/libshim_uniffi.so` (~6.5MB each), and
+`{src,cpp,nitrogen}/generated/`. **Tarball: 50.1 MB / 153.9 MB unpacked / 73 files / `0.1.0`.**
+(The handoff's "11.3 MB" was a partial static check without the iOS xcframework; 50 MB is the
+true full-build size. The optional Rust `[profile.release]` shrink in Follow-ups ≈ halves it.)
 
 ### 2 · Bootstrap-publish `0.1.0` by hand
 
@@ -67,24 +72,36 @@ npm publish --access public        # NO --provenance (provenance needs CI/OIDC)
 `--access public` is required (scoped packages default to restricted; it's also in
 `publishConfig`). Confirm: `npm access get status @fressh/react-native-terminal` → `public`.
 
-### 3 · Register the trusted publisher(s) on npmjs.com
+### 3 · Register the trusted publisher on npmjs.com
 
-Now the package exists, wire OIDC. At
-`https://www.npmjs.com/package/@fressh/react-native-terminal/access` → **Settings** →
-**Trusted Publisher** → **GitHub Actions**, add **two** entries:
+⚠️ **CORRECTION (verified 2026-06-25 against live npm docs): npm allows only ONE trusted
+publisher per package**, not two. ("Each package can only have one trusted publisher
+configured at a time." — https://docs.npmjs.com/trusted-publishers/.) The earlier "register
+two callers" plan is impossible. **Register `release.yml` only** — it covers stable (`latest`
+on `main`) **and** rc (the `prerelease` branch), i.e. the real release line.
 
-| Field                | Entry A       | Entry B          |
-| -------------------- | ------------- | ---------------- |
-| Organization or user | `EthanShoeDev`| `EthanShoeDev`   |
-| Repository           | `fressh`      | `fressh`         |
-| Workflow filename    | `release.yml` | `canary-npm.yml` |
-| Environment name     | *(blank)*     | *(blank)*        |
-| Allowed actions      | `npm publish` | `npm publish`    |
+At `https://www.npmjs.com/package/@fressh/react-native-terminal/access` → **Trusted
+Publisher** → **GitHub Actions**, add the single entry:
 
-⚠️ **Register the CALLERS, not `release-npm.yml`** — npm matches the OIDC token's caller
-workflow (`workflow_ref`). `release.yml` covers stable (`main`) **and** rc (the `prerelease`
-branch); `canary-npm.yml` covers canaries. (If a publish still fails OIDC despite this —
-npm/documentation #1755 — inline `release-npm.yml`'s jobs into the caller.)
+| Field                | Value         |
+| -------------------- | ------------- |
+| Organization or user | `EthanShoeDev`|
+| Repository           | `fressh`      |
+| Workflow filename    | `release.yml` |
+| Environment name     | *(blank)*     |
+| Allowed actions      | `npm publish` |
+
+Register the **CALLER** (`release.yml`), not the reusable `release-npm.yml` — npm matches the
+OIDC token's top-level entry-point workflow, not the reusable that runs `npm publish`
+(npm/documentation #1755). `id-token: write` is granted in both, as required.
+
+**Single-caller consolidation (DONE 2026-06-25).** Because npm allows one trusted publisher
+per package and matches the top-level caller, **all three npm lines now originate from
+`release.yml`**: stable (`main`), rc (`prerelease`), and canary (manual dispatch / push to
+`canary` via the new `publish-terminal-canary` job → snapshot + `canary` dist-tag). The old
+`canary-npm.yml` was **deleted** (it was a second caller npm couldn't accept). So you register
+exactly one trusted publisher — `release.yml` — and every line works. (`canary-app.yml` stays:
+it's app-only, never npm, so it's irrelevant to the trusted-publisher form.)
 
 ### 4 · First CI (provenance) release
 
@@ -99,9 +116,11 @@ Confirm `0.1.1` shows the provenance ✓ on npm. Fully tokenless from here.
 
 ### 5 · Test a canary
 
-`git push origin HEAD:canary` (or Actions → "Canary npm" / "Canary app" → Run). The npm
-canary needs a pending changeset; the app canary just needs the (already-wired) store-derived
-build number. → `bun add @fressh/react-native-terminal@canary`.
+npm canary: **Actions → "Version & Release" → Run workflow** (or `git push origin HEAD:canary`)
+— the `publish-terminal-canary` job snapshots + publishes to the `canary` dist-tag. Needs a
+**pending changeset** (snapshot only versions changed packages). App canary is separate:
+**Actions → "Canary app"** (store-derived build number, already wired). →
+`bun add @fressh/react-native-terminal@canary`.
 
 ### 6 · (Optional) rc line
 
@@ -210,12 +229,15 @@ git push -u origin prerelease
   (no changesets-specific flag); `@changesets/cli@2.31.0` is new enough.
 - **Trusted-publisher binding on npmjs.com** is keyed to **repo + workflow filename**, and
   for a reusable workflow npm matches the **top-level CALLER** (`workflow_ref`), not the
-  reusable file. The publish job lives in reusable `release-npm.yml` but is *called by*
-  `release.yml` (stable on `main`, rc on the `prerelease` branch) and `canary-npm.yml`
-  (canary). So register **two** trusted publishers — `release.yml` and `canary-npm.yml` —
-  **not** `release-npm.yml`. `id-token: write` is granted in both the callers and the
-  reusable. (If OIDC still fails to match — npm/documentation #1755 — inline the
-  `release-npm.yml` jobs into the caller.)
+  reusable file. **npm allows only ONE trusted publisher per package** (verified 2026-06-25 —
+  https://docs.npmjs.com/trusted-publishers/), so the original "register `release.yml` AND
+  `canary-npm.yml`" plan was impossible. **Resolved by consolidation:** the publish job lives
+  in reusable `release-npm.yml`, and **`release.yml` is now its ONLY caller** — stable on
+  `main`, rc on `prerelease`, and canary via its `publish-terminal-canary` job (dispatch /
+  push `canary`). `canary-npm.yml` was deleted. **Register `release.yml` only** (done
+  2026-06-25); it serves all three lines. `id-token: write` is granted in the caller +
+  reusable. (If OIDC ever fails to match — npm/documentation #1755 — inline the
+  `release-npm.yml` jobs into `release.yml`.)
 - **Provenance forces build-in-publish-job across two OSes.** `--provenance` attests
   artifacts built in the *same* job, but the Android `.so` needs ubuntu and the iOS
   xcframework needs macos-26. So every npm publish (stable, canary, rc) is a **three-job**
@@ -240,11 +262,14 @@ no changelog, no git tag. `changeset version --snapshot canary` → base `0.0.0`
 can never satisfy/outrank a real `^0.1.0` range; publish to a **dedicated `canary`
 dist-tag** so `bun add @fressh/react-native-terminal` never resolves it.
 
-- **npm package** — new `canary-npm.yml` (workflow_dispatch + push to a `canary` branch),
-  the three-job shape above. Publish step: `bunx changeset version --snapshot canary` then
-  `npm publish -w @fressh/react-native-terminal --provenance --tag canary`. (Use `npm`
-  directly, not `changeset publish`, so provenance + the explicit dist-tag are honored.)
-  Version → `0.0.0-canary-<commit-short>`. Consumers: `bun add @fressh/react-native-terminal@canary`.
+- **npm package** — the `publish-terminal-canary` job **in `release.yml`** (workflow_dispatch
+  + push to a `canary` branch) calls reusable `release-npm.yml` with `snapshot: true`,
+  `npm-tag: canary` — the three-job build+publish shape above. Publish step:
+  `bun run version:snapshot` (= `changeset version --snapshot canary`, throwaway tree) then
+  `npm publish --provenance --access public --tag canary`. (Use `npm` directly, not `changeset
+  publish`, so provenance + the explicit dist-tag are honored.) Version →
+  `0.0.0-canary-<commit-short>`. Consumers: `bun add @fressh/react-native-terminal@canary`.
+  **Lives in `release.yml`, not a separate file, so npm's single trusted publisher covers it.**
 - **app** — `changeset version --snapshot canary` **also versions the private app** (only
   `publish` skips private packages). So `canary-app.yml` (thin caller of `build-mobile.yml`,
   `submit: true`, `release-tag: ''`) derives a canary version and builds → TestFlight / Play
@@ -328,11 +353,13 @@ add `publishConfig: { access: "public" }`.
    `files[]` ships inline binaries + codegen (narrowed `android` glob; dropped `rust`/`lib`);
    peer deps → ranges.
 1. ✅ **Config + scripts**: `snapshot` block + root scripts.
-2. ⏳ **OIDC stable publishing** (manual — see Handoff): bootstrap-publish `0.1.0` **without**
-   provenance (a laptop publish has no OIDC), then register the trusted publishers. Reusable
+2. ✅ **OIDC stable publishing**: bootstrap-published `0.1.0` (manual, no provenance) +
+   registered the single `release.yml` trusted publisher on npmjs.com (2026-06-25). Reusable
    `release-npm.yml` (3-job) + an additive `publish-terminal` job in `release.yml`;
    `id-token: write` in both.
-3. ✅ **`canary-npm.yml`**: calls `release-npm.yml` with `snapshot: true`, `npm-tag: canary`.
+3. ✅ **Canary consolidated into `release.yml`** (`publish-terminal-canary` job, dispatch /
+   push `canary`) → `release-npm.yml` with `snapshot: true`, `npm-tag: canary`. Standalone
+   `canary-npm.yml` **deleted** (npm allows only one trusted-publisher caller per package).
 4. ✅ **App build-number**: fastlane store-derived (iOS `latest_testflight_build_number`,
    Android `google_play_track_version_codes` via `FRESSH_VERSION_CODE`) + suffix-stripping +
    changelog stub.
@@ -349,7 +376,8 @@ add `publishConfig: { access: "public" }`.
 # STABLE release (existing two-mode flow): author a changeset → merge → merge the Version PR.
 bun run changeset
 
-# npm CANARY: Actions → "Canary npm" (or push to `canary`). → 0.0.0-canary-<commit> on @canary.
+# npm CANARY: Actions → "Version & Release" → Run workflow (or push to `canary`); needs a
+#   pending changeset. → 0.0.0-canary-<commit> on @canary.
 bun add @fressh/react-native-terminal@canary     # consumers
 
 # app CANARY build → TestFlight/Play internal: Actions → "Canary app" (needs build-number fix).
@@ -378,6 +406,17 @@ bun add @fressh/react-native-terminal@rc          # consumers
   need orderable version strings (and accept same-second collisions).
 - **Separate per-platform binary packages (Skia model)** remain the escape hatch if inline
   coupling/size becomes painful later.
+- **App↔terminal version coupling — DECIDED (keep cascade).** `apps/mobile` depends on the
+  terminal via `workspace:*`, which changesets treats as a pinned dep, so a stable/rc terminal
+  bump cascades a patch bump to `@fressh/mobile` → its tag → an app build+submit to the test
+  channels. **This is intended:** the app bundles the terminal *from source*, so a new terminal
+  version really is a new app binary; releasing them together keeps the store app honest.
+  (Canary publishes do **not** cascade — the snapshot version is throwaway and the canary job
+  never builds the app.) **Escape hatch (verified 2026-06-25):** changing mobile's dep to
+  `workspace:^` decouples patch/minor terminal releases — a terminal patch then leaves
+  `@fressh/mobile` at its current version with no app build (a *major* terminal bump would still
+  cascade). Switch to caret only if frequent npm-only patch releases make the app rebuilds a
+  burden.
 
 ## References
 

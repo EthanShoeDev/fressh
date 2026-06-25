@@ -2,12 +2,13 @@ name: Publish npm (terminal)
 
 # Builds @fressh/react-native-terminal's INLINE native binaries (Android .so on
 # ubuntu + the iOS xcframework on macOS) and publishes to npm over OIDC TRUSTED
-# PUBLISHING (provenance, no NPM_TOKEN). Reusable so the stable (release.yml),
-# canary (canary-npm.yml), and rc (release.yml on the `prerelease` branch) paths
-# all share ONE publish implementation. IMPORTANT: npm matches the trusted publisher by the
-# top-level CALLER workflow (workflow_ref), NOT this reusable file — so on npmjs.com register
-# the CALLERS as trusted publishers: release.yml (stable + rc) and canary-npm.yml (canary).
-# `id-token: write` is granted in both the callers and this reusable workflow (npm needs both).
+# PUBLISHING (provenance, no NPM_TOKEN). Reusable so stable, rc, and canary all share ONE
+# publish implementation. ALL of them are driven by release.yml (stable on `main`, rc on the
+# `prerelease` branch, canary on dispatch / the `canary` branch), so npm sees a SINGLE
+# top-level CALLER. IMPORTANT: npm matches the trusted publisher by the top-level CALLER
+# workflow (workflow_ref), NOT this reusable file — and npm allows only ONE trusted publisher
+# per package, so on npmjs.com register ONLY release.yml. `id-token: write` is granted in both
+# the caller (release.yml) and this reusable workflow (npm needs both).
 #
 # Provenance attests the published tarball + this repo/commit/workflow. The native
 # binaries are built from the SAME commit in sibling jobs of this run and downloaded
