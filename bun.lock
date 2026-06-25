@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "fressh",
@@ -27,7 +28,7 @@
     },
     "apps/mobile": {
       "name": "@fressh/mobile",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@effect/atom-react": "catalog:",
         "@expo-google-fonts/archivo": "^0.4.2",
@@ -136,7 +137,7 @@
     },
     "packages/react-native-terminal": {
       "name": "@fressh/react-native-terminal",
-      "version": "0.0.0",
+      "version": "0.1.1",
       "dependencies": {
         "@ubjs/core": "0.31.0-3",
         "uniffi-bindgen-react-native": "0.31.0-3",
@@ -150,9 +151,9 @@
         "typescript": "catalog:",
       },
       "peerDependencies": {
-        "react": "catalog:",
-        "react-native": "catalog:",
-        "react-native-nitro-modules": "*",
+        "react": ">=19.0.0",
+        "react-native": ">=0.85.0",
+        "react-native-nitro-modules": ">=0.35.0",
       },
     },
   },
