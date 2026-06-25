@@ -25,9 +25,11 @@ class ChangelogError extends Data.TaggedError('ChangelogError')<{
 }> {}
 
 // MUST stay in sync with semverToCode in app.config.ts and version_code in
-// fastlane/Fastfile (versionCode derived from the package.json semver).
+// fastlane/Fastfile. Operates on the stripped marketing version — changeset
+// prerelease/snapshot suffixes ("-rc.0" / "-canary-abc") aren't part of the code.
 const semverToCode = (version: string) => {
-	const parts = version.split('.').map(Number);
+	const base = version.split('-')[0] ?? version;
+	const parts = base.split('.').map(Number);
 	const [maj, min, pat] = parts;
 	if (
 		parts.length !== 3 ||
@@ -39,6 +41,14 @@ const semverToCode = (version: string) => {
 		throw new Error(`Invalid semver: ${version}`);
 	}
 	return maj * 10_000 + min * 100 + pat;
+};
+
+// The Play changelog file is keyed by the uploaded versionCode. Canary/rc builds use
+// a store-derived FRESSH_VERSION_CODE (see app.config.ts), so honor it here too so
+// the changelog lands on the right code; stable falls back to semverToCode.
+const versionCodeFor = (version: string) => {
+	const override = process.env.FRESSH_VERSION_CODE;
+	return override ? Number.parseInt(override, 10) : semverToCode(version);
 };
 
 /**
@@ -74,22 +84,27 @@ const main = (versionFlag: Option.Option<string>) =>
 
 		const changelog = yield* fs.readFileString(changelogPath);
 		const section = extractSection(changelog, version);
-		if (!section) {
+		// Canary/snapshot versions have no CHANGELOG section (nothing is committed for
+		// them) — fall back to a stub. A STABLE version with no section is still an
+		// error (changesets wasn't run).
+		const isPrerelease = version.includes('-');
+		if (!section && !isPrerelease) {
 			return yield* new ChangelogError({
 				message: `No "## ${version}" section in ${changelogPath}. Did changesets release this version?`,
 			});
 		}
+		const body =
+			section && section.length > 0 ? section : `Preview build ${version}`;
 
 		// Play caps release notes at 500 chars; TestFlight at 4000. Trim for the
 		// shared file and let the stores' generous side win.
-		const notes =
-			section.length > 480 ? `${section.slice(0, 477)}...` : section;
+		const notes = body.length > 480 ? `${body.slice(0, 477)}...` : body;
 
 		const notesPath = path.join(mobileDir, 'build', 'release-notes.txt');
 		const playPath = path.join(
 			mobileDir,
 			'fastlane/metadata/android/en-US/changelogs',
-			`${semverToCode(version)}.txt`,
+			`${versionCodeFor(version)}.txt`,
 		);
 		yield* fs.makeDirectory(path.dirname(notesPath), { recursive: true });
 		yield* fs.writeFileString(notesPath, notes);

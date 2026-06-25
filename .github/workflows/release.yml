@@ -1,8 +1,11 @@
-# Runs on EVERY push to main; the changesets action picks one of two modes:
-#  - pending changesets on main  -> opens/updates the "Version Packages" PR
-#    (no tag, no release, build job skipped)
+# Runs on every push to `main` (stable) and `prerelease` (changesets pre mode, rc);
+# the changesets action picks one of two modes per push:
+#  - pending changesets  -> opens/updates the "Version Packages" PR
+#    (no tag, no release, build/publish jobs skipped)
 #  - none (the Version Packages PR just merged) -> tags + creates the GitHub
-#    Release, then the build job builds & attaches/submits artifacts
+#    Release, then: the `build` job builds & submits the app to test channels, and
+#    the `publish-terminal` job publishes @fressh/react-native-terminal to npm
+#    (the `latest` dist-tag on main, the `rc` dist-tag on prerelease).
 name: Version & Release
 # Make the mode readable from the Actions list without clicking in: merging the
 # Version Packages PR produces a head commit that is either the squashed
@@ -11,7 +14,10 @@ name: Version & Release
 run-name: "${{ (startsWith(github.event.head_commit.message, 'chore: version packages') || contains(github.event.head_commit.message, 'changeset-release/main')) && 'Cut release (tag + build + publish)' || 'Update Version Packages PR' }}"
 on:
   push:
-    branches: [main]
+    # `prerelease` is the changesets pre-mode branch (it carries .changeset/pre.json);
+    # pushes there cut x.y.z-rc.N to the `rc` npm dist-tag + the app's internal channels.
+    # NEVER merge .changeset/pre.json to main (it would put the whole monorepo in pre mode).
+    branches: [main, prerelease]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,6 +35,7 @@ jobs:
     # if) the mobile app was released this run. Empty otherwise -> no build.
     outputs:
       mobile-tag: ${{ steps.mobile.outputs.tag }}
+      terminal-released: ${{ steps.terminal.outputs.released }}
     steps:
       - uses: actions/checkout@v4
 
@@ -69,6 +76,17 @@ jobs:
           tag=$(jq -r '.[] | select(.name=="@fressh/mobile") | "@fressh/mobile@" + .version' <<<"$PUBLISHED" | head -n1)
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
+      # Did this release version the PUBLIC terminal package? Drives the npm publish
+      # job below, independently of the app build.
+      - name: Determine terminal release
+        id: terminal
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+        run: |
+          released=$(jq -r 'any(.[]; .name=="@fressh/react-native-terminal")' <<<"$PUBLISHED")
+          echo "released=$released" >> "$GITHUB_OUTPUT"
+
   # When the Version PR merge produced a release (published==true), build the app
   # and attach it to the freshly-created GitHub Release, then submit to the store
   # test channels (Play internal track / TestFlight). Calls the reusable
@@ -88,4 +106,23 @@ jobs:
     # build-mobile.yml needs id-token for Google WIF, so it must be granted here.
     permissions:
       contents: write
+      id-token: write
+
+  # If this release versioned the PUBLIC terminal package, build its inline native
+  # binaries and publish to npm with provenance (OIDC). Independent of the app
+  # build/submit job above — the app's flow is unchanged (still tag-only, never npm).
+  # On `main` it publishes to `latest`; on the `prerelease` branch (pre mode) to the
+  # `rc` dist-tag. Publish logic lives in the reusable release-npm.yml (shared with
+  # canary-npm.yml), so there's ONE npm trusted-publisher binding.
+  publish-terminal:
+    name: Publish @fressh/react-native-terminal to npm
+    needs: version
+    if: needs.version.outputs.terminal-released == 'true'
+    uses: ./.github/workflows/release-npm.yml
+    with:
+      snapshot: false
+      npm-tag: ${{ github.ref_name == 'prerelease' && 'rc' || '' }}
+    secrets: inherit
+    permissions:
+      contents: read
       id-token: write

@@ -6,6 +6,7 @@ terminal engine and GPU renderer, running natively on your phone. It stays
 clean and simple while supporting powerful features.
 
 [![ci](https://github.com/EthanShoeDev/fressh/actions/workflows/check.yml/badge.svg)](https://github.com/EthanShoeDev/fressh/actions/workflows/check.yml)
+[![npm: @fressh/react-native-terminal](https://img.shields.io/npm/v/@fressh/react-native-terminal?label=%40fressh%2Freact-native-terminal)](https://www.npmjs.com/package/@fressh/react-native-terminal)
 
 ### Powered by Alacritty
 
