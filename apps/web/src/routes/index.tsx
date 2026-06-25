@@ -1,6 +1,6 @@
 import AppStoreBadge from '@fressh/assets/third-party-brands/apple-app-store/Black_lockup/SVG/Download_on_the_App_Store_Badge_US-UK_RGB_blk_092917.svg';
 import GithubMark from '@fressh/assets/third-party-brands/github-mark/github-mark.svg';
-import GooglePlayBadge from '@fressh/assets/third-party-brands/google-play/GetItOnGooglePlay_Badge_Web_color_English.svg';
+import GooglePlayBadge from '@fressh/assets/third-party-brands/google-play/GetItOnGooglePlay_Badge_Web_color_English.trimmed.svg';
 import mobileAppIconDark from '@fressh/assets/mobile-app-icon-dark.png';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
@@ -78,8 +78,7 @@ const themes = [
 // Google Play closed testing: testers must be on the email list in Play
 // Console before the opt-in link works for them, so the form collects the
 // Google-account email first.
-const betaSignupFormUrl =
-	'https://docs.google.com/forms/d/e/1FAIpQLScxZegRtkI8zXL33fi5Mzj8VUf6LS9_AeC1fwo1x7Bq5r02IQ/viewform';
+const betaSignupFormUrl = 'https://forms.gle/ApsjoRhPn2Z2SY2ZA';
 const playOptInUrl = 'https://play.google.com/apps/testing/dev.fressh.app';
 const playStoreUrl =
 	'https://play.google.com/store/apps/details?id=dev.fressh.app';
@@ -261,16 +260,19 @@ function Hero() {
 					powers one of the fastest terminals on the desktop, running natively
 					on your phone. No WebView. No compromises.
 				</p>
-				<div className='flex flex-wrap items-center gap-x-6 gap-y-4 pt-2'>
-					<StoreBadge
-						src={GooglePlayBadge}
-						alt='Get it on Google Play badge'
-						note='in closed beta — join the test'
-						href='#beta'
-					/>
+				<div className='flex flex-wrap items-start gap-x-8 gap-y-5 pt-2'>
 					<StoreBadge
 						src={AppStoreBadge}
-						alt='Download on the App Store badge'
+						alt='Download on the App Store'
+						imgClassName='h-[46px]'
+					/>
+					<StoreBadge
+						src={GooglePlayBadge}
+						alt='Get it on Google Play'
+						note='in closed beta — join the test'
+						href='#beta'
+						badgeHref={betaSignupFormUrl}
+						imgClassName='h-[43px]'
 					/>
 				</div>
 			</div>
@@ -284,22 +286,55 @@ function StoreBadge({
 	alt,
 	note = 'coming soon',
 	href,
-}: Readonly<{ src: string; alt: string; note?: string; href?: string }>) {
-	const pill = (
-		<span
-			className={`rounded-full border border-dashed px-2 py-0.5 font-mono text-[10px] tracking-wider uppercase ${
-				href
-					? 'border-emerald-400/50 text-emerald-300 transition hover:border-emerald-300 hover:bg-emerald-400/10'
-					: 'border-gray-700 text-gray-500'
-			}`}
-		>
-			{note}
+	badgeHref,
+	imgClassName,
+}: Readonly<{
+	src: string;
+	alt: string;
+	note?: string;
+	href?: string;
+	badgeHref?: string;
+	imgClassName: string;
+}>) {
+	// inline-flex (not a bare inline span) so vertical padding/border contribute to
+	// the box height identically whether the pill is a <span> or an <a> — otherwise
+	// the two pills render at different heights and don't line up.
+	const pillClassName = `inline-flex items-center rounded-full border border-dashed px-2 py-0.5 font-mono text-[10px] tracking-wider uppercase ${
+		href
+			? 'border-emerald-400/50 text-emerald-300 transition hover:border-emerald-300 hover:bg-emerald-400/10'
+			: 'border-gray-700 text-gray-500'
+	}`;
+	// The App Store and Google Play artworks have different aspect ratios, so matching
+	// either dimension alone makes one look bigger. Each is sized for equal visual
+	// AREA (Apple a hair taller, Google a hair wider) and centered in a shared-height
+	// box, so they read as the same size and the pills below line up. GooglePlayBadge
+	// is a viewBox-trimmed copy with the baked-in clear space removed.
+	const badge = (
+		<span className='flex h-[46px] items-center'>
+			<img src={src} alt={alt} className={`select-none ${imgClassName}`} />
 		</span>
 	);
 	return (
 		<div className='flex flex-col items-start gap-2'>
-			<img src={src} alt={alt} className='h-11 w-auto select-none' />
-			{href ? <a href={href}>{pill}</a> : pill}
+			{badgeHref ? (
+				<a
+					href={badgeHref}
+					target='_blank'
+					rel='noopener noreferrer'
+					className='transition hover:opacity-90'
+				>
+					{badge}
+				</a>
+			) : (
+				badge
+			)}
+			{href ? (
+				<a href={href} className={pillClassName}>
+					{note}
+				</a>
+			) : (
+				<span className={pillClassName}>{note}</span>
+			)}
 		</div>
 	);
 }
@@ -721,7 +756,7 @@ function Screenshots() {
 								key={shot.alt}
 								src={shot.src}
 								alt={shot.alt}
-								className='w-44 shrink-0 snap-center rounded-2xl border border-white/10 shadow-xl shadow-black/40 lg:w-full'
+								className='w-44 shrink-0 snap-center border border-white/10 shadow-xl shadow-black/40 lg:w-full'
 								loading='lazy'
 							/>
 						))}
@@ -841,6 +876,11 @@ function Footer() {
 					GitHub
 				</a>
 			</div>
+			<p className='w-full text-xs leading-relaxed text-gray-600'>
+				Google Play and the Google Play logo are trademarks of Google LLC.
+				Apple, the Apple logo, and App Store are trademarks of Apple Inc.,
+				registered in the U.S. and other countries.
+			</p>
 		</footer>
 	);
 }

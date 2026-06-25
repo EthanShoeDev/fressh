@@ -26,7 +26,8 @@
 		"**/.agents/**",
 		"**/*.gen.*",
 		"**/*.snapshot.json",
-		"**/*.hbs"
+		"**/*.hbs",
+		"**/*.svg"
 	],
 	"threshold": 0,
 	"minTokens": 50,
