@@ -252,6 +252,15 @@ git push -u origin prerelease
   global `restricted`); keep `privatePackages: { version, tag }` for `@fressh/mobile`.
   Confirm `catalog:` peer deps (react 19.2.3, react-native 0.85.3) resolve to concrete
   ranges on publish.
+- **`catalog:` peer-dep gotcha (bit CI 2026-06-25).** The terminal's `peerDependencies` are
+  concrete ranges (`react ">=19.0.0"`, `react-native ">=0.85.0"`), NOT `catalog:`. Two reasons:
+  (1) we publish with `npm publish` (for provenance — `bun publish` has no `--provenance` and
+  uses a long-lived `NPM_CONFIG_TOKEN`, so it's off the table), and npm can't resolve the
+  `catalog:` protocol — it'd ship `"react": "catalog:"` literally and break consumers; (2) even
+  if `bun publish` stripped `catalog:`, it resolves to the **exact** catalog pin (19.2.3), which
+  is wrong for a *peer* dep (must be a lenient range). So peer ranges are correct regardless of
+  tool. The repo's `scripts/catalog-check.ts` was taught to **exempt a published (non-private)
+  package's `peerDependencies`** from the `catalog:` requirement (devDeps keep `catalog:`).
 
 ---
 
