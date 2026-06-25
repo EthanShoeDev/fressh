@@ -43,9 +43,10 @@ Alacritty-based renderer.
 ### Screenshots
 
 <p>
-  <img src="./packages/assets/mobile-screenshots/servers-ios.png" alt="Servers tab" width="200" />
-  <img src="./packages/assets/mobile-screenshots/connect-ios.png" alt="New connection" width="200" />
-  <img src="./packages/assets/mobile-screenshots/keys-ios.png" alt="Keys tab" width="200" />
+  <img src="./packages/assets/mobile-screenshots/terminal-graphite-android.png" alt="Live terminal — a real SSH session" width="200" />
+  <img src="./packages/assets/mobile-screenshots/smart-terminal-graphite-android.png" alt="Smart terminal — command status, timing & working dir" width="200" />
+  <img src="./packages/assets/mobile-screenshots/servers-graphite-android.png" alt="Servers tab — saved hosts" width="200" />
+  <img src="./packages/assets/mobile-screenshots/keys-graphite-android.png" alt="Keys tab — generate or import SSH keys" width="200" />
 </p>
 
 ### Architecture

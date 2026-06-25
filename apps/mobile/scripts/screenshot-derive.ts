@@ -33,12 +33,17 @@ const PLATFORMS = ['ios', 'android'] as const;
  *  the width and let the height fall out of the aspect ratio. */
 const SMALL_WIDTH = 400;
 
-/** The store listing wants a handful: one theme × the five hero screens, in narrative
- *  order (numbered 1.png…5.png). Full-resolution — `deliver`/`supply` size them. */
+/** The store listing wants a handful: one theme × the hero screens, in the same narrative
+ *  order the website uses (servers → connect → the two terminal heroes → the rest),
+ *  numbered 1.png…N.png. Full-resolution — `deliver`/`supply` size them. A screen with no
+ *  capture for a platform (e.g. iOS has no `terminal`/`smart-terminal` shots — those are
+ *  Android-only until a Mac run) is gracefully skipped, so that platform just gets fewer. */
 const STORE_THEME = 'graphite';
 const STORE_SCREENS = [
 	'servers',
 	'connect',
+	'terminal',
+	'smart-terminal',
 	'keys',
 	'commands',
 	'settings',

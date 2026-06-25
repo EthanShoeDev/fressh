@@ -126,7 +126,7 @@ appId: dev.fressh.app
 - tapOn: 'New server'
 - takeScreenshot: ${OUTPUT}/connect-${THEME}-${PLATFORM}
 
-# --- Live terminal: submit, trust the new host, land on the terminal -----------
+# --- Connect: submit, trust the new host, land on the live terminal -------------
 - tapOn:
     id: 'connect'
 # First connect to an unknown host raises the host-key trust prompt (TOFU). Wait for the
@@ -141,29 +141,59 @@ appId: dev.fressh.app
 - tapOn:
     id: 'host-key-trust'
     optional: true
-# Wait for the shell to open + the smart-terminal context bar to populate. `~` is the
-# home-dir basename the OSC 633 cwd report renders; optional so a slow/quiet shell
-# still gets captured.
+# Wait for the shell to open and the smart-terminal context bar to populate. `main` is the
+# demo repo's branch, rendered by the context bar's git badge once the OSC 633 cwd report
+# lands and the out-of-band git driver runs. We assert on the BAR (RN text), never the
+# terminal body: the terminal is a native GL surface whose glyphs are NOT queryable by
+# Maestro. Optional so a slow/quiet shell still gets captured.
 - extendedWaitUntil:
-    visible: '~'
+    visible: 'main'
     optional: true
     timeout: 20000
-- takeScreenshot: ${OUTPUT}/terminal-${THEME}-${PLATFORM}
 
-# --- Smart terminal: run the seeded "git status" preset (best-effort) -----------
-# The preset chips live on page 2 of the keyboard accessory (a thin strip just above
-# the bottom tab bar), so swipe LEFT along THAT row — a plain direction:LEFT swipes the
-# terminal body instead. Tapping the chip sends `git status -sb\r` straight to the PTY,
-# lighting up the smart-terminal context bar (cwd + git branch + exit/timing). All
-# steps optional so a layout miss never fails the run.
-- swipe:
-    start: 88%, 86%
-    end: 12%, 86%
-- tapOn:
-    id: 'preset-git-status'
-    optional: true
+# --- Drive a real working session ----------------------------------------------
+# The terminal lands with the hidden input (testID `terminal-input`) auto-focused and the
+# keyboard up, so type straight into it. These read-only commands fill the scrollback so
+# the terminal reads as a live session AND feed the smart layer: each CommandFinished
+# refreshes the git badge and lands in the context bar's "recent commands" with its exit
+# code + duration. Output isn't queryable (native GL surface), so pace with fixed waits.
+# The 1px opacity-0 input isn't in Maestro's a11y tree, so a `tapOn` can't find it — but
+# it's auto-focused on mount with the keyboard already up, so `inputText` types straight
+# into it. We end on `git status -sb`: clean, colorful branch + dirty output (no dotfile
+# clutter / line-wrapping), which also seeds the "recent commands" list for the smart shot.
+- inputText: 'git log --oneline'
+- pressKey: Enter
+- inputText: 'cat package.json'
+- pressKey: Enter
+- inputText: 'git status -sb'
+- pressKey: Enter
 - extendedWaitUntil:
     visible: '__never_visible__'
     optional: true
-    timeout: 3500
+    timeout: 3000
+
+# --- Live terminal shot: dismiss the keyboard for a full-height terminal ---------
+# hideKeyboard is safe here (a keyboard IS up) and gives a clean, full-height terminal of
+# real scrollback — the "a real SSH session" hero. The key/nav accessory toolbar stays
+# pinned above the tab bar.
+- hideKeyboard
+- extendedWaitUntil:
+    visible: '__never_visible__'
+    optional: true
+    timeout: 1000
+- takeScreenshot: ${OUTPUT}/terminal-${THEME}-${PLATFORM}
+
+# --- Smart terminal shot: open the context-bar details sheet --------------------
+# Tap the always-visible context bar (accessibilityLabel 'Smart terminal details') to open
+# the details sheet — the richest "smart terminal" surface: working directory, the git
+# section (branch + staged/unstaged/untracked + changed files), and recent commands with
+# exit codes + timing. A robust selector, no fragile toolbar swipe. 'Working directory' is
+# a label inside the sheet, so it confirms the sheet actually opened.
+- tapOn:
+    text: 'Smart terminal details'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Working directory'
+    optional: true
+    timeout: 4000
 - takeScreenshot: ${OUTPUT}/smart-terminal-${THEME}-${PLATFORM}

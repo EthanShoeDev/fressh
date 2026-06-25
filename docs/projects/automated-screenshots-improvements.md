@@ -14,10 +14,37 @@ This is a "what next + why" doc, not a committed plan.
 ## Implemented in this pass (2026-06-24)
 
 All phases done and validated on the Android emulator (the worklets build blocker below
-was fixed). This stays a local-only tool — no CI. One refinement left: the smart-terminal
-`git status` preset (page-2 toolbar swipe) doesn't reliably reveal the chip, so the
-`terminal-*` and `smart-terminal-*` shots currently both show the live prompt + context
-bar rather than a run command — tune the swipe coords to a follow-up.
+was fixed). This stays a local-only tool — no CI.
+
+**`terminal-*` vs `smart-terminal-*` — were byte-identical, now distinct (2026-06-25).**
+The old flow tried to differentiate the smart shot by swiping the keyboard toolbar to
+page 2 and tapping the `git status` preset chip, but the swipe coordinate (`88%,86%` →
+`12%,86%`) landed in the **system soft keyboard**, not the app's preset toolbar (which
+sits at ~52–62% of screen height above the keyboard) — so paging never happened and the
+two captures came out **md5-identical** (a bare prompt + context bar). Two more traps made
+the old approach unworkable: (a) the **terminal body is a native GL surface** whose glyphs
+are NOT in Maestro's accessibility tree, so you can't assert on terminal output — only on
+RN text (context bar, sheets); and (b) the hidden `terminal-input` (1px, opacity-0) isn't
+in the a11y tree either, so `tapOn id:terminal-input` fails — but it's **auto-focused on
+mount** with the keyboard up, so `inputText` types straight into it without a tap.
+
+The new flow (no fragile swipe, only robust selectors) makes the two genuinely different:
+- **`terminal-*` ("a real SSH session"):** type a few real read-only commands into the
+  auto-focused input (`git log --oneline`, `cat package.json`, `git status -sb` — ending
+  on the clean, colorful branch+dirty output), then `hideKeyboard` for a **full-height
+  terminal of real scrollback**. The key/nav accessory toolbar stays pinned at the bottom.
+- **`smart-terminal-*` ("command status, timing & working dir"):** tap the always-visible
+  context bar (`accessibilityLabel='Smart terminal details'`) to open the **details
+  sheet** — the richest smart surface: working directory, the git section (branch +
+  staged/unstaged/untracked + changed-file list), and recent commands with exit ✓ + timing.
+  Those read-only commands above seed the recent-commands list; the git badge/section come
+  from the out-of-band git driver (no in-shell `git status` needed).
+
+Supporting changes: the temp sshd runs with `--hostname acme-api` (prompt reads
+`demo@acme-api:~$`, not the random container id), the demo repo is left with a realistic
+dirty tree (1 staged · 2 unstaged · 1 untracked), and the fastlane **store subset now
+includes `terminal` + `smart-terminal`** (`screenshot-derive.ts`), in the website's
+narrative order.
 
 - **Phase 1 — temp docker sshd (done, code):** `scripts/screenshots.ts` builds a tiny
   ubuntu+bash+git sshd image (cached), runs it with a per-run password (no secrets),

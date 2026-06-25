@@ -191,9 +191,16 @@ const SSHD_CONTAINER = 'fressh-screenshots-sshd';
 const SSHD_HOST_PORT = '2223';
 const SSHD_USER = 'demo';
 
-/** $HOME *is* a tidy git repo so the smart-terminal cwd shows `~` with a git badge and
- *  `git status -sb` renders a realistic dirty tree. Dotfiles are git-ignored so the
- *  short status stays clean. No COPY, so `docker build <dir>` needs only this file. */
+/** $HOME *is* a tidy git repo so the smart-terminal cwd shows `~` with a git badge and a
+ *  realistic dirty tree: after the initial commit we stage one file (CHANGELOG.md), leave
+ *  two modified (src/index.ts, README.md), and one untracked (src/health.ts) — so the
+ *  smart-terminal details sheet's git section reads `1 staged · 2 unstaged · 1 untracked`
+ *  with a 4-file list (badge ●4), not an empty/clean tree. Dotfiles are git-ignored so
+ *  they stay out of the status — including `.bash_history`/`.lesshst`, which a shell
+ *  session writes into $HOME: one container is reused across every theme in a run, so
+ *  without ignoring them a later theme would see the earlier session's history as an
+ *  untracked file and report ●5, making the dirty count inconsistent between themes. No
+ *  COPY, so `docker build <dir>` needs only this file. */
 const SSHD_DOCKERFILE = `# Throwaway demo sshd for marketing screenshots — never shipped.
 FROM ubuntu:24.04
 RUN apt-get update \\
@@ -209,13 +216,16 @@ WORKDIR /home/${SSHD_USER}
 RUN git config --global user.email demo@fressh.dev \\
  && git config --global user.name "Fressh Demo" \\
  && git config --global init.defaultBranch main \\
- && printf '.bashrc\\n.bash_logout\\n.profile\\n.gitconfig\\n.ssh/\\n.cache/\\n' > .gitignore \\
+ && printf '.bashrc\\n.bash_logout\\n.profile\\n.gitconfig\\n.ssh/\\n.cache/\\n.bash_history\\n.lesshst\\n' > .gitignore \\
  && mkdir -p src \\
  && printf '# acme-api\\n\\nDemo service for fressh screenshots.\\n' > README.md \\
  && printf '{\\n  "name": "acme-api",\\n  "version": "1.4.2"\\n}\\n' > package.json \\
  && printf 'export const version = "1.4.2";\\n' > src/index.ts \\
  && git init -q && git add -A && git commit -q -m "initial commit" \\
  && printf 'export const version = "1.5.0";\\n' > src/index.ts \\
+ && printf '# acme-api\\n\\nDemo service for fressh screenshots.\\n\\n## Status\\n\\nShipping soon.\\n' > README.md \\
+ && printf '# Changelog\\n\\n## Unreleased\\n- Add health endpoint\\n' > CHANGELOG.md \\
+ && git add CHANGELOG.md \\
  && printf 'export function health() {\\n  return "ok";\\n}\\n' > src/health.ts
 USER root
 EXPOSE 22
@@ -269,6 +279,12 @@ const acquireSshd = (platform: Platform) =>
 				'--rm',
 				'--name',
 				SSHD_CONTAINER,
+				// A friendly hostname so the shell prompt reads `demo@acme-api:~$` in the
+				// terminal shots instead of the random 12-hex container id (the default
+				// hostname). Cosmetic — the terminal body is a native GL surface, so this
+				// only matters for how the captured pixels read.
+				'--hostname',
+				'acme-api',
 				'-p',
 				`${SSHD_HOST_PORT}:22`,
 				'-e',
