@@ -4,13 +4,16 @@ Planning/architecture doc for replacing the WebView-based terminal with a
 native terminal emulator, and consolidating the SSH + terminal stack into a
 single React Native package.
 
-> Status: **building.** The native renderer is device-verified on Android (commit
-> 039d5e5: `<Terminal/>` → Nitro view → EGL/GLES2 → Rust draws a `Term`), and the
-> binding-agnostic SSH core (`fressh-ssh` + `fressh-core`) is ported and host-tested
-> — bytes feed a durable `Term`, never crossing JS (§9, §10). Remaining: the render
-> plane C-ABI (attach `Term` by `shellId`), the uniffi shim, the app swap, and config
-> wiring — see §13. This doc records the decisions, the reasoning, and the rejected
-> alternatives so we don't re-derive them every session.
+> Status: **shipped.** This refactor is complete: `@fressh/react-native-terminal`
+> is the single native package, used in production by `apps/mobile`. The native
+> renderer is implemented and working on **both Android (EGL/GLES2) and iOS (GLES2
+> via ANGLE → Metal)**, alongside the binding-agnostic SSH core (`fressh-ssh` +
+> `fressh-core`) where bytes feed a durable `Term` and never cross JS (§9, §10). The
+> "Android-first / iOS-later / deprecated-GLES" framing in §5, §12, and §13 is
+> **historical** — it describes the staging plan at the time of writing, since
+> carried out (iOS renders via the vendored ANGLE `libEGL`/`libGLESv2` xcframeworks).
+> This doc records the decisions, the reasoning, and the rejected alternatives so we
+> don't re-derive them every session.
 
 ---
 
@@ -729,6 +732,9 @@ Under `docs/cloned-repos-as-docs/`:
 - [ ] **Config wiring**: MMKV prefs (font size/colors/scrollback) + a Terminal Appearance
       settings section → `fontSize` prop + a `set_config` C-ABI (`EglContext::set_config`
       + `TerminalRenderer::set_palette` already exist).
-- [ ] iOS: deprecated GLES now → ANGLE→Metal later (contained swap, §5).
-- [ ] Decide whether `wgpu` (Strategy B) should be v1 to skip the iOS GLES/ANGLE question.
-- [ ] Final package name (`react-native-terminal` vs `react-native-ssh-terminal`).
+- [x] **iOS rendering works** — GLES2 via **ANGLE** (→ Metal), with ANGLE's
+      `libEGL`/`libGLESv2` xcframeworks vendored in the podspec. (The "deprecated
+      GLES later" framing in §5/§12 was the staging plan; it's been carried out.)
+- [x] **Renderer strategy = A (vendored alacritty GLES2), kept for v1.** `wgpu`
+      (Strategy B) was not needed — ANGLE answered the iOS GLES question.
+- [x] **Package name = `@fressh/react-native-terminal`.**

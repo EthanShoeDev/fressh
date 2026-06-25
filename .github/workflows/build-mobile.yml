@@ -24,6 +24,10 @@ on:
         description: Submit to store test channels (Play internal / TestFlight) after building
         type: boolean
         default: false
+      canary:
+        description: Canary build — derive a store-derived, collision-free build number
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       platform:
@@ -31,11 +35,15 @@ on:
         type: string
         default: android
       release-tag:
-        description: GitHub Release tag to attach artifacts to (e.g. "@fressh/mobile@0.0.5")
+        description: GitHub Release tag to attach artifacts to (e.g. "@fressh/mobile@0.0.5"). Empty -> upload as a workflow artifact instead (canary).
         type: string
-        required: true
+        default: ''
       submit:
         description: Submit to store test channels (Play internal / TestFlight) after building
+        type: boolean
+        default: false
+      canary:
+        description: Canary build — derive a store-derived build number (Android versionCode from google_play_track_version_codes max+1; iOS via the Fastfile's latest_testflight_build_number+1) so off-cycle builds don't collide.
         type: boolean
         default: false
     # Secrets come from the caller via `secrets: inherit`, so no secrets block is
@@ -71,6 +79,22 @@ jobs:
           key: ${{ runner.os }}-turbo-build-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-build-
+
+      # Canary: derive a store-derived versionCode (Play max + 1) BEFORE prebuild so
+      # off-cycle builds at a reused marketing version don't collide on Play. The
+      # next_version_code lane needs Play auth (WIF) but no keystore secrets.
+      - name: Google Cloud auth (WIF) for versionCode
+        if: inputs.canary
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/222063936101/locations/global/workloadIdentityPools/github/providers/github-actions
+          service_account: fastlane-supply@fressh-mobile-ssh.iam.gserviceaccount.com
+      - name: Compute store-derived versionCode (canary)
+        if: inputs.canary
+        working-directory: apps/mobile
+        run: |
+          fastlane android next_version_code
+          echo "FRESSH_VERSION_CODE=$(cat build/next-version-code.txt)" >> "$GITHUB_ENV"
 
       # turbo runs the terminal package's codegen (ubrn + nitrogen) + native .so,
       # then scripts/signed-build.ts (prebuild + keystore from env + gradle).

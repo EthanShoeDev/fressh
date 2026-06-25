@@ -16,6 +16,7 @@ const COMMAND_NAME = 'catalog-check';
 
 interface PackageJson {
 	name?: string;
+	private?: boolean;
 	workspaces?: {
 		packages?: string[];
 		catalog?: Record<string, string>;
@@ -102,6 +103,12 @@ const checkPackage = (
 		const pkg = yield* readPackageJson(packagePath);
 		const violations: Violation[] = [];
 		const catalogDeps = new Set(Object.keys(catalog));
+		// Published (non-private) packages can't use the `catalog:` protocol in deps that
+		// reach consumers — npm doesn't resolve it (we publish with `npm publish`, not
+		// `bun publish`). Their peerDependencies in particular must be lenient npm ranges
+		// (e.g. ">=19.0.0"), which `catalog:` (an exact pinned version) can't express. So
+		// exempt a published package's peerDependencies from the `catalog:` requirement.
+		const isPublished = pkg.private !== true;
 
 		const depTypes = [
 			'dependencies',
@@ -128,7 +135,11 @@ const checkPackage = (
 						currentValue: version,
 						expectedValue: 'workspace:*',
 					});
-				} else if (catalogDeps.has(depName) && version !== 'catalog:') {
+				} else if (
+					catalogDeps.has(depName) &&
+					version !== 'catalog:' &&
+					!(isPublished && depType === 'peerDependencies')
+				) {
 					violations.push({
 						packagePath,
 						packageName: pkg.name ?? packagePath,
