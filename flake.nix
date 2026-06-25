@@ -49,6 +49,48 @@
           })
           .secretspec;
       })
+      # bun 1.3.14: the screenshot pipeline's resize step uses the native Bun.Image
+      # API, which landed in 1.3.14 (apps/mobile/scripts/screenshot-derive.ts), but
+      # nixpkgs is deliberately held at 1.3.13 — the 1.3.14 bump is stuck in draft
+      # because `bun build --compile` produces segfaulting binaries on Nix:
+      #   nixpkgs PR: https://github.com/NixOS/nixpkgs/pull/519796
+      #   bun issue:  https://github.com/oven-sh/bun/issues/31023
+      # That regression only affects `bun build --compile`, which this repo does NOT
+      # use (our bun scripts run interpreted), so 1.3.14 is safe here. Re-point bun's
+      # prebuilt sources at the official 1.3.14 release — same per-platform asset
+      # layout nixpkgs uses, so its sourceRoot / autoPatchelf wiring still applies.
+      # Drop this overlay once PR 519796 lands (nixpkgs bun >= 1.3.14).
+      (_final: prev: {
+        bun = prev.bun.overrideAttrs (old: {
+          version = "1.3.14";
+          # `src` is derived from passthru.sources (overridden below), so the version
+          # bump without a direct `src` override is intentional — flag it, else
+          # overrideAttrs warns on every eval (and aborts under abort-on-warn).
+          __intentionallyOverridingVersion = true;
+          passthru =
+            old.passthru
+            // {
+              sources = {
+                "aarch64-darwin" = prev.fetchurl {
+                  url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-darwin-aarch64.zip";
+                  hash = "sha256-2LliIYKK1vl6x6wKt+lYcjQa92MAHogD6CZ2UsJlJiA=";
+                };
+                "aarch64-linux" = prev.fetchurl {
+                  url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-aarch64.zip";
+                  hash = "sha256-on/7Y6gxA3WDbg1vZorhf6jY0YuIw3yCHGUzGXOhmjs=";
+                };
+                "x86_64-darwin" = prev.fetchurl {
+                  url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-darwin-x64-baseline.zip";
+                  hash = "sha256-PjWtb1OXGpg0v55nhuKt9ytfGSHMmpxf3gc9KXKUQHY=";
+                };
+                "x86_64-linux" = prev.fetchurl {
+                  url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64.zip";
+                  hash = "sha256-lR7iruhV8IWVruxiJSJqKY0/6oOj3NZGXAnLzN9+hI8=";
+                };
+              };
+            };
+        });
+      })
     ];
 
     forAllSystems = f:

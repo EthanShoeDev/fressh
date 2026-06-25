@@ -164,6 +164,7 @@ function HostKeyDialog({ pending }: { pending: PendingHostKey }) {
 						/>
 						<Button
 							className='flex-1'
+							testID='host-key-trust'
 							variant='danger'
 							title='Trust new key'
 							onPress={() => answer(true)}
@@ -179,6 +180,7 @@ function HostKeyDialog({ pending }: { pending: PendingHostKey }) {
 						/>
 						<Button
 							className='flex-1'
+							testID='host-key-trust'
 							title='Trust'
 							onPress={() => answer(true)}
 						/>

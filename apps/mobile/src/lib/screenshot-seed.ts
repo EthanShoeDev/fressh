@@ -14,12 +14,14 @@
  *
  * Note on reactivity: presets are stored in MMKV and read through reactive hooks,
  * so seeded presets appear immediately. The connections list is an effect-atom
- * query that does NOT auto-refresh on a non-atom write, so the screenshot flow is
- * ordered to capture the Servers tab only after the live demo connection fires a
- * CONNECTIONS reactivity invalidation (which re-reads the keychain and surfaces
- * these seeded servers too).
+ * query that does NOT auto-refresh on a non-atom write (only the atom-based connect
+ * mutation fires its CONNECTIONS reactivity key). So after writing the demo servers
+ * this seed calls `atomRegistry.refresh(connections.atoms.list)` directly, making
+ * them appear deterministically — the flow can screenshot the Servers tab without
+ * first connecting.
  */
 import * as Effect from 'effect/Effect';
+import { atomRegistry } from './atom-registry';
 import { addPreset, getPresets } from './presets';
 import { secretsManager } from './secrets-manager';
 
@@ -80,6 +82,16 @@ export const seedScreenshotData = Effect.gen(function* () {
 				label: server.label,
 			}),
 		{ concurrency: 'unbounded' },
+	);
+
+	// Force the saved-servers list to re-read the keychain now. That list is an
+	// effect-atom query gated on CONNECTIONS reactivity; only the atom-based
+	// connect mutation fires that key, so the raw `upsertConnection` writes above
+	// would otherwise stay invisible until a live connect invalidated it. A direct
+	// `refresh` on the SAME registry the hooks read makes the seeded servers appear
+	// deterministically — the flow can capture the Servers tab without connecting.
+	yield* Effect.sync(() =>
+		atomRegistry.refresh(secretsManager.connections.atoms.list),
 	);
 
 	if (getPresets().length === 0) {

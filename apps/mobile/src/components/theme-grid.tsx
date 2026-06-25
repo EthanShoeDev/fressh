@@ -21,6 +21,7 @@ export function ThemeGrid({
 			{APP_THEMES.map((appTheme) => (
 				<ThemeCard
 					key={appTheme.id}
+					testID={`theme-${appTheme.id}`}
 					label={appTheme.label}
 					swatch={appTheme.swatch}
 					selected={themeName === appTheme.id}
@@ -38,15 +39,18 @@ function ThemeCard({
 	swatch,
 	selected,
 	onPress,
+	testID,
 }: {
 	label: string;
 	swatch: ThemeSwatch;
 	selected: boolean;
 	onPress: () => void;
+	testID?: string;
 }) {
 	const skin = useThemeSkin();
 	return (
 		<Pressable
+			testID={testID}
 			onPress={onPress}
 			accessibilityRole='button'
 			accessibilityState={{ selected }}

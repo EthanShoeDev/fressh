@@ -381,6 +381,13 @@ function ConnectField({
 				<FieldLabel>{label}</FieldLabel>
 			</View>
 			<Pressable
+				// Not an accessibility element: grouping the subtree here makes the
+				// inner TextInput's `testID` invisible to UI automation on iOS (the
+				// wrapper swallows the child identifier). Opting the wrapper out lets
+				// each field's `testID` (host/port/username/password) surface so the
+				// screenshot/e2e flows can use clean cross-platform `id:` selectors.
+				// Touch handling is unaffected — `accessible` only changes the a11y tree.
+				accessible={false}
 				onPress={() => inputRef.current?.focus()}
 				className='flex-row items-center gap-2 px-3.5 py-3'
 				style={{

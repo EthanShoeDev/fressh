@@ -2,11 +2,6 @@ import AppStoreBadge from '@fressh/assets/third-party-brands/apple-app-store/Bla
 import GithubMark from '@fressh/assets/third-party-brands/github-mark/github-mark.svg';
 import GooglePlayBadge from '@fressh/assets/third-party-brands/google-play/GetItOnGooglePlay_Badge_Web_color_English.svg';
 import mobileAppIconDark from '@fressh/assets/mobile-app-icon-dark.png';
-import commandsScreenshot from '@fressh/assets/mobile-screenshots/commands-ios.png';
-import connectScreenshot from '@fressh/assets/mobile-screenshots/connect-ios.png';
-import keysScreenshot from '@fressh/assets/mobile-screenshots/keys-ios.png';
-import serversScreenshot from '@fressh/assets/mobile-screenshots/servers-ios.png';
-import settingsScreenshot from '@fressh/assets/mobile-screenshots/settings-ios.png';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
@@ -35,7 +30,7 @@ export const Route = createFileRoute('/')({
 	component: HomePage,
 });
 
-// Mirrors APP_THEMES in apps/mobile/src/lib/theme.tsx — keep the swatches in
+// Mirrors APP_THEMES in apps/mobile/src/lib/app-themes.ts — keep the swatches in
 // sync when a theme is added or retuned there.
 const themes = [
 	{
@@ -99,31 +94,76 @@ const platforms = [
 
 type Screenshot = { src: string; alt: string };
 
-// The screenshot pipeline currently captures the default theme (graphite) on
-// iOS only. As it learns to capture every theme × platform, new sets get
-// imported and slotted in here and the switchers light up automatically.
-const screenshotManifest: Partial<
-	Record<ThemeId, Partial<Record<Platform, readonly Screenshot[]>>>
-> = {
-	graphite: {
-		ios: [
-			{
-				src: serversScreenshot,
-				alt: 'Servers tab — saved hosts with live session status',
-			},
-			{ src: connectScreenshot, alt: 'New connection form' },
-			{ src: keysScreenshot, alt: 'Keys tab — generate or import SSH keys' },
-			{
-				src: commandsScreenshot,
-				alt: 'Commands tab — one-tap command presets',
-			},
-			{
-				src: settingsScreenshot,
-				alt: 'Settings tab — themes and terminal options',
-			},
-		],
-	},
+// Hero-screen display order + alt text, keyed by the `<screen>` segment of a
+// capture filename. Screens not listed still render (sorted last) with a generic
+// alt — keep the captures that matter for the marketing reel up top.
+const SCREEN_META = [
+	['servers', 'Servers tab — saved hosts with live session status'],
+	['connect', 'New connection form'],
+	['terminal', 'Live terminal — a real SSH session'],
+	['smart-terminal', 'Smart terminal — command status, timing & working dir'],
+	['keys', 'Keys tab — generate or import SSH keys'],
+	['commands', 'Commands tab — one-tap command presets'],
+	['settings', 'Settings tab — themes and terminal options'],
+] as const satisfies readonly [string, string][];
+const screenOrder = (screen: string) => {
+	const i = SCREEN_META.findIndex(([s]) => s === screen);
+	return i === -1 ? SCREEN_META.length : i;
 };
+const screenAlt = (screen: string) =>
+	SCREEN_META.find(([s]) => s === screen)?.[1] ?? screen;
+
+// Vite eagerly globs every capture (as URLs, not modules) so new
+// `<screen>-<theme>-<platform>.png` files from the screenshot pipeline slot into
+// the theme/platform switchers with NO code change — the manifest builds itself.
+// The pattern is relative to this file (apps/web/src/routes → repo packages/assets).
+const screenshotUrls: Record<string, string> = import.meta.glob(
+	'../../../../packages/assets/mobile-screenshots/*.png',
+	{ eager: true, import: 'default', query: '?url' },
+);
+
+// `<screen>` may itself contain a hyphen (`smart-terminal`), so parse the filename
+// right-to-left: platform, then theme, then the remainder is the screen.
+function buildScreenshotManifest() {
+	const themeIds = new Set<string>(themes.map((t) => t.id));
+	const collected: Partial<
+		Record<
+			ThemeId,
+			Partial<Record<Platform, { screen: string; src: string }[]>>
+		>
+	> = {};
+	for (const [filePath, src] of Object.entries(screenshotUrls)) {
+		const base =
+			filePath
+				.split('/')
+				.pop()
+				?.replace(/\.png$/, '') ?? '';
+		const parts = base.split('-');
+		const platform = parts.pop();
+		const theme = parts.pop();
+		const screen = parts.join('-');
+		if (!platform || !theme || !screen) continue;
+		if (platform !== 'ios' && platform !== 'android') continue;
+		if (!themeIds.has(theme)) continue;
+		const byPlatform = (collected[theme as ThemeId] ??= {});
+		(byPlatform[platform] ??= []).push({ screen, src });
+	}
+	const manifest: Partial<
+		Record<ThemeId, Partial<Record<Platform, readonly Screenshot[]>>>
+	> = {};
+	for (const [theme, byPlatform] of Object.entries(collected)) {
+		const out: Partial<Record<Platform, readonly Screenshot[]>> = {};
+		for (const [platform, shots] of Object.entries(byPlatform)) {
+			out[platform as Platform] = shots
+				.sort((a, b) => screenOrder(a.screen) - screenOrder(b.screen))
+				.map(({ screen, src }) => ({ src, alt: screenAlt(screen) }));
+		}
+		manifest[theme as ThemeId] = out;
+	}
+	return manifest;
+}
+
+const screenshotManifest = buildScreenshotManifest();
 
 function HomePage() {
 	return (

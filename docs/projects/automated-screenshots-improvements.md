@@ -1,10 +1,131 @@
 # Future project: automated screenshot pipeline — improvements
 
-**Status:** PARTIALLY BUILT. The Maestro screenshot pipeline exists and works on iOS
-(captures connect form + all four tabs); this doc records what's there, the sharp edges
-hit while building it, and the improvements worth making — chiefly **seeding a real SSH
-host** so the terminal / smart-terminal screenshots are actually representative. It's a
-"what next + why" doc, not a committed plan.
+**Status:** BUILT + VALIDATED ON ANDROID (2026-06-24 pass). The pipeline spins up a
+throwaway **docker sshd** itself, parameterizes the connect form, loops **every theme**,
+captures a **live terminal** (real bash shell, smart-terminal context bar), and
+**resizes / fans out** to README/website/fastlane — all typecheck + lint clean. A full
+Android run produced **35 captures (5 themes × 7 screens, including live terminals)**; the
+derive step resized those plus the 5 carried-over graphite-iOS shots into **40 `small/`
+variants** and copied the graphite store subset into both fastlane dirs. iOS still needs a
+Mac to run. See *Implemented in this pass* + *Android gotchas* for details.
+
+This is a "what next + why" doc, not a committed plan.
+
+## Implemented in this pass (2026-06-24)
+
+All phases done and validated on the Android emulator (the worklets build blocker below
+was fixed). This stays a local-only tool — no CI. One refinement left: the smart-terminal
+`git status` preset (page-2 toolbar swipe) doesn't reliably reveal the chip, so the
+`terminal-*` and `smart-terminal-*` shots currently both show the live prompt + context
+bar rather than a run command — tune the swipe coords to a follow-up.
+
+- **Phase 1 — temp docker sshd (done, code):** `scripts/screenshots.ts` builds a tiny
+  ubuntu+bash+git sshd image (cached), runs it with a per-run password (no secrets),
+  and forwards `SSH_HOST/PORT/USER/PASS` to Maestro (`10.0.2.2` for Android, `127.0.0.1`
+  for iOS); torn down via an Effect `acquireRelease` scope. Plain `SCREENSHOT_SSH_*`
+  env vars override it; rebex is the last-resort fallback.
+  The flow submits the form, trusts the host (TOFU), and captures a **live bash shell**
+  (`demo@<container>:~$`). Also fixed: the maestro binary is resolved from `PATH` (the old
+  hard-coded `~/.maestro/bin` broke the nix install), and the Android build now passes
+  `--no-bundler` like iOS. Host port is **2223, not 2222** — see *Android gotchas*.
+- **Phase 2 — clean `id:` selectors (done):** `ConnectField`'s wrapper is
+  `accessible={false}`, so each `TextInput` testID surfaces on iOS; the flow uses
+  `id: host/port/username/password`. Theme cards got `testID="theme-<id>"`; the
+  terminal's hidden input got `testID="terminal-input"`.
+- **Phase 3 — deterministic seed (done):** the seed now
+  `atomRegistry.refresh(connections.atoms.list)` after writing, so the Servers tab is
+  populated without a live connect. (Note: `Reactivity.invalidate` is a *service method*
+  and `appRuntime` doesn't carry that service — a direct `refresh` on the shared
+  registry is the instance-safe fix.)
+- **Phase 4 — all themes (done + validated):** `screenshots.ts` loops `--themes`
+  (default all five). The app defaults to the **Native** theme, whose Settings hides the
+  swatch grid behind an **Appearance** nav row, so the flow opens that and picks the theme
+  by its native-row label (`THEME_LABEL`, passed by the script) — the inline-grid testID is
+  a fallback. A flaky single-theme run is now logged and skipped (non-fatal) so one miss
+  doesn't lose the whole pass + derive.
+- **Phase 6 — resize + fan-out (done + validated):** `scripts/screenshot-derive.ts`
+  resizes with **Bun's native image pipeline**
+  (`Bun.file(src).image().resize(400).png().write(out)` — the snippet below) to emit
+  width-400 `small/` variants, and uses the **effect `FileSystem` service** (no
+  `node:fs`) to copy a graphite store subset into fastlane (numbered `1.png`…). Bun's
+  image API needs **bun ≥ 1.3.14**; nixpkgs is held at 1.3.13 (the 1.3.14 bump is
+  stuck in draft — `bun build --compile` segfaults on Nix,
+  [nixpkgs#519796](https://github.com/NixOS/nixpkgs/pull/519796) /
+  [bun#31023](https://github.com/oven-sh/bun/issues/31023) — which doesn't affect our
+  interpreted scripts), so `flake.nix` overlays
+  bun's prebuilt sources to the official 1.3.14 release (and `package.json` pins
+  `bun@1.3.14`). The website `screenshotManifest` builds itself from a Vite
+  `import.meta.glob` over the captures, so new themes/platforms slot in with no code
+  change. Both validated (web build emits the assets; derive resizes the shots).
+- Legacy `<screen>-ios.png` captures were renamed to the new
+  `<screen>-graphite-ios.png` convention.
+- **Toolchain cleanup (2026-06-24):** the scripts no longer redeclare the theme list —
+  it lives once in `src/lib/app-themes.ts`, a dependency-free module the RN app
+  (`theme.tsx`, `preferences.tsx`) and the bun-run scripts both import. `screenshots.ts`
+  reads its `SCREENSHOT_SSH_*` / `HOME` env through effect `Config` (default `fromEnv`
+  provider) rather than `process.env`, and all derive file I/O goes through the effect
+  `FileSystem` service.
+
+## Android gotchas (found + fixed during the live run)
+
+These bit hard on the first real Android run; the fixes are in `screenshots.ts` /
+`screenshots.yml` / the Dockerfile, but they're worth knowing:
+
+- **Host port 2222 collides with Windows OpenSSH (WSL2).** On a Windows/WSL2 box the
+  emulator's `10.0.2.2` routes to the *Windows* host, where OpenSSH-for-Windows often
+  listens on 2222 — so the app connected to *that* sshd (right port, wrong server: a
+  different host key, and auth fails because there's no `demo` user). The temp sshd now
+  uses **2223**. Symptom: host-key prompt shows an unexpected fingerprint, then "auth
+  failed", and the container's `docker logs` show **zero** connections.
+- **sshd `UsePAM no` rejects password auth on Ubuntu 24.04.** The container must use PAM
+  (the default) for `chpasswd`-set passwords to validate; `UsePAM no` silently rejects
+  every password. (Standalone `ssh`/`sshpass` hits the same wall — it's the container,
+  not the client.)
+- **Google Password Manager "Save password?" dialog covers the tab bar.** Filling the
+  connect form's password makes Android queue a save-prompt that pops on a *later* launch
+  and blocks the first tab tap. The script now runs
+  `adb shell settings put secure autofill_service null` before capturing.
+- **Maestro `hideKeyboard` == Android Back when no keyboard is up** → it dismisses the
+  host-key modal. Only hideKeyboard while a keyboard is actually open.
+- **Maestro 2.0.3: a flow `env:` block OVERRIDES `--env`** (reverse of the docs). The flow
+  has no `env:` block; the script supplies everything via `--env`.
+- **Themed `Button` / modal content isn't matchable by title text** (the Button groups its
+  subtree, and RN `Modal` text-but-not-testID surfaces oddly) — give buttons a `testID`
+  (`host-key-trust`, etc.) and tap by `id:`.
+
+## Discovered blocker (FIXED) — worklets Bundle Mode in the Android release bundle
+
+The app uses **react-native-worklets ~0.8.3 Bundle Mode** (for `react-native-effects`'
+off-thread render loop; wired in `apps/mobile/metro.config.js`, `babel.config.cjs`
+`bundleMode:true`, and `package.json` `worklets.staticFeatureFlags`). The screenshot
+pipeline needs a **Release** build (a dev-client `clearState` drops to the Expo
+launcher). The first-ever Android Release build (this doc long noted "Android is
+unvalidated") **crashes on launch**:
+
+```
+WorkletsError: [Worklets] Failed to initialize runtime. Reason: undefined is not a function
+  at mockTurboModuleRegistry (index.android.bundle)  →  init  →  metroRequire
+```
+
+Root cause: the worklet-runtime initializer (`react-native-worklets/src/bundleMode/
+metroOverrides.native.ts:89` `mockTurboModuleRegistry`) calls the metro **dev-runtime**
+API `require.getModules()`, which doesn't exist in a minified **production** embedded
+bundle. Crucially that call is gated by the **`FETCH_PREVIEW_ENABLED` static feature
+flag** (resolved *natively* at build time from `package.json`), **not** by `__DEV__` —
+so it fires in release. `apps/mobile/package.json` had set it to `true` (copied from
+`react-native-effects`'s README), which is what opened the crashing path.
+
+**Fix applied (2026-06-24), two parts, both store-safe:**
+1. `apps/mobile/package.json` → `worklets.staticFeatureFlags.FETCH_PREVIEW_ENABLED:
+   false` (the upstream default; also dropped the inert non-flag `BUNDLE_MODE_ENABLED`).
+   `react-native-effects` never does networking on the worklet runtime, so this has no
+   downside for production. The flag is baked into the native module, so it needs a
+   native rebuild — fine, the store build (`scripts/signed-build.ts`) already does
+   `prebuild:clean` + gradle.
+2. `app.config.ts` → `expo-build-properties` `packagingOptions.pickFirst:
+   ['**/libworklets.so']`. The first clean release build then failed at
+   `mergeReleaseNativeLibs` because both `expo-modules-core` and `react-native-worklets`
+   ship `libworklets.so`; they're the same build, so pick the first.
 
 ## Direction (decided 2026-06-11, not yet implemented)
 
@@ -16,8 +137,8 @@ conflict:
    effect-ts `Command` executor (`CommandUtils` in `packages/shared/src/cli-utils.ts`)
    to shell out to **docker** (or similar: `docker run -d -p 2222:22 <sshd image>`,
    podman, or a tiny embedded sshd). Throwaway credentials are generated per run, so
-   the default path needs **no secrets at all** — the secretspec/VPS plan below
-   becomes the optional override, not the prerequisite. The containers get torn down
+   the default path needs **no secrets at all** — the external-host override below
+   becomes optional, not the prerequisite. The containers get torn down
    after the run. (Networking note: the iOS simulator can reach the host's
    `localhost` directly; the Android emulator reaches the host via `10.0.2.2`.)
    A real local sshd with bash also unlocks the smart-terminal (OSC 633) shots that
@@ -91,8 +212,8 @@ the terminal shot, and that has two problems:
 
 > **2026-06-11:** the default host should now be a **docker-spawned temp sshd**
 > started by the script itself (see *Direction* above) — throwaway creds, no secrets.
-> The secretspec plumbing below stays relevant only as an optional override for
-> pointing the flow at an external host.
+> Pointing the flow at an external host is just an optional `SCREENSHOT_SSH_*` env-var
+> override (see below).
 
 Connect the flow to a real host with a normal bash/zsh shell and "Smart terminal" on.
 The credentials handling is the design crux:
@@ -106,27 +227,22 @@ The credentials handling is the design crux:
   reads the creds from *its* environment and forwards them with `--env`. Credentials then
   live only in the runtime env + Maestro process — never in git, never in the app bundle.
 
-**Where the creds come from → secretspec.** We're standardizing secret handling on
-**[secretspec](https://secretspec.dev)** (see the secretspec section of
-[ci-building-and-releasing.md](./ci-building-and-releasing.md) — same `env`/`keyring`,
-future `vault://` provider chains). Add a `screenshots` profile to `secretspec.toml`
-declaring the screenshot host secrets, and wrap the run so they arrive as env vars:
-
-```toml
-[profiles.screenshots]
-SCREENSHOT_SSH_HOST     = { description = "screenshot demo host",     required = false, providers = ["env", "keyring"] }
-SCREENSHOT_SSH_USER     = { description = "screenshot demo username",  required = false, providers = ["env", "keyring"] }
-SCREENSHOT_SSH_PASSWORD = { description = "screenshot demo password",  required = false, providers = ["env", "keyring"] }
-```
+**Where the creds come from → plain env vars (no secretspec).** The default path needs
+**no creds at all** (the temp docker sshd generates a per-run password in memory), so the
+override is deliberately lightweight: `screenshots.ts` reads `process.env.SCREENSHOT_SSH_HOST/
+PORT/USER/PASSWORD` directly and forwards them to Maestro via `--env`, falling back to the
+rebex demo when unset.
 
 ```bash
-secretspec run --profile screenshots -- bun run --filter @fressh/mobile screenshots
+SCREENSHOT_SSH_HOST=demo.example.com SCREENSHOT_SSH_USER=demo SCREENSHOT_SSH_PASSWORD=… \
+  bun run --filter @fressh/mobile screenshots
 ```
 
-`screenshots.ts` then reads `process.env.SCREENSHOT_SSH_*` and forwards them to Maestro via
-`--env` (falling back to the rebex demo when unset, so the no-secret path still works). The
-storage backend is secretspec's concern, not the script's — keyring locally, `env` (CI
-secrets) in CI, OpenBao later — and the script never knows the difference.
+These are **demo creds, not secrets** — for a throwaway/public host you can commit them or
+export them however you like. (An earlier draft proposed a secretspec `screenshots` profile;
+that was dropped as over-engineered — only reach for a secret store if a particular host's
+password is genuinely sensitive, in which case any env-var source, including secretspec,
+works since the script only reads `process.env`.)
 
 **Open decision — auth method:** password is simplest for the flow to type; an **SSH key**
 is more secure *and* would let us screenshot the Keys → connect-with-key path, but the
@@ -154,8 +270,9 @@ ships active to real users:
 - **Tier 2 — real secrets** (SSH host + credentials for the *live* terminal / smart-terminal
   shots). These are **never in the app or the bundle at all** — not even dead-code-gated.
   They're injected at **runtime by the test harness**: Maestro types them into the connect
-  form from values the orchestration script forwards via `--env`, sourced from secretspec.
-  The shipped app — and the screenshot build's *bundle* — have zero knowledge of them.
+  form from values the orchestration script forwards via `--env`, sourced from plain
+  `SCREENSHOT_SSH_*` env vars. The shipped app — and the screenshot build's *bundle* — have
+  zero knowledge of them.
 
 So "seed the internal app just for the screenshots test, not for everyone else" = **build-flag
 gating for the harmless demo data, runtime injection for anything secret.** The thing to avoid
@@ -216,9 +333,8 @@ is the easy-but-wrong shortcut of putting real hosts/passwords behind the same
 1. **Temp SSH server, fully automated** (the headline win): the script spins up a
    docker sshd via the effect-ts `Command` executor before the Maestro flows,
    parameterizes the flow's connect step with the container's throwaway creds, and
-   tears it down after. `SCREENSHOT_SSH_*` env vars (via a secretspec `screenshots`
-   profile) remain as an optional override for an external host. Unlocks the
-   smart-terminal screenshots with zero manual setup.
+   tears it down after. `SCREENSHOT_SSH_*` env vars remain as an optional override for
+   an external host. Unlocks the smart-terminal screenshots with zero manual setup.
 2. **Clean iOS selectors**: `accessible={false}` on `ConnectField` → drop the placeholder /
    point-tap hacks for `id:` selectors.
 3. **Deterministic seed**: fire `CONNECTIONS` reactivity from the seed; capture Servers
@@ -226,12 +342,12 @@ is the easy-but-wrong shortcut of putting real hosts/passwords behind the same
 4. **All themes**: loop the capture pass per theme (switch in Settings), emit
    `<screen>-<theme>-<platform>.png`.
 5. **Android pass**: validate selectors + capture the `-android` sets.
-6. **Resize + fan-out**: Bun image-API resize step for README/website variants; select
-   and copy the store subset into `apps/mobile/fastlane/` screenshots dirs; feed the
-   website's `screenshotManifest`.
-7. **CI**: run the pipeline in CI to keep screenshots fresh — folds into
-   [ci-building-and-releasing.md](./ci-building-and-releasing.md). Note the iOS driver /
-   port caveat; docker is available on the runners, so the temp-sshd path works there too.
+6. **Resize + fan-out**: native `Bun.Image` resize step (bun ≥ 1.3.14) for README/website
+   variants; select and copy the store subset into `apps/mobile/fastlane/` screenshots
+   dirs; feed the website's `screenshotManifest`.
+
+**Not in CI — local-only.** This is a developer tool run on demand (`bun run
+screenshots`) when the UI changes; it is deliberately not wired into CI.
 
 ## Pointers
 

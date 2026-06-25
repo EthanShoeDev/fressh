@@ -7,65 +7,16 @@ import {
 	useColorScheme,
 } from 'react-native';
 import { Uniwind } from 'uniwind';
+import { APP_THEMES, type AppThemeName, type ThemeSwatch } from './app-themes';
 import { type AppearanceMode, preferences } from './preferences';
 
 /**
- * A tiny preview palette for each theme, used by the Settings theme picker.
- * `bg` is the canvas, `accent` the primary tint, `accent2` a secondary accent.
+ * The selectable themes (id + label + preview swatch) are the single source of
+ * truth in `./app-themes` — a dependency-free module so the bun-run screenshot
+ * tooling can import the same list instead of re-declaring it. Re-exported here so
+ * existing `@/lib/theme` consumers keep their import site.
  */
-export type ThemeSwatch = {
-	bg: string;
-	accent: string;
-	accent2: string;
-};
-
-/**
- * The single source of truth for the app's selectable themes. The palettes
- * themselves live in `src/global.css` as `@variant` blocks (registered in
- * `extraThemes` in `metro.config.js`); this array tracks which are user-facing.
- *
- * Only the four "reimagined" design themes are selectable — uniwind still
- * defines light/dark internally as its base variants, but the app never selects
- * them. `AppThemeName` is derived from this array, so adding/removing a theme
- * here is the only edit needed.
- */
-export const APP_THEMES = [
-	{
-		id: 'phosphor',
-		label: 'Phosphor',
-		swatch: { bg: '#120f0a', accent: '#ffb454', accent2: '#79e08a' },
-	},
-	{
-		id: 'graphite',
-		label: 'Graphite',
-		swatch: { bg: '#14161b', accent: '#818cf8', accent2: '#a78bfa' },
-	},
-	{
-		id: 'aurora',
-		label: 'Aurora',
-		swatch: { bg: '#06070d', accent: '#2de6c6', accent2: '#a487ff' },
-	},
-	{
-		id: 'monolith',
-		label: 'Monolith',
-		swatch: { bg: '#0a0a0a', accent: '#ccff00', accent2: '#f4f4f2' },
-	},
-	// "Feels like the OS": real @expo/ui controls (SwiftUI / Material 3) and a
-	// neutral system palette that follows the device light/dark. The swatch shows
-	// the dark variant; the live theme flips with the system scheme.
-	{
-		id: 'native',
-		label: 'Native',
-		swatch: { bg: '#1c1c1e', accent: '#0a84ff', accent2: '#30d158' },
-	},
-] as const satisfies readonly {
-	id: string;
-	label: string;
-	swatch: ThemeSwatch;
-}[];
-
-/** Derived from `APP_THEMES` — the union of selectable theme ids. */
-export type AppThemeName = (typeof APP_THEMES)[number]['id'];
+export { APP_THEMES, type AppThemeName, type ThemeSwatch };
 
 /**
  * Per-theme styling hints for the native bottom tab bar — the levers

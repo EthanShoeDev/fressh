@@ -47,6 +47,9 @@ export function PresetsToolbarPage({
 				{presets.map((preset) => (
 					<Pressable
 						key={preset.id}
+						// Stable id for the screenshot/e2e flows (label-derived, since the
+						// preset id is a random uuid): e.g. "git status" → preset-git-status.
+						testID={`preset-${preset.label.toLowerCase().replaceAll(/\s+/g, '-')}`}
 						onPress={() => onRun(preset)}
 						onLongPress={() => setEditing(preset)}
 						className='items-center justify-center px-3 py-2'

@@ -337,6 +337,10 @@ function ShellDetail() {
 									rides the control plane via sendBytes -> shell.sendData. */}
 						<TextInput
 							ref={inputRef}
+							// Stable id for the screenshot/e2e flows: the field is 1px and
+							// opacity-0 (it only captures keystrokes), so automation can't find
+							// it by content — this lets a flow focus + type into the terminal.
+							testID='terminal-input'
 							autoFocus
 							// `value=''` held constant keeps the field empty after every keystroke,
 							// so each onChangeText carries only the new char (no accumulation) and an

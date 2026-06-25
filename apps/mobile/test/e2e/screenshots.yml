@@ -1,77 +1,169 @@
-# Marketing screenshot flow. Drives the app through all four tabs and the connect
-# form, capturing one screenshot per screen.
+# Marketing screenshot flow — ONE theme per run.
 #
-# Run via `bun run screenshots` (apps/mobile/scripts/screenshots.ts), which builds
-# a Release variant with EXPO_PUBLIC_SCREENSHOT_SEED=1 (so the Servers and Commands
-# tabs are pre-populated with demo data) before invoking Maestro. OUTPUT (absolute
-# dir) + PLATFORM (ios|android) are passed as env and interpolated into the
-# takeScreenshot paths; Maestro appends `.png`.
+# Driven by `bun run screenshots` (apps/mobile/scripts/screenshots.ts), which:
+#   - builds a Release variant with EXPO_PUBLIC_SCREENSHOT_SEED=1 (Servers + Commands
+#     tabs pre-populated with demo data; standalone bundle, no Metro),
+#   - spins up a throwaway docker sshd (real bash shell) and forwards its host/creds,
+#   - invokes this flow ONCE PER THEME, passing THEME + the connection params via --env.
 #
-# Notes learned from the iOS XCUITest hierarchy:
-#   - The connect form is captured LAST, because filling its secure password field
-#     opens a keyboard the app can't dismiss via Maestro on iOS — and that keyboard
-#     covers the bottom tab bar, breaking any tab navigation that follows it. Tabs
-#     first, keyboard-opening form last.
-#   - The Servers/Commands lists are @shopify/flash-list; its virtualized rows are
-#     drawn but are NOT reliably present in Maestro's queryable hierarchy, so we do
-#     NOT assertVisible/tapOn list rows — we settle with a wait and screenshot the
-#     (correct) pixels.
-#   - Button testIDs DO surface as ids on iOS (id: key-generate); tabs match by text;
-#     TextInput testIDs do NOT, so form fields are tapped by placeholder / position.
-#   - A live terminal / smart-terminal screenshot needs a real SSH host (the rebex
-#     demo's shell closes immediately). Deferred — see
-#     docs/projects/future/automated-screenshots-improvements.md.
+# OUTPUT (absolute dir), PLATFORM (ios|android) and THEME (phosphor|graphite|aurora|
+# monolith|native) are interpolated into the takeScreenshot paths -> Maestro writes
+# `<screen>-<theme>-<platform>.png`. SSH_HOST/PORT/USER/PASS point the connect form at
+# a real host so the terminal + smart-terminal (OSC 633) screens are representative.
+#
+# The `env:` block below is DEFAULTS for a standalone `maestro test` run; the script
+# overrides every key via --env. Defaults fall back to the public rebex demo (whose
+# shell closes immediately, so the terminal shots are poor — the script's docker sshd
+# is what makes them real).
+#
+# Selectors (see docs/projects/automated-screenshots-improvements.md):
+#   - Form fields use clean `id:` selectors — ConnectField's wrapper is now
+#     `accessible={false}`, so each TextInput's testID (host/port/username/password)
+#     surfaces on iOS (it already did on Android).
+#   - Theme cards carry `testID="theme-<id>"`; the terminal's hidden input carries
+#     `testID="terminal-input"`.
+#   - Lists are @shopify/flash-list: virtualized rows are NOT reliably queryable, so we
+#     never assert/tap a list row — we let the list paint and screenshot the pixels.
+#   - On iOS the connect form opens a keyboard the app can't dismiss cleanly and which
+#     covers the tab bar, so the keyboard-opening connect/terminal steps come LAST.
+# Variables (OUTPUT, PLATFORM, THEME, THEME_LABEL, SSH_HOST/PORT/USER/PASS) come from
+# `--env`, which scripts/screenshots.ts always supplies. There is deliberately NO
+# flow-level `env:` block: Maestro 2.0.3 lets a flow `env:` default OVERRIDE `--env`
+# (the reverse of what you'd expect), so defaults here would silently win and the
+# script's values would be ignored. A standalone `maestro test` run must therefore pass
+# them explicitly, e.g.:
+#   --env OUTPUT=/tmp --env PLATFORM=android --env THEME=graphite --env THEME_LABEL=Graphite \
+#   --env SSH_HOST=10.0.2.2 --env SSH_PORT=2222 --env SSH_USER=demo --env SSH_PASS=secret
 appId: dev.fressh.app
 ---
 - launchApp:
     clearState: true
+# Wait for cold-start + the seed (forked on launch) to settle before driving the UI —
+# tapping a tab before the bar has painted intermittently misses (it flaked on the 5th
+# consecutive run). The Settings tab label is a stable "app is ready" signal.
+- extendedWaitUntil:
+    visible: 'Settings'
+    timeout: 20000
 
-# --- Servers tab (seeded demo servers; let the list paint, then capture) -----
+# --- Set the theme for this pass --------------------------------------------------
+# After clearState the app starts on the Native theme, whose Settings screen puts theme
+# selection behind an 'Appearance' nav row (a native sub-screen of select rows) rather
+# than the inline swatch grid the stylized themes show. So: open 'Appearance' if it's
+# there (optional — a stylized-default build shows the grid inline instead), then pick
+# the theme either by its grid testID (`theme-<id>`) or its native select-row label.
+- tapOn: 'Settings'
+- tapOn:
+    text: 'Appearance'
+    optional: true
+- tapOn:
+    id: 'theme-${THEME}'
+    optional: true
+- tapOn:
+    text: '${THEME_LABEL}'
+    optional: true
 - extendedWaitUntil:
     visible: '__never_visible__'
     optional: true
-    timeout: 8000
-- takeScreenshot: ${OUTPUT}/servers-${PLATFORM}
+    timeout: 1200
 
-# --- Commands tab (seeded presets) -------------------------------------------
+# --- Servers tab (seeded demo servers appear deterministically now) -------------
+- tapOn: 'Servers'
+- extendedWaitUntil:
+    visible: '__never_visible__'
+    optional: true
+    timeout: 4000
+- takeScreenshot: ${OUTPUT}/servers-${THEME}-${PLATFORM}
+
+# --- Commands tab (seeded presets) ---------------------------------------------
 - tapOn: 'Commands'
 - extendedWaitUntil:
     visible: '__never_visible__'
     optional: true
-    timeout: 2500
-- takeScreenshot: ${OUTPUT}/commands-${PLATFORM}
+    timeout: 2000
+- takeScreenshot: ${OUTPUT}/commands-${THEME}-${PLATFORM}
 
-# --- Keys tab (generate one so it isn't an empty state) ----------------------
-# Button testIDs surface on iOS (unlike TextInput testIDs), so target the id.
+# --- Keys tab (generate one so it isn't an empty state) ------------------------
 - tapOn: 'Keys'
 - tapOn:
     id: 'key-generate'
 - extendedWaitUntil:
     visible: 'Your keys'
     timeout: 20000
-- takeScreenshot: ${OUTPUT}/keys-${PLATFORM}
+- takeScreenshot: ${OUTPUT}/keys-${THEME}-${PLATFORM}
 
-# --- Settings tab ------------------------------------------------------------
+# --- Settings tab --------------------------------------------------------------
 - tapOn: 'Settings'
 - extendedWaitUntil:
     visible: '__never_visible__'
     optional: true
-    timeout: 1500
-- takeScreenshot: ${OUTPUT}/settings-${PLATFORM}
+    timeout: 1200
+- takeScreenshot: ${OUTPUT}/settings-${THEME}-${PLATFORM}
 
-# --- Connect form (filled, not submitted — LAST: opens a keyboard) -----------
+# --- Connect form (filled, not yet submitted) — LAST: opens a keyboard ----------
 - tapOn: 'Servers'
 - tapOn: 'New connection'
 - assertVisible: 'New server'
-- tapOn: 'example.com' # host field (placeholder)
-- inputText: 'test.rebex.net'
-- tapOn: 'root' # username field (placeholder)
-- eraseText
-- inputText: 'demo'
-# Secure password field has no stable text/id on iOS — tap by position.
 - tapOn:
-    point: 50%, 48%
-- inputText: 'password'
-# Dismiss the keyboard for a clean form shot by tapping the non-interactive title.
+    id: 'host'
+- eraseText
+- inputText: ${SSH_HOST}
+- tapOn:
+    id: 'port'
+- eraseText
+- inputText: ${SSH_PORT}
+- tapOn:
+    id: 'username'
+- eraseText
+- inputText: ${SSH_USER}
+- tapOn:
+    id: 'password'
+- eraseText
+- inputText: ${SSH_PASS}
+# Dismiss the soft keyboard so the form footer (and, after submit, the host-key
+# prompt's Trust button) aren't covered by it. hideKeyboard works on Android; the
+# iOS path relies on the title tap below as a fallback.
+- hideKeyboard
 - tapOn: 'New server'
-- takeScreenshot: ${OUTPUT}/connect-${PLATFORM}
+- takeScreenshot: ${OUTPUT}/connect-${THEME}-${PLATFORM}
+
+# --- Live terminal: submit, trust the new host, land on the terminal -----------
+- tapOn:
+    id: 'connect'
+# First connect to an unknown host raises the host-key trust prompt (TOFU). Wait for the
+# Trust BUTTON itself — the modal's slide-in lags the title text, so waiting on the title
+# then tapping immediately misses the button. Do NOT hideKeyboard here: no keyboard is up
+# at the prompt, so hideKeyboard sends an Android Back that dismisses the whole modal.
+- extendedWaitUntil:
+    visible:
+      id: 'host-key-trust'
+    optional: true
+    timeout: 20000
+- tapOn:
+    id: 'host-key-trust'
+    optional: true
+# Wait for the shell to open + the smart-terminal context bar to populate. `~` is the
+# home-dir basename the OSC 633 cwd report renders; optional so a slow/quiet shell
+# still gets captured.
+- extendedWaitUntil:
+    visible: '~'
+    optional: true
+    timeout: 20000
+- takeScreenshot: ${OUTPUT}/terminal-${THEME}-${PLATFORM}
+
+# --- Smart terminal: run the seeded "git status" preset (best-effort) -----------
+# The preset chips live on page 2 of the keyboard accessory (a thin strip just above
+# the bottom tab bar), so swipe LEFT along THAT row — a plain direction:LEFT swipes the
+# terminal body instead. Tapping the chip sends `git status -sb\r` straight to the PTY,
+# lighting up the smart-terminal context bar (cwd + git branch + exit/timing). All
+# steps optional so a layout miss never fails the run.
+- swipe:
+    start: 88%, 86%
+    end: 12%, 86%
+- tapOn:
+    id: 'preset-git-status'
+    optional: true
+- extendedWaitUntil:
+    visible: '__never_visible__'
+    optional: true
+    timeout: 3500
+- takeScreenshot: ${OUTPUT}/smart-terminal-${THEME}-${PLATFORM}

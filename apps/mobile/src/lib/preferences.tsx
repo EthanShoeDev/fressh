@@ -5,8 +5,8 @@ import {
 	useMMKVNumber,
 	useMMKVString,
 } from 'react-native-mmkv';
+import { APP_THEME_IDS, type AppThemeName } from './app-themes';
 import { DEFAULT_TAB_BAR_IMPL, type TabBarImpl } from './tab-bar-config';
-import type { AppThemeName } from './theme';
 
 // THE one store for all app preferences. It is bound exactly once — here — and
 // handed to every accessor via `definePref` below. Nothing else in the app should
@@ -18,14 +18,6 @@ import type { AppThemeName } from './theme';
 // invisible at startup. Sharing one instance everywhere removes that whole class of
 // bug; see `definePref`.)
 const storage = createMMKV();
-
-const APP_THEME_NAMES = [
-	'phosphor',
-	'graphite',
-	'aurora',
-	'monolith',
-	'native',
-] as const;
 
 /** Default theme when none is stored (or a stale/removed one was). Native, so a
  * fresh install feels like a stock OS app; the stylized themes are an opt-in. */
@@ -211,7 +203,7 @@ export const preferences = {
 		key: 'theme',
 		kind: 'string',
 		resolve: (raw): AppThemeName =>
-			APP_THEME_NAMES.includes(raw as AppThemeName)
+			APP_THEME_IDS.includes(raw as AppThemeName)
 				? (raw as AppThemeName)
 				: DEFAULT_THEME,
 	}),
