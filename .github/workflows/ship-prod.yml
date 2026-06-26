@@ -53,8 +53,8 @@ jobs:
         if: contains(fromJSON('["android","all"]'), inputs.platform)
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/222063936101/locations/global/workloadIdentityPools/github/providers/github-actions
-          service_account: fastlane-supply@fressh-mobile-ssh.iam.gserviceaccount.com
+          workload_identity_provider: projects/326432503388/locations/global/workloadIdentityPools/github/providers/github-actions
+          service_account: fastlane-supply@fressh-mobile.iam.gserviceaccount.com
 
       - name: Promote Play internal -> production
         if: contains(fromJSON('["android","all"]'), inputs.platform)
