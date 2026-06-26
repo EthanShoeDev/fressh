@@ -133,9 +133,13 @@ export function initAppTheme() {
 export function useAppTheme() {
 	const [themeName, setPref] = preferences.theme.useValue();
 	const [appearance, setAppearancePref] = preferences.appearance.useValue();
+	const [, setTabBarImpl] = preferences.tabBarImpl.useValue();
 	const scheme = useColorScheme();
 	const setThemeName = (name: AppThemeName) => {
 		setPref(name);
+		// Switching to the native theme should bring the native tab bar with it;
+		// the stylized JS bar doesn't fit the platform-native look.
+		if (name === 'native') setTabBarImpl('native');
 		Uniwind.setTheme(resolveUniwindTheme(name, scheme, appearance));
 	};
 	const setAppearance = (mode: AppearanceMode) => {
