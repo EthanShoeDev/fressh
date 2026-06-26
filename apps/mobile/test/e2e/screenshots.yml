@@ -46,21 +46,17 @@ appId: dev.fressh.app
     timeout: 20000
 
 # --- Set the theme for this pass --------------------------------------------------
-# After clearState the app starts on the Native theme, whose Settings screen puts theme
-# selection behind an 'Appearance' nav row (a native sub-screen of select rows) rather
-# than the inline swatch grid the stylized themes show. So: open 'Appearance' if it's
-# there (optional — a stylized-default build shows the grid inline instead), then pick
-# the theme either by its grid testID (`theme-<id>`) or its native select-row label.
+# The screenshot build boots on a stylized theme (forced in initAppTheme when
+# EXPO_PUBLIC_SCREENSHOT_SEED=1), NOT the production Native default. That matters: only
+# the stylized Settings root shows the swatch grid inline, where every theme — including
+# Native — is a real RN `Pressable` carrying a queryable `theme-<id>` testID. On the
+# Native theme, selection hides behind the Appearance sub-screen's @expo/ui SwiftUI rows,
+# which Maestro's iOS driver can't tap — so the old flow silently stayed on Native and all
+# five iOS themes came out identical. So: one grid tap, NOT optional. A miss must FAIL the
+# run loudly rather than emit duplicate-theme screenshots. (See the doc.)
 - tapOn: 'Settings'
 - tapOn:
-    text: 'Appearance'
-    optional: true
-- tapOn:
     id: 'theme-${THEME}'
-    optional: true
-- tapOn:
-    text: '${THEME_LABEL}'
-    optional: true
 - extendedWaitUntil:
     visible: '__never_visible__'
     optional: true
@@ -120,9 +116,18 @@ appId: dev.fressh.app
 - eraseText
 - inputText: ${SSH_PASS}
 # Dismiss the soft keyboard so the form footer (and, after submit, the host-key
-# prompt's Trust button) aren't covered by it. hideKeyboard works on Android; the
-# iOS path relies on the title tap below as a fallback.
-- hideKeyboard
+# prompt's Trust button) aren't covered by it. `hideKeyboard` is ANDROID-ONLY: on iOS
+# it FAILS on the stylized themes' custom RN TextInputs ("Couldn't hide the keyboard …
+# the app uses a custom input") and aborts the whole flow — so connect/terminal/
+# smart-terminal never get captured (it only "worked" before because every run was
+# wrongly stuck on the Native theme, whose native inputs expose a standard dismiss).
+# On iOS the `tapOn: 'New server'` title tap below dismisses the keyboard instead —
+# Maestro's own recommended substitute (tap a non-interactive element).
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn: 'New server'
 - takeScreenshot: ${OUTPUT}/connect-${THEME}-${PLATFORM}
 

@@ -7,8 +7,10 @@ bar), and **resizes / fans out** to README/website/fastlane — all typecheck + 
 full Android run produced **35 captures (5 themes × 7 screens, including live terminals)**;
 the **2026-06-26 iOS run produced the matching 35** (`<screen>-<theme>-ios.png`), and the
 derive step now emits **70 `small/` variants** and copies the 7-shot graphite store subset
-into fastlane. See *iOS gotchas (2026-06-26)* for the four traps that had to be cleared
-first — they are non-obvious and will bite again.
+into fastlane. See *iOS gotchas (2026-06-26)* for the traps that had to be cleared first —
+they are non-obvious and will bite again. (One bit AFTER that "successful" run: every iOS
+theme rendered identically because the theme switch silently no-op'd on iOS — see the
+theme gotcha — so the first 35-shot iOS set had to be regenerated.)
 
 This is a "what next + why" doc, not a committed plan.
 
@@ -176,6 +178,35 @@ not 5600). In order:
   (`testID=terminal-hide-keyboard`, calls `KeyboardController.dismiss()`): the flow taps it
   for the full-height terminal shot because Maestro's `hideKeyboard` can't act on the custom
   input on iOS (it aborted the flow before the `terminal`/`smart-terminal` shots).
+
+- **Every iOS screenshot rendered the SAME theme — the theme switch silently no-op'd on iOS
+  (found 2026-06-26, after the first "successful" iOS run).** The build defaults to the
+  **Native** theme, whose Settings root puts theme selection behind an *Appearance* sub-screen
+  built from `@expo/ui` **SwiftUI rows** (`NativeSelectRow` — a SwiftUI `Row onPress` with no
+  `testID`). Maestro's iOS XCUITest driver can't reliably tap a SwiftUI row by its text, and
+  the flow's theme taps were `optional: true`, so the first switch *from Native* silently
+  failed and all five iOS runs stayed on Native — 35 shots, exit 0, but every stylized theme
+  identical (the file sizes were a tell: phosphor/graphite/aurora/monolith within a few KB of
+  each other, Native distinct). Android was fine — its Compose `ListItem` *is* tappable, which
+  is why it shipped unnoticed. **Fix:** boot the screenshot build on a *stylized* theme instead
+  of Native (`initAppTheme` forces `phosphor` when `EXPO_PUBLIC_SCREENSHOT_SEED=1`). Only the
+  stylized Settings *root* shows the swatch grid inline, where every theme — Native included —
+  is a real RN `Pressable` with a queryable `theme-<id>` testID. The flow then needs just one
+  grid tap, and it's **no longer `optional`**: a missed theme tap must FAIL the run loudly
+  rather than emit duplicate-theme screenshots. Lesson: `optional: true` on a step whose whole
+  purpose is to change state hides exactly this class of silent regression.
+
+  **Follow-on it exposed:** once the themes actually switched, the stylized runs started
+  aborting at the connect form's `- hideKeyboard` — *"Couldn't hide the keyboard … the app
+  uses a custom input"* (the stylized themes' custom RN `TextInput`s have no standard iOS
+  dismiss action). The script tolerates a per-theme flow failure (`⚠️ capture failed
+  (continuing)`), so it silently skipped the connect/terminal/smart-terminal shots for all
+  four stylized themes, leaving them stale. It had been masked because every run was wrongly
+  stuck on the Native theme, whose `@expo/ui` inputs *do* expose a dismiss. Fix: `hideKeyboard`
+  is now **Android-only** (`runFlow: { when: { platform: Android } }`); on iOS the existing
+  `tapOn: 'New server'` title tap dismisses the keyboard instead — Maestro's own recommended
+  substitute (tap a non-interactive element). Meta-lesson: a tolerated/`optional` capture
+  failure is the same silent-success trap one layer up — the run is green but shots are stale.
 
 ## Discovered blocker (FIXED) — worklets Bundle Mode in the Android release bundle
 

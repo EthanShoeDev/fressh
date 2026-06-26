@@ -113,6 +113,19 @@ function applyAppearanceOverride(appearance: AppearanceMode) {
  * on the right light/dark variant with no cold-start scheme flash.
  */
 export function initAppTheme() {
+	// Screenshot builds must boot on a stylized theme, never Native. The Maestro
+	// flow switches themes via the swatch grid (real RN `Pressable`s with queryable
+	// `theme-<id>` testIDs), which the Settings root only shows for the stylized
+	// themes — on Native, theme selection sits behind the Appearance sub-screen's
+	// `@expo/ui` SwiftUI rows, which Maestro's iOS XCUITest driver can't reliably
+	// tap. Booting on Native meant every stylized iOS run silently stayed on Native,
+	// so all five themes rendered identically (see automated-screenshots-improvements
+	// doc). Forcing a stylized default makes the grid the entry point for ALL themes,
+	// including Native (it's a card in the grid too). clearState resets MMKV each
+	// run, so this re-applies on every launch.
+	if (process.env.EXPO_PUBLIC_SCREENSHOT_SEED === '1') {
+		preferences.theme.set('phosphor');
+	}
 	const appearance = preferences.appearance.get();
 	applyAppearanceOverride(appearance);
 	Uniwind.setTheme(
