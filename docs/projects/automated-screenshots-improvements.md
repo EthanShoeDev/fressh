@@ -1,13 +1,14 @@
 # Future project: automated screenshot pipeline — improvements
 
-**Status:** BUILT + VALIDATED ON ANDROID (2026-06-24 pass). The pipeline spins up a
-throwaway **docker sshd** itself, parameterizes the connect form, loops **every theme**,
-captures a **live terminal** (real bash shell, smart-terminal context bar), and
-**resizes / fans out** to README/website/fastlane — all typecheck + lint clean. A full
-Android run produced **35 captures (5 themes × 7 screens, including live terminals)**; the
-derive step resized those plus the 5 carried-over graphite-iOS shots into **40 `small/`
-variants** and copied the graphite store subset into both fastlane dirs. iOS still needs a
-Mac to run. See *Implemented in this pass* + *Android gotchas* for details.
+**Status:** BUILT + VALIDATED ON ANDROID (2026-06-24) **AND iOS (2026-06-26)**. The
+pipeline spins up a throwaway **docker sshd** itself, parameterizes the connect form, loops
+**every theme**, captures a **live terminal** (real bash shell, smart-terminal context
+bar), and **resizes / fans out** to README/website/fastlane — all typecheck + lint clean. A
+full Android run produced **35 captures (5 themes × 7 screens, including live terminals)**;
+the **2026-06-26 iOS run produced the matching 35** (`<screen>-<theme>-ios.png`), and the
+derive step now emits **70 `small/` variants** and copies the 7-shot graphite store subset
+into fastlane. See *iOS gotchas (2026-06-26)* for the four traps that had to be cleared
+first — they are non-obvious and will bite again.
 
 This is a "what next + why" doc, not a committed plan.
 
@@ -119,6 +120,62 @@ These bit hard on the first real Android run; the fixes are in `screenshots.ts` 
 - **Themed `Button` / modal content isn't matchable by title text** (the Button groups its
   subtree, and RN `Modal` text-but-not-testID surfaces oddly) — give buttons a `testID`
   (`host-key-trust`, etc.) and tap by `id:`.
+
+## iOS gotchas (2026-06-26 — first successful iOS run)
+
+The first real iOS run hit four independent, non-obvious blockers. None is the iOS-driver
+port 5600 thing the old notes warned about (Maestro 2.6.0's XCUITest driver uses **22087**,
+not 5600). In order:
+
+- **Maestro iOS needs the GUI (Aqua) login session — it hangs silently over SSH.** Run from
+  an SSH / VS Code-Remote / Cursor-Remote shell (`launchctl managername` → `Background`),
+  `xcodebuild test` for the driver never starts; Maestro freezes right after
+  `… Using SLF4J …` with no further log and no driver port. Run it from a Terminal.app/iTerm
+  on the Mac's **physical desktop** (`launchctl managername` → `Aqua`). You can drive it from
+  an SSH session via `osascript -e 'tell application "Terminal" to do script "…"'` (Terminal
+  inherits Aqua); `launchctl asuser <uid> …` needs root.
+- **dadb (Maestro's Android discovery) hangs on ActivityWatch's port 5600 — THIS is the real
+  5600 trap.** Even with an explicit iOS `--device`, `TestCommand.getDeviceCount` →
+  `DeviceService.listAndroidDevices` → `dadb.Dadb.list()` probes the emulator ADB port range
+  (~5554–5682). **5600 is in that range**, and ActivityWatch's `aw-server` listens there,
+  accepts the TCP connect, and never speaks ADB back → infinite blocking socket read (same
+  `… Using SLF4J …` freeze). Confirm with `lsof -nP -a -p <maestro-pid> -iTCP` showing
+  `→127.0.0.1:5600`. Fix: free 5600 (quit ActivityWatch) for the run, or move aw-server above
+  ~5682. The `--driver-host-port 22087` pin in `screenshots.ts` does NOT help this — wrong
+  port.
+- **Docker can't pull images over SSH: `credsStore: "desktop"` needs the GUI keychain.** From
+  a `Background` session the docker sshd build dies on `error getting credentials … keychain
+  cannot be accessed because the current session does not allow user interaction` — even for a
+  *public* base image, because the cred helper runs for every registry op. Running in the Aqua
+  session fixes it (keychain reachable). Headless workaround: temporarily drop `credsStore`
+  from `~/.docker/config.json` (public pulls need no auth), then restore.
+- **The worklets `FETCH_PREVIEW_ENABLED` crash recurs on iOS because `ios/` is gitignored
+  (CNG).** Same crash as the Android blocker below
+  (`WorkletsError: [Worklets] Failed to initialize runtime`), but the Android fix
+  (`package.json` → `FETCH_PREVIEW_ENABLED: false`) only reaches iOS when the Pods are
+  regenerated — and `apps/mobile/ios/` is generated locally, never committed. A Mac whose
+  Pods predate the flag flip still bakes `FETCH_PREVIEW_ENABLED:true` into
+  `ios/Pods/Target Support Files/RNWorklets/RNWorklets.release.xcconfig` (worklets reads
+  `worklets.staticFeatureFlags` from package.json at **pod-install** time —
+  `node_modules/react-native-worklets/scripts/worklets_utils.rb`). Fix: `cd ios && pod
+  install` (flips the xcconfig to `false`) then a **Release rebuild** so the worklets pod
+  recompiles — `--skip-build` reinstalls the old crashing binary. Verify the flag with
+  `grep FETCH_PREVIEW_ENABLED ios/Pods/Target\ Support\ Files/RNWorklets/RNWorklets.release.xcconfig`.
+
+- **iOS terminal typed each printable twice under Maestro → fixed at the source.** The
+  terminal's hidden capture input (`testID=terminal-input`) is a `multiline` `TextInput` held
+  at `value=''`; on iOS that fires `onChangeText` TWICE per keystroke. The old
+  `changeGuardRef` dropped the same-event-loop-turn duplicate, but **Maestro's `inputText`
+  splits the two fires across turns**, so the duplicate leaked (typed `git` → `giit`,
+  `command not found`, red `✗127` in the terminal/smart shots). A content/timing de-dup can't
+  help — a real `--` is indistinguishable from a doubled `-`. Fixed by sourcing printables
+  per platform in `terminal.tsx`: **iOS takes printables from `onKeyPress`** (fires once per
+  key), Android keeps `onChangeText` (its soft keyboard doesn't emit `onKeyPress` for
+  printables). `multiline` stays — it's what makes Android emit `onKeyPress` for
+  Enter/Backspace. Also added a **Hide keyboard** button to the terminal toolbar
+  (`testID=terminal-hide-keyboard`, calls `KeyboardController.dismiss()`): the flow taps it
+  for the full-height terminal shot because Maestro's `hideKeyboard` can't act on the custom
+  input on iOS (it aborted the flow before the `terminal`/`smart-terminal` shots).
 
 ## Discovered blocker (FIXED) — worklets Bundle Mode in the Android release bundle
 

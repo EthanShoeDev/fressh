@@ -173,10 +173,14 @@ appId: dev.fressh.app
     timeout: 3000
 
 # --- Live terminal shot: dismiss the keyboard for a full-height terminal ---------
-# hideKeyboard is safe here (a keyboard IS up) and gives a clean, full-height terminal of
-# real scrollback — the "a real SSH session" hero. The key/nav accessory toolbar stays
-# pinned above the tab bar.
-- hideKeyboard
+# Tap the toolbar's hide-keyboard button (testID `terminal-hide-keyboard`) for a clean,
+# full-height terminal of real scrollback — the "a real SSH session" hero. The key/nav
+# accessory toolbar stays pinned above the tab bar. We tap this button instead of Maestro's
+# `hideKeyboard`, which works on Android but FAILS on iOS — the terminal's input is a custom
+# 1px hidden field with no standard dismiss action, so hideKeyboard aborted the iOS flow
+# before this shot. The button calls KeyboardController.dismiss() and works on both.
+- tapOn:
+    id: 'terminal-hide-keyboard'
 - extendedWaitUntil:
     visible: '__never_visible__'
     optional: true
