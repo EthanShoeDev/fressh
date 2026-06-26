@@ -129,10 +129,10 @@ function PrivacyPage() {
 					<p>
 						If you have questions about this policy, contact us at{' '}
 						<a
-							href='mailto:ethanshoedev@gmail.com'
+							href='mailto:ethanshumate@gmail.com'
 							className='text-blue-600 underline decoration-dotted hover:decoration-solid dark:text-blue-400'
 						>
-							ethanshoedev@gmail.com
+							ethanshumate@gmail.com
 						</a>
 						.
 					</p>

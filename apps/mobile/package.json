@@ -17,6 +17,7 @@
 		"build:ios": "expo prebuild --platform ios --clean && fastlane ios build",
 		"submit:android": "fastlane android beta",
 		"submit:ios": "fastlane ios beta",
+		"sync-listing:ios": "fastlane ios sync_listing",
 		"promote:android": "fastlane android promote",
 		"promote:ios": "fastlane ios release",
 		"ios:certs": "fastlane ios certs",

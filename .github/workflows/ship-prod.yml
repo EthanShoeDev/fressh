@@ -65,3 +65,5 @@ jobs:
         run: bun run --cwd apps/mobile promote:ios -- version:${{ inputs.version }}
         env:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          # App Review contact phone (deliver app_review_information); see Fastfile.
+          ASC_REVIEW_CONTACT_PHONE: ${{ secrets.ASC_REVIEW_CONTACT_PHONE }}

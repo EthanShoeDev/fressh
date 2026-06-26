@@ -200,3 +200,19 @@ jobs:
           bun run --cwd apps/mobile submit:ios
         env:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+
+      # Keep the App Store product page (metadata + screenshots from
+      # fastlane/metadata + fastlane/screenshots) in sync on every beta — deliver
+      # with no binary upload and no review submit. Build attach is skipped
+      # (FRESSH_SYNC_ATTACH_BUILD=false): the build we just uploaded is still
+      # PROCESSING and not yet selectable, so it's attached later at promote time
+      # (ship-prod.yml). Submitting for App Review stays the manual promote button.
+      - name: Sync App Store listing (fastlane deliver, no submit)
+        if: inputs.submit
+        run: bun run --cwd apps/mobile sync-listing:ios
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          # deliver always pushes review contact info (it must create the review
+          # detail or a later step crashes — fastlane #20538), so sync needs this too.
+          ASC_REVIEW_CONTACT_PHONE: ${{ secrets.ASC_REVIEW_CONTACT_PHONE }}
+          FRESSH_SYNC_ATTACH_BUILD: 'false'

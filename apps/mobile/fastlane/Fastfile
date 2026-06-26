@@ -5,6 +5,7 @@
 #                             API key (then store them in OpenBao — runbook section D)
 #   fastlane ios build        archive signed IPA -> build/fressh-ios.ipa (prebuild must have run)
 #   fastlane ios beta         upload the IPA to TestFlight (internal testers)
+#   fastlane ios sync_listing push metadata + screenshots to the product page (no review submit)
 #   fastlane ios release      submit the already-uploaded TestFlight build for App Review (promote)
 #   fastlane android beta     upload build/fressh-android.aab to the Play internal track
 #   fastlane android promote  promote a versionCode from internal -> production track
@@ -67,6 +68,48 @@ ASC_KEY_ID = "RR3K2Q9Y5L"
 ASC_ISSUER_ID = "69a6de93-97b3-47e3-e053-5b8c7c11a4d1"
 APPLE_TEAM_ID = "9R7S3L2R7N"
 
+# App Review contact + "how to test" notes, pushed on every deliver call (sync and
+# submit). It can't be limited to submit-time: deliver's review_attachment_file step
+# unconditionally fetches the review detail and dies with "No data" if it was never
+# created (fastlane #20538), and review_information is what creates it. The name,
+# email, and notes are non-secret (the email is already public on the website); the
+# phone is a SECRET (ASC_REVIEW_CONTACT_PHONE via secretspec/OpenBao + GitHub Secrets)
+# so it stays out of this public repo. Apple requires the phone in +<country-code>
+# format.
+ASC_REVIEW_FIRST_NAME = "Ethan"
+ASC_REVIEW_LAST_NAME = "Shumate"
+ASC_REVIEW_EMAIL = "ethanshumate@gmail.com"
+ASC_REVIEW_NOTES = <<~NOTES
+  Fressh is a standalone SSH terminal client. There are no user accounts and no
+  in-app login — you connect directly to your own SSH servers, so no demo account
+  is needed to sign into the app itself.
+
+  To evaluate the app:
+    1. On the Servers tab, tap + to add a server.
+    2. Enter the host, port (22), and username, then a password or an SSH key
+       (you can import an existing key or generate a new one in-app).
+    3. Tap the saved server to open an interactive terminal session.
+
+  If you do not have an SSH server available for testing, email ethanshumate@gmail.com
+  and we will provide a temporary demo host with credentials.
+
+  All SSH keys and credentials are stored only in the device keychain. The app has no
+  backend server and collects no personal data.
+NOTES
+
+# App Review contact hash for deliver. Built on every push (see the note above:
+# the review detail must exist or review_attachment_file crashes), so the phone
+# secret must be present for sync_listing as well as release.
+def app_review_information
+  {
+    first_name: ASC_REVIEW_FIRST_NAME,
+    last_name: ASC_REVIEW_LAST_NAME,
+    email_address: ASC_REVIEW_EMAIL,
+    phone_number: ENV.fetch("ASC_REVIEW_CONTACT_PHONE"),
+    notes: ASC_REVIEW_NOTES,
+  }
+end
+
 def asc_api_key
   app_store_connect_api_key(
     key_id: ASC_KEY_ID,
@@ -116,6 +159,44 @@ end
 def release_notes
   path = File.join(MOBILE_DIR, "build", "release-notes.txt")
   File.exist?(path) ? File.read(path) : "Internal build #{app_version}"
+end
+
+# Push the App Store product page (metadata from fastlane/metadata + screenshots
+# from fastlane/screenshots) via deliver. The binary is NEVER uploaded here —
+# pilot/beta owns that; build_number selects the already-uploaded TestFlight build
+# so its 1024 marketing icon populates the product-page icon.
+#
+#   submit:false -> just populate the listing (the sync_listing lane / `sync-listing:ios`).
+#   submit:true  -> also submit the selected build for App Review + auto-release
+#                   (the release lane / `promote:ios`).
+#
+# Attaching a build requires it to have finished PROCESSING. CI auto-syncs right
+# after a beta upload (pilot skips the processing wait), so it sets
+# FRESSH_SYNC_ATTACH_BUILD=false to push metadata/screenshots only; the build gets
+# attached later at promote time. A submit always attaches (App Review needs one).
+def push_listing(version:, submit:)
+  attach_build = submit || ENV["FRESSH_SYNC_ATTACH_BUILD"] != "false"
+  # deliver reads What's New from fastlane/metadata/en-US/release_notes.txt.
+  notes_path = File.join(__dir__, "metadata", "en-US", "release_notes.txt")
+  File.write(notes_path, release_notes)
+  deliver(
+    api_key: asc_api_key,
+    app_version: version,
+    # Build numbers are ASC-assigned (latest+1), not semver-predictable — select the
+    # latest uploaded build (nil leaves the version's current selection untouched).
+    build_number: attach_build ? latest_ios_build_number(version).to_s : nil,
+    skip_binary_upload: true, # the binary comes from pilot/beta, never deliver
+    skip_screenshots: false, # fastlane/screenshots/en-US is seeded
+    overwrite_screenshots: true, # replace stale shots so re-runs converge
+    submit_for_review: submit,
+    automatic_release: submit || nil, # only meaningful when submitting
+    # Always push review contact info: deliver's review_attachment_file step
+    # unconditionally fetches the review detail and dies with "No data" if it was
+    # never created (fastlane #20538), so review_information must run to create it.
+    app_review_information: app_review_information,
+    precheck_include_in_app_purchases: false,
+    force: true, # no interactive HTML preview in CI
+  )
 end
 
 # Google Play auth, in preference order:
@@ -229,25 +310,14 @@ platform :ios do
     )
   end
 
+  desc "Populate the App Store product page (metadata + screenshots) WITHOUT submitting for review"
+  lane :sync_listing do |options|
+    push_listing(version: marketing_version(options[:version] || app_version), submit: false)
+  end
+
   desc "Promote: submit the already-uploaded TestFlight build for App Review + auto-release"
   lane :release do |options|
-    version = marketing_version(options[:version] || app_version)
-    # deliver reads What's New from fastlane/metadata/en-US/release_notes.txt.
-    notes_path = File.join(__dir__, "metadata", "en-US", "release_notes.txt")
-    File.write(notes_path, release_notes)
-    deliver(
-      api_key: asc_api_key,
-      app_version: version,
-      # Build numbers are ASC-assigned (latest+1), not semver-predictable — promote
-      # the latest uploaded build for this marketing version.
-      build_number: latest_ios_build_number(version).to_s,
-      skip_binary_upload: true, # promote the existing TestFlight build
-      skip_screenshots: true, # flip false once fastlane/screenshots is seeded
-      submit_for_review: true,
-      automatic_release: true,
-      precheck_include_in_app_purchases: false,
-      force: true, # no interactive HTML preview in CI
-    )
+    push_listing(version: marketing_version(options[:version] || app_version), submit: true)
   end
 end
 
