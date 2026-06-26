@@ -252,20 +252,39 @@ platform :ios do
 end
 
 platform :android do
-  desc "Upload build/fressh-android.aab to the Play internal testing track"
+  desc "Upload build/fressh-android.aab to the Play internal + closed (alpha) testing tracks"
   lane :beta do
-    supply(
+    aab = File.join(MOBILE_DIR, "build", "fressh-android.aab")
+    # versionCode of this build, so the second track can reference the SAME
+    # uploaded artifact without re-uploading. Canary/rc use the store-derived
+    # FRESSH_VERSION_CODE override (the value app.config.ts baked in at prebuild);
+    # stable falls back to the semver-derived code (matches semverToCode there).
+    vc = (ENV["FRESSH_VERSION_CODE"] || version_code).to_i
+
+    # Shared "binary + changelog only, no listing" flags — the store listing is
+    # owned by the promote/listing flow; betas only ship the binary + its changelog
+    # (metadata/android/en-US/changelogs/<versionCode>.txt).
+    common = {
       **play_auth_args,
-      track: "internal",
-      aab: File.join(MOBILE_DIR, "build", "fressh-android.aab"),
       release_status: "completed",
-      # Listing metadata/screenshots are owned by the promote/listing flow;
-      # betas only ship the binary + its changelog
-      # (metadata/android/en-US/changelogs/<versionCode>.txt).
       skip_upload_metadata: true,
       skip_upload_images: true,
       skip_upload_screenshots: true,
       skip_upload_changelogs: false,
+    }
+
+    # 1. Internal testing — instant (no review); our own smoke ring.
+    supply(**common, track: "internal", aab: aab)
+
+    # 2. Closed testing (alpha) — attach the same artifact (no re-upload). Testers
+    # on the closed track get it after Google review. Requires the closed track to
+    # exist with testers configured in the Play Console.
+    supply(
+      **common,
+      track: "alpha",
+      version_code: vc,
+      skip_upload_aab: true,
+      skip_upload_apk: true,
     )
   end
 
