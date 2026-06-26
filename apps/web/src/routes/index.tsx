@@ -2,6 +2,7 @@ import AppStoreBadge from '@fressh/assets/third-party-brands/apple-app-store/Bla
 import GithubMark from '@fressh/assets/third-party-brands/github-mark/github-mark.svg';
 import GooglePlayBadge from '@fressh/assets/third-party-brands/google-play/GetItOnGooglePlay_Badge_Web_color_English.trimmed.svg';
 import mobileAppIconDark from '@fressh/assets/mobile-app-icon-dark.png';
+import npmLogoRed from '@fressh/assets/third-party-brands/npm-js/npm-logo-red.png';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
@@ -79,9 +80,19 @@ const themes = [
 // Console before the opt-in link works for them, so the form collects the
 // Google-account email first.
 const betaSignupFormUrl = 'https://forms.gle/ApsjoRhPn2Z2SY2ZA';
+const testFlightUrl = 'https://testflight.apple.com/join/XhKX68Xv';
 const playOptInUrl = 'https://play.google.com/apps/testing/dev.fressh.app';
 const playStoreUrl =
 	'https://play.google.com/store/apps/details?id=dev.fressh.app';
+
+// The native terminal core is published to the public npm registry; the website
+// mirrors the README's npm branding (logo, version badge, install line) so the
+// package reads as a first-class, installable library — not just a source folder.
+const npmPackageName = '@fressh/react-native-terminal';
+const npmPackageUrl = `https://www.npmjs.com/package/${npmPackageName}`;
+const npmVersionBadgeUrl = `https://img.shields.io/npm/v/${npmPackageName}?label=npm&color=10b981`;
+const githubPackageUrl =
+	'https://github.com/EthanShoeDev/fressh/tree/main/packages/react-native-terminal';
 
 type ThemeId = (typeof themes)[number]['id'];
 type Platform = 'ios' | 'android';
@@ -264,6 +275,9 @@ function Hero() {
 					<StoreBadge
 						src={AppStoreBadge}
 						alt='Download on the App Store'
+						note='join the TestFlight beta'
+						href={testFlightUrl}
+						badgeHref={testFlightUrl}
 						imgClassName='h-[46px]'
 					/>
 					<StoreBadge
@@ -329,7 +343,15 @@ function StoreBadge({
 				badge
 			)}
 			{href ? (
-				<a href={href} className={pillClassName}>
+				// External pill links (e.g. TestFlight) open in a new tab; in-page
+				// anchors like `#beta` stay in the same tab.
+				<a
+					href={href}
+					{...(href.startsWith('http')
+						? { target: '_blank', rel: 'noopener noreferrer' }
+						: {})}
+					className={pillClassName}
+				>
 					{note}
 				</a>
 			) : (
@@ -788,31 +810,76 @@ function OpenSource() {
 		<Section
 			eyebrow='open source'
 			title='Free. No paywalled SSH.'
-			lead='Some mobile SSH clients lock basics like one-off commands behind a subscription. Fressh is MIT-licensed and free — the whole stack is on GitHub.'
+			lead='Some mobile SSH clients lock basics like one-off commands behind a subscription. Fressh is MIT-licensed and free — and the native terminal core is published on npm for any React Native app to use.'
 		>
-			<a
-				href='https://github.com/EthanShoeDev/fressh/tree/main/packages/react-native-terminal'
-				target='_blank'
-				rel='noopener noreferrer'
-				className='group block rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:-translate-y-1 hover:border-emerald-400/30 hover:shadow-xl hover:shadow-emerald-500/5'
-			>
-				<div className='flex items-start justify-between gap-4'>
-					<h3 className='font-mono text-base font-semibold text-white transition group-hover:text-emerald-300'>
-						@fressh/react-native-terminal
-					</h3>
-					<img
-						src={GithubMark}
-						alt='GitHub'
-						className='h-5 w-5 shrink-0 opacity-70 invert'
-						loading='lazy'
-					/>
+			<div className='rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition hover:border-emerald-400/30'>
+				<div className='flex flex-wrap items-start justify-between gap-4'>
+					<a
+						href={npmPackageUrl}
+						target='_blank'
+						rel='noopener noreferrer'
+						className='font-mono text-base font-semibold text-white transition hover:text-emerald-300'
+					>
+						{npmPackageName}
+					</a>
+					<a
+						href={npmPackageUrl}
+						target='_blank'
+						rel='noopener noreferrer'
+						className='shrink-0 transition hover:opacity-80'
+					>
+						<img
+							src={npmVersionBadgeUrl}
+							alt={`${npmPackageName} on npm`}
+							className='h-5'
+							loading='lazy'
+						/>
+					</a>
 				</div>
 				<p className='mt-3 max-w-2xl text-sm leading-relaxed text-gray-400'>
 					The native terminal package: SSH via russh, a durable VT engine via
 					alacritty_terminal, and Alacritty’s GPU renderer — all in one native
 					library you can drop into your own React Native app.
 				</p>
-			</a>
+				<div className='mt-5 flex items-center gap-3 overflow-x-auto rounded-xl border border-white/10 bg-[#07090c] px-4 py-3 font-mono text-sm'>
+					<span aria-hidden='true' className='select-none text-emerald-400'>
+						$
+					</span>
+					<code className='whitespace-nowrap text-gray-200'>
+						bun add {npmPackageName}
+					</code>
+				</div>
+				<div className='mt-5 flex flex-wrap gap-3'>
+					<a
+						href={npmPackageUrl}
+						target='_blank'
+						rel='noopener noreferrer'
+						className='inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-200 transition hover:border-white/25 hover:bg-white/10'
+					>
+						<img
+							src={npmLogoRed}
+							alt=''
+							aria-hidden='true'
+							className='h-3 w-auto'
+						/>
+						View on npm
+					</a>
+					<a
+						href={githubPackageUrl}
+						target='_blank'
+						rel='noopener noreferrer'
+						className='inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-200 transition hover:border-white/25 hover:bg-white/10'
+					>
+						<img
+							src={GithubMark}
+							alt=''
+							aria-hidden='true'
+							className='h-4 w-4 invert'
+						/>
+						Source on GitHub
+					</a>
+				</div>
+			</div>
 		</Section>
 	);
 }
