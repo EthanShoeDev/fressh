@@ -77,9 +77,10 @@ const themes = [
 ] as const;
 
 // Google Play closed testing: testers must be on the email list in Play
-// Console before the opt-in link works for them, so the form collects the
-// Google-account email first.
-const betaSignupFormUrl = 'https://forms.gle/ApsjoRhPn2Z2SY2ZA';
+// Console before the opt-in link works for them. The tester list points at a
+// public Google Group, so joining the group adds you instantly — no manual
+// approval step on our end.
+const betaGroupUrl = 'https://groups.google.com/g/fressh-android-testing';
 const testFlightUrl = 'https://testflight.apple.com/join/XhKX68Xv';
 const playOptInUrl = 'https://play.google.com/apps/testing/dev.fressh.app';
 const playStoreUrl =
@@ -285,7 +286,7 @@ function Hero() {
 						alt='Get it on Google Play'
 						note='in closed beta — join the test'
 						href='#beta'
-						badgeHref={betaSignupFormUrl}
+						badgeHref={betaGroupUrl}
 						imgClassName='h-[43px]'
 					/>
 				</div>
@@ -416,20 +417,20 @@ function TerminalWindow() {
 function AndroidBeta() {
 	const steps = [
 		{
-			title: 'Share your Google email',
+			title: 'Join the testing group',
 			detail: (
 				<>
-					Fill out the{' '}
+					Join the{' '}
 					<a
-						href={betaSignupFormUrl}
+						href={betaGroupUrl}
 						target='_blank'
 						rel='noopener noreferrer'
 						className='text-emerald-300 underline decoration-dotted underline-offset-4 hover:decoration-solid'
 					>
-						30-second signup form
+						Fressh Android Testing group
 					</a>{' '}
-					with the email tied to your Google Play account. Google only lets
-					listed testers in, so this step is required.
+					with the Google account tied to your Play Store. Google only lets
+					group members into the test, so this step is required.
 				</>
 			),
 		},
@@ -437,7 +438,7 @@ function AndroidBeta() {
 			title: 'Opt in to the test',
 			detail: (
 				<>
-					Once you&apos;re added (usually within a day), accept the invite at{' '}
+					Once you&apos;ve joined the group, accept the invite at{' '}
 					<a
 						href={playOptInUrl}
 						target='_blank'
@@ -490,7 +491,7 @@ function AndroidBeta() {
 					</p>
 				</div>
 				<a
-					href={betaSignupFormUrl}
+					href={betaGroupUrl}
 					target='_blank'
 					rel='noopener noreferrer'
 					className='inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-400 px-6 py-3 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-300'
