@@ -42,7 +42,12 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import {
+  GestureDetector,
+  useCompetingGestures,
+  usePanGesture,
+  useTapGesture,
+} from 'react-native-gesture-handler';
 import {
   KeyboardController,
   KeyboardEvents,
@@ -461,70 +466,65 @@ function TerminalSurface({
     setPendingCopy(null);
   }, [shellId]);
 
-  const gesture = useMemo(() => {
-    const fracX = (x: number) =>
-      Math.min(1, Math.max(0, x / Math.max(1, sizeRef.current.width)));
-    const fracY = (y: number) =>
-      Math.min(1, Math.max(0, y / Math.max(1, sizeRef.current.height)));
-    // Quick drag → scroll. changeY>0 (finger down) reveals older content. Sent as
-    // a fraction of view height; native multiplies by the grid's row count.
-    // oxlint-disable-next-line typescript/no-deprecated -- the RNGH 3 hook API (usePanGesture/useTapGesture/useCompetingGestures) is a behavior-sensitive rewrite of the terminal gestures that needs on-device verification
-    const scrollPan = Gesture.Pan()
-      .runOnJS(true)
-      .onStart(() => setPendingCopy(null))
-      // oxlint-disable-next-line react/refs -- gesture callbacks run on touch events (runOnJS), never during render; sizeRef is read there, not while rendering
-      .onChange((e) => {
-        appRuntime.runFork(
-          Effect.tryPromise(() =>
-            scroll(shellId, e.changeY / Math.max(1, sizeRef.current.height)),
-          ).pipe(
-            // Scroll is best-effort (a dropped frame is non-fatal), but still log.
-            Effect.catch((error) => Effect.logWarning('scroll failed', error)),
-            annotateModule,
-          ),
-        );
-      });
+  const fracX = (x: number) =>
+    Math.min(1, Math.max(0, x / Math.max(1, sizeRef.current.width)));
+  const fracY = (y: number) =>
+    Math.min(1, Math.max(0, y / Math.max(1, sizeRef.current.height)));
 
-    // Hold-then-drag → select. Word-snap on start, extend on move, surface the
-    // Copy button (with the text captured now) on release.
-    // oxlint-disable-next-line typescript/no-deprecated -- the RNGH 3 hook API (usePanGesture/useTapGesture/useCompetingGestures) is a behavior-sensitive rewrite of the terminal gestures that needs on-device verification
-    const selectPan = Gesture.Pan()
-      .runOnJS(true)
-      .activateAfterLongPress(300)
-      // oxlint-disable-next-line react/refs -- gesture callbacks run on touch events (runOnJS), never during render; sizeRef is read there, not while rendering
-      .onStart((e) => {
-        setPendingCopy(null);
-        selectionStart(shellId, fracX(e.x), fracY(e.y), SelectionKind.Word);
-      })
-      // oxlint-disable-next-line react/refs -- gesture callbacks run on touch events (runOnJS), never during render; sizeRef is read there, not while rendering
-      .onUpdate((e) => {
-        selectionUpdate(shellId, fracX(e.x), fracY(e.y));
-      })
-      .onEnd((e) => {
-        const text = selectionText(shellId);
-        if (text !== undefined && text !== '') {
-          setPendingCopy({ x: e.x, y: e.y, text });
-        } else {
-          dismissSelection();
-        }
-      });
+  // Quick drag → scroll. changeY>0 (finger down) reveals older content. Sent as
+  // a fraction of view height; native multiplies by the grid's row count.
+  const scrollPan = usePanGesture({
+    runOnJS: true,
+    onActivate: () => setPendingCopy(null),
+    onUpdate: (e) => {
+      appRuntime.runFork(
+        Effect.tryPromise(() =>
+          scroll(shellId, e.changeY / Math.max(1, sizeRef.current.height)),
+        ).pipe(
+          // Scroll is best-effort (a dropped frame is non-fatal), but still log.
+          Effect.catch((error) => Effect.logWarning('scroll failed', error)),
+          annotateModule,
+        ),
+      );
+    },
+  });
 
-    // oxlint-disable-next-line typescript/no-deprecated -- the RNGH 3 hook API (usePanGesture/useTapGesture/useCompetingGestures) is a behavior-sensitive rewrite of the terminal gestures that needs on-device verification
-    const tap = Gesture.Tap()
-      .runOnJS(true)
-      .onEnd(() => {
-        if (pendingCopy) {
-          dismissSelection();
-        } else {
-          onTapEmpty();
-        }
-      });
+  // Hold-then-drag → select. Word-snap on start, extend on move, surface the
+  // Copy button (with the text captured now) on release.
+  const selectPan = usePanGesture({
+    runOnJS: true,
+    activateAfterLongPress: 300,
+    onActivate: (e) => {
+      setPendingCopy(null);
+      selectionStart(shellId, fracX(e.x), fracY(e.y), SelectionKind.Word);
+    },
+    onUpdate: (e) => {
+      selectionUpdate(shellId, fracX(e.x), fracY(e.y));
+    },
+    onDeactivate: (e) => {
+      const text = selectionText(shellId);
+      if (text !== undefined && text !== '') {
+        setPendingCopy({ x: e.x, y: e.y, text });
+      } else {
+        dismissSelection();
+      }
+    },
+  });
 
-    // A held finger arms selectPan; an immediate drag wins scrollPan; a clean
-    // tap takes the tap. Race = first to activate wins.
-    // oxlint-disable-next-line typescript/no-deprecated -- the RNGH 3 hook API (usePanGesture/useTapGesture/useCompetingGestures) is a behavior-sensitive rewrite of the terminal gestures that needs on-device verification
-    return Gesture.Race(selectPan, scrollPan, tap);
-  }, [shellId, pendingCopy, dismissSelection, onTapEmpty]);
+  const tap = useTapGesture({
+    runOnJS: true,
+    onDeactivate: () => {
+      if (pendingCopy) {
+        dismissSelection();
+      } else {
+        onTapEmpty();
+      }
+    },
+  });
+
+  // A held finger arms selectPan; an immediate drag wins scrollPan; a clean
+  // tap takes the tap. Race = first to activate wins.
+  const gesture = useCompetingGestures(selectPan, scrollPan, tap);
 
   const onCopy = useCallback(() => {
     const text = pendingCopy?.text;
