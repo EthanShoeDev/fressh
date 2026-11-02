@@ -1,15 +1,17 @@
 {
-	"recommendations": [
-		"expo.vscode-expo-tools",
-		"gruntfuggly.todo-tree",
-		"eamodio.gitlens",
-		"astro-build.astro-vscode",
-		"mhutchie.git-graph",
-		"oxc.oxc-vscode",
-		"yoavbls.pretty-ts-errors",
-		"ctf0.duplicated-code-new",
-		"github.vscode-github-actions",
-		"mkhl.direnv",
-		"jnoortheen.nix-ide"
-	]
+  "recommendations": [
+    "oxc.oxc-vscode",
+    "mkhl.direnv",
+    "jnoortheen.nix-ide",
+    "effectful-tech.effect-vscode",
+    "vitest.explorer",
+    "oven.bun-vscode",
+    "bradlc.vscode-tailwindcss",
+    "expo.vscode-expo-tools",
+    "vercel.turbo-vsc",
+    "rust-lang.rust-analyzer",
+    "github.vscode-github-actions",
+    "eamodio.gitlens",
+    "yoavbls.pretty-ts-errors"
+  ]
 }

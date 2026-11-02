@@ -8,14 +8,14 @@
 // is ESM-with-createRequire).
 /** @type {import('react-native-worklets/plugin').PluginOptions} */
 const workletsPluginOptions = {
-	bundleMode: true,
-	strictGlobal: true,
+  bundleMode: true,
+  strictGlobal: true,
 };
 
 module.exports = function babelConfig(api) {
-	api.cache(true);
-	return {
-		presets: ['babel-preset-expo'],
-		plugins: [['react-native-worklets/plugin', workletsPluginOptions]],
-	};
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+    plugins: [['react-native-worklets/plugin', workletsPluginOptions]],
+  };
 };

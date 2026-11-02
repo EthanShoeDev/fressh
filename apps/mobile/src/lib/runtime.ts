@@ -2,6 +2,7 @@ import * as Layer from 'effect/Layer';
 import * as Logger from 'effect/Logger';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import * as References from 'effect/References';
+
 import { KnownHosts } from './host-keys';
 
 /**
@@ -18,8 +19,8 @@ import { KnownHosts } from './host-keys';
  */
 
 const LoggerLayer = Layer.mergeAll(
-	Logger.layer([Logger.consolePretty()]),
-	Layer.succeed(References.MinimumLogLevel, 'Debug'),
+  Logger.layer([Logger.consolePretty()]),
+  Layer.succeed(References.MinimumLogLevel, 'Debug'),
 );
 
 export const appLayer = Layer.mergeAll(LoggerLayer, KnownHosts.layer);

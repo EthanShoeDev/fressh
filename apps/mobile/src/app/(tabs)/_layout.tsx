@@ -1,5 +1,5 @@
-import { JsTabsLayout } from '@/components/navigation/JsTabsLayout';
-import { NativeTabsLayout } from '@/components/navigation/NativeTabsLayout';
+import { JsTabsLayout } from '@/components/navigation/js-tabs-layout';
+import { NativeTabsLayout } from '@/components/navigation/native-tabs-layout';
 import { preferences } from '@/lib/preferences';
 
 /**
@@ -9,6 +9,6 @@ import { preferences } from '@/lib/preferences';
  * stack history resets, which is fine for a try-it-out toggle.
  */
 export default function TabsLayout() {
-	const [impl] = preferences.tabBarImpl.useValue();
-	return impl === 'js' ? <JsTabsLayout /> : <NativeTabsLayout />;
+  const [impl] = preferences.tabBarImpl.useValue();
+  return impl === 'js' ? <JsTabsLayout /> : <NativeTabsLayout />;
 }

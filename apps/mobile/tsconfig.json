@@ -1,28 +1,30 @@
 {
-	"extends": ["expo/tsconfig.base", "../../tsconfig.base.json"],
-	"compilerOptions": {
-		"types": ["node", "bun"],
-		"strict": true,
-		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-		"noFallthroughCasesInSwitch": true,
-		"noUncheckedIndexedAccess": true,
-		"verbatimModuleSyntax": true,
-		"noImplicitOverride": true,
-		"allowJs": true,
-		"strictNullChecks": true,
-		"paths": {
-			"@/*": ["./src/*"],
-			"react-native-animated-glow": [
-				"../../node_modules/react-native-animated-glow/lib/typescript/index"
-			]
-		}
-	},
-	"include": [
-		"**/*.ts",
-		"**/*.tsx",
-		".expo/types/**/*.ts",
-		"expo-env.d.ts",
-		"eslint.config.js"
-	]
+  // Expo's base config is the one RN type resolution needs (`react-native`
+  // export condition, `module: preserve`), so it replaces the shared base; the
+  // strictness flags shoemaker-typescript-config sets are restated on top.
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "types": ["node", "bun-types"],
+    "plugins": [{ "name": "@effect/language-service", "diagnostics": false }],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "*.mts",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
 }

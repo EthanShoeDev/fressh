@@ -1,17 +1,17 @@
 {
-	"$schema": "https://unpkg.com/@changesets/config@latest/schema.json",
-	"changelog": [
-		"@changesets/changelog-github",
-		{ "repo": "EthanShoeDev/fressh" }
-	],
-	"commit": false,
-	"access": "restricted",
-	"baseBranch": "main",
-	"updateInternalDependencies": "patch",
-	"privatePackages": { "version": true, "tag": true },
-	"ignore": [],
-	"snapshot": {
-		"useCalculatedVersion": false,
-		"prereleaseTemplate": "canary-{commit-short}"
-	}
+  "$schema": "https://unpkg.com/@changesets/config@latest/schema.json",
+  "changelog": [
+    "@changesets/changelog-github",
+    { "repo": "EthanShoeDev/fressh" }
+  ],
+  "commit": false,
+  "access": "restricted",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "privatePackages": { "version": true, "tag": true },
+  "ignore": [],
+  "snapshot": {
+    "useCalculatedVersion": false,
+    "prereleaseTemplate": "canary-{commit-short}"
+  }
 }

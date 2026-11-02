@@ -1,5 +1,5 @@
 import { scheduleTask } from '@effect/atom-react';
-import * as AtomRegistry from 'effect/unstable/reactivity/AtomRegistry';
+import * as AtomRegistry from 'effect/reactivity/AtomRegistry';
 
 /**
  * The app's single atom registry — state atoms (ssh-store, terminal-semantics,
@@ -12,6 +12,6 @@ import * as AtomRegistry from 'effect/unstable/reactivity/AtomRegistry';
  * Options mirror atom-react's default registry.
  */
 export const atomRegistry = AtomRegistry.make({
-	scheduleTask,
-	defaultIdleTTL: 400,
+  scheduleTask,
+  defaultIdleTTL: 400,
 });

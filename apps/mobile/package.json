@@ -1,116 +1,105 @@
 {
-	"name": "@fressh/mobile",
-	"version": "0.1.1",
-	"private": true,
-	"type": "module",
-	"main": "expo-router/entry",
-	"scripts": {
-		"tsgo:check": "tsgo --noEmit",
-		"expo:typegen": "expo customize tsconfig.json",
-		"adb:fix-wifi": "bash scripts/adb-fix-wifi.sh",
-		"android": "bun run adb:fix-wifi && expo run:android --port 8082",
-		"ios": "expo run:ios --port 8081",
-		"dev:android:release": "bun run adb:fix-wifi && expo run:android --port 8082 --variant release",
-		"dev:ios:release": "expo run:ios --port 8081 --variant release",
-		"build:android": "bun scripts/signed-build.ts",
-		"build:android:apk": "bun scripts/signed-build.ts --format apk",
-		"build:ios": "expo prebuild --platform ios --clean && fastlane ios build",
-		"submit:android": "fastlane android beta",
-		"submit:ios": "fastlane ios beta",
-		"sync-listing:ios": "fastlane ios sync_listing",
-		"promote:android": "fastlane android promote",
-		"promote:ios": "fastlane ios release",
-		"ios:certs": "fastlane ios certs",
-		"changelog:extract": "bun scripts/changelog-extract.ts",
-		"prebuild": "expo prebuild",
-		"prebuild:clean": "expo prebuild --clean",
-		"expo:install:fix": "expo install --fix",
-		"expo:doctor": "bunx expo-doctor@latest || true",
-		"maestro:test": "maestro test test/e2e/",
-		"screenshots": "bun scripts/screenshots.ts",
-		"screenshots:ios": "bun scripts/screenshots.ts --platform ios",
-		"screenshots:android": "bun scripts/screenshots.ts --platform android",
-		"adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done"
-	},
-	"dependencies": {
-		"@effect/atom-react": "catalog:",
-		"@expo-google-fonts/archivo": "^0.4.2",
-		"@expo-google-fonts/inter-tight": "^0.4.2",
-		"@expo-google-fonts/jetbrains-mono": "^0.4.1",
-		"@expo-google-fonts/space-grotesk": "^0.4.1",
-		"@expo-google-fonts/space-mono": "^0.4.2",
-		"@expo/ui": "~56.0.16",
-		"@expo/vector-icons": "^15.0.3",
-		"@fressh/assets": "workspace:*",
-		"@fressh/react-native-terminal": "workspace:*",
-		"@react-native-segmented-control/segmented-control": "2.5.7",
-		"@shopify/flash-list": "2.0.2",
-		"@tanstack/react-form": "^1.33.0",
-		"date-fns": "^4.4.0",
-		"effect": "catalog:",
-		"expo": "~56.0.9",
-		"expo-build-properties": "^56.0.18",
-		"expo-clipboard": "~56.0.3",
-		"expo-constants": "~56.0.14",
-		"expo-crypto": "~56.0.4",
-		"expo-dev-client": "~56.0.14",
-		"expo-document-picker": "~56.0.4",
-		"expo-file-system": "~56.0.7",
-		"expo-font": "~56.0.5",
-		"expo-glass-effect": "~56.0.4",
-		"expo-haptics": "~56.0.3",
-		"expo-image": "~56.0.9",
-		"expo-linking": "~56.0.11",
-		"expo-router": "~56.2.5",
-		"expo-splash-screen": "~56.0.9",
-		"expo-status-bar": "~56.0.4",
-		"expo-symbols": "~56.0.5",
-		"expo-system-ui": "~56.0.5",
-		"react": "catalog:",
-		"react-dom": "catalog:",
-		"react-native": "catalog:",
-		"react-native-effects": "^0.2.0",
-		"react-native-gesture-handler": "~2.31.2",
-		"react-native-keyboard-controller": "1.21.6",
-		"react-native-keychain": "10.0.0",
-		"react-native-mmkv": "4.3.1",
-		"react-native-nitro-modules": "0.35.9",
-		"react-native-reanimated": "~4.3.1",
-		"react-native-safe-area-context": "~5.7.0",
-		"react-native-screens": "4.25.2",
-		"react-native-web": "~0.21.2",
-		"react-native-webgpu": "^0.5.15",
-		"react-native-webview": "catalog:",
-		"react-native-worklets": "~0.8.3",
-		"tailwindcss": "catalog:",
-		"uniwind": "catalog:"
-	},
-	"devDependencies": {
-		"@types/bun": "^1.3.14",
-		"@types/react": "catalog:",
-		"cross-env": "catalog:",
-		"tsx": "^4.22.4",
-		"typescript": "catalog:"
-	},
-	"expo": {
-		"install": {
-			"exclude": [
-				"react",
-				"react-dom",
-				"typescript"
-			]
-		},
-		"doctor": {
-			"reactNativeDirectoryCheck": {
-				"exclude": [
-					"@dylankenneally/react-native-ssh-sftp"
-				]
-			}
-		}
-	},
-	"worklets": {
-		"staticFeatureFlags": {
-			"FETCH_PREVIEW_ENABLED": false
-		}
-	}
+  "name": "@fressh/mobile",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "main": "expo-router/entry",
+  "scripts": {
+    "expo:typegen": "expo customize tsconfig.json",
+    "adb:fix-wifi": "bash scripts/adb-fix-wifi.sh",
+    "android": "bun run adb:fix-wifi && expo run:android --port 8082",
+    "ios": "expo run:ios --port 8081",
+    "dev:android:release": "bun run adb:fix-wifi && expo run:android --port 8082 --variant release",
+    "dev:ios:release": "expo run:ios --port 8081 --variant release",
+    "build:android": "bun scripts/signed-build.ts",
+    "build:android:apk": "bun scripts/signed-build.ts --format apk",
+    "build:ios": "expo prebuild --platform ios --clean && fastlane ios build",
+    "submit:android": "fastlane android beta",
+    "submit:ios": "fastlane ios beta",
+    "sync-listing:ios": "fastlane ios sync_listing",
+    "promote:android": "fastlane android promote",
+    "promote:ios": "fastlane ios release",
+    "ios:certs": "fastlane ios certs",
+    "changelog:extract": "bun scripts/changelog-extract.ts",
+    "prebuild": "expo prebuild",
+    "prebuild:clean": "expo prebuild --clean",
+    "expo:install:fix": "expo install --fix",
+    "expo:doctor": "bunx expo-doctor@latest || true",
+    "maestro:test": "maestro test test/e2e/",
+    "screenshots": "bun scripts/screenshots.ts",
+    "screenshots:ios": "bun scripts/screenshots.ts --platform ios",
+    "screenshots:android": "bun scripts/screenshots.ts --platform android",
+    "adb:logs": "while ! adb logcat --pid=$(adb shell pidof -s dev.fressh.app); do sleep 1; done"
+  },
+  "dependencies": {
+    "@effect/atom-react": "catalog:",
+    "@expo-google-fonts/archivo": "catalog:",
+    "@expo-google-fonts/inter-tight": "catalog:",
+    "@expo-google-fonts/jetbrains-mono": "catalog:",
+    "@expo-google-fonts/space-grotesk": "catalog:",
+    "@expo-google-fonts/space-mono": "catalog:",
+    "@expo/ui": "catalog:",
+    "@expo/vector-icons": "catalog:",
+    "@fressh/assets": "workspace:*",
+    "@fressh/react-native-terminal": "workspace:*",
+    "@tanstack/react-form": "catalog:",
+    "date-fns": "catalog:",
+    "effect": "catalog:",
+    "expo": "catalog:",
+    "expo-build-properties": "catalog:",
+    "expo-clipboard": "catalog:",
+    "expo-constants": "catalog:",
+    "expo-crypto": "catalog:",
+    "expo-dev-client": "catalog:",
+    "expo-document-picker": "catalog:",
+    "expo-font": "catalog:",
+    "expo-glass-effect": "catalog:",
+    "expo-image": "catalog:",
+    "expo-linking": "catalog:",
+    "expo-router": "catalog:",
+    "expo-splash-screen": "catalog:",
+    "expo-symbols": "catalog:",
+    "expo-system-ui": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-native": "catalog:",
+    "react-native-effects": "catalog:",
+    "react-native-gesture-handler": "catalog:",
+    "react-native-keyboard-controller": "catalog:",
+    "react-native-keychain": "catalog:",
+    "react-native-mmkv": "catalog:",
+    "react-native-nitro-modules": "catalog:",
+    "react-native-reanimated": "catalog:",
+    "react-native-safe-area-context": "catalog:",
+    "react-native-screens": "catalog:",
+    "react-native-web": "catalog:",
+    "react-native-webgpu": "catalog:",
+    "react-native-worklets": "catalog:",
+    "tailwindcss": "catalog:",
+    "uniwind": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/language-service": "catalog:",
+    "@react-native/metro-config": "catalog:",
+    "@types/react": "catalog:",
+    "bun-types": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "react",
+        "react-dom",
+        "typescript"
+      ]
+    },
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "@dylankenneally/react-native-ssh-sftp"
+        ]
+      }
+    }
+  }
 }

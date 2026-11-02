@@ -37,7 +37,7 @@ jobs:
     steps:
       # Check out the release tag so the promoted version's CHANGELOG section,
       # fastlane lanes, and store metadata match what actually shipped to beta.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: '@fressh/mobile@${{ inputs.version }}'
 

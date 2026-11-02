@@ -1,20 +1,20 @@
 import { Archivo_700Bold, Archivo_900Black } from '@expo-google-fonts/archivo';
 import {
-	InterTight_400Regular,
-	InterTight_700Bold,
-	InterTight_800ExtraBold,
+  InterTight_400Regular,
+  InterTight_700Bold,
+  InterTight_800ExtraBold,
 } from '@expo-google-fonts/inter-tight';
 import {
-	JetBrainsMono_400Regular,
-	JetBrainsMono_700Bold,
+  JetBrainsMono_400Regular,
+  JetBrainsMono_700Bold,
 } from '@expo-google-fonts/jetbrains-mono';
 import {
-	SpaceGrotesk_400Regular,
-	SpaceGrotesk_700Bold,
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_700Bold,
 } from '@expo-google-fonts/space-grotesk';
 import {
-	SpaceMono_400Regular,
-	SpaceMono_700Bold,
+  SpaceMono_400Regular,
+  SpaceMono_700Bold,
 } from '@expo-google-fonts/space-mono';
 
 /**
@@ -28,15 +28,15 @@ import {
  *   - Space Mono    → Monolith data/labels
  */
 export const appFonts = {
-	Archivo_700Bold,
-	Archivo_900Black,
-	InterTight_400Regular,
-	InterTight_700Bold,
-	InterTight_800ExtraBold,
-	JetBrainsMono_400Regular,
-	JetBrainsMono_700Bold,
-	SpaceGrotesk_400Regular,
-	SpaceGrotesk_700Bold,
-	SpaceMono_400Regular,
-	SpaceMono_700Bold,
+  Archivo_700Bold,
+  Archivo_900Black,
+  InterTight_400Regular,
+  InterTight_700Bold,
+  InterTight_800ExtraBold,
+  JetBrainsMono_400Regular,
+  JetBrainsMono_700Bold,
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_700Bold,
+  SpaceMono_400Regular,
+  SpaceMono_700Bold,
 };

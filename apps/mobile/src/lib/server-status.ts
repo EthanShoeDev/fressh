@@ -1,10 +1,14 @@
 import { useAtomValue } from '@effect/atom-react';
+import * as Arr from 'effect/Array';
+import * as Option from 'effect/Option';
+import * as Rec from 'effect/Record';
 import { useCallback } from 'react';
+
 import {
-	sshConnectionsAtom,
-	sshShellsAtom,
-	type StoreConnection,
-	type StoreShell,
+  sshConnectionsAtom,
+  sshShellsAtom,
+  type StoreConnection,
+  type StoreShell,
 } from './ssh-store';
 
 /**
@@ -20,49 +24,53 @@ import {
  * dedupe skips re-renders on unrelated store updates.
  */
 export type ServerMatch = {
-	host: string;
-	port: number;
-	username: string;
+  host: string;
+  port: number;
+  username: string;
 };
 
 /** The live connection for a saved server, if one is currently open. */
 export function useLiveConnection(match: ServerMatch | undefined) {
-	const host = match?.host;
-	const port = match?.port;
-	const username = match?.username;
-	return useAtomValue(
-		sshConnectionsAtom,
-		useCallback(
-			(connections: Record<string, StoreConnection>) =>
-				host === undefined
-					? undefined
-					: Object.values(connections).find(
-							(c) =>
-								c.connectionDetails.host === host &&
-								c.connectionDetails.port === port &&
-								c.connectionDetails.username === username,
-						),
-			[host, port, username],
-		),
-	);
+  const host = match?.host;
+  const port = match?.port;
+  const username = match?.username;
+  return useAtomValue(
+    sshConnectionsAtom,
+    useCallback(
+      (connections: Record<string, StoreConnection>) =>
+        host === undefined
+          ? undefined
+          : Option.getOrUndefined(
+              Arr.findFirst(
+                Rec.values(connections),
+                (c) =>
+                  c.connectionDetails.host === host &&
+                  c.connectionDetails.port === port &&
+                  c.connectionDetails.username === username,
+              ),
+            ),
+      [host, port, username],
+    ),
+  );
 }
 
 const EMPTY_SHELLS: StoreShell[] = [];
 
 /** Active shells belonging to a live connection id (empty if none/disconnected). */
 export function useConnectionShells(connectionId: string | undefined) {
-	return useAtomValue(
-		sshShellsAtom,
-		useCallback(
-			(shells: Record<string, StoreShell>) =>
-				connectionId
-					? Object.values(shells).filter(
-							(sh) => sh.connectionId === connectionId,
-						)
-					: EMPTY_SHELLS,
-			[connectionId],
-		),
-	);
+  return useAtomValue(
+    sshShellsAtom,
+    useCallback(
+      (shells: Record<string, StoreShell>) =>
+        connectionId !== undefined && connectionId !== ''
+          ? Arr.filter(
+              Rec.values(shells),
+              (sh) => sh.connectionId === connectionId,
+            )
+          : EMPTY_SHELLS,
+      [connectionId],
+    ),
+  );
 }
 
 export type ServerLiveStatus = 'live' | 'idle' | 'off';
@@ -76,41 +84,46 @@ export type ServerLiveStatus = 'live' | 'idle' | 'off';
  * - `off`:  not connected
  */
 export function useServerLiveStatus(match: ServerMatch | undefined) {
-	const host = match?.host;
-	const port = match?.port;
-	const username = match?.username;
-	const connectionId = useAtomValue(
-		sshConnectionsAtom,
-		useCallback(
-			(connections: Record<string, StoreConnection>) =>
-				(host === undefined
-					? undefined
-					: Object.values(connections).find(
-							(c) =>
-								c.connectionDetails.host === host &&
-								c.connectionDetails.port === port &&
-								c.connectionDetails.username === username,
-						)
-				)?.connectionId ?? null,
-			[host, port, username],
-		),
-	);
-	const shellCount = useAtomValue(
-		sshShellsAtom,
-		useCallback(
-			(shells: Record<string, StoreShell>) =>
-				connectionId
-					? Object.values(shells).filter(
-							(sh) => sh.connectionId === connectionId,
-						).length
-					: 0,
-			[connectionId],
-		),
-	);
-	const status: ServerLiveStatus = !connectionId
-		? 'off'
-		: shellCount > 0
-			? 'live'
-			: 'idle';
-	return { connectionId, shellCount, status };
+  const host = match?.host;
+  const port = match?.port;
+  const username = match?.username;
+  const connectionId = useAtomValue(
+    sshConnectionsAtom,
+    useCallback(
+      (connections: Record<string, StoreConnection>) =>
+        (host === undefined
+          ? undefined
+          : Option.getOrUndefined(
+              Arr.findFirst(
+                Rec.values(connections),
+                (c) =>
+                  c.connectionDetails.host === host &&
+                  c.connectionDetails.port === port &&
+                  c.connectionDetails.username === username,
+              ),
+            )
+        )?.connectionId ?? null,
+      [host, port, username],
+    ),
+  );
+  const shellCount = useAtomValue(
+    sshShellsAtom,
+    useCallback(
+      (shells: Record<string, StoreShell>) =>
+        connectionId !== null && connectionId !== ''
+          ? Arr.filter(
+              Rec.values(shells),
+              (sh) => sh.connectionId === connectionId,
+            ).length
+          : 0,
+      [connectionId],
+    ),
+  );
+  const status: ServerLiveStatus =
+    connectionId === null || connectionId === ''
+      ? 'off'
+      : shellCount > 0
+        ? 'live'
+        : 'idle';
+  return { connectionId, shellCount, status };
 }

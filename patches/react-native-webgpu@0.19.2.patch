@@ -1,0 +1,20 @@
+diff --git a/android/build.gradle b/android/build.gradle
+index d893d997c92e4502f223e10db12db7ed98ce668f..f8054a6477301506c1025b9168901b89a32bf98e 100644
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -97,6 +97,15 @@ def supportsNamespace() {
+ android {
+   compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
+ 
++  // Pin to the project NDK instead of AGP default. This module builds native
++  // code via CMake but ships no ndkVersion, so AGP would request its default
++  // NDK, which the nix SDK env (one pinned NDK) does not install.
++  // rootProject.ext.ndkVersion is set by the RN gradle plugin and used by
++  // every other native module. Upstream: wcandillon/react-native-webgpu#601.
++  if (rootProject.ext.has("ndkVersion")) {
++    ndkVersion rootProject.ext.ndkVersion
++  }
++
+   defaultConfig {
+     minSdkVersion resolveMinSdkVersion()
+     targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")

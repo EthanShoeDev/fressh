@@ -45,7 +45,7 @@ runs:
         arguments: ${{ inputs.devshell }}
 
     - name: Setup Bun cache
-      uses: actions/cache@v3
+      uses: actions/cache@v6
       with:
         path: ~/.bun/install/cache
         key: ${{ runner.os }}-bun-store-${{ hashFiles('bun.lock') }}

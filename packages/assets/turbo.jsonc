@@ -1,0 +1,11 @@
+{
+  "$schema": "../../node_modules/turbo/schema.json",
+  "extends": ["//"],
+  // Images only: nothing to typecheck or lint.
+  "tasks": {
+    "typecheck": { "command": null },
+    "oxlint:check": { "command": null },
+    "oxlint:fix": { "command": null },
+    "test": { "command": null }
+  }
+}

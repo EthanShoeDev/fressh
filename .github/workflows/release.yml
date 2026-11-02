@@ -53,7 +53,7 @@ jobs:
       mobile-tag: ${{ steps.mobile.outputs.tag }}
       terminal-released: ${{ steps.terminal.outputs.released }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup (Nix devShell + deps)
         uses: ./.github/actions/setup
@@ -73,8 +73,8 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          version: bun run version
-          publish: bun run tag
+          version: bun run changeset:version
+          publish: bun run changeset:tag
           commit: 'chore: version packages'
           title: 'Version Packages'
         env:

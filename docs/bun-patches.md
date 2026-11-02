@@ -9,114 +9,72 @@ To create one: `bun patch <pkg>` → edit `node_modules/<pkg>` → `bun patch --
 Bun writes `patches/<pkg>@<version>.patch` and registers it. Patches are keyed to the exact
 version — bumping the dep means re-applying (and re-validating) the patch.
 
-## `nitrogen@0.35.9` — Nitro view props never reached the native renderer
+## `metro@0.87.1` / `metro-runtime@0.87.1` — react-native-worklets Bundle Mode support
 
-- **Added:** `783e9ba` (2026-06-02), `fix(react-native-terminal): make Nitro view shellId prop
-  reach the native renderer`.
-- **Why:** the native `<Terminal shellId=…/>` rendered black because RN 0.85.3's
-  `ConcreteShadowNode::getConcreteSharedProps()` returns a reference to a *temporary*
-  `shared_ptr` (dangling — UB). Nitrogen's generated `adopt()` was the sole caller, so Fabric
-  state wrapped freed/garbage props and `shellId` arrived empty. The patch makes the generated
-  `adopt()` cast the stable `getProps()` member into a local `shared_ptr` instead, and flips
-  `RawPropsParser(true)` → `RawPropsParser()` (cosmetic no-op mirroring
-  [nitro #1345](https://github.com/mrousavy/nitro/pull/1345)).
-- **Upstream:** no dedicated issue filed for the dangling-accessor fix (the root cause is
-  arguably RN's accessor signature). Candidate to upstream to nitrogen.
+- **Added:** 2026-06-12 (as `0.84.4`), with the themed-background WebGPU migration
+  (react-native-effects' off-thread render loop requires worklets **Bundle Mode**). Moved to
+  `0.87.1` with the Expo SDK 58 upgrade (2026-11-01).
+- **Why:** Bundle Mode extracts each worklet into a separate on-disk module
+  (`react-native-worklets/.worklets/<id>.js`) *during* the babel transform — after Metro's file
+  crawl — so Metro throws `Failed to get the SHA-1 for: ….worklets/<id>.js` on every bundle. The
+  `metro` patch short-circuits SHA-1 computation for `.worklets` paths; the `metro-runtime` patch
+  propagates Fast Refresh updates into the worklet runtime. These are **verbatim upstream patches
+  from Software Mansion**, shipped for exactly this purpose — we did not author them. (At 0.87.1
+  upstream dropped the old `require.js` `getModules` hunk; worklets 0.13 no longer calls it.)
+- **Version pin:** `@expo/metro` pins the metro family to exactly `0.87.1`, while RN's own
+  packages ask for `^0.87.1`, which left a mixed 0.87.1/0.87.2 tree. The root `overrides` pin
+  every `metro*` package to `0.87.1`, so one metro exists and these patches apply to the copy
+  Expo runs. Move the overrides and these patches together on the next Expo SDK bump.
+- **Upstream:** documented at
+  [Bundle Mode setup](https://docs.swmansion.com/react-native-worklets/docs/bundleMode/setup/);
+  patch files from
+  [software-mansion/react-native-reanimated → packages/react-native-worklets/bundleMode/patches](https://github.com/software-mansion/react-native-reanimated/tree/main/packages/react-native-worklets/bundleMode/patches)
+  (`patch-package/metro/metro+0.87.1.patch`, `…/metro-runtime/metro-runtime+0.87.1.patch`; on
+  `main` only — the `worklets-0.13.x` tags stop at 0.84.4).
 
-## `expo-modules-jsi@56.0.8` / `expo-modules-core@56.0.15` — Swift 6.2 / Xcode 26 build breakage
+## `react-native-webgpu@0.19.2` — Android NDK pin
 
-- **Added:** `40e4ff6` (2026-06-09), `fix(deps): patch expo-modules-jsi/core for Xcode 26 /
-  Swift 6.2; bump expo 56.0.9`.
-- **Why:** Swift 6.2 rejects `weak let` ("must be a mutable variable") and mutable stored
-  properties on `Sendable` classes; both packages still ship the offending source. The upstream
-  fix that closed [expo/expo#46242](https://github.com/expo/expo/issues/46242)
-  ([PR #46523](https://github.com/expo/expo/pull/46523)) only adds the Swift toolchain version
-  to the xcframework *cache key* — building from source under Swift 6.2 still fails. Patches
-  apply the upstream-recommended `nonisolated(unsafe) weak var`.
-- **Upstream:** expo/expo#46242 (closed; source itself still unfixed at these versions). Re-check
-  on the next Expo SDK bump — these may become unnecessary.
-
-## `react-native-effects@0.2.0` — `transparent` prop never reaches the native Canvas
-
-- **Added:** 2026-06-12, with the themed-background WebGPU migration
-  (docs/projects/themes-refactor.md, problem 5).
-- **Why:** `ShaderView` consumes its `transparent` prop for the GPU clear color
-  (`clearValue [0,0,0,0]`) but never forwards it to `react-native-webgpu`'s `<Canvas>`, which
-  has its own `transparent` flag controlling whether the *native surface* composites with alpha.
-  Without it the surface is opaque, so an "overlay" ShaderView renders as a black rectangle over
-  whatever is behind it. One-line fix: pass `transparent` through to the Canvas (patched in both
-  `lib/module` and `src` builds). Our `ThemedBackground` overlays gradient blobs/scanlines on the
-  theme's background color, so this is load-bearing.
-- **Upstream:** no issue exists (checked 2026-06-12 — the repo has two issues, neither related).
-  Should be filed/PR'd against [blazejkustra/react-native-effects](https://github.com/blazejkustra/react-native-effects);
-  the fix maps 1:1 onto their `src/components/ShaderView/index.tsx`.
-
-## `react-native-webgpu@0.5.15` — Android NDK pin + null-texture crash guard
-
-This patch touches three files (`android/build.gradle`, `cpp/rnwgpu/api/GPUTexture.cpp`,
-`cpp/rnwgpu/api/GPUCanvasContext.cpp`) for two independent reasons. The source at this version is
-cloned for reference at `docs/cloned-repos-as-docs/react-native-webgpu` (pinned to commit
-`4248e8a`, the v0.5.15 release).
-
-**1. Android build requested AGP's default NDK, not the project's** (`android/build.gradle`)
-
-- **Added:** 2026-06-12, after the themed-background WebGPU migration
-  (docs/projects/themes-refactor.md) — webgpu was added/tested iOS-only and broke `turbo android`.
+- **Added:** 2026-06-12 (as part of the `0.5.15` patch), after the themed-background WebGPU
+  migration (docs/projects/themes-refactor.md) — webgpu was added/tested iOS-only and broke
+  `turbo android`. Rebased onto `0.19.2` with the Expo SDK 58 upgrade (2026-11-01).
 - **Why:** the module compiles native code via `externalNativeBuild { cmake }` but its
   `android/build.gradle` never sets `ndkVersion`. With no pin, AGP falls back to its baked-in
-  default NDK (`27.0.12077973`), which our nix `android-sdk-env` does not install — the flake
+  default NDK (`27.0.12077973` at AGP 8; 28.x at RN 0.88's AGP 9), which our nix
+  `android-sdk-env` does not install — the flake
   pins exactly one NDK (`27.1.12297006`, `flake.nix`). Every other native module honors the
   project NDK via `rootProject.ext.ndkVersion` (app, react-native-terminal, expo-modules-core),
   so only webgpu failed with `NDK not configured. Preferred NDK version is '27.0.12077973'`. The
   patch adds `ndkVersion rootProject.ext.ndkVersion` (guarded by `ext.has`) to webgpu's `android`
   block so it uses the same nix-provided NDK as the rest of the build.
+- **Upstream:** fixed by
+  [wcandillon/react-native-webgpu#601](https://github.com/wcandillon/react-native-webgpu/pull/601)
+  ("use the app's ndkVersion and ndkPath", merged 2026-10-31), which is after `v0.19.2`. Drop this
+  patch once a release containing it ships.
 
-**2. Crash in Dawn when a render loop outlives its surface** (`SurfaceRegistry.h` + the two `.cpp` files)
+## Removed patches
 
-- **Added:** 2026-06-12, after observing a native crash on Android tab switches (tombstone:
-  `SIGSEGV` in `dawn::native::ObjectBase::GetDevice` ← `TextureBase::APICreateView` ←
-  `rnwgpu::GPUTexture::createView`, on the worklet render thread `mqt_v_js`).
-- **Why:** `react-native-effects`' `ShaderView` runs its render loop on a background worklet
-  runtime. When the canvas surface is torn down mid-frame (Android `surfaceDestroyed` →
-  `SurfaceInfo::switchToOffscreen` nulls the surface on tab switch / screen unmount), the loop
-  still calls `getCurrentTexture().createView()`. `SurfaceInfo::getCurrentTexture` can then return
-  a null `wgpu::Texture`, which flows to `createView()` → null deref in Dawn → process-killing
-  **SIGSEGV**.
-- **Fix:** make `SurfaceInfo::getCurrentTexture` return a **throwaway texture** (a fresh
-  offscreen `device.CreateTexture` using the existing config) instead of null when the surface is
-  gone — so the render loop renders harmlessly into a discarded target. `createView` keeps a
-  non-throwing backstop (returns an empty `GPUTextureView` if a null still reaches it).
-  - **Why not throw:** the first attempt guarded with `throw std::runtime_error`. That converted
-    the SIGSEGV into a **SIGABRT** — the exception is *uncaught* on the worklet runtime
-    (`std::terminate`), so it still killed the process. Returning a valid texture is the only
-    approach that neither dereferences null nor unwinds across the worklet boundary.
-  - **Why native, not app-side:** an app-side attempt to keep one persistent canvas behind the
-    navigator (so it never tears down) renders correctly on JS tabs but is **occluded by opaque
-    native-tab scenes** (the webgpu canvas is a transparent `TextureView` that must composite
-    over the per-screen background). So the theme canvas stays **per-screen**
-    (`ThemedScreen` → `ThemedBackground`) and this patch is what makes the teardown safe.
-- **Upstream:** no matching issue/PR (searched `wcandillon/react-native-webgpu` via `gh` on
-  2026-06-12). Related-but-distinct open issues #352 ("texture views aren't cleaned up in time")
-  and #351 ("resizing breaks the canvas") corroborate the lifecycle fragility. Both the NDK fix
-  (`android/build.gradle`) and the teardown fix (`cpp/rnwgpu/`) should be PR'd against
-  [react-native-webgpu](https://github.com/wcandillon/react-native-webgpu). Re-check / drop the
-  NDK half if upstream adds an `ndkVersion` pin; keep the teardown fix until upstream stops
-  handing out null surface textures.
+Kept for history; each was dropped with the Expo SDK 58 / RN 0.88 upgrade (2026-11-01).
 
-## `metro@0.84.4` / `metro-runtime@0.84.4` — react-native-worklets Bundle Mode support
-
-- **Added:** 2026-06-12, with the themed-background WebGPU migration (react-native-effects'
-  off-thread render loop requires worklets **Bundle Mode**).
-- **Why:** Bundle Mode extracts each worklet into a separate on-disk module
-  (`react-native-worklets/.worklets/<id>.js`) *during* the babel transform — after Metro's file
-  crawl — so Metro throws `Failed to get the SHA-1 for: ….worklets/<id>.js` on every bundle. The
-  `metro` patch short-circuits SHA-1 computation for `.worklets` paths; the `metro-runtime` patch
-  adds Fast Refresh propagation into the worklet runtime. These are **verbatim upstream patches
-  from Software Mansion**, shipped for exactly this purpose — we did not author them.
-- **Upstream:** documented at
-  [Bundle Mode setup](https://docs.swmansion.com/react-native-worklets/docs/bundleMode/setup/);
-  patch files sourced from
-  [software-mansion/react-native-reanimated → packages/react-native-worklets/bundleMode/patches](https://github.com/software-mansion/react-native-reanimated/tree/main/packages/react-native-worklets/bundleMode/patches)
-  (`patch-package/metro/metro+0.84.4.patch`, `…/metro-runtime/metro-runtime+0.84.4.patch`).
-  Expected to become unnecessary once Bundle Mode stops being preview and Metro gains the API
-  upstream — re-check on worklets/metro bumps (pick the matching version from that directory).
+- **`nitrogen@0.35.9`** — Nitro view props never reached the native renderer (RN's
+  `ConcreteShadowNode::getConcreteSharedProps()` returns a dangling reference, and nitrogen's
+  generated `adopt()` was its sole caller). Fixed upstream in nitro 0.37.0
+  ([mrousavy/nitro#1502](https://github.com/mrousavy/nitro/pull/1502), "Avoid dangling View
+  props reference"): nitrogen no longer generates `adopt()`; the shared
+  `ViewComponentDescriptor` in react-native-nitro-modules uses `getProps()`. RN 0.88.1 still has
+  the dangling accessor, but nitro 0.37.1 never calls it.
+- **`expo-modules-jsi@56.0.8` / `expo-modules-core@56.0.15`** — Swift 6.2 / Xcode 26 rejected
+  `weak let` and mutable stored properties on `Sendable` classes
+  ([expo/expo#46242](https://github.com/expo/expo/issues/46242)). `expo-modules-jsi` 58 has no
+  `weak let` left (runtime references were redesigned; its changelog fixes the Xcode 26 build in
+  #51040). `expo-modules-core` 58 keeps one `private weak let appContext`
+  (`ios/Core/SharedObjects/SharedObjectRegistry.swift`), which is legal from Swift 6.3
+  (SE-0481), and SDK 58's minimum is Xcode 26.4 (Swift 6.3). Only a local build with Xcode ≤ 26.3
+  would need it back.
+- **`react-native-effects@0.2.0`** — `ShaderView` didn't forward `transparent` to the webgpu
+  `<Canvas>`. Fixed in 0.3.0, and moot anyway: react-native-webgpu 0.19 removed the Canvas
+  `transparent` prop (its Android TextureView is translucent by default).
+- **`react-native-webgpu@0.5.15`, teardown half** — `SurfaceInfo::getCurrentTexture` could return
+  a null texture when a worklet render loop outlived its surface (Android tab switch), crashing
+  Dawn in `createView`. 0.19's rewritten `SurfaceRegistry.h` documents `getCurrentTexture` as
+  "never returns null" and falls back to an offscreen texture when the surface is gone. **Needs
+  device QA** of the Android tab-switch teardown to confirm.

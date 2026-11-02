@@ -1,3 +1,5 @@
+import * as Arr from 'effect/Array';
+
 import type { GradientBlob } from './theme-skin';
 
 /**
@@ -5,7 +7,7 @@ import type { GradientBlob } from './theme-skin';
  * When {@link DEBUG_RENDERER_TINT} is true, each renderer repaints its gradient
  * blobs in a renderer-specific SOLID color (keeping each blob's position, size,
  * and motion), so you can tell at a glance which renderer is live — and whether
- * flipping `THEMED_BACKGROUND_RENDERER` in `ThemedBackground.tsx` actually took
+ * flipping `THEMED_BACKGROUND_RENDERER` in `themed-background.tsx` actually took
  * effect (vs. a stale bundle):
  *   - RN-view renderer (`ThemedBackground.views`) → magenta
  *   - WebGPU renderer  (`ThemedBackground` ShaderView) → cyan
@@ -22,5 +24,5 @@ export const DEBUG_TINT_WGPU = 'rgba(0,210,255,0.9)';
 
 /** Recolor a theme's blobs with a single debug color, preserving geometry. */
 export function debugTintBlobs(blobs: GradientBlob[], color: string) {
-	return blobs.map((blob) => ({ ...blob, color }));
+  return Arr.map(blobs, (blob) => ({ ...blob, color }));
 }

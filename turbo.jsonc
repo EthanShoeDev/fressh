@@ -1,132 +1,181 @@
 {
-	"$schema": "https://turbo.build/schema.json",
-	"ui": "tui",
-	"globalPassThroughEnv": [
-		"NIX_*",
-		"ANDROID_*",
-		"SSL_CERT_FILE",
-		"GRADLE_OPTS",
-		"BW_SESSION",
-		// Native (rust/cmake) builds run inside the nix devShell, which provides
-		// system libs (freetype/fontconfig) via pkg-config + the dynamic linker.
-		// turbo strips any env var not whitelisted here, so without these a host
-		// `cargo build` panics in yeslogic-fontconfig-sys ("fontconfig not found")
-		// and ubrn can't dlopen the built cdylib. Passthrough vars are NOT hashed,
-		// so listing them does not change any task's cache key.
-		"PKG_CONFIG_PATH",
-		"PKG_CONFIG",
-		"LD_LIBRARY_PATH",
-		"CMAKE_INCLUDE_PATH",
-		"CMAKE_LIBRARY_PATH",
-		"NIXPKGS_CMAKE_PREFIX_PATH",
-	],
-	// ============================================================================
-	// TURBO TASK INHERITANCE PATTERN
-	// ============================================================================
-	//
-	// This root config defines BASE task definitions that all packages inherit.
-	// Packages can override/extend these in their own turbo.json files.
-	//
-	// Key concepts:
-	//   - "^taskName" in dependsOn = run taskName in all DEPENDENCY packages first
-	//   - "with": ["taskName"] = run taskName in parallel for the SAME package
-	//   - "//#taskName" = root-only task (runs once, not per-package)
-	//
-	// DO NOT add package-specific tasks (e.g., "mobile#foo") to this file.
-	// Instead, packages should override tasks in their own turbo.json.
-	//
-	// NOTE: Turbo uses SHALLOW extend - arrays are replaced, not merged.
-	// When overriding a task, copy the base definition and add your items.
-	//
-	// This keeps the root config generic and scalable as packages are added.
-	// ============================================================================
-	"tasks": {
-		// ========================================
-		// Combined lint tasks (formatting + linting)
-		// ========================================
-		// oxlint runs once at the repo root (single oxlint.config.ts) while tsgo
-		// typechecks per-package. The root oxlint/oxfmt tasks are deduped by
-		// turbo so they execute only once across the whole lint run.
-		"lint": {
-			"with": ["tsgo:check", "//#oxfmt:fix", "//#oxlint:fix"],
-		},
-		"lint:check": {
-			"with": ["tsgo:check", "//#oxfmt:check", "//#oxlint:check"],
-		},
-
-		// ========================================
-		// Workspace tasks (run per-package)
-		// ========================================
-		"tsgo:check": {
-			"dependsOn": ["^build"],
-		},
-		"build": {
-			"outputs": ["dist/**"],
-			"dependsOn": ["^build"],
-		},
-		"test": {
-			"dependsOn": ["^build"],
-		},
-		"dev": {
-			"cache": false,
-			"persistent": true,
-			"dependsOn": ["^build"],
-		},
-		"clean": {
-			"cache": false,
-			"dependsOn": ["^clean"],
-		},
-
-		// ========================================
-		// Optional per-package tasks (defined here so ^taskName works)
-		// ========================================
-		// Platform-split native builds (mirrors main): a package that ships a native
-		// module defines these with real inputs/outputs in its own turbo.jsonc (see
-		// react-native-terminal: build:android = cargo ndk -> jniLibs .so). They're
-		// declared here so dependents can reference `^build:android` / `^build:ios`
-		// even when only some platforms are implemented. Keeping them separate from
-		// the plain `build` (codegen / JS) is the cross-platform trick: an Android
-		// run never triggers an iOS native build on Linux, and vice versa on macOS.
-		"build:android": {},
-		"build:ios": {},
-
-		// ========================================
-		// Root-only tasks (run once at root level)
-		// ========================================
-		"//#oxfmt:fix": {
-			"with": ["nix:fmt"],
-		},
-		"//#oxfmt:check": {
-			"with": ["nix:fmt:check"],
-		},
-		"//#nix:fmt": {},
-		"//#nix:fmt:check": {},
-		// oxlint runs once over the WHOLE repo with `--type-aware --type-check`, so
-		// it resolves types across every package — including the gitignored codegen
-		// outputs (RNT's ubrn/nitrogen bindings, mobile's expo-env.d.ts). Without
-		// these deps oxlint races codegen and fails with TS2307 "Cannot find module
-		// './generated/shim_uniffi'". (Same package-scoped-dep pattern as the
-		// oxlint-plugins#build dep above; root tasks can't use `^build`.)
-		"//#oxlint:fix": {
-			"dependsOn": [
-				"@fressh/oxlint-plugins#build",
-				"@fressh/react-native-terminal#codegen",
-				"@fressh/mobile#expo:typegen",
-			],
-			"with": ["jscpd:check", "catalog:fix"],
-		},
-		"//#oxlint:check": {
-			"dependsOn": [
-				"@fressh/oxlint-plugins#build",
-				"@fressh/react-native-terminal#codegen",
-				"@fressh/mobile#expo:typegen",
-			],
-			"with": ["jscpd:check", "catalog:check"],
-		},
-		"//#jscpd:check": {},
-		"//#knip:check": {},
-		"//#knip:fix": {},
-		"//#catalog:check": {},
-		"//#catalog:fix": {},
-	},
+  "$schema": "./node_modules/turbo/schema.json",
+  "ui": "tui",
+  "futureFlags": {
+    // Task `command` is experimental; it lets every package share one
+    // definition of a leaf command instead of a copied script.
+    "experimentalTaskCommand": true,
+    // `--affected` selects only the tasks whose `inputs` match the diff,
+    // not every task in a changed package.
+    "affectedUsingTaskInputs": true,
+    // actions/checkout leaves the PR base only as `origin/<base>`; without
+    // this `--affected` cannot resolve it and runs every task.
+    "githubActionsRemoteBaseRefFallback": true
+  },
+  // Bounds the local cache, which CI also restores between runs.
+  "cacheMaxSize": "2GB",
+  "globalPassThroughEnv": [
+    "NIX_*",
+    // Tests that write fixtures to os.tmpdir() must see the same temp dir as
+    // outside turbo (nix shells and sandboxes set it).
+    "TMPDIR",
+    "ANDROID_*",
+    "SSL_CERT_FILE",
+    "GRADLE_OPTS",
+    "BW_SESSION",
+    // Native (rust/cmake) builds run inside the nix devShell, which provides
+    // system libs (freetype/fontconfig) via pkg-config + the dynamic linker.
+    // turbo strips any env var not whitelisted here, so without these a host
+    // `cargo build` panics in yeslogic-fontconfig-sys ("fontconfig not found")
+    // and ubrn can't dlopen the built cdylib. Passthrough vars are not hashed,
+    // so listing them does not change any task's cache key.
+    "PKG_CONFIG_PATH",
+    "PKG_CONFIG",
+    "LD_LIBRARY_PATH",
+    "CMAKE_INCLUDE_PATH",
+    "CMAKE_LIBRARY_PATH",
+    "NIXPKGS_CMAKE_PREFIX_PATH"
+  ],
+  "globalDependencies": ["bunfig.toml", "patches/**"],
+  // Task-inheritance pattern:
+  //   "^task"        -> run `task` in all DEPENDENCY packages first
+  //   "task"         -> run `task` in the SAME package first
+  //   "with": [...]  -> run these tasks in parallel for the SAME package
+  //   "//#task"      -> a root-only task (defined in root package.json)
+  // Leaf commands every package shares are task `command`s (argv, no shell),
+  // defined here once instead of copied into each package.json. Turbo spawns
+  // them without node_modules/.bin on PATH, so binaries go through `bun run`.
+  // A package script of the same name overrides one; `"command": null` in a
+  // package's turbo.jsonc opts the package out. Aggregates (`lint`,
+  // `lint:check`) have neither: they only fan out, so turbo is never called
+  // from a script.
+  // A package turbo.jsonc inherits each root task: scalar fields carry over,
+  // and an array field it sets replaces the root's array.
+  // @see https://turborepo.dev/docs/reference/package-configurations#inheritance-behavior
+  "tasks": {
+    // Typecheck and type-aware lint read workspace sources, but the terminal
+    // package's sources include codegen output (nitrogen + ubrn bindings), so
+    // they depend on `^build`, which is where that codegen runs.
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "command": ["bun", "run", "tsc", "--noEmit"],
+      "dependsOn": ["^build"],
+      "outputLogs": "new-only"
+    },
+    "test": {
+      "command": ["bun", "run", "vitest", "run"],
+      "dependsOn": ["^build"],
+      "outputLogs": "new-only"
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["^build"]
+    },
+    "clean": {
+      "command": ["rm", "-rf", "dist", ".turbo"],
+      "cache": false
+    },
+    // Platform-split native builds: a package that ships a native module
+    // defines these with real inputs/outputs in its own turbo.jsonc (see
+    // react-native-terminal). They're declared here so dependents can
+    // reference `^build:android` / `^build:ios` even when only some platforms
+    // are implemented, and an Android run never triggers an iOS build.
+    "build:android": {},
+    "build:ios": {},
+    "oxlint:check": {
+      "command": ["bun", "run", "oxlint", "-c", "../../oxlint.config.ts", "."],
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.md",
+        "$TURBO_ROOT$/oxlint.config.ts"
+      ],
+      "outputLogs": "new-only"
+    },
+    "oxlint:fix": {
+      "command": [
+        "bun",
+        "run",
+        "oxlint",
+        "-c",
+        "../../oxlint.config.ts",
+        "--fix",
+        "."
+      ],
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "lint:check": {
+      "with": ["oxlint:check", "typecheck", "//#lint:check:root"]
+    },
+    "lint": {
+      "with": ["oxlint:fix", "typecheck", "//#lint:root"]
+    },
+    // === Root-only tasks (bodies live in root package.json scripts) ===
+    "//#lint:check:root": {
+      "with": [
+        "//#typecheck",
+        "//#oxlint:check",
+        "//#oxfmt:check",
+        "//#jscpd:check",
+        "//#knip:check",
+        "//#catalog:check",
+        "//#effect-versions:check",
+        "//#nix:fmt:check"
+      ]
+    },
+    "//#lint:root": {
+      "with": [
+        "//#typecheck",
+        "//#oxlint:fix",
+        "//#oxfmt:fix",
+        "//#jscpd:check",
+        "//#catalog:fix",
+        "//#nix:fmt:fix"
+      ]
+    },
+    "//#typecheck": {
+      "inputs": ["*.ts", "scripts/**", "tsconfig.json"]
+    },
+    "//#oxlint:check": {
+      "inputs": ["*.ts", "scripts/**"]
+    },
+    "//#oxlint:fix": {
+      "cache": false
+    },
+    "//#oxfmt:check": {},
+    "//#oxfmt:fix": {
+      "cache": false
+    },
+    "//#jscpd:check": {},
+    // knip:fix:danger deletes what knip believes is dead; a missing entry in
+    // knip.ts makes it delete live code, so it is never part of `lint`.
+    "//#knip:check": {},
+    "//#knip:fix:danger": {
+      "cache": false
+    },
+    "//#catalog:check": {
+      "inputs": [
+        "package.json",
+        "apps/*/package.json",
+        "packages/*/package.json"
+      ]
+    },
+    "//#catalog:fix": {
+      "cache": false
+    },
+    "//#effect-versions:check": {
+      "inputs": ["bun.lock"]
+    },
+    "//#nix:fmt:check": {
+      "inputs": ["flake.nix", "flake.lock"]
+    },
+    "//#nix:fmt:fix": {
+      "cache": false
+    }
+  }
 }

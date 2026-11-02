@@ -1,16 +1,11 @@
 {
-	"extends": "../../tsconfig.base.json",
-	"compilerOptions": {
-		"paths": {
-			"@/*": ["./src/*"]
-		},
-		"jsx": "react-jsx",
-		"module": "ESNext",
-		"moduleResolution": "Bundler",
-		"skipLibCheck": true,
-		"strict": true,
-		"target": "ES2022"
-	},
-	"include": ["**/*"],
-	"exclude": [".output", "dist"]
+  "extends": "shoemaker-typescript-config/tsconfig.react.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["**/*"],
+  "exclude": [".output", "dist"]
 }

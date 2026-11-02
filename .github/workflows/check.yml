@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The terminal package vendors forked alacritty/crossfont as git
           # submodules; cargo:build fails without them.
@@ -29,7 +29,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Cache Turbo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo
           key:
@@ -40,16 +40,20 @@ jobs:
             ${{ runner.os }}-turbo-${{ github.ref_name }}-
             ${{ runner.os }}-turbo-
 
-      - run: bunx turbo lint:check
+      - run: bunx turbo run lint:check '//#lint:check:root' --continue=dependencies-successful
 
-  # test:
-  #   name: Test
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 10
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Install dependencies
-  #       uses: ./.github/actions/setup
-  #     - run: pnpm vitest
-  #       env:
-  #         NODE_OPTIONS: --max_old_space_size=8192
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # react-native-terminal's codegen (a dependency of every test via
+          # ^build) host-builds the vendored alacritty/crossfont submodules.
+          submodules: recursive
+
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
+
+      - run: bunx turbo run test --continue=dependencies-successful

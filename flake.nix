@@ -1,5 +1,5 @@
 {
-  description = "Expo RN devshells (local emulator / remote AVD)";
+  description = "fressh: SSH terminal app dev shells (Expo, Rust, Android SDK; local emulator or remote AVD)";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     # Newer pin for fast-moving tools that lag in the main locked nixpkgs.
@@ -44,25 +44,20 @@
       (_final: prev: {
         secretspec =
           (import nixpkgs-recent {
-            inherit (prev) system;
+            system = prev.stdenv.hostPlatform.system;
             config.allowUnfree = true;
           })
           .secretspec;
       })
-      # bun 1.3.14: the screenshot pipeline's resize step uses the native Bun.Image
-      # API, which landed in 1.3.14 (apps/mobile/scripts/screenshot-derive.ts), but
-      # nixpkgs is deliberately held at 1.3.13 — the 1.3.14 bump is stuck in draft
-      # because `bun build --compile` produces segfaulting binaries on Nix:
-      #   nixpkgs PR: https://github.com/NixOS/nixpkgs/pull/519796
-      #   bun issue:  https://github.com/oven-sh/bun/issues/31023
-      # That regression only affects `bun build --compile`, which this repo does NOT
-      # use (our bun scripts run interpreted), so 1.3.14 is safe here. Re-point bun's
-      # prebuilt sources at the official 1.3.14 release — same per-platform asset
-      # layout nixpkgs uses, so its sourceRoot / autoPatchelf wiring still applies.
-      # Drop this overlay once PR 519796 lands (nixpkgs bun >= 1.3.14).
+      # nixpkgs still ships bun 1.3.x, so repoint the prebuilt release archives
+      # at 1.4.4 to match `packageManager`, `devEngines` and CI
+      # (.github/actions/setup). bun ships binaries only, so this is a src swap
+      # and nothing is compiled; nixpkgs' sourceRoot / autoPatchelf wiring still
+      # applies. Keep the three in lockstep, and drop this overlay once nixpkgs
+      # ships bun >= 1.4.4.
       (_final: prev: {
-        bun = prev.bun.overrideAttrs (old: {
-          version = "1.3.14";
+        bun = prev.bun.overrideAttrs (finalAttrs: old: {
+          version = "1.4.4";
           # `src` is derived from passthru.sources (overridden below), so the version
           # bump without a direct `src` override is intentional — flag it, else
           # overrideAttrs warns on every eval (and aborts under abort-on-warn).
@@ -72,20 +67,20 @@
             // {
               sources = {
                 "aarch64-darwin" = prev.fetchurl {
-                  url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-darwin-aarch64.zip";
-                  hash = "sha256-2LliIYKK1vl6x6wKt+lYcjQa92MAHogD6CZ2UsJlJiA=";
+                  url = "https://github.com/oven-sh/bun/releases/download/bun-v${finalAttrs.version}/bun-darwin-aarch64.zip";
+                  hash = "sha256-wkDX8My5DCY6hJ/NsJt+5iYw2SE0jtaq/ahrnVd7xRA=";
                 };
                 "aarch64-linux" = prev.fetchurl {
-                  url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-aarch64.zip";
-                  hash = "sha256-on/7Y6gxA3WDbg1vZorhf6jY0YuIw3yCHGUzGXOhmjs=";
+                  url = "https://github.com/oven-sh/bun/releases/download/bun-v${finalAttrs.version}/bun-linux-aarch64.zip";
+                  hash = "sha256-uqa7NvUdblhWHgK76oJQOKnfRU9nPW13bou/hvjHhQ4=";
                 };
                 "x86_64-darwin" = prev.fetchurl {
-                  url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-darwin-x64-baseline.zip";
-                  hash = "sha256-PjWtb1OXGpg0v55nhuKt9ytfGSHMmpxf3gc9KXKUQHY=";
+                  url = "https://github.com/oven-sh/bun/releases/download/bun-v${finalAttrs.version}/bun-darwin-x64.zip";
+                  hash = "sha256-UKNJH3Orwv6BZzFxqFdi07wswWgMzsrdmD3pmt93l34=";
                 };
                 "x86_64-linux" = prev.fetchurl {
-                  url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64.zip";
-                  hash = "sha256-lR7iruhV8IWVruxiJSJqKY0/6oOj3NZGXAnLzN9+hI8=";
+                  url = "https://github.com/oven-sh/bun/releases/download/bun-v${finalAttrs.version}/bun-linux-x64.zip";
+                  hash = "sha256-v4zL+ysLgBWeD5ptFcVTF63YB3U028YTCj7bUvzLOVw=";
                 };
               };
             };
@@ -106,7 +101,7 @@
   in {
     devShells = forAllSystems (
       {pkgs}: let
-        fen = fenix.packages.${pkgs.system};
+        fen = fenix.packages.${pkgs.stdenv.hostPlatform.system};
         rustToolchain = fen.combine [
           (fen.stable.withComponents [
             "cargo"
@@ -130,13 +125,14 @@
           [
             bash
             git
+            gh
             pkg-config
             # crossfont (alacritty font rasterization) needs FreeType + fontconfig
             # for the host build of the vendored renderer. (react-native-terminal)
             freetype
             fontconfig
             jq
-            nodejs_22
+            nodejs_24
             turbo
             bun
             watchman
@@ -159,10 +155,10 @@
           ]
           # gym (fastlane ios build) archives the expo-prebuild workspace, which
           # needs CocoaPods on the PATH (prebuild runs `pod install`).
-          ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [pkgs.cocoapods];
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [pkgs.cocoapods];
 
         mkShellFn =
-          if pkgs.stdenv.isDarwin
+          if pkgs.stdenv.hostPlatform.isDarwin
           then pkgs.mkShellNoCC
           else pkgs.mkShell;
 
@@ -176,11 +172,27 @@
           with sdk; [
             cmdline-tools-latest
             platform-tools
+            # RN 0.88 (Expo SDK 58): compileSdk 37, buildTools 37.0.0
+            # (node_modules/react-native/gradle/libs.versions.toml).
+            platforms-android-37-0
             platforms-android-36
             platforms-android-35
             build-tools-35-0-0
             build-tools-36-0-0
-            cmake-3-22-1
+            build-tools-37-0-0
+            # AGP's default CMake. Its bundled prebuilt ninja (built for Linux
+            # 2.6.32) segfaults once autoPatchelf'd onto nixpkgs' glibc 2.44
+            # (`ninja --version` -> SIGSEGV), failing every native module's CMake
+            # configure. Swap in nixpkgs' ninja; drop this once android-nixpkgs
+            # ships a ninja that runs on current glibc.
+            (cmake-3-22-1.overrideAttrs (old: {
+              postFixup =
+                (old.postFixup or "")
+                + ''
+                  rm $out/bin/ninja
+                  ln -s ${pkgs.ninja}/bin/ninja $out/bin/ninja
+                '';
+            }))
             ndkPkg
           ];
 
@@ -214,7 +226,7 @@
           export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/${ndkVer}"
           export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
           export ANDROID_NDK="$ANDROID_NDK_ROOT"
-          export GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=${sdkRoot}/build-tools/36.0.0/aapt2 -Dorg.gradle.project.android.builder.sdkDownload=false"
+          export GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=${sdkRoot}/build-tools/37.0.0/aapt2 -Dorg.gradle.project.android.builder.sdkDownload=false"
         '';
       in {
         default = mkShellFn {

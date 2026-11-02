@@ -1,67 +1,72 @@
+import { useAtomValue } from '@effect/atom-react';
 import { Ionicons } from '@expo/vector-icons';
 import {
-	scroll,
-	SelectionKind,
-	selectionClear,
-	selectionStart,
-	selectionText,
-	selectionUpdate,
-	Terminal,
+  scroll,
+  SelectionKind,
+  selectionClear,
+  selectionStart,
+  selectionText,
+  selectionUpdate,
+  Terminal,
 } from '@fressh/react-native-terminal';
-import * as Clipboard from 'expo-clipboard';
+import * as Arr from 'effect/Array';
 import * as Effect from 'effect/Effect';
 import * as Fiber from 'effect/Fiber';
-
+import * as Option from 'effect/Option';
+import * as Rec from 'effect/Record';
+import * as Str from 'effect/String';
+import * as Clipboard from 'expo-clipboard';
 import {
-	Stack,
-	useLocalSearchParams,
-	useRouter,
-	useFocusEffect,
+  Stack,
+  useLocalSearchParams,
+  useRouter,
+  useFocusEffect,
 } from 'expo-router';
 import React, {
-	createContext,
-	startTransition,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
+  createContext,
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from 'react';
 import {
-	Platform,
-	Pressable,
-	ScrollView,
-	Text,
-	TextInput,
-	View,
-	type StyleProp,
-	type ViewStyle,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  type TextInputInstance,
+  View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
-	KeyboardController,
-	KeyboardEvents,
+  KeyboardController,
+  KeyboardEvents,
 } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
-import { useAtomValue } from '@effect/atom-react';
+
+import { ContextBar } from '@/components/terminal/context-bar';
+import { PresetsToolbarPage } from '@/components/terminal/presets-toolbar-page';
+import { ThemedText } from '@/components/themed/themed-text';
 import { preferences, useTerminalRenderConfig } from '@/lib/preferences';
+import type { Preset } from '@/lib/presets';
 import { appRuntime } from '@/lib/runtime';
 import {
-	connectionAtom,
-	sshShellsAtom,
-	type StoreShell,
+  connectionAtom,
+  sshShellsAtom,
+  type StoreShell,
 } from '@/lib/ssh-store';
-import { ContextBar } from '@/components/terminal/ContextBar';
-import { PresetsToolbarPage } from '@/components/terminal/PresetsToolbarPage';
-import type { Preset } from '@/lib/presets';
-import { ThemedText } from '@/components/themed/ThemedText';
 import {
-	JS_TAB_BAR_HEIGHT,
-	NATIVE_TAB_BAR_TOOLBAR_OFFSET,
+  JS_TAB_BAR_HEIGHT,
+  NATIVE_TAB_BAR_TOOLBAR_OFFSET,
 } from '@/lib/tab-bar-config';
 import { applyCase, useThemeSkin } from '@/lib/theme-skin';
-import { useJsTabBarOverlay } from '@/lib/useBottomTabSpacing';
+import { useJsTabBarOverlay } from '@/lib/use-bottom-tab-spacing';
 import { useContextSafe } from '@/lib/utils';
 
 type TerminalRenderConfig = ReturnType<typeof useTerminalRenderConfig>;
@@ -71,338 +76,349 @@ type IconName = keyof typeof Ionicons.glyphMap;
 const annotateModule = Effect.annotateLogs({ module: 'TabsShellDetail' });
 
 export default function TabsShellDetail() {
-	const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(false);
 
-	useFocusEffect(
-		React.useCallback(() => {
-			// TODO: This is gross. It would be much better to switch
-			// after the navigation animation completes.
-			const fiber = appRuntime.runFork(
-				Effect.sleep('16 millis').pipe(
-					Effect.andThen(
-						Effect.sync(() => startTransition(() => setReady(true))),
-					),
-				),
-			);
+  useFocusEffect(
+    React.useCallback(() => {
+      // TODO: This is gross. It would be much better to switch
+      // after the navigation animation completes.
+      const fiber = appRuntime.runFork(
+        Effect.sleep('16 millis').pipe(
+          Effect.andThen(
+            Effect.sync(() => startTransition(() => setReady(true))),
+          ),
+        ),
+      );
 
-			return () => {
-				appRuntime.runFork(Fiber.interrupt(fiber));
-				setReady(false);
-			};
-		}, []),
-	);
+      return () => {
+        appRuntime.runFork(Fiber.interrupt(fiber));
+        setReady(false);
+      };
+    }, []),
+  );
 
-	if (!ready) {
-		return <RouteSkeleton />;
-	}
-	return <ShellDetail />;
+  if (!ready) {
+    return <RouteSkeleton />;
+  }
+  return <ShellDetail />;
 }
 
 function RouteSkeleton() {
-	return (
-		<View className='flex-1 items-center justify-center bg-background'>
-			<Text className='text-[20px] text-text-primary'>Loading</Text>
-		</View>
-	);
+  return (
+    <View className='flex-1 items-center justify-center bg-background'>
+      <Text className='text-text-primary text-[20px]'>Loading</Text>
+    </View>
+  );
 }
 
 const encoder = new TextEncoder();
 
 function ShellDetail() {
-	const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
 
-	const searchParams = useLocalSearchParams<{
-		connectionId?: string;
-		channelId?: string;
-	}>();
+  const searchParams = useLocalSearchParams<{
+    connectionId?: string;
+    channelId?: string;
+  }>();
 
-	if (!searchParams.connectionId || !searchParams.channelId) {
-		throw new Error('Missing connectionId or channelId');
-	}
+  if (
+    searchParams.connectionId === undefined ||
+    searchParams.connectionId === '' ||
+    searchParams.channelId === undefined ||
+    searchParams.channelId === ''
+  ) {
+    throw new Error('Missing connectionId or channelId');
+  }
 
-	const { connectionId } = searchParams;
-	const channelId = Number.parseInt(searchParams.channelId, 10);
+  const { connectionId } = searchParams;
+  const channelId = Number.parseInt(searchParams.channelId, 10);
 
-	const router = useRouter();
-	const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-	// Settled keyboard height (dp), from KC's did-show/did-hide (NOT the per-frame
-	// animation). The window does NOT shrink for the IME on this edge-to-edge build,
-	// so we shrink the terminal ourselves: growing the toolbar's marginBottom by this
-	// amount makes the flex:1 terminal give up exactly that many dp. That layout change
-	// is what fires the gesture view's onLayout AND the native SurfaceView's
-	// onSizeChanged -> setFixedSize -> surfaceChanged -> nativeResize, so the grid,
-	// surface buffer, and on-screen bounds stay in lockstep (selection stays aligned).
-	// One resize per keyboard transition (no per-frame PTY reflow): correctness over
-	// animation smoothness. See
-	// docs/projects/complete/renderer-mismatched-selection-cutoff-scrollback.md.
-	const [keyboardHeight, setKeyboardHeight] = useState(0);
-	useEffect(() => {
-		const show = KeyboardEvents.addListener('keyboardDidShow', (e) =>
-			setKeyboardHeight(e.height),
-		);
-		const hide = KeyboardEvents.addListener('keyboardDidHide', () => {
-			setKeyboardHeight(0);
-			// Keep RN's JS-side focus state in sync with the actual keyboard: a manual
-			// dismiss (keyboard's hide button / back gesture) hides the IME WITHOUT
-			// blurring the hidden input, so RN still thinks it's focused and a later
-			// onTapEmpty -> focus() is a no-op (no state change to re-open the IME).
-			// Blurring here guarantees the next tap is a real unfocused->focused
-			// transition, which reliably brings the keyboard back up.
-			inputRef.current?.blur();
-		});
-		return () => {
-			show.remove();
-			hide.remove();
-		};
-	}, []);
+  // Settled keyboard height (dp), from KC's did-show/did-hide (NOT the per-frame
+  // animation). The window does NOT shrink for the IME on this edge-to-edge build,
+  // so we shrink the terminal ourselves: growing the toolbar's marginBottom by this
+  // amount makes the flex:1 terminal give up exactly that many dp. That layout change
+  // is what fires the gesture view's onLayout AND the native SurfaceView's
+  // onSizeChanged -> setFixedSize -> surfaceChanged -> nativeResize, so the grid,
+  // surface buffer, and on-screen bounds stay in lockstep (selection stays aligned).
+  // One resize per keyboard transition (no per-frame PTY reflow): correctness over
+  // animation smoothness. See
+  // docs/projects/complete/renderer-mismatched-selection-cutoff-scrollback.md.
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  useEffect(() => {
+    const show = KeyboardEvents.addListener('keyboardDidShow', (e) =>
+      setKeyboardHeight(e.height),
+    );
+    const hide = KeyboardEvents.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+      // Keep RN's JS-side focus state in sync with the actual keyboard: a manual
+      // dismiss (keyboard's hide button / back gesture) hides the IME WITHOUT
+      // blurring the hidden input, so RN still thinks it's focused and a later
+      // onTapEmpty -> focus() is a no-op (no state change to re-open the IME).
+      // Blurring here guarantees the next tap is a real unfocused->focused
+      // transition, which reliably brings the keyboard back up.
+      inputRef.current?.blur();
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
-	// The toolbar's marginBottom must clear the keyboard's overlap with THIS column,
-	// not the whole screen. keyboardHeight is measured from the screen bottom, so we
-	// subtract `spaceBelowColumn` (everything between the column's bottom edge and the
-	// screen bottom) to get the keyboard's actual overlap with the column.
-	//
-	// For the JS bar `spaceBelowColumn` is exact and depends on the bar's mode
-	// (see useJsTabBarOverlay):
-	//   - overlay (canvas themes): the bar floats OVER the scene, so the column runs
-	//     to the physical screen bottom → 0. The bar's footprint moves into the
-	//     RESTING margin instead, so the toolbar sits above the floating bar.
-	//   - in flow (flat themes): the bar sits below the column, so it's literally
-	//     JS_TAB_BAR_HEIGHT + inset.
-	// For the NATIVE bar it's a hand-tuned correction (the OS doesn't expose the bar
-	// height — rns#3627) whose sign DIFFERS per platform, because
-	// `softwareKeyboardLayoutMode: 'resize'` is Android-only:
-	//   - Android (resize): the window shrinks to the keyboard top, so the band below
-	//     the column is a real positive height (~80 + inset). Subtracting it is right.
-	//   - iOS (overlay): the window does NOT resize; the column runs to the physical
-	//     screen bottom and iOS's keyboard frame already covers the home indicator AND
-	//     the tab-bar region. So `+ insets.bottom` double-counts, and the offset goes
-	//     NEGATIVE to cancel it (-84 ≈ -(tab bar 49 + home indicator 34)). It's an
-	//     inset cancellation, not a height — see NATIVE_TAB_BAR_TOOLBAR_OFFSET.
-	// Single knob: increasing the offset lowers the toolbar, decreasing it raises it.
-	// See docs/projects/complete/toolbar-keyboard-by-construction.md.
-	const [tabBarImpl] = preferences.tabBarImpl.useValue();
-	const jsBarOverlay = useJsTabBarOverlay();
-	const spaceBelowColumn =
-		tabBarImpl === 'js'
-			? jsBarOverlay
-				? 0
-				: JS_TAB_BAR_HEIGHT + insets.bottom
-			: NATIVE_TAB_BAR_TOOLBAR_OFFSET + insets.bottom;
-	// Resting (keyboard down): the overlaying JS bar now lives INSIDE the column's
-	// extent, so its full footprint (height + inset) is added to the same
-	// insets.bottom cushion the in-flow layout had — identical visual position.
-	const restingToolbarMargin = jsBarOverlay
-		? JS_TAB_BAR_HEIGHT + insets.bottom + insets.bottom
-		: insets.bottom;
-	const toolbarMarginBottom =
-		keyboardHeight > 0
-			? Math.max(keyboardHeight - spaceBelowColumn, insets.bottom)
-			: restingToolbarMargin;
+  // The toolbar's marginBottom must clear the keyboard's overlap with THIS column,
+  // not the whole screen. keyboardHeight is measured from the screen bottom, so we
+  // subtract `spaceBelowColumn` (everything between the column's bottom edge and the
+  // screen bottom) to get the keyboard's actual overlap with the column.
+  //
+  // For the JS bar `spaceBelowColumn` is exact and depends on the bar's mode
+  // (see useJsTabBarOverlay):
+  //   - overlay (canvas themes): the bar floats OVER the scene, so the column runs
+  //     to the physical screen bottom → 0. The bar's footprint moves into the
+  //     RESTING margin instead, so the toolbar sits above the floating bar.
+  //   - in flow (flat themes): the bar sits below the column, so it's literally
+  //     JS_TAB_BAR_HEIGHT + inset.
+  // For the NATIVE bar it's a hand-tuned correction (the OS doesn't expose the bar
+  // height — rns#3627) whose sign DIFFERS per platform, because
+  // `softwareKeyboardLayoutMode: 'resize'` is Android-only:
+  //   - Android (resize): the window shrinks to the keyboard top, so the band below
+  //     the column is a real positive height (~80 + inset). Subtracting it is right.
+  //   - iOS (overlay): the window does NOT resize; the column runs to the physical
+  //     screen bottom and iOS's keyboard frame already covers the home indicator AND
+  //     the tab-bar region. So `+ insets.bottom` double-counts, and the offset goes
+  //     NEGATIVE to cancel it (-84 ≈ -(tab bar 49 + home indicator 34)). It's an
+  //     inset cancellation, not a height — see NATIVE_TAB_BAR_TOOLBAR_OFFSET.
+  // Single knob: increasing the offset lowers the toolbar, decreasing it raises it.
+  // See docs/projects/complete/toolbar-keyboard-by-construction.md.
+  const [tabBarImpl] = preferences.tabBarImpl.useValue();
+  const jsBarOverlay = useJsTabBarOverlay();
+  const spaceBelowColumn =
+    tabBarImpl === 'js'
+      ? jsBarOverlay
+        ? 0
+        : JS_TAB_BAR_HEIGHT + insets.bottom
+      : NATIVE_TAB_BAR_TOOLBAR_OFFSET + insets.bottom;
+  // Resting (keyboard down): the overlaying JS bar now lives INSIDE the column's
+  // extent, so its full footprint (height + inset) is added to the same
+  // insets.bottom cushion the in-flow layout had — identical visual position.
+  const restingToolbarMargin = jsBarOverlay
+    ? JS_TAB_BAR_HEIGHT + insets.bottom + insets.bottom
+    : insets.bottom;
+  const toolbarMarginBottom =
+    keyboardHeight > 0
+      ? Math.max(keyboardHeight - spaceBelowColumn, insets.bottom)
+      : restingToolbarMargin;
 
-	// Shells are keyed in the store by their native `shellId` (opaque), but the
-	// route only carries connectionId + channelId — so resolve by those fields.
-	const shell = useAtomValue(
-		sshShellsAtom,
-		useCallback(
-			(shells: Record<string, StoreShell>) =>
-				Object.values(shells).find(
-					(candidate) =>
-						candidate.connectionId === connectionId &&
-						candidate.channelId === channelId,
-				),
-			[connectionId, channelId],
-		),
-	);
-	const connection = useAtomValue(connectionAtom(connectionId));
-	const terminalConfig = useTerminalRenderConfig();
+  // Shells are keyed in the store by their native `shellId` (opaque), but the
+  // route only carries connectionId + channelId — so resolve by those fields.
+  const shell = useAtomValue(
+    sshShellsAtom,
+    useCallback(
+      (shells: Record<string, StoreShell>) =>
+        Option.getOrUndefined(
+          Arr.findFirst(
+            Rec.values(shells),
+            (candidate) =>
+              candidate.connectionId === connectionId &&
+              candidate.channelId === channelId,
+          ),
+        ),
+      [connectionId, channelId],
+    ),
+  );
+  const connection = useAtomValue(connectionAtom(connectionId));
+  const terminalConfig = useTerminalRenderConfig();
 
-	useEffect(() => {
-		if (shell && connection) {
-			return;
-		}
-		appRuntime.runSync(
-			Effect.logInfo('shell or connection not found, navigating back').pipe(
-				annotateModule,
-			),
-		);
-		router.back();
-	}, [connection, router, shell]);
+  useEffect(() => {
+    if (shell && connection) {
+      return;
+    }
+    appRuntime.runSync(
+      Effect.logInfo('shell or connection not found, navigating back').pipe(
+        annotateModule,
+      ),
+    );
+    router.back();
+  }, [connection, router, shell]);
 
-	const [modifierKeysActive, setModifierKeysActive] = useState<
-		KeyboardToolbarModifierButtonProps[]
-	>([]);
+  const [modifierKeysActive, setModifierKeysActive] = useState<
+    KeyboardToolbarModifierButtonProps[]
+  >([]);
 
-	const sendBytes = useCallback(
-		(bytes: Uint8Array<ArrayBuffer>) => {
-			if (!shell) {
-				return;
-			}
+  const sendBytes = useCallback(
+    (bytes: Uint8Array<ArrayBuffer>) => {
+      if (!shell) {
+        return;
+      }
 
-			let modifiedBytes = bytes;
-			// NB: copy-then-sort ([...].sort), not Array.prototype.toSorted —
-			// toSorted is ES2023 and isn't reliably present in Hermes, so calling it
-			// throws "undefined is not a function" on the very first keystroke. The
-			// spread already makes a fresh copy, so the in-place .sort() mutates nothing
-			// shared. (The unicorn/no-array-sort autofix is disabled globally for this
-			// exact reason — see oxlint.config.ts.)
-			[...modifierKeysActive]
-				.sort((a, b) => a.orderPreference - b.orderPreference)
-				.forEach((m) => {
-					if (!m.canApplyModifierToBytes(modifiedBytes)) {
-						return;
-					}
-					modifiedBytes = m.applyModifierToBytes(modifiedBytes);
-				});
+      let modifiedBytes = bytes;
+      // NB: copy-then-sort ([...].sort), not Array.prototype.toSorted —
+      // toSorted is ES2023 and isn't reliably present in Hermes, so calling it
+      // throws "undefined is not a function" on the very first keystroke. The
+      // spread already makes a fresh copy, so the in-place .sort() mutates nothing
+      // shared. (The unicorn/no-array-sort autofix is disabled globally for this
+      // exact reason — see oxlint.config.ts.)
+      Arr.forEach(
+        [...modifierKeysActive].sort(
+          (a, b) => a.orderPreference - b.orderPreference,
+        ),
+        (m) => {
+          if (!m.canApplyModifierToBytes(modifiedBytes)) {
+            return;
+          }
+          modifiedBytes = m.applyModifierToBytes(modifiedBytes);
+        },
+      );
 
-			appRuntime.runFork(
-				Effect.tryPromise(() => shell.sendData(modifiedBytes.buffer)).pipe(
-					Effect.catch((error) =>
-						Effect.gen(function* () {
-							yield* Effect.logWarning('sendData failed', error);
-							yield* Effect.sync(() => router.back());
-						}),
-					),
-					annotateModule,
-				),
-			);
-		},
-		[shell, router, modifierKeysActive],
-	);
-	const toolbarContext: KeyboardToolbarContextType = useMemo(
-		() => ({
-			modifierKeysActive,
-			setModifierKeysActive,
-			sendBytes,
-		}),
-		[sendBytes, modifierKeysActive],
-	);
+      appRuntime.runFork(
+        Effect.tryPromise(() => shell.sendData(modifiedBytes.buffer)).pipe(
+          Effect.catch((error) =>
+            Effect.logWarning('sendData failed', error).pipe(
+              Effect.andThen(Effect.sync(() => router.back())),
+            ),
+          ),
+          annotateModule,
+        ),
+      );
+    },
+    [shell, router, modifierKeysActive],
+  );
+  const toolbarContext: KeyboardToolbarContextType = useMemo(
+    () => ({
+      modifierKeysActive,
+      setModifierKeysActive,
+      sendBytes,
+    }),
+    [sendBytes, modifierKeysActive],
+  );
 
-	return (
-		<View className='flex-1 justify-start bg-background pt-0.5 pb-0'>
-			<Stack.Screen
-				options={{
-					headerBackVisible: true,
-					title: `${connection?.connectionDetails.username}@${connection?.connectionDetails.host}`,
-					headerTitle: () => (
-						<ShellHeaderTitle
-							title={`${connection?.connectionDetails.username}@${connection?.connectionDetails.host}`}
-						/>
-					),
-					headerRight: () => (
-						<CloseShellButton
-							onPress={() => {
-								appRuntime.runFork(
-									Effect.gen(function* () {
-										yield* Effect.logInfo('Close Shell button pressed');
-										if (!shell) {
-											return;
-										}
-										yield* Effect.tryPromise(() => shell.close()).pipe(
-											Effect.catch((error) =>
-												Effect.logWarning('Failed to close shell', error),
-											),
-										);
-									}).pipe(annotateModule),
-								);
-							}}
-						/>
-					),
-				}}
-			/>
-			{/* Fixed-height column (the window does NOT shrink for the IME here). We
+  return (
+    <View className='flex-1 justify-start bg-background pt-0.5 pb-0'>
+      <Stack.Screen
+        options={{
+          headerBackVisible: true,
+          title: `${connection?.connectionDetails.username}@${connection?.connectionDetails.host}`,
+          headerTitle: () => (
+            <ShellHeaderTitle
+              title={`${connection?.connectionDetails.username}@${connection?.connectionDetails.host}`}
+            />
+          ),
+          headerRight: () => (
+            <CloseShellButton
+              onPress={() => {
+                appRuntime.runFork(
+                  Effect.gen(function* () {
+                    yield* Effect.logInfo('Close Shell button pressed');
+                    if (!shell) {
+                      return;
+                    }
+                    yield* Effect.tryPromise(() => shell.close()).pipe(
+                      Effect.catch((error) =>
+                        Effect.logWarning('Failed to close shell', error),
+                      ),
+                    );
+                  }).pipe(annotateModule),
+                );
+              }}
+            />
+          ),
+        }}
+      />
+      {/* Fixed-height column (the window does NOT shrink for the IME here). We
 						avoid for the keyboard ourselves via the toolbar's marginBottom below,
 						which shrinks the flex:1 terminal by the keyboard height and triggers the
 						deterministic surface resize. (A KeyboardAvoidingView resized the surface
 						only inconsistently and clipped the 2nd toolbar row.) Paired with
 						softwareKeyboardLayoutMode='resize'. */}
-			<View className='flex-1 gap-1'>
-				<KeyboardToolBarContext value={toolbarContext}>
-					{/* Smart-terminal context bar — ambient cwd / command status / exit /
+      <View className='flex-1 gap-1'>
+        <KeyboardToolBarContext value={toolbarContext}>
+          {/* Smart-terminal context bar — ambient cwd / command status / exit /
 					    timing. A real row (not an overlay) so it never occludes output.
 					    See docs/projects/smart-terminal-surface.md. */}
-					{shell ? <ContextBar shellId={shell.shellId} /> : null}
-					<View className='flex-1'>
-						{shell ? (
-							<TerminalSurface
-								shellId={shell.shellId}
-								config={terminalConfig}
-								onTapEmpty={() => inputRef.current?.focus()}
-							/>
-						) : null}
-						{/* Hidden input: captures soft-keyboard text/keys and forwards
+          {shell ? <ContextBar shellId={shell.shellId} /> : null}
+          <View className='flex-1'>
+            {shell ? (
+              <TerminalSurface
+                shellId={shell.shellId}
+                config={terminalConfig}
+                onTapEmpty={() => inputRef.current?.focus()}
+              />
+            ) : null}
+            {/* Hidden input: captures soft-keyboard text/keys and forwards
 									bytes to the shell. The native <Terminal/> only renders; input
 									rides the control plane via sendBytes -> shell.sendData. */}
-						<TextInput
-							ref={inputRef}
-							// Stable id for the screenshot/e2e flows: the field is 1px and
-							// opacity-0 (it only captures keystrokes), so automation can't find
-							// it by content — this lets a flow focus + type into the terminal.
-							testID='terminal-input'
-							autoFocus
-							// `value=''` held constant keeps the field empty after every keystroke,
-							// so each input event carries only the new char (no accumulation) and an
-							// empty-field Backspace emits no change event (it rides onKeyPress). This
-							// is the divergence-free design — the field never mirrors shell state.
-							//
-							// Printables are sourced PER PLATFORM to dodge an iOS double-send:
-							//   - iOS: a multiline TextInput fires onChangeText TWICE for one keystroke,
-							//     and the two fires can land in different event-loop turns (esp. under
-							//     Maestro's inputText), so any turn- or content-based de-dup is unsafe —
-							//     a real "--" is indistinguishable from a doubled "-". onKeyPress fires
-							//     exactly ONCE per key, so iOS takes printables there and ignores
-							//     onChangeText.
-							//   - Android: onChangeText fires once (reliable for the soft keyboard,
-							//     which doesn't emit onKeyPress for printables), so Android uses it.
-							// `multiline` stays: it's what makes Android emit onKeyPress for
-							// Enter/Backspace at all.
-							value=''
-							onChangeText={(text) => {
-								if (!shell || !text || Platform.OS === 'ios') {
-									return;
-								}
-								// Enter/Backspace are handled in onKeyPress; send the rest.
-								const printable = text.replaceAll('\n', '');
-								if (printable) {
-									sendBytes(encoder.encode(printable));
-								}
-							}}
-							onKeyPress={(e) => {
-								if (!shell) {
-									return;
-								}
-								const key = e.nativeEvent.key;
-								if (key === 'Enter') {
-									sendBytes(new Uint8Array([13]));
-								} else if (key === 'Backspace') {
-									sendBytes(new Uint8Array([127]));
-								} else if (Platform.OS === 'ios' && key.length === 1) {
-									// iOS only: printable keys arrive here exactly once (no multiline
-									// onChangeText double-fire). Android routes printables via onChangeText.
-									sendBytes(encoder.encode(key));
-								}
-							}}
-							autoCapitalize='none'
-							autoComplete='off'
-							autoCorrect={false}
-							spellCheck={false}
-							blurOnSubmit={false}
-							caretHidden
-							multiline
-							className='absolute h-px w-px opacity-0'
-						/>
-					</View>
-					{/* marginBottom reserves space below the toolbar: the keyboard height
+            <TextInput
+              ref={inputRef}
+              // Stable id for the screenshot/e2e flows: the field is 1px and
+              // opacity-0 (it only captures keystrokes), so automation can't find
+              // it by content — this lets a flow focus + type into the terminal.
+              testID='terminal-input'
+              // oxlint-disable-next-line jsx-a11y/no-autofocus -- the hidden terminal input must own the keyboard on open; the Maestro screenshot flow's inputText relies on it
+              autoFocus
+              // `value=''` held constant keeps the field empty after every keystroke,
+              // so each input event carries only the new char (no accumulation) and an
+              // empty-field Backspace emits no change event (it rides onKeyPress). This
+              // is the divergence-free design — the field never mirrors shell state.
+              //
+              // Printables are sourced PER PLATFORM to dodge an iOS double-send:
+              //   - iOS: a multiline TextInput fires onChangeText TWICE for one keystroke,
+              //     and the two fires can land in different event-loop turns (esp. under
+              //     Maestro's inputText), so any turn- or content-based de-dup is unsafe —
+              //     a real "--" is indistinguishable from a doubled "-". onKeyPress fires
+              //     exactly ONCE per key, so iOS takes printables there and ignores
+              //     onChangeText.
+              //   - Android: onChangeText fires once (reliable for the soft keyboard,
+              //     which doesn't emit onKeyPress for printables), so Android uses it.
+              // `multiline` stays: it's what makes Android emit onKeyPress for
+              // Enter/Backspace at all.
+              value=''
+              onChangeText={(text) => {
+                if (!shell || !text || Platform.OS === 'ios') {
+                  return;
+                }
+                // Enter/Backspace are handled in onKeyPress; send the rest.
+                const printable = Str.replaceAll('\n', '')(text);
+                if (printable) {
+                  sendBytes(encoder.encode(printable));
+                }
+              }}
+              onKeyPress={(e) => {
+                if (!shell) {
+                  return;
+                }
+                const key = e.nativeEvent.key;
+                if (key === 'Enter') {
+                  sendBytes(new Uint8Array([13]));
+                } else if (key === 'Backspace') {
+                  sendBytes(new Uint8Array([127]));
+                } else if (Platform.OS === 'ios' && key.length === 1) {
+                  // iOS only: printable keys arrive here exactly once (no multiline
+                  // onChangeText double-fire). Android routes printables via onChangeText.
+                  sendBytes(encoder.encode(key));
+                }
+              }}
+              autoCapitalize='none'
+              autoComplete='off'
+              autoCorrect={false}
+              spellCheck={false}
+              submitBehavior='newline'
+              caretHidden
+              multiline
+              className='absolute h-px w-px opacity-0'
+            />
+          </View>
+          {/* marginBottom reserves space below the toolbar: the keyboard height
 								when it's up (so both rows — incl. CTRL/ALT — clear the keyboard and
 								the terminal shrinks to match), else the gesture-nav inset. This is
 								the single knob that drives the deterministic terminal resize. */}
-					<View style={{ marginBottom: toolbarMarginBottom }}>
-						<KeyboardToolbar />
-					</View>
-				</KeyboardToolBarContext>
-			</View>
-		</View>
-	);
+          <View style={{ marginBottom: toolbarMarginBottom }}>
+            <KeyboardToolbar />
+          </View>
+        </KeyboardToolBarContext>
+      </View>
+    </View>
+  );
 }
 
 /**
@@ -421,145 +437,157 @@ function ShellDetail() {
  * grid regardless of pixels). The view size is captured via onLayout below.
  */
 function TerminalSurface({
-	shellId,
-	config,
-	onTapEmpty,
+  shellId,
+  config,
+  onTapEmpty,
 }: {
-	shellId: string;
-	config: TerminalRenderConfig;
-	onTapEmpty: () => void;
+  shellId: string;
+  config: TerminalRenderConfig;
+  onTapEmpty: () => void;
 }) {
-	const textPrimaryColor = useCSSVariable('--color-text-primary') as string;
-	// Live size (logical px) of the gesture view, kept current via onLayout.
-	const sizeRef = useRef({ width: 1, height: 1 });
-	const fracX = (x: number) =>
-		Math.min(1, Math.max(0, x / Math.max(1, sizeRef.current.width)));
-	const fracY = (y: number) =>
-		Math.min(1, Math.max(0, y / Math.max(1, sizeRef.current.height)));
-	// When a selection finishes we stash its text + where to float the Copy button.
-	// Capturing the text up front means a racing tap-to-dismiss can't empty it.
-	const [pendingCopy, setPendingCopy] = useState<{
-		x: number;
-		y: number;
-		text: string;
-	} | null>(null);
+  const textPrimaryColor = useCSSVariable('--color-text-primary') as string;
+  // Live size (logical px) of the gesture view, kept current via onLayout.
+  const sizeRef = useRef({ width: 1, height: 1 });
+  // When a selection finishes we stash its text + where to float the Copy button.
+  // Capturing the text up front means a racing tap-to-dismiss can't empty it.
+  const [pendingCopy, setPendingCopy] = useState<{
+    x: number;
+    y: number;
+    text: string;
+  } | null>(null);
 
-	const dismissSelection = useCallback(() => {
-		selectionClear(shellId);
-		setPendingCopy(null);
-	}, [shellId]);
+  const dismissSelection = useCallback(() => {
+    selectionClear(shellId);
+    setPendingCopy(null);
+  }, [shellId]);
 
-	const gesture = useMemo(() => {
-		// Quick drag → scroll. changeY>0 (finger down) reveals older content. Sent as
-		// a fraction of view height; native multiplies by the grid's row count.
-		const scrollPan = Gesture.Pan()
-			.runOnJS(true)
-			.onStart(() => setPendingCopy(null))
-			.onChange((e) => {
-				appRuntime.runFork(
-					Effect.tryPromise(() =>
-						scroll(shellId, e.changeY / Math.max(1, sizeRef.current.height)),
-					).pipe(
-						// Scroll is best-effort (a dropped frame is non-fatal), but still log.
-						Effect.catch((error) => Effect.logWarning('scroll failed', error)),
-						annotateModule,
-					),
-				);
-			});
+  const gesture = useMemo(() => {
+    const fracX = (x: number) =>
+      Math.min(1, Math.max(0, x / Math.max(1, sizeRef.current.width)));
+    const fracY = (y: number) =>
+      Math.min(1, Math.max(0, y / Math.max(1, sizeRef.current.height)));
+    // Quick drag → scroll. changeY>0 (finger down) reveals older content. Sent as
+    // a fraction of view height; native multiplies by the grid's row count.
+    // oxlint-disable-next-line typescript/no-deprecated -- the RNGH 3 hook API (usePanGesture/useTapGesture/useCompetingGestures) is a behavior-sensitive rewrite of the terminal gestures that needs on-device verification
+    const scrollPan = Gesture.Pan()
+      .runOnJS(true)
+      .onStart(() => setPendingCopy(null))
+      // oxlint-disable-next-line react/refs -- gesture callbacks run on touch events (runOnJS), never during render; sizeRef is read there, not while rendering
+      .onChange((e) => {
+        appRuntime.runFork(
+          Effect.tryPromise(() =>
+            scroll(shellId, e.changeY / Math.max(1, sizeRef.current.height)),
+          ).pipe(
+            // Scroll is best-effort (a dropped frame is non-fatal), but still log.
+            Effect.catch((error) => Effect.logWarning('scroll failed', error)),
+            annotateModule,
+          ),
+        );
+      });
 
-		// Hold-then-drag → select. Word-snap on start, extend on move, surface the
-		// Copy button (with the text captured now) on release.
-		const selectPan = Gesture.Pan()
-			.runOnJS(true)
-			.activateAfterLongPress(300)
-			.onStart((e) => {
-				setPendingCopy(null);
-				selectionStart(shellId, fracX(e.x), fracY(e.y), SelectionKind.Word);
-			})
-			.onUpdate((e) => {
-				selectionUpdate(shellId, fracX(e.x), fracY(e.y));
-			})
-			.onEnd((e) => {
-				const text = selectionText(shellId);
-				if (text) {
-					setPendingCopy({ x: e.x, y: e.y, text });
-				} else {
-					dismissSelection();
-				}
-			});
+    // Hold-then-drag → select. Word-snap on start, extend on move, surface the
+    // Copy button (with the text captured now) on release.
+    // oxlint-disable-next-line typescript/no-deprecated -- the RNGH 3 hook API (usePanGesture/useTapGesture/useCompetingGestures) is a behavior-sensitive rewrite of the terminal gestures that needs on-device verification
+    const selectPan = Gesture.Pan()
+      .runOnJS(true)
+      .activateAfterLongPress(300)
+      // oxlint-disable-next-line react/refs -- gesture callbacks run on touch events (runOnJS), never during render; sizeRef is read there, not while rendering
+      .onStart((e) => {
+        setPendingCopy(null);
+        selectionStart(shellId, fracX(e.x), fracY(e.y), SelectionKind.Word);
+      })
+      // oxlint-disable-next-line react/refs -- gesture callbacks run on touch events (runOnJS), never during render; sizeRef is read there, not while rendering
+      .onUpdate((e) => {
+        selectionUpdate(shellId, fracX(e.x), fracY(e.y));
+      })
+      .onEnd((e) => {
+        const text = selectionText(shellId);
+        if (text !== undefined && text !== '') {
+          setPendingCopy({ x: e.x, y: e.y, text });
+        } else {
+          dismissSelection();
+        }
+      });
 
-		const tap = Gesture.Tap()
-			.runOnJS(true)
-			.onEnd(() => {
-				if (pendingCopy) {
-					dismissSelection();
-				} else {
-					onTapEmpty();
-				}
-			});
+    // oxlint-disable-next-line typescript/no-deprecated -- the RNGH 3 hook API (usePanGesture/useTapGesture/useCompetingGestures) is a behavior-sensitive rewrite of the terminal gestures that needs on-device verification
+    const tap = Gesture.Tap()
+      .runOnJS(true)
+      .onEnd(() => {
+        if (pendingCopy) {
+          dismissSelection();
+        } else {
+          onTapEmpty();
+        }
+      });
 
-		// A held finger arms selectPan; an immediate drag wins scrollPan; a clean
-		// tap takes the tap. Race = first to activate wins.
-		return Gesture.Race(selectPan, scrollPan, tap);
-	}, [shellId, pendingCopy, dismissSelection, onTapEmpty]);
+    // A held finger arms selectPan; an immediate drag wins scrollPan; a clean
+    // tap takes the tap. Race = first to activate wins.
+    // oxlint-disable-next-line typescript/no-deprecated -- the RNGH 3 hook API (usePanGesture/useTapGesture/useCompetingGestures) is a behavior-sensitive rewrite of the terminal gestures that needs on-device verification
+    return Gesture.Race(selectPan, scrollPan, tap);
+  }, [shellId, pendingCopy, dismissSelection, onTapEmpty]);
 
-	const onCopy = useCallback(async () => {
-		const text = pendingCopy?.text;
-		setPendingCopy(null);
-		selectionClear(shellId);
-		if (text) {
-			await Clipboard.setStringAsync(text);
-		}
-	}, [pendingCopy, shellId]);
+  const onCopy = useCallback(() => {
+    const text = pendingCopy?.text;
+    setPendingCopy(null);
+    selectionClear(shellId);
+    if (text !== undefined && text !== '') {
+      appRuntime.runFork(
+        Effect.tryPromise(() => Clipboard.setStringAsync(text)).pipe(
+          Effect.catch((error) => Effect.logWarning('copy failed', error)),
+          annotateModule,
+        ),
+      );
+    }
+  }, [pendingCopy, shellId]);
 
-	return (
-		<View className='flex-1'>
-			<GestureDetector gesture={gesture}>
-				<View
-					className='flex-1'
-					onLayout={(e) => {
-						sizeRef.current = {
-							width: e.nativeEvent.layout.width,
-							height: e.nativeEvent.layout.height,
-						};
-					}}
-				>
-					<Terminal
-						shellId={shellId}
-						fontPath=''
-						config={config}
-						style={{ flex: 1 }}
-					/>
-				</View>
-			</GestureDetector>
-			{pendingCopy ? (
-				<Pressable
-					accessibilityLabel='Copy selection'
-					onPress={onCopy}
-					className='absolute flex-row items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2'
-					style={{
-						left: Math.max(4, pendingCopy.x - 32),
-						top: Math.max(4, pendingCopy.y - 48),
-					}}
-				>
-					<Ionicons name='copy-outline' size={16} color={textPrimaryColor} />
-					<Text className='text-text-primary'>Copy</Text>
-				</Pressable>
-			) : null}
-		</View>
-	);
+  return (
+    <View className='flex-1'>
+      <GestureDetector gesture={gesture}>
+        <View
+          className='flex-1'
+          onLayout={(e) => {
+            sizeRef.current = {
+              width: e.nativeEvent.layout.width,
+              height: e.nativeEvent.layout.height,
+            };
+          }}
+        >
+          <Terminal
+            shellId={shellId}
+            fontPath=''
+            config={config}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </GestureDetector>
+      {pendingCopy ? (
+        <Pressable
+          accessibilityLabel='Copy selection'
+          onPress={onCopy}
+          className='absolute flex-row items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2'
+          style={{
+            left: Math.max(4, pendingCopy.x - 32),
+            top: Math.max(4, pendingCopy.y - 48),
+          }}
+        >
+          <Ionicons name='copy-outline' size={16} color={textPrimaryColor} />
+          <Text className='text-text-primary'>Copy</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
 }
 
 interface KeyboardToolbarContextType {
-	modifierKeysActive: KeyboardToolbarModifierButtonProps[];
-	setModifierKeysActive: React.Dispatch<
-		React.SetStateAction<KeyboardToolbarModifierButtonProps[]>
-	>;
-	sendBytes: (bytes: Uint8Array<ArrayBuffer>) => void;
+  modifierKeysActive: KeyboardToolbarModifierButtonProps[];
+  setModifierKeysActive: React.Dispatch<
+    React.SetStateAction<KeyboardToolbarModifierButtonProps[]>
+  >;
+  sendBytes: (bytes: Uint8Array<ArrayBuffer>) => void;
 }
-const KeyboardToolBarContext = createContext<KeyboardToolbarContextType | null>(
-	null,
-);
+const KeyboardToolBarContext = createContext<
+  KeyboardToolbarContextType | null | undefined
+>(null);
 
 /**
  * The native stack header's title for the shell — the `user@host` string in the
@@ -567,36 +595,36 @@ const KeyboardToolBarContext = createContext<KeyboardToolbarContextType | null>(
  * terminal session and matches the theme rather than the bare system title.
  */
 function ShellHeaderTitle({ title }: { title: string }) {
-	const skin = useThemeSkin();
-	const [textPrimary, primary] = useCSSVariable([
-		'--color-text-primary',
-		'--color-primary',
-	]) as [string, string];
-	return (
-		<View className='flex-row items-center gap-2'>
-			<View
-				style={{
-					width: 7,
-					height: 7,
-					borderRadius: 4,
-					backgroundColor: primary,
-					boxShadow: skin.glow || undefined,
-				}}
-			/>
-			<ThemedText
-				mono
-				numberOfLines={1}
-				style={{
-					color: textPrimary,
-					fontSize: 16,
-					fontWeight: '700',
-					letterSpacing: skin.tracking || undefined,
-				}}
-			>
-				{applyCase(skin, title)}
-			</ThemedText>
-		</View>
-	);
+  const skin = useThemeSkin();
+  const [textPrimary, primary] = useCSSVariable([
+    '--color-text-primary',
+    '--color-primary',
+  ]) as [string, string];
+  return (
+    <View className='flex-row items-center gap-2'>
+      <View
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: 4,
+          backgroundColor: primary,
+          boxShadow: skin.glow || undefined,
+        }}
+      />
+      <ThemedText
+        mono
+        numberOfLines={1}
+        style={{
+          color: textPrimary,
+          fontSize: 16,
+          fontWeight: '700',
+          letterSpacing: skin.tracking || undefined,
+        }}
+      >
+        {applyCase(skin, title)}
+      </ThemedText>
+    </View>
+  );
 }
 
 /**
@@ -606,424 +634,428 @@ function ShellHeaderTitle({ title }: { title: string }) {
  * - Everything else: a danger-tinted rounded pill.
  */
 function CloseShellButton({ onPress }: { onPress: () => void }) {
-	const skin = useThemeSkin();
-	const danger = useCSSVariable('--color-danger') as string;
+  const skin = useThemeSkin();
+  const danger = useCSSVariable('--color-danger') as string;
 
-	if (skin.edgeToEdge) {
-		const bracket = {
-			color: danger,
-			fontSize: 13,
-			fontWeight: '700' as const,
-			letterSpacing: skin.tracking || undefined,
-		};
-		return (
-			<Pressable
-				accessibilityLabel='Close Shell'
-				hitSlop={10}
-				onPress={onPress}
-				className='flex-row items-center gap-1.5'
-			>
-				{/* `]` is its own element so the row gap sits before it too, giving an even
+  if (skin.edgeToEdge) {
+    const bracket = {
+      color: danger,
+      fontSize: 13,
+      fontWeight: '700' as const,
+      letterSpacing: skin.tracking || undefined,
+    };
+    return (
+      <Pressable
+        accessibilityLabel='Close Shell'
+        hitSlop={10}
+        onPress={onPress}
+        className='flex-row items-center gap-1.5'
+      >
+        {/* `]` is its own element so the row gap sits before it too, giving an even
 				    `[ x CLOSE ]` — gluing it as `CLOSE]` is what left the close bracket with
 				    no breathing room while the open bracket looked padded. */}
-				<ThemedText mono style={bracket}>
-					[
-				</ThemedText>
-				<Ionicons name='close' size={13} color={danger} />
-				<ThemedText mono style={bracket}>
-					CLOSE
-				</ThemedText>
-				<ThemedText mono style={bracket}>
-					]
-				</ThemedText>
-			</Pressable>
-		);
-	}
+        <ThemedText mono style={bracket}>
+          [
+        </ThemedText>
+        <Ionicons name='close' size={13} color={danger} />
+        <ThemedText mono style={bracket}>
+          CLOSE
+        </ThemedText>
+        <ThemedText mono style={bracket}>
+          ]
+        </ThemedText>
+      </Pressable>
+    );
+  }
 
-	return (
-		<Pressable
-			accessibilityLabel='Close Shell'
-			hitSlop={10}
-			onPress={onPress}
-			className='flex-row items-center gap-1.5 px-2.5 py-1.5'
-			style={{
-				borderRadius: skin.controlRadius,
-				borderWidth: 1,
-				borderColor: danger,
-			}}
-		>
-			<Ionicons name='close' size={15} color={danger} />
-			<ThemedText style={{ color: danger, fontSize: 13, fontWeight: '600' }}>
-				{applyCase(skin, 'Close')}
-			</ThemedText>
-		</Pressable>
-	);
+  return (
+    <Pressable
+      accessibilityLabel='Close Shell'
+      hitSlop={10}
+      onPress={onPress}
+      className='flex-row items-center gap-1.5 px-2.5 py-1.5'
+      style={{
+        borderRadius: skin.controlRadius,
+        borderWidth: 1,
+        borderColor: danger,
+      }}
+    >
+      <Ionicons name='close' size={15} color={danger} />
+      <ThemedText style={{ color: danger, fontSize: 13, fontWeight: '600' }}>
+        {applyCase(skin, 'Close')}
+      </ThemedText>
+    </Pressable>
+  );
 }
 
 const TOOLBAR_PAGE_HEIGHT = 86;
 
 function KeyboardToolbar() {
-	const [terminalBg, border, primary, muted] = useCSSVariable([
-		'--color-terminal-background',
-		'--color-border',
-		'--color-primary',
-		'--color-muted',
-	]) as [string, string, string, string];
-	const { sendBytes } = useContextSafe(KeyboardToolBarContext);
-	const [pageWidth, setPageWidth] = useState(0);
-	const [page, setPage] = useState(0);
+  const [terminalBg, border, primary, muted] = useCSSVariable([
+    '--color-terminal-background',
+    '--color-border',
+    '--color-primary',
+    '--color-muted',
+  ]) as [string, string, string, string];
+  const { sendBytes } = useContextSafe(KeyboardToolBarContext);
+  const [pageWidth, setPageWidth] = useState(0);
+  const [page, setPage] = useState(0);
 
-	// Run a preset: type its command into the PTY, with a trailing Enter unless the
-	// user opted out (autoRun off ⇒ insert only, they edit + submit). See
-	// docs/projects/future/preset-command-buttons.md.
-	const onRunPreset = useCallback(
-		(preset: Preset) => {
-			sendBytes(encoder.encode(preset.command + (preset.autoRun ? '\r' : '')));
-		},
-		[sendBytes],
-	);
+  // Run a preset: type its command into the PTY, with a trailing Enter unless the
+  // user opted out (autoRun off ⇒ insert only, they edit + submit). See
+  // docs/projects/future/preset-command-buttons.md.
+  const onRunPreset = useCallback(
+    (preset: Preset) => {
+      sendBytes(encoder.encode(preset.command + (preset.autoRun ? '\r' : '')));
+    },
+    [sendBytes],
+  );
 
-	// Match the design's accessory bar: a hairline-topped strip in the terminal's
-	// own colour. Page 1 is the modifier/nav keys (the default); page 2 is presets.
-	// A paging ScrollView is enough — the bar sits below the terminal's gesture
-	// zone, so its horizontal swipe never fights the scroll/select gestures.
-	return (
-		<View
-			style={{
-				borderTopWidth: 1,
-				borderTopColor: border,
-				backgroundColor: terminalBg,
-				paddingHorizontal: 10,
-				paddingTop: 8,
-				paddingBottom: 6,
-				gap: 4,
-			}}
-		>
-			<View
-				style={{ height: TOOLBAR_PAGE_HEIGHT }}
-				onLayout={(e) => setPageWidth(e.nativeEvent.layout.width)}
-			>
-				<ScrollView
-					horizontal
-					pagingEnabled
-					showsHorizontalScrollIndicator={false}
-					keyboardShouldPersistTaps='handled'
-					onMomentumScrollEnd={(e) =>
-						setPage(
-							Math.round(
-								e.nativeEvent.contentOffset.x / Math.max(1, pageWidth),
-							),
-						)
-					}
-				>
-					{/* Page 1 — modifier / nav keys (unchanged default). */}
-					<View
-						style={{ width: pageWidth, height: TOOLBAR_PAGE_HEIGHT, gap: 7 }}
-					>
-						<KeyboardToolbarRow>
-							<KeyboardToolbarButtonPreset preset='esc' />
-							<KeyboardToolbarButtonPreset preset='/' />
-							<KeyboardToolbarButtonPreset preset='|' />
-							<KeyboardToolbarButtonPreset preset='home' />
-							<KeyboardToolbarButtonPreset preset='up' />
-							<KeyboardToolbarButtonPreset preset='end' />
-							<KeyboardToolbarButtonPreset preset='pgup' />
-						</KeyboardToolbarRow>
-						<KeyboardToolbarRow>
-							<KeyboardToolbarButtonPreset preset='tab' />
-							<KeyboardToolbarButtonPreset preset='ctrl' />
-							<KeyboardToolbarButtonPreset preset='alt' />
-							<KeyboardToolbarButtonPreset preset='left' />
-							<KeyboardToolbarButtonPreset preset='down' />
-							<KeyboardToolbarButtonPreset preset='right' />
-							<KeyboardToolbarButtonPreset preset='pgdn' />
-						</KeyboardToolbarRow>
-					</View>
-					{/* Page 2 — preset commands. */}
-					<View style={{ width: pageWidth, height: TOOLBAR_PAGE_HEIGHT }}>
-						<PresetsToolbarPage onRun={onRunPreset} />
-					</View>
-				</ScrollView>
-			</View>
-			{/* Page dots, with a hide-keyboard affordance pinned right. The terminal's
+  // Match the design's accessory bar: a hairline-topped strip in the terminal's
+  // own colour. Page 1 is the modifier/nav keys (the default); page 2 is presets.
+  // A paging ScrollView is enough — the bar sits below the terminal's gesture
+  // zone, so its horizontal swipe never fights the scroll/select gestures.
+  return (
+    <View
+      style={{
+        borderTopWidth: 1,
+        borderTopColor: border,
+        backgroundColor: terminalBg,
+        paddingHorizontal: 10,
+        paddingTop: 8,
+        paddingBottom: 6,
+        gap: 4,
+      }}
+    >
+      <View
+        style={{ height: TOOLBAR_PAGE_HEIGHT }}
+        onLayout={(e) => setPageWidth(e.nativeEvent.layout.width)}
+      >
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps='handled'
+          onMomentumScrollEnd={(e) =>
+            setPage(
+              Math.round(
+                e.nativeEvent.contentOffset.x / Math.max(1, pageWidth),
+              ),
+            )
+          }
+        >
+          {/* Page 1 — modifier / nav keys (unchanged default). */}
+          <View
+            style={{ width: pageWidth, height: TOOLBAR_PAGE_HEIGHT, gap: 7 }}
+          >
+            <KeyboardToolbarRow>
+              <KeyboardToolbarButtonPreset preset='esc' />
+              <KeyboardToolbarButtonPreset preset='/' />
+              <KeyboardToolbarButtonPreset preset='|' />
+              <KeyboardToolbarButtonPreset preset='home' />
+              <KeyboardToolbarButtonPreset preset='up' />
+              <KeyboardToolbarButtonPreset preset='end' />
+              <KeyboardToolbarButtonPreset preset='pgup' />
+            </KeyboardToolbarRow>
+            <KeyboardToolbarRow>
+              <KeyboardToolbarButtonPreset preset='tab' />
+              <KeyboardToolbarButtonPreset preset='ctrl' />
+              <KeyboardToolbarButtonPreset preset='alt' />
+              <KeyboardToolbarButtonPreset preset='left' />
+              <KeyboardToolbarButtonPreset preset='down' />
+              <KeyboardToolbarButtonPreset preset='right' />
+              <KeyboardToolbarButtonPreset preset='pgdn' />
+            </KeyboardToolbarRow>
+          </View>
+          {/* Page 2 — preset commands. */}
+          <View style={{ width: pageWidth, height: TOOLBAR_PAGE_HEIGHT }}>
+            <PresetsToolbarPage onRun={onRunPreset} />
+          </View>
+        </ScrollView>
+      </View>
+      {/* Page dots, with a hide-keyboard affordance pinned right. The terminal's
 			    hidden input has no native dismiss control, so this blurs it via
 			    KeyboardController.dismiss() (the keyboardDidHide listener then blurs the
 			    input ref). It's also the only robust keyboard-dismiss the screenshot flow
 			    can tap on iOS, where Maestro's hideKeyboard can't act on the custom input. */}
-			<View className='flex-row items-center justify-center'>
-				<PageDots
-					count={2}
-					active={page}
-					activeColor={primary}
-					dotColor={muted}
-				/>
-				<Pressable
-					accessibilityLabel='Hide keyboard'
-					testID='terminal-hide-keyboard'
-					hitSlop={10}
-					onPress={() => {
-						void KeyboardController.dismiss();
-					}}
-					className='absolute right-0 px-1'
-				>
-					<Ionicons name='chevron-down' size={18} color={muted} />
-				</Pressable>
-			</View>
-		</View>
-	);
+      <View className='flex-row items-center justify-center'>
+        <PageDots
+          count={2}
+          active={page}
+          activeColor={primary}
+          dotColor={muted}
+        />
+        <Pressable
+          accessibilityLabel='Hide keyboard'
+          testID='terminal-hide-keyboard'
+          hitSlop={10}
+          onPress={() => {
+            void KeyboardController.dismiss();
+          }}
+          className='absolute right-0 px-1'
+        >
+          <Ionicons name='chevron-down' size={18} color={muted} />
+        </Pressable>
+      </View>
+    </View>
+  );
 }
 
 function PageDots({
-	count,
-	active,
-	activeColor,
-	dotColor,
+  count,
+  active,
+  activeColor,
+  dotColor,
 }: {
-	count: number;
-	active: number;
-	activeColor: string;
-	dotColor: string;
+  count: number;
+  active: number;
+  activeColor: string;
+  dotColor: string;
 }) {
-	return (
-		<View className='flex-row items-center justify-center gap-1.5'>
-			{Array.from({ length: count }, (_, i) => (
-				<View
-					key={i}
-					style={{
-						width: i === active ? 14 : 6,
-						height: 6,
-						borderRadius: 3,
-						backgroundColor: i === active ? activeColor : dotColor,
-						opacity: i === active ? 1 : 0.5,
-					}}
-				/>
-			))}
-		</View>
-	);
+  return (
+    <View className='flex-row items-center justify-center gap-1.5'>
+      {Array.from({ length: count }, (_, i) => (
+        <View
+          key={i}
+          style={{
+            width: i === active ? 14 : 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: i === active ? activeColor : dotColor,
+            opacity: i === active ? 1 : 0.5,
+          }}
+        />
+      ))}
+    </View>
+  );
 }
 
 function KeyboardToolbarRow({ children }: { children?: React.ReactNode }) {
-	return (
-		<View className='flex-1 flex-row' style={{ gap: 7 }}>
-			{children}
-		</View>
-	);
+  return (
+    <View className='flex-1 flex-row' style={{ gap: 7 }}>
+      {children}
+    </View>
+  );
 }
 
 type KeyboardToolbarButtonPresetType =
-	| 'esc'
-	| '/'
-	| '|'
-	| 'home'
-	| 'up'
-	| 'end'
-	| 'pgup'
-	| 'pgdn'
-	| 'tab'
-	| 'ctrl'
-	| 'alt'
-	| 'left'
-	| 'down'
-	| 'right'
-	| 'insert'
-	| 'delete'
-	| 'pageup'
-	| 'pagedown';
+  | 'esc'
+  | '/'
+  | '|'
+  | 'home'
+  | 'up'
+  | 'end'
+  | 'pgup'
+  | 'pgdn'
+  | 'tab'
+  | 'ctrl'
+  | 'alt'
+  | 'left'
+  | 'down'
+  | 'right'
+  | 'insert'
+  | 'delete'
+  | 'pageup'
+  | 'pagedown';
 
 function KeyboardToolbarButtonPreset({
-	preset,
-	style,
+  preset,
+  style,
 }: {
-	style?: StyleProp<ViewStyle>;
-	preset: KeyboardToolbarButtonPresetType;
+  style?: StyleProp<ViewStyle>;
+  preset: KeyboardToolbarButtonPresetType;
 }) {
-	return (
-		<KeyboardToolbarButton
-			{...keyboardToolbarButtonPresetToProps[preset]}
-			style={style}
-		/>
-	);
+  return (
+    <KeyboardToolbarButton
+      {...keyboardToolbarButtonPresetToProps[preset]}
+      style={style}
+    />
+  );
 }
 
 interface ModifierContract {
-	canApplyModifierToBytes: (bytes: Uint8Array<ArrayBuffer>) => boolean;
-	applyModifierToBytes: (
-		bytes: Uint8Array<ArrayBuffer>,
-	) => Uint8Array<ArrayBuffer>;
-	orderPreference: number;
+  canApplyModifierToBytes: (bytes: Uint8Array<ArrayBuffer>) => boolean;
+  applyModifierToBytes: (
+    bytes: Uint8Array<ArrayBuffer>,
+  ) => Uint8Array<ArrayBuffer>;
+  orderPreference: number;
 }
 
 const escapeByte = 27;
 
 const ctrlModifier: ModifierContract = {
-	orderPreference: 10,
-	canApplyModifierToBytes: (bytes) => {
-		const firstByte = bytes[0];
-		if (firstByte === undefined) {
-			return false;
-		}
-		return mapByteToCtrl(firstByte) !== null;
-	},
-	applyModifierToBytes: (bytes) => {
-		const firstByte = bytes[0];
-		if (firstByte === undefined) {
-			return bytes;
-		}
-		const ctrlByte = mapByteToCtrl(firstByte);
-		if (ctrlByte === null) {
-			return bytes;
-		}
-		return new Uint8Array([ctrlByte]);
-	},
+  orderPreference: 10,
+  canApplyModifierToBytes: (bytes) => {
+    const firstByte = bytes[0];
+    if (firstByte === undefined) {
+      return false;
+    }
+    return mapByteToCtrl(firstByte) !== null;
+  },
+  applyModifierToBytes: (bytes) => {
+    const firstByte = bytes[0];
+    if (firstByte === undefined) {
+      return bytes;
+    }
+    const ctrlByte = mapByteToCtrl(firstByte);
+    if (ctrlByte === null) {
+      return bytes;
+    }
+    return new Uint8Array([ctrlByte]);
+  },
 };
 
 const altModifier: ModifierContract = {
-	orderPreference: 20,
-	canApplyModifierToBytes: (bytes) =>
-		bytes.length > 0 && bytes[0] !== escapeByte,
-	applyModifierToBytes: (bytes) => {
-		const result = new Uint8Array(bytes.length + 1);
-		result[0] = escapeByte;
-		result.set(bytes, 1);
-		return result;
-	},
+  orderPreference: 20,
+  canApplyModifierToBytes: (bytes) =>
+    bytes.length > 0 && bytes[0] !== escapeByte,
+  applyModifierToBytes: (bytes) => {
+    const result = new Uint8Array(bytes.length + 1);
+    result[0] = escapeByte;
+    result.set(bytes, 1);
+    return result;
+  },
 };
 
 function mapByteToCtrl(byte: number): number | null {
-	if (byte === 32) {
-		return 0;
-	} // Ctrl+Space
-	const uppercase = byte & 0b1101_1111; // Fold to uppercase / control range
-	if (uppercase >= 64 && uppercase <= 95) {
-		return uppercase & 0x1f;
-	}
-	if (byte === 63) {
-		return 127;
-	} // Ctrl+?
-	return null;
+  if (byte === 32) {
+    return 0;
+  } // Ctrl+Space
+  const uppercase = byte & 0b1101_1111; // Fold to uppercase / control range
+  if (uppercase >= 64 && uppercase <= 95) {
+    return uppercase & 0x1f;
+  }
+  if (byte === 63) {
+    return 127;
+  } // Ctrl+?
+  return null;
 }
 
 const keyboardToolbarButtonPresetToProps: Record<
-	KeyboardToolbarButtonPresetType,
-	KeyboardToolbarButtonProps
+  KeyboardToolbarButtonPresetType,
+  KeyboardToolbarButtonProps
 > = {
-	esc: { label: 'ESC', sendBytes: new Uint8Array([27]) },
-	'/': { label: '/', sendBytes: new Uint8Array([47]) },
-	'|': { label: '|', sendBytes: new Uint8Array([124]) },
-	home: { label: 'HOME', sendBytes: new Uint8Array([27, 91, 72]) },
-	end: { label: 'END', sendBytes: new Uint8Array([27, 91, 70]) },
-	pgup: { label: 'PGUP', sendBytes: new Uint8Array([27, 91, 53, 126]) },
-	pgdn: { label: 'PGDN', sendBytes: new Uint8Array([27, 91, 54, 126]) },
-	tab: { label: 'TAB', sendBytes: new Uint8Array([9]) },
-	left: { iconName: 'arrow-back', sendBytes: new Uint8Array([27, 91, 68]) },
-	up: { iconName: 'arrow-up', sendBytes: new Uint8Array([27, 91, 65]) },
-	down: { iconName: 'arrow-down', sendBytes: new Uint8Array([27, 91, 66]) },
-	right: {
-		iconName: 'arrow-forward',
-		sendBytes: new Uint8Array([27, 91, 67]),
-	},
-	insert: { label: 'INSERT', sendBytes: new Uint8Array([27, 91, 50, 126]) },
-	delete: { label: 'DELETE', sendBytes: new Uint8Array([27, 91, 51, 126]) },
-	pageup: { label: 'PAGEUP', sendBytes: new Uint8Array([27, 91, 53, 126]) },
-	pagedown: { label: 'PAGEDOWN', sendBytes: new Uint8Array([27, 91, 54, 126]) },
-	ctrl: { label: 'CTRL', type: 'modifier', ...ctrlModifier },
-	alt: { label: 'ALT', type: 'modifier', ...altModifier },
+  esc: { label: 'ESC', sendBytes: new Uint8Array([27]) },
+  '/': { label: '/', sendBytes: new Uint8Array([47]) },
+  '|': { label: '|', sendBytes: new Uint8Array([124]) },
+  home: { label: 'HOME', sendBytes: new Uint8Array([27, 91, 72]) },
+  end: { label: 'END', sendBytes: new Uint8Array([27, 91, 70]) },
+  pgup: { label: 'PGUP', sendBytes: new Uint8Array([27, 91, 53, 126]) },
+  pgdn: { label: 'PGDN', sendBytes: new Uint8Array([27, 91, 54, 126]) },
+  tab: { label: 'TAB', sendBytes: new Uint8Array([9]) },
+  left: { iconName: 'arrow-back', sendBytes: new Uint8Array([27, 91, 68]) },
+  up: { iconName: 'arrow-up', sendBytes: new Uint8Array([27, 91, 65]) },
+  down: { iconName: 'arrow-down', sendBytes: new Uint8Array([27, 91, 66]) },
+  right: {
+    iconName: 'arrow-forward',
+    sendBytes: new Uint8Array([27, 91, 67]),
+  },
+  insert: { label: 'INSERT', sendBytes: new Uint8Array([27, 91, 50, 126]) },
+  delete: { label: 'DELETE', sendBytes: new Uint8Array([27, 91, 51, 126]) },
+  pageup: { label: 'PAGEUP', sendBytes: new Uint8Array([27, 91, 53, 126]) },
+  pagedown: { label: 'PAGEDOWN', sendBytes: new Uint8Array([27, 91, 54, 126]) },
+  ctrl: { label: 'CTRL', type: 'modifier', ...ctrlModifier },
+  alt: { label: 'ALT', type: 'modifier', ...altModifier },
 };
 
 type KeyboardToolbarButtonViewProps =
-	| {
-			label: string;
-	  }
-	| {
-			iconName: IconName;
-	  };
+  | {
+      label: string;
+    }
+  | {
+      iconName: IconName;
+    };
 
 type KeyboardToolbarModifierButtonProps = {
-	type: 'modifier';
+  type: 'modifier';
 } & ModifierContract &
-	KeyboardToolbarButtonViewProps;
+  KeyboardToolbarButtonViewProps;
 type KeyboardToolbarInstantButtonProps = {
-	type?: 'sendBytes';
-	sendBytes: Uint8Array<ArrayBuffer>;
+  type?: 'sendBytes';
+  sendBytes: Uint8Array<ArrayBuffer>;
 } & KeyboardToolbarButtonViewProps;
 
 type KeyboardToolbarButtonProps =
-	| KeyboardToolbarModifierButtonProps
-	| KeyboardToolbarInstantButtonProps;
+  | KeyboardToolbarModifierButtonProps
+  | KeyboardToolbarInstantButtonProps;
 
 const propsToKey = (props: KeyboardToolbarButtonProps) =>
-	'label' in props ? props.label : props.iconName;
+  'label' in props ? props.label : props.iconName;
 
 function KeyboardToolbarButton({
-	style,
-	...props
+  style,
+  ...props
 }: KeyboardToolbarButtonProps & { style?: StyleProp<ViewStyle> }) {
-	const skin = useThemeSkin();
-	const [textPrimaryColor, surface, border, primary, onPrimary] =
-		useCSSVariable([
-			'--color-text-primary',
-			'--color-surface',
-			'--color-border',
-			'--color-primary',
-			'--color-button-text-on-primary',
-		]) as [string, string, string, string, string];
-	const { sendBytes, modifierKeysActive, setModifierKeysActive } =
-		useContextSafe(KeyboardToolBarContext);
+  const skin = useThemeSkin();
+  const [textPrimaryColor, surface, border, primary, onPrimary] =
+    useCSSVariable([
+      '--color-text-primary',
+      '--color-surface',
+      '--color-border',
+      '--color-primary',
+      '--color-button-text-on-primary',
+    ]) as [string, string, string, string, string];
+  const { sendBytes, modifierKeysActive, setModifierKeysActive } =
+    useContextSafe(KeyboardToolBarContext);
 
-	const modifierActive =
-		props.type === 'modifier' &&
-		modifierKeysActive.some((m) => propsToKey(m) === propsToKey(props));
+  const modifierActive =
+    props.type === 'modifier' &&
+    Arr.some(modifierKeysActive, (m) => propsToKey(m) === propsToKey(props));
 
-	const fg = modifierActive ? onPrimary : textPrimaryColor;
-	const isTextLabel = 'label' in props;
-	const children = isTextLabel ? (
-		<Text
-			style={{
-				color: fg,
-				fontSize: 13,
-				fontWeight: '600',
-				fontFamily: skin.monoFamily,
-			}}
-		>
-			{props.label}
-		</Text>
-	) : (
-		<Ionicons name={props.iconName} size={20} color={fg} />
-	);
+  const fg = modifierActive ? onPrimary : textPrimaryColor;
+  const isTextLabel = 'label' in props;
+  const children = isTextLabel ? (
+    <Text
+      style={{
+        color: fg,
+        fontSize: 13,
+        fontWeight: '600',
+        fontFamily: skin.monoFamily,
+      }}
+    >
+      {props.label}
+    </Text>
+  ) : (
+    <Ionicons name={props.iconName} size={20} color={fg} />
+  );
 
-	return (
-		<Pressable
-			className='flex-1 items-center justify-center'
-			style={[
-				{
-					borderRadius: skin.controlRadius,
-					borderWidth: 1,
-					borderColor: modifierActive ? primary : border,
-					backgroundColor: modifierActive ? primary : surface,
-					boxShadow: modifierActive && skin.glow ? skin.glow : undefined,
-				},
-				style,
-			]}
-			onPress={() => {
-				if (props.type === 'modifier') {
-					setModifierKeysActive((modifierKeysActive) =>
-						modifierKeysActive.some((m) => propsToKey(m) === propsToKey(props))
-							? modifierKeysActive.filter(
-									(m) => propsToKey(m) !== propsToKey(props),
-								)
-							: [...modifierKeysActive, props],
-					);
-					return;
-				}
+  return (
+    <Pressable
+      className='flex-1 items-center justify-center'
+      style={[
+        {
+          borderRadius: skin.controlRadius,
+          borderWidth: 1,
+          borderColor: modifierActive ? primary : border,
+          backgroundColor: modifierActive ? primary : surface,
+          boxShadow: modifierActive && skin.glow ? skin.glow : undefined,
+        },
+        style,
+      ]}
+      onPress={() => {
+        if (props.type === 'modifier') {
+          setModifierKeysActive((modifierKeysActive) =>
+            Arr.some(
+              modifierKeysActive,
+              (m) => propsToKey(m) === propsToKey(props),
+            )
+              ? Arr.filter(
+                  modifierKeysActive,
+                  (m) => propsToKey(m) !== propsToKey(props),
+                )
+              : [...modifierKeysActive, props],
+          );
+          return;
+        }
 
-				if ('sendBytes' in props) {
-					sendBytes(new Uint8Array(props.sendBytes));
-					return;
-				}
-				throw new Error('Invalid button type');
-			}}
-		>
-			{children}
-		</Pressable>
-	);
+        if ('sendBytes' in props) {
+          sendBytes(new Uint8Array(props.sendBytes));
+          return;
+        }
+        throw new Error('Invalid button type');
+      }}
+    >
+      {children}
+    </Pressable>
+  );
 }

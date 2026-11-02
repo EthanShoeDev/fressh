@@ -1,45 +1,54 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # Dependencies
 node_modules
 .pnp
 .pnp.js
 
-# Testing
-coverage
-
-# Turbo
-.turbo
-
-# Vercel
-.vercel
-
-# Build Outputs
+# Build outputs
+dist
+build
 .next/
 out/
-dist
 .nitro/
 .output/
+*.tsbuildinfo
 
+# IDEs and editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
 
-# Debug
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Turbo
+.turbo
+
+# Testing
+coverage
+.vitest
+
 # Misc
-.DS_Store
 *.pem
-
-tmp/
-**/tsconfig.tsbuildinfo
-
+*.tgz
+.cache
+tmp
+temp
+.vercel
+.external
+.direnv
+.env.local
+.env.*.local
 dep-log.json
-
 mnt/*
-*.log
-.turbo/
-.direnv/
-.cache/
-
 docs/cloned-repos-as-docs/

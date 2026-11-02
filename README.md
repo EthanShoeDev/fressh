@@ -79,8 +79,20 @@ this aims to be a free alternative.
 
 ### Contributing
 
-We provide a Nix flake devshell to help get a working environment quickly. See
-[`CONTRIBUTING.md`](./CONTRIBUTING.md) for details.
+```sh
+direnv allow                  # nix dev shell (bun, node, Rust, Android SDK)
+bun install
+bunx turbo run lint:check '//#lint:check:root'
+bun run test
+```
+
+`nix develop .#android-emulator` adds the Android emulator to the shell.
+`bunx turbo run android --filter=@fressh/mobile` builds the native terminal
+library and launches the app; `bunx turbo run ios --filter=@fressh/mobile`
+does the same on macOS.
+
+To release, add a changeset (`bun run changeset`) and merge the "version
+packages" PR it opens.
 
 ### License
 

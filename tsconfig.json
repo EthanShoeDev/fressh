@@ -1,0 +1,4 @@
+{
+  "extends": "shoemaker-typescript-config/tsconfig.base.json",
+  "include": ["./*.ts", "scripts/**/*.ts"]
+}

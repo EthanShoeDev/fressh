@@ -1,3 +1,6 @@
+import * as Arr from 'effect/Array';
+import * as Str from 'effect/String';
+
 import { shellSingleQuote } from './git-status';
 
 /**
@@ -14,38 +17,39 @@ import { shellSingleQuote } from './git-status';
  *  every line as added — and, like `diff(1)`, exits 1 when there IS a difference, so
  *  the caller must NOT gate on a zero exit for this path). */
 export function gitDiffCommand(
-	cwd: string,
-	file: string,
-	opts?: { untracked?: boolean },
+  cwd: string,
+  file: string,
+  opts?: { untracked?: boolean },
 ) {
-	const c = shellSingleQuote(cwd);
-	const f = shellSingleQuote(file);
-	return opts?.untracked
-		? `git -C ${c} diff --no-index -- /dev/null ${f}`
-		: `git -C ${c} diff HEAD -- ${f}`;
+  const c = shellSingleQuote(cwd);
+  const f = shellSingleQuote(file);
+  return opts?.untracked === true
+    ? `git -C ${c} diff --no-index -- /dev/null ${f}`
+    : `git -C ${c} diff HEAD -- ${f}`;
 }
 
 export type DiffLineKind = 'add' | 'del' | 'hunk' | 'meta' | 'context';
 
+const META_PREFIXES = [
+  'diff ',
+  'index ',
+  'new file',
+  'deleted file',
+  'similarity ',
+  'rename ',
+  'old mode',
+  'new mode',
+  'Binary files',
+];
+
 /** Classify a unified-diff line for colouring. Order matters: the `+++`/`---` file
  *  headers must be caught before the bare `+`/`-` add/remove lines. */
 export function classifyDiffLine(line: string): DiffLineKind {
-	if (line.startsWith('@@')) return 'hunk';
-	if (line.startsWith('+++') || line.startsWith('---')) return 'meta';
-	if (
-		line.startsWith('diff ') ||
-		line.startsWith('index ') ||
-		line.startsWith('new file') ||
-		line.startsWith('deleted file') ||
-		line.startsWith('similarity ') ||
-		line.startsWith('rename ') ||
-		line.startsWith('old mode') ||
-		line.startsWith('new mode') ||
-		line.startsWith('Binary files')
-	) {
-		return 'meta';
-	}
-	if (line.startsWith('+')) return 'add';
-	if (line.startsWith('-')) return 'del';
-	return 'context';
+  const startsWith = (prefix: string) => Str.startsWith(prefix)(line);
+  if (startsWith('@@')) return 'hunk';
+  if (startsWith('+++') || startsWith('---')) return 'meta';
+  if (Arr.some(META_PREFIXES, startsWith)) return 'meta';
+  if (startsWith('+')) return 'add';
+  if (startsWith('-')) return 'del';
+  return 'context';
 }

@@ -9,7 +9,7 @@ import type { ReactElement } from 'react';
  * native `<Host>` (e.g. inside `NativeForm`).
  */
 export declare function NativeSegmentedControl<T extends string>(props: {
-	options: readonly { id: T; label: string }[];
-	value: T;
-	onChange: (id: T) => void;
+  options: readonly { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
 }): ReactElement;

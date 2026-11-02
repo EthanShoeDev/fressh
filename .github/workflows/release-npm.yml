@@ -49,13 +49,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive # vendored alacritty/crossfont rust forks
       - name: Setup (Nix devShell + deps)
         uses: ./.github/actions/setup
       - name: Cache Turbo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-rnt-${{ github.sha }}
@@ -83,13 +83,13 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Setup (Nix devShell + deps)
         uses: ./.github/actions/setup
       - name: Cache Turbo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-rnt-${{ github.sha }}
@@ -116,7 +116,7 @@ jobs:
     steps:
       # No submodules: rust/ isn't in the tarball, and the committed ANGLE
       # xcframeworks are normal tracked files that come with the checkout.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup (Nix devShell + deps)
         uses: ./.github/actions/setup
       - name: Download Android artifacts

@@ -1,17 +1,10 @@
-import { FieldGroup, Host, Text } from '@expo/ui';
+import { FieldGroup, Text } from '@expo/ui';
+import * as Arr from 'effect/Array';
+import * as Predicate from 'effect/Predicate';
 import { isValidElement, type ReactNode } from 'react';
-import { useCSSVariable, useUniwind } from 'uniwind';
+import { useCSSVariable } from 'uniwind';
 
-// The settings rows are platform-agnostic; only this file's form container and
-// section grouping are iOS-specific (SwiftUI `FieldGroup`). See
-// `native-controls-rows` for the rows and the Android `NativeSection`.
-export {
-	NativeNavRow,
-	NativeSegmentedRow,
-	NativeSelectRow,
-	NativeStepperRow,
-	NativeToggleRow,
-} from '@/components/native-controls-rows';
+import { NativeFormHost, type NativeFormProps } from './native-form-host';
 
 /**
  * The Native theme's UI, built from real platform controls via `@expo/ui` —
@@ -34,27 +27,19 @@ export {
  * The full-screen native form: `<Host flex:1>` → self-scrolling `FieldGroup`.
  * Children are `NativeSection`s. Place RN header/preview above this, not inside.
  */
-export function NativeForm({ children }: { children: ReactNode }) {
-	// Pass the scheme explicitly, derived from the RESOLVED uniwind theme (the
-	// same source the color tokens use): the SwiftUI/Compose host does not
-	// reliably follow `Appearance.setColorScheme`'s window override, so a forced
-	// Light/Dark (the Appearance pref) flipped the RN chrome but left the form
-	// on the device scheme. `native-light` is the only light variant; every
-	// other resolved theme (native dark + the stylized themes) is dark.
-	const { theme } = useUniwind();
-	const colorScheme = theme === 'native-light' ? 'light' : 'dark';
-	const muted = useCSSVariable('--color-muted') as string;
-	return (
-		<Host style={{ flex: 1 }} colorScheme={colorScheme}>
-			<FieldGroup>{resolveSections(children, muted)}</FieldGroup>
-		</Host>
-	);
+export function NativeForm({ children }: NativeFormProps) {
+  const muted = useCSSVariable('--color-muted') as string;
+  return (
+    <NativeFormHost>
+      <FieldGroup>{resolveSections(children, muted)}</FieldGroup>
+    </NativeFormHost>
+  );
 }
 
 type NativeSectionProps = {
-	title?: string;
-	footer?: string;
-	children: ReactNode;
+  title?: string;
+  footer?: string;
+  children: ReactNode;
 };
 
 /**
@@ -68,52 +53,59 @@ type NativeSectionProps = {
  * components natively.) Recurses into arrays so conditional lists still work.
  */
 function resolveSections(
-	children: ReactNode,
-	muted: string,
-	index?: number,
+  children: ReactNode,
+  muted: string,
+  index?: number,
 ): ReactNode {
-	if (Array.isArray(children)) {
-		return (children as ReactNode[]).map((child, i) =>
-			resolveSections(child, muted, i),
-		);
-	}
-	if (!isValidElement(children) || children.type !== NativeSection) {
-		return children;
-	}
-	const {
-		title,
-		footer,
-		children: rows,
-	} = children.props as NativeSectionProps;
-	// @expo/ui's slot extractor pushes EVERY non-element child — including the
-	// `null` of a `{cond ? <Row/> : null}` — as a row, and each row becomes a
-	// Material ListItem, so a stray null renders as an empty settings row.
-	// Filter them out (the elements keep their identity, so no key churn).
-	const rowList = (Array.isArray(rows) ? (rows as ReactNode[]) : [rows]).filter(
-		(row) => row !== null && row !== undefined && typeof row !== 'boolean',
-	);
-	// Static JSX siblings carry no key (null), so fall back to the array
-	// position, like React's own implicit keying. The element identity
-	// (FieldGroup.Section) is the whole point here — it must be the DIRECT
-	// child the FieldGroup sees, not hidden behind another wrapper component.
-	// The footer branch duplicates the Section instead of embedding
-	// `{footer ? … : null}` — that null would itself become an empty row.
-	const key = children.key ?? index;
-	if (!footer) {
-		return (
-			<FieldGroup.Section key={key} title={title}>
-				{rowList}
-			</FieldGroup.Section>
-		);
-	}
-	return (
-		<FieldGroup.Section key={key} title={title}>
-			{rowList}
-			<FieldGroup.SectionFooter>
-				<Text textStyle={{ fontSize: 13, color: muted }}>{footer}</Text>
-			</FieldGroup.SectionFooter>
-		</FieldGroup.Section>
-	);
+  if (Arr.isArray(children)) {
+    return Arr.map(children as ReactNode[], (child, i) =>
+      resolveSections(child, muted, i),
+    );
+  }
+  if (!isValidElement(children) || children.type !== NativeSection) {
+    return children;
+  }
+  const {
+    title,
+    footer,
+    children: rows,
+  } = children.props as NativeSectionProps;
+  // @expo/ui's slot extractor pushes EVERY non-element child — including the
+  // `null` of a `{cond ? <Row/> : null}` — as a row, and each row becomes a
+  // Material ListItem, so a stray null renders as an empty settings row.
+  // Filter them out (the elements keep their identity, so no key churn).
+  const rowList = Arr.filter(
+    Arr.isArray(rows) ? (rows as ReactNode[]) : [rows],
+    (row) => row !== null && row !== undefined && !Predicate.isBoolean(row),
+  );
+  // Static JSX siblings carry no key (null), so fall back to the array
+  // position, like React's own implicit keying. The element identity
+  // (FieldGroup.Section) is the whole point here — it must be the DIRECT
+  // child the FieldGroup sees, not hidden behind another wrapper component.
+  // The footer branch duplicates the Section instead of embedding
+  // `{footer ? … : null}` — that null would itself become an empty row.
+  const key = children.key ?? index;
+  if (footer === undefined || footer === '') {
+    return (
+      <FieldGroup.Section
+        key={key}
+        {...(title !== undefined && title !== '' ? { title } : {})}
+      >
+        {rowList}
+      </FieldGroup.Section>
+    );
+  }
+  return (
+    <FieldGroup.Section
+      key={key}
+      {...(title !== undefined && title !== '' ? { title } : {})}
+    >
+      {rowList}
+      <FieldGroup.SectionFooter>
+        <Text textStyle={{ fontSize: 13, color: muted }}>{footer}</Text>
+      </FieldGroup.SectionFooter>
+    </FieldGroup.Section>
+  );
 }
 
 /** A grouped (inset card) section inside a {@link NativeForm}, with an optional
@@ -122,15 +114,17 @@ function resolveSections(
  *  `FieldGroup.Section` (see {@link resolveSections}) — this component itself
  *  never renders there. */
 export function NativeSection({ title, footer, children }: NativeSectionProps) {
-	const muted = useCSSVariable('--color-muted') as string;
-	return (
-		<FieldGroup.Section title={title}>
-			{children}
-			{footer ? (
-				<FieldGroup.SectionFooter>
-					<Text textStyle={{ fontSize: 13, color: muted }}>{footer}</Text>
-				</FieldGroup.SectionFooter>
-			) : null}
-		</FieldGroup.Section>
-	);
+  const muted = useCSSVariable('--color-muted') as string;
+  return (
+    <FieldGroup.Section
+      {...(title !== undefined && title !== '' ? { title } : {})}
+    >
+      {children}
+      {footer !== undefined && footer !== '' ? (
+        <FieldGroup.SectionFooter>
+          <Text textStyle={{ fontSize: 13, color: muted }}>{footer}</Text>
+        </FieldGroup.SectionFooter>
+      ) : null}
+    </FieldGroup.Section>
+  );
 }

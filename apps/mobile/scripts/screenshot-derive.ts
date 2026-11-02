@@ -22,7 +22,16 @@
  *
  * @see docs/projects/automated-screenshots-improvements.md
  */
-import { Data, Effect, FileSystem, type Path } from 'effect';
+import { BunRuntime, BunServices } from '@effect/platform-bun';
+import {
+  Array as Arr,
+  Effect,
+  FileSystem,
+  Path,
+  Schema,
+  String as Str,
+} from 'effect';
+
 import { APP_THEME_IDS } from '../src/lib/app-themes';
 
 /** Theme ids — the single source of truth lives in `src/lib/app-themes.ts`. */
@@ -40,65 +49,66 @@ const SMALL_WIDTH = 400;
  *  Android-only until a Mac run) is gracefully skipped, so that platform just gets fewer. */
 const STORE_THEME = 'graphite';
 const STORE_SCREENS = [
-	'servers',
-	'connect',
-	'terminal',
-	'smart-terminal',
-	'keys',
-	'commands',
-	'settings',
+  'servers',
+  'connect',
+  'terminal',
+  'smart-terminal',
+  'keys',
+  'commands',
+  'settings',
 ] as const;
 
-class DeriveError extends Data.TaggedError('DeriveError')<{
-	readonly message: string;
-}> {}
+class DeriveError extends Schema.TaggedError<
+  DeriveError,
+  { readonly brand: unique symbol }
+>()('DeriveError', { message: Schema.String }) {}
 
 type Parsed = {
-	readonly file: string;
-	readonly screen: string;
-	readonly theme: string | null;
-	readonly platform: string;
+  readonly file: string;
+  readonly screen: string;
+  readonly theme: string | null;
+  readonly platform: string;
 };
 
 /** Parse `<screen>-<theme>-<platform>.png` right-to-left so multi-word screens
  *  (`smart-terminal`) survive. Legacy `<screen>-<platform>.png` → theme = null. */
 function parseName(file: string): Parsed | null {
-	if (!file.endsWith('.png')) return null;
-	const parts = file.slice(0, -'.png'.length).split('-');
-	if (parts.length < 2) return null;
-	const platform = parts.pop();
-	if (
-		platform === undefined ||
-		!(PLATFORMS as readonly string[]).includes(platform)
-	) {
-		return null;
-	}
-	let theme: string | null = null;
-	const maybeTheme = parts.at(-1);
-	if (
-		maybeTheme !== undefined &&
-		(THEMES as readonly string[]).includes(maybeTheme)
-	) {
-		theme = maybeTheme;
-		parts.pop();
-	}
-	if (parts.length === 0) return null;
-	return { file, screen: parts.join('-'), theme, platform };
+  if (!Str.endsWith('.png')(file)) return null;
+  const parts = Str.split(Str.slice(0, -'.png'.length)(file), '-');
+  if (parts.length < 2) return null;
+  const platform = parts.pop();
+  if (
+    platform === undefined ||
+    !(PLATFORMS as readonly string[]).includes(platform)
+  ) {
+    return null;
+  }
+  let theme: string | null = null;
+  const maybeTheme = parts.at(-1);
+  if (
+    maybeTheme !== undefined &&
+    (THEMES as readonly string[]).includes(maybeTheme)
+  ) {
+    theme = maybeTheme;
+    parts.pop();
+  }
+  if (parts.length === 0) return null;
+  return { file, screen: Arr.join(parts, '-'), theme, platform };
 }
 
 /** Fastlane screenshot dirs the stores read (per locale). */
 const FASTLANE_DIRS = {
-	ios: ['apps', 'mobile', 'fastlane', 'screenshots', 'en-US'],
-	android: [
-		'apps',
-		'mobile',
-		'fastlane',
-		'metadata',
-		'android',
-		'en-US',
-		'images',
-		'phoneScreenshots',
-	],
+  ios: ['apps', 'mobile', 'fastlane', 'screenshots', 'en-US'],
+  android: [
+    'apps',
+    'mobile',
+    'fastlane',
+    'metadata',
+    'android',
+    'en-US',
+    'images',
+    'phoneScreenshots',
+  ],
 } as const;
 
 /**
@@ -107,109 +117,117 @@ const FASTLANE_DIRS = {
  * off-thread step (no intermediate buffer).
  */
 const writeSmall = (src: string, out: string) =>
-	Effect.tryPromise({
-		try: () => Bun.file(src).image().resize(SMALL_WIDTH).png().write(out),
-		catch: (e) =>
-			new DeriveError({ message: `resize ${src} failed: ${String(e)}` }),
-	});
+  Effect.tryPromise({
+    try: () => Bun.file(src).image().resize(SMALL_WIDTH).png().write(out),
+    catch: (e) =>
+      DeriveError.make({ message: `resize ${src} failed: ${String(e)}` }),
+  });
 
 /**
  * Effect wrapper — composes into the screenshots pipeline's failure channel. Uses the
  * ambient FileSystem service (provided by `BunServices.layer` at the entrypoints).
  */
 export const deriveScreenshots = (opts: {
-	repoRoot: string;
-	screenshotsDir: string;
-	path: Path.Path;
+  repoRoot: string;
+  screenshotsDir: string;
+  path: Path.Path;
 }) =>
-	Effect.gen(function* () {
-		const { screenshotsDir, repoRoot, path } = opts;
-		const fs = yield* FileSystem.FileSystem;
+  Effect.gen(function* () {
+    const { screenshotsDir, repoRoot, path } = opts;
+    const fs = yield* FileSystem.FileSystem;
 
-		// `small/` (a subdir) and any non-`.png` entry parse to null and drop out, so a
-		// plain name listing is enough — no need to stat each entry for file-ness.
-		const captures = (yield* fs.readDirectory(screenshotsDir))
-			.map(parseName)
-			.filter((p): p is Parsed => p !== null);
+    // `small/` (a subdir) and any non-`.png` entry parse to null and drop out, so a
+    // plain name listing is enough — no need to stat each entry for file-ness.
+    const captures = Arr.filter(
+      Arr.map(yield* fs.readDirectory(screenshotsDir), parseName),
+      (p): p is Parsed => p !== null,
+    );
 
-		if (captures.length === 0) {
-			console.warn(`derive: no captures found in ${screenshotsDir}`);
-			return;
-		}
+    if (captures.length === 0) {
+      yield* Effect.logWarning(
+        `derive: no captures found in ${screenshotsDir}`,
+      );
+      return;
+    }
 
-		// 1. Width-capped small/ variants for the README + website.
-		const smallDir = path.join(screenshotsDir, 'small');
-		yield* fs.makeDirectory(smallDir, { recursive: true });
-		for (const cap of captures) {
-			yield* writeSmall(
-				path.join(screenshotsDir, cap.file),
-				path.join(smallDir, cap.file),
-			);
-		}
-		console.log(
-			`derive: wrote ${captures.length} small variants → ${path.join('small')}`,
-		);
+    // 1. Width-capped small/ variants for the README + website.
+    const smallDir = path.join(screenshotsDir, 'small');
+    yield* fs.makeDirectory(smallDir, { recursive: true });
+    for (const cap of captures) {
+      yield* writeSmall(
+        path.join(screenshotsDir, cap.file),
+        path.join(smallDir, cap.file),
+      );
+    }
+    yield* Effect.log(
+      `derive: wrote ${captures.length} small variants → ${path.join('small')}`,
+    );
 
-		// 2. Store subset into fastlane (one theme × the hero screens, per platform).
-		for (const platform of PLATFORMS) {
-			const ordered = STORE_SCREENS.map((screen) =>
-				captures.find(
-					(c) =>
-						c.screen === screen &&
-						c.theme === STORE_THEME &&
-						c.platform === platform,
-				),
-			).filter((c): c is Parsed => c !== undefined);
+    // 2. Store subset into fastlane (one theme × the hero screens, per platform).
+    for (const platform of PLATFORMS) {
+      const ordered = Arr.getSomes(
+        Arr.map(STORE_SCREENS, (screen) =>
+          Arr.findFirst(
+            captures,
+            (c) =>
+              c.screen === screen &&
+              c.theme === STORE_THEME &&
+              c.platform === platform,
+          ),
+        ),
+      );
 
-			if (ordered.length === 0) continue;
+      if (ordered.length === 0) continue;
 
-			const destDir = path.join(repoRoot, ...FASTLANE_DIRS[platform]);
-			yield* fs.makeDirectory(destDir, { recursive: true });
-			// Clear stale numbered shots (keep .gitkeep) so a re-run doesn't leave orphans.
-			const existing = yield* fs
-				.readDirectory(destDir)
-				.pipe(Effect.orElseSucceed(() => [] as Array<string>));
-			for (const e of existing) {
-				if (/^\d+\.png$/.test(e)) yield* fs.remove(path.join(destDir, e));
-			}
-			let n = 1;
-			for (const cap of ordered) {
-				yield* fs.copyFile(
-					path.join(screenshotsDir, cap.file),
-					path.join(destDir, `${n}.png`),
-				);
-				n++;
-			}
-			console.log(
-				`derive: copied ${ordered.length} ${STORE_THEME} ${platform} shots → ${path.join(...FASTLANE_DIRS[platform])}`,
-			);
-		}
-	}).pipe(
-		// Keep the failure channel a single tagged error (FileSystem ops fail with
-		// PlatformError; the resize step already fails with DeriveError).
-		Effect.mapError((e) =>
-			e instanceof DeriveError
-				? e
-				: new DeriveError({ message: `derive failed: ${String(e)}` }),
-		),
-	);
+      const destDir = path.join(repoRoot, ...FASTLANE_DIRS[platform]);
+      yield* fs.makeDirectory(destDir, { recursive: true });
+      // Clear stale numbered shots (keep .gitkeep) so a re-run doesn't leave orphans.
+      const existing = yield* fs
+        .readDirectory(destDir)
+        .pipe(Effect.orElseSucceed(() => [] as Array<string>));
+      for (const e of existing) {
+        if (/^\d+\.png$/.test(e)) yield* fs.remove(path.join(destDir, e));
+      }
+      let n = 1;
+      for (const cap of ordered) {
+        yield* fs.copyFile(
+          path.join(screenshotsDir, cap.file),
+          path.join(destDir, `${n}.png`),
+        );
+        n++;
+      }
+      yield* Effect.log(
+        `derive: copied ${ordered.length} ${STORE_THEME} ${platform} shots → ${path.join(...FASTLANE_DIRS[platform])}`,
+      );
+    }
+  }).pipe(
+    // Keep the failure channel a single tagged error (FileSystem ops fail with
+    // PlatformError; the resize step already fails with DeriveError).
+    Effect.mapError((e) =>
+      Schema.is(DeriveError)(e)
+        ? e
+        : DeriveError.make({ message: `derive failed: ${String(e)}` }),
+    ),
+  );
 
 // ---------------------------------------------------------------------------
 // Standalone CLI: `bun scripts/screenshot-derive.ts` (re-derive without recapturing).
 // ---------------------------------------------------------------------------
 if (import.meta.main) {
-	const { BunRuntime, BunServices } = await import('@effect/platform-bun');
-	const { Path } = await import('effect');
-	Effect.gen(function* () {
-		const path = yield* Path.Path;
-		const scriptDir = import.meta.dirname;
-		const repoRoot = path.resolve(scriptDir, '..', '..', '..');
-		const screenshotsDir = path.resolve(
-			repoRoot,
-			'packages',
-			'assets',
-			'mobile-screenshots',
-		);
-		yield* deriveScreenshots({ repoRoot, screenshotsDir, path });
-	}).pipe(Effect.provide(BunServices.layer), BunRuntime.runMain);
+  Effect.gen(function* () {
+    const path = yield* Path.Path;
+    const scriptDir = import.meta.dirname;
+    const repoRoot = path.resolve(scriptDir, '..', '..', '..');
+    const screenshotsDir = path.resolve(
+      repoRoot,
+      'packages',
+      'assets',
+      'mobile-screenshots',
+    );
+    yield* deriveScreenshots({ repoRoot, screenshotsDir, path });
+  }).pipe(
+    // oxlint-disable-next-line effecttsgo/strict-effect-provide -- standalone CLI entry point
+    Effect.provide(BunServices.layer),
+    BunRuntime.runMain,
+  );
 }

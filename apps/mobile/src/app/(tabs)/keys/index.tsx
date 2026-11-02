@@ -1,10 +1,11 @@
 import { useAtomValue } from '@effect/atom-react';
-import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult';
+import * as AsyncResult from 'effect/reactivity/AsyncResult';
 import { View } from 'react-native';
-import { ScreenHeader } from '@/components/themed/ScreenHeader';
-import { ThemedScreen } from '@/components/themed/ThemedScreen';
-import { ThemedText } from '@/components/themed/ThemedText';
-import { KeyList } from '@/components/key-manager/KeyList';
+
+import { KeyList } from '@/components/key-manager/key-list';
+import { ScreenHeader } from '@/components/themed/screen-header';
+import { ThemedScreen } from '@/components/themed/themed-screen';
+import { ThemedText } from '@/components/themed/themed-text';
 import { secretsManager } from '@/lib/secrets-manager';
 
 /**
@@ -13,29 +14,29 @@ import { secretsManager } from '@/lib/secrets-manager';
  * theme's canvas with an inline themed header showing the live key count.
  */
 export default function KeysScreen() {
-	return (
-		<ThemedScreen edges={['top']}>
-			<View className='flex-1'>
-				<ScreenHeader title='Keys' right={<KeyCount />} />
-				<KeyList mode='manage' />
-			</View>
-		</ThemedScreen>
-	);
+  return (
+    <ThemedScreen edges={['top']}>
+      <View className='flex-1'>
+        <ScreenHeader title='Keys' right={<KeyCount />} />
+        <KeyList mode='manage' />
+      </View>
+    </ThemedScreen>
+  );
 }
 
 function KeyCount() {
-	const listResult = useAtomValue(secretsManager.keys.atoms.list);
-	const count = AsyncResult.isSuccess(listResult) ? listResult.value.length : 0;
-	if (!AsyncResult.isSuccess(listResult) || count === 0) {
-		return null;
-	}
-	return (
-		<ThemedText
-			mono
-			className='text-[11px] font-bold uppercase text-muted'
-			style={{ letterSpacing: 0.5 }}
-		>
-			{count} {count === 1 ? 'key' : 'keys'}
-		</ThemedText>
-	);
+  const listResult = useAtomValue(secretsManager.keys.atoms.list);
+  const count = AsyncResult.isSuccess(listResult) ? listResult.value.length : 0;
+  if (!AsyncResult.isSuccess(listResult) || count === 0) {
+    return null;
+  }
+  return (
+    <ThemedText
+      mono
+      className='text-[11px] font-bold text-muted uppercase'
+      style={{ letterSpacing: 0.5 }}
+    >
+      {count} {count === 1 ? 'key' : 'keys'}
+    </ThemedText>
+  );
 }

@@ -1,11 +1,15 @@
 import {
-	closePreviewTerm,
-	createPreviewTerm,
-	Terminal,
+  closePreviewTerm,
+  createPreviewTerm,
+  Terminal,
 } from '@fressh/react-native-terminal';
+import * as Arr from 'effect/Array';
+import * as Option from 'effect/Option';
+import * as Str from 'effect/String';
 import { useEffect } from 'react';
 import { View } from 'react-native';
-import { ThemedText } from '@/components/themed/ThemedText';
+
+import { ThemedText } from '@/components/themed/themed-text';
 import { useTerminalRenderConfig } from '@/lib/preferences';
 
 /** Reserved shell id for the settings preview. Can't collide with a real shell id
@@ -18,18 +22,23 @@ const PREVIEW_ID = '__preview__';
 // bright/dim swatches, bold text (so "bold is bright" is visibly demonstrated), and
 // the cursor parked at a fresh prompt. ASCII-only so each char is one byte.
 const ESC = '\u001B'; // the SGR escape char (0x1b)
-const DEMO = [
-	`${ESC}[1;32muser@phone${ESC}[0m:${ESC}[1;34m~/code${ESC}[0m$ ls`,
-	`${ESC}[1;34msrc${ESC}[0m  ${ESC}[1;34mnode_modules${ESC}[0m  ${ESC}[1;32mbuild.sh${ESC}[0m  README.md`,
-	`${ESC}[1;32muser@phone${ESC}[0m:${ESC}[1;34m~/code${ESC}[0m$ git status`,
-	`${ESC}[32m  staged:  app.ts${ESC}[0m   ${ESC}[31m  deleted: old.ts${ESC}[0m`,
-	`${ESC}[90mdim ${ESC}[96mcyan ${ESC}[95mmagenta ${ESC}[93myellow ${ESC}[91mred${ESC}[0m`,
-	`${ESC}[1;32muser@phone${ESC}[0m:${ESC}[1;34m~/code${ESC}[0m$ `,
-].join('\r\n');
+const DEMO = Arr.join(
+  [
+    `${ESC}[1;32muser@phone${ESC}[0m:${ESC}[1;34m~/code${ESC}[0m$ ls`,
+    `${ESC}[1;34msrc${ESC}[0m  ${ESC}[1;34mnode_modules${ESC}[0m  ${ESC}[1;32mbuild.sh${ESC}[0m  README.md`,
+    `${ESC}[1;32muser@phone${ESC}[0m:${ESC}[1;34m~/code${ESC}[0m$ git status`,
+    `${ESC}[32m  staged:  app.ts${ESC}[0m   ${ESC}[31m  deleted: old.ts${ESC}[0m`,
+    `${ESC}[90mdim ${ESC}[96mcyan ${ESC}[95mmagenta ${ESC}[93myellow ${ESC}[91mred${ESC}[0m`,
+    `${ESC}[1;32muser@phone${ESC}[0m:${ESC}[1;34m~/code${ESC}[0m$ `,
+  ],
+  '\r\n',
+);
 
 // Built once at module load (read-only; reused across mounts). ASCII → one byte
 // per char, so the code point IS the byte.
-const DEMO_BYTES = Uint8Array.from(DEMO, (ch) => ch.codePointAt(0) ?? 0).buffer;
+const DEMO_BYTES = Uint8Array.from(DEMO, (ch) =>
+  Option.getOrElse(Str.codePointAt(ch, 0), () => 0),
+).buffer;
 
 /**
  * A small live preview of the terminal, fed a canned snippet so the user sees what
@@ -42,30 +51,30 @@ const DEMO_BYTES = Uint8Array.from(DEMO, (ch) => ch.codePointAt(0) ?? 0).buffer;
  * (phosphor/graphite/aurora/monolith) — see the caption.
  */
 export function TerminalPreview() {
-	const config = useTerminalRenderConfig();
+  const config = useTerminalRenderConfig();
 
-	useEffect(() => {
-		// Create on mount, tear down on unmount. Config changes do NOT re-create the
-		// term — they flow through the `<Terminal config>` prop and reflow natively.
-		createPreviewTerm(PREVIEW_ID, DEMO_BYTES);
-		return () => {
-			void closePreviewTerm(PREVIEW_ID);
-		};
-	}, []);
+  useEffect(() => {
+    // Create on mount, tear down on unmount. Config changes do NOT re-create the
+    // term — they flow through the `<Terminal config>` prop and reflow natively.
+    createPreviewTerm(PREVIEW_ID, DEMO_BYTES);
+    return () => {
+      void closePreviewTerm(PREVIEW_ID);
+    };
+  }, []);
 
-	return (
-		<View>
-			<View className='h-44 overflow-hidden rounded-[10px] border border-border'>
-				<Terminal
-					shellId={PREVIEW_ID}
-					fontPath=''
-					config={config}
-					style={{ flex: 1 }}
-				/>
-			</View>
-			<ThemedText className='mb-2.5 mt-1.5 text-xs text-text-secondary'>
-				Live preview — shows the terminal palette, not the app theme.
-			</ThemedText>
-		</View>
-	);
+  return (
+    <View>
+      <View className='h-44 overflow-hidden rounded-[10px] border border-border'>
+        <Terminal
+          shellId={PREVIEW_ID}
+          fontPath=''
+          config={config}
+          style={{ flex: 1 }}
+        />
+      </View>
+      <ThemedText className='text-text-secondary mt-1.5 mb-2.5 text-xs'>
+        Live preview — shows the terminal palette, not the app theme.
+      </ThemedText>
+    </View>
+  );
 }

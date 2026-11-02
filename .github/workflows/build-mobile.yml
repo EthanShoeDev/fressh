@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Vendored alacritty/crossfont rust forks are git submodules.
           submodules: recursive
@@ -73,7 +73,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Cache Turbo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-build-${{ github.sha }}
@@ -151,7 +151,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Vendored alacritty/crossfont rust forks are git submodules.
           submodules: recursive
@@ -160,7 +160,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Cache Turbo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-build-${{ github.sha }}

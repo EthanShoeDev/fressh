@@ -1,5 +1,6 @@
 import { Picker, Text } from '@expo/ui/swift-ui';
 import { pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
+import * as Arr from 'effect/Array';
 
 /**
  * iOS: a SwiftUI `Picker` in `.segmented` style — the native segmented control.
@@ -7,25 +8,25 @@ import { pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
  * `onSelectionChange` drive it by `id`. See native-segmented-control.d.ts.
  */
 export function NativeSegmentedControl<T extends string>({
-	options,
-	value,
-	onChange,
+  options,
+  value,
+  onChange,
 }: {
-	options: readonly { id: T; label: string }[];
-	value: T;
-	onChange: (id: T) => void;
+  options: readonly { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
 }) {
-	return (
-		<Picker
-			selection={value}
-			onSelectionChange={onChange}
-			modifiers={[pickerStyle('segmented')]}
-		>
-			{options.map((option) => (
-				<Text key={option.id} modifiers={[tag(option.id)]}>
-					{option.label}
-				</Text>
-			))}
-		</Picker>
-	);
+  return (
+    <Picker
+      selection={value}
+      onSelectionChange={onChange}
+      modifiers={[pickerStyle('segmented')]}
+    >
+      {Arr.map(options, (option) => (
+        <Text key={option.id} modifiers={[tag(option.id)]}>
+          {option.label}
+        </Text>
+      ))}
+    </Picker>
+  );
 }

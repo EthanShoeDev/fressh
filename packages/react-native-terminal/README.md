@@ -154,7 +154,7 @@ react-native-terminal/
 │   ├── fressh-render/        # Alacritty GLES2 renderer over Term
 │   ├── fressh-core/          # runtime + registry + sessions + C-ABI
 │   └── shim-uniffi/          # thin binding shim (control plane + render C-ABI)
-├── nitro/Terminal.nitro.ts   # native view spec (render plane)
+├── nitro/terminal.nitro.ts   # native view spec (render plane)
 ├── src/                      # TS public API (Terminal, ssh control plane)
 ├── cpp/ android/ ios/        # hand-authored umbrella native glue
 └── ReactNativeTerminal.podspec · ubrn.config.yaml · package.json
