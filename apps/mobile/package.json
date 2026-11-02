@@ -1,6 +1,6 @@
 {
 	"name": "@fressh/mobile",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"private": true,
 	"type": "module",
 	"main": "expo-router/entry",
@@ -17,6 +17,7 @@
 		"build:ios": "expo prebuild --platform ios --clean && fastlane ios build",
 		"submit:android": "fastlane android beta",
 		"submit:ios": "fastlane ios beta",
+		"sync-listing:ios": "fastlane ios sync_listing",
 		"promote:android": "fastlane android promote",
 		"promote:ios": "fastlane ios release",
 		"ios:certs": "fastlane ios certs",

@@ -53,8 +53,8 @@ jobs:
         if: contains(fromJSON('["android","all"]'), inputs.platform)
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/222063936101/locations/global/workloadIdentityPools/github/providers/github-actions
-          service_account: fastlane-supply@fressh-mobile-ssh.iam.gserviceaccount.com
+          workload_identity_provider: projects/326432503388/locations/global/workloadIdentityPools/github/providers/github-actions
+          service_account: fastlane-supply@fressh-mobile.iam.gserviceaccount.com
 
       - name: Promote Play internal -> production
         if: contains(fromJSON('["android","all"]'), inputs.platform)
@@ -65,3 +65,5 @@ jobs:
         run: bun run --cwd apps/mobile promote:ios -- version:${{ inputs.version }}
         env:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          # App Review contact phone (deliver app_review_information); see Fastfile.
+          ASC_REVIEW_CONTACT_PHONE: ${{ secrets.ASC_REVIEW_CONTACT_PHONE }}

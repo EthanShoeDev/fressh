@@ -87,8 +87,8 @@ jobs:
         if: inputs.canary
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/222063936101/locations/global/workloadIdentityPools/github/providers/github-actions
-          service_account: fastlane-supply@fressh-mobile-ssh.iam.gserviceaccount.com
+          workload_identity_provider: projects/326432503388/locations/global/workloadIdentityPools/github/providers/github-actions
+          service_account: fastlane-supply@fressh-mobile.iam.gserviceaccount.com
       - name: Compute store-derived versionCode (canary)
         if: inputs.canary
         working-directory: apps/mobile
@@ -129,8 +129,8 @@ jobs:
         if: inputs.submit
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/222063936101/locations/global/workloadIdentityPools/github/providers/github-actions
-          service_account: fastlane-supply@fressh-mobile-ssh.iam.gserviceaccount.com
+          workload_identity_provider: projects/326432503388/locations/global/workloadIdentityPools/github/providers/github-actions
+          service_account: fastlane-supply@fressh-mobile.iam.gserviceaccount.com
 
       # fastlane supply -> Play "internal testing" track, with this version's
       # CHANGELOG section as the release notes. Prereq: the FIRST .aab of a new
@@ -200,3 +200,19 @@ jobs:
           bun run --cwd apps/mobile submit:ios
         env:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+
+      # Keep the App Store product page (metadata + screenshots from
+      # fastlane/metadata + fastlane/screenshots) in sync on every beta — deliver
+      # with no binary upload and no review submit. Build attach is skipped
+      # (FRESSH_SYNC_ATTACH_BUILD=false): the build we just uploaded is still
+      # PROCESSING and not yet selectable, so it's attached later at promote time
+      # (ship-prod.yml). Submitting for App Review stays the manual promote button.
+      - name: Sync App Store listing (fastlane deliver, no submit)
+        if: inputs.submit
+        run: bun run --cwd apps/mobile sync-listing:ios
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          # deliver always pushes review contact info (it must create the review
+          # detail or a later step crashes — fastlane #20538), so sync needs this too.
+          ASC_REVIEW_CONTACT_PHONE: ${{ secrets.ASC_REVIEW_CONTACT_PHONE }}
+          FRESSH_SYNC_ATTACH_BUILD: 'false'

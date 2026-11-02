@@ -53,6 +53,16 @@ const COMMAND_NAME = 'screenshots';
 type Platform = 'ios' | 'android';
 
 /**
+ * Pinned host port for Maestro's iOS XCUITest driver, passed via the global
+ * `--driver-host-port` flag so the port is deterministic (and the pre-flight check
+ * below is meaningful). Maestro 2.6.0 already defaults this to 22087 — NOT the 5600
+ * that older Maestro used and that ActivityWatch's `aw-server` listens on — so pinning
+ * it here keeps the run clear of that historical collision without anyone needing to
+ * quit ActivityWatch. Change this if 22087 is ever taken on a given machine.
+ */
+const IOS_DRIVER_HOST_PORT = '22087';
+
+/**
  * The app's selectable themes come from the dependency-free `app-themes` module —
  * the single source of truth shared with the RN app (importing theme.tsx here would
  * drag in react-native/uniwind, which won't run under bun). Capture order follows
@@ -135,12 +145,26 @@ const resolveDevice = (platform: Platform, override: Option.Option<string>) =>
 			const out = yield* runString(
 				ChildProcess.make('xcrun', ['simctl', 'list', 'devices', 'booted']),
 			);
-			const udid = /\(([0-9A-F]{8}-[0-9A-F-]{27})\)/.exec(out)?.[1];
+			const udidRe = /\(([0-9A-F]{8}-[0-9A-F-]{27})\)/;
+			const line = out.split('\n').find((l) => udidRe.test(l));
+			const udid = line && udidRe.exec(line)?.[1];
 			if (!udid) {
 				return yield* new ScreenshotError({
 					message:
 						'No booted iOS simulator found. Boot one (Simulator.app) and retry.',
 				});
+			}
+			// App Store Connect requires a 6.9"/6.5" iPhone screenshot set (e.g.
+			// 1320×2868). A 6.3"/6.1" sim like the plain "iPhone 16 Pro" yields
+			// 1206×2622, which deliver files under the OPTIONAL 6.1" slot and leaves
+			// the required larger slot empty → submission is blocked. Only "Pro Max"
+			// (6.9") and "Plus" (6.7") sims produce a store-accepted size.
+			const name = line.trim().split(/\s+\(/)[0] ?? '';
+			if (!/Pro Max|Plus/.test(name)) {
+				console.warn(
+					`⚠️  booted iOS sim is "${name}" — App Store screenshots need a 6.9" device; ` +
+						'boot an "iPhone 16 Pro Max" (1320×2868) before capturing store shots.',
+				);
 			}
 			return udid;
 		}
@@ -381,6 +405,12 @@ const runFlow = (
 			[
 				'--device',
 				device,
+				// Pin the iOS driver's host port (global flag, must precede `test`) so it's
+				// deterministic and matches the pre-flight check. Harmless on Android (that
+				// driver uses adb-forwarded instrumentation), so only set it for iOS.
+				...(platform === 'ios'
+					? ['--driver-host-port', IOS_DRIVER_HOST_PORT]
+					: []),
 				'test',
 				'test/e2e/screenshots.yml',
 				'--env',
@@ -453,15 +483,19 @@ const capturePlatform = (
 				);
 			}
 
-			// 3. Pre-flight: Maestro's iOS driver uses port 5600; warn if it's taken
+			// 3. Pre-flight: Maestro's iOS driver binds IOS_DRIVER_HOST_PORT; warn if it's taken
 			//    (e.g. ActivityWatch) — that collision makes the driver hang silently.
 			if (platform === 'ios') {
 				const lsof = yield* runString(
-					ChildProcess.make('lsof', ['-nP', '-iTCP:5600', '-sTCP:LISTEN']),
+					ChildProcess.make('lsof', [
+						'-nP',
+						`-iTCP:${IOS_DRIVER_HOST_PORT}`,
+						'-sTCP:LISTEN',
+					]),
 				).pipe(Effect.orElseSucceed(() => ''));
 				if (lsof.trim().length > 0) {
 					console.warn(
-						"⚠️  Port 5600 is in use — Maestro's iOS driver may hang. Free it (e.g. quit ActivityWatch) if the run stalls at startup.",
+						`⚠️  Port ${IOS_DRIVER_HOST_PORT} is in use — Maestro's iOS driver may hang. Free it (or change IOS_DRIVER_HOST_PORT) if the run stalls at startup.`,
 					);
 				}
 			}

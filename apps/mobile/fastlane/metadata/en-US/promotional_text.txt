@@ -1,0 +1,1 @@
+A fast, native SSH client with a real GPU-rendered terminal — not a webview. Save your servers, import your keys, and get an instant shell on the go.

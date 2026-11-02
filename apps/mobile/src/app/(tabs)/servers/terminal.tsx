@@ -28,6 +28,7 @@ import React, {
 	useState,
 } from 'react';
 import {
+	Platform,
 	Pressable,
 	ScrollView,
 	Text,
@@ -37,7 +38,10 @@ import {
 	type ViewStyle,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { KeyboardEvents } from 'react-native-keyboard-controller';
+import {
+	KeyboardController,
+	KeyboardEvents,
+} from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCSSVariable } from 'uniwind';
 import { useAtomValue } from '@effect/atom-react';
@@ -106,12 +110,6 @@ const encoder = new TextEncoder();
 
 function ShellDetail() {
 	const inputRef = useRef<TextInput>(null);
-	// Guards against iOS firing onChangeText TWICE for one keystroke (a multiline
-	// TextInput quirk). Set on the first fire, cleared on the next microtask — so a
-	// duplicate within the SAME event-loop turn is dropped, while a genuine next
-	// keystroke (a separate native event → separate turn → guard already cleared) is
-	// never suppressed. Safe: it can only ever drop a same-turn duplicate.
-	const changeGuardRef = useRef(false);
 
 	const searchParams = useLocalSearchParams<{
 		connectionId?: string;
@@ -343,26 +341,26 @@ function ShellDetail() {
 							testID='terminal-input'
 							autoFocus
 							// `value=''` held constant keeps the field empty after every keystroke,
-							// so each onChangeText carries only the new char (no accumulation) and an
+							// so each input event carries only the new char (no accumulation) and an
 							// empty-field Backspace emits no change event (it rides onKeyPress). This
-							// is the divergence-free design — the field never mirrors shell state. Its
-							// one iOS wrinkle: a multiline TextInput fires onChangeText TWICE for one
-							// keystroke (same event-loop turn, both with the new char), so letters were
-							// sent twice; changeGuardRef drops that same-turn duplicate. Android fires
-							// once, so it's unaffected.
+							// is the divergence-free design — the field never mirrors shell state.
+							//
+							// Printables are sourced PER PLATFORM to dodge an iOS double-send:
+							//   - iOS: a multiline TextInput fires onChangeText TWICE for one keystroke,
+							//     and the two fires can land in different event-loop turns (esp. under
+							//     Maestro's inputText), so any turn- or content-based de-dup is unsafe —
+							//     a real "--" is indistinguishable from a doubled "-". onKeyPress fires
+							//     exactly ONCE per key, so iOS takes printables there and ignores
+							//     onChangeText.
+							//   - Android: onChangeText fires once (reliable for the soft keyboard,
+							//     which doesn't emit onKeyPress for printables), so Android uses it.
+							// `multiline` stays: it's what makes Android emit onKeyPress for
+							// Enter/Backspace at all.
 							value=''
 							onChangeText={(text) => {
-								if (!shell || !text) {
+								if (!shell || !text || Platform.OS === 'ios') {
 									return;
 								}
-								// Drop the iOS same-turn duplicate fire (see changeGuardRef).
-								if (changeGuardRef.current) {
-									return;
-								}
-								changeGuardRef.current = true;
-								queueMicrotask(() => {
-									changeGuardRef.current = false;
-								});
 								// Enter/Backspace are handled in onKeyPress; send the rest.
 								const printable = text.replaceAll('\n', '');
 								if (printable) {
@@ -378,6 +376,10 @@ function ShellDetail() {
 									sendBytes(new Uint8Array([13]));
 								} else if (key === 'Backspace') {
 									sendBytes(new Uint8Array([127]));
+								} else if (Platform.OS === 'ios' && key.length === 1) {
+									// iOS only: printable keys arrive here exactly once (no multiline
+									// onChangeText double-fire). Android routes printables via onChangeText.
+									sendBytes(encoder.encode(key));
 								}
 							}}
 							autoCapitalize='none'
@@ -743,12 +745,30 @@ function KeyboardToolbar() {
 					</View>
 				</ScrollView>
 			</View>
-			<PageDots
-				count={2}
-				active={page}
-				activeColor={primary}
-				dotColor={muted}
-			/>
+			{/* Page dots, with a hide-keyboard affordance pinned right. The terminal's
+			    hidden input has no native dismiss control, so this blurs it via
+			    KeyboardController.dismiss() (the keyboardDidHide listener then blurs the
+			    input ref). It's also the only robust keyboard-dismiss the screenshot flow
+			    can tap on iOS, where Maestro's hideKeyboard can't act on the custom input. */}
+			<View className='flex-row items-center justify-center'>
+				<PageDots
+					count={2}
+					active={page}
+					activeColor={primary}
+					dotColor={muted}
+				/>
+				<Pressable
+					accessibilityLabel='Hide keyboard'
+					testID='terminal-hide-keyboard'
+					hitSlop={10}
+					onPress={() => {
+						void KeyboardController.dismiss();
+					}}
+					className='absolute right-0 px-1'
+				>
+					<Ionicons name='chevron-down' size={18} color={muted} />
+				</Pressable>
+			</View>
 		</View>
 	);
 }
