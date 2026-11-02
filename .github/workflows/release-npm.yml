@@ -1,0 +1,145 @@
+name: Publish npm (terminal)
+
+# Builds @fressh/react-native-terminal's INLINE native binaries (Android .so on
+# ubuntu + the iOS xcframework on macOS) and publishes to npm over OIDC TRUSTED
+# PUBLISHING (provenance, no NPM_TOKEN). Reusable so the stable (release.yml),
+# canary (canary-npm.yml), and rc (release.yml on the `prerelease` branch) paths
+# all share ONE publish implementation. IMPORTANT: npm matches the trusted publisher by the
+# top-level CALLER workflow (workflow_ref), NOT this reusable file — so on npmjs.com register
+# the CALLERS as trusted publishers: release.yml (stable + rc) and canary-npm.yml (canary).
+# `id-token: write` is granted in both the callers and this reusable workflow (npm needs both).
+#
+# Provenance attests the published tarball + this repo/commit/workflow. The native
+# binaries are built from the SAME commit in sibling jobs of this run and downloaded
+# into the package before `npm publish`, so they ride inside the attested tarball.
+#
+# PREREQ: the first 0.1.0 publish is a MANUAL bootstrap (OIDC can't publish a brand
+# -new package name, and a never-published package ignores --tag, so the first canary
+# would otherwise leak to `latest`). Do the manual publish, then CI takes over.
+on:
+  workflow_call:
+    inputs:
+      snapshot:
+        description: Run `changeset version --snapshot canary` before publishing (ephemeral 0.0.0-canary-<commit>). Requires a pending changeset.
+        type: boolean
+        default: false
+      npm-tag:
+        description: npm dist-tag ('' -> latest). Use 'canary' / 'rc' for prerelease lines.
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: Snapshot (canary) publish
+        type: boolean
+        default: false
+      npm-tag:
+        description: npm dist-tag ('' -> latest)
+        type: string
+        default: ''
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.npm-tag }}
+  cancel-in-progress: false
+
+jobs:
+  build-android:
+    name: Build Android natives (.so + codegen)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive # vendored alacritty/crossfont rust forks
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-rnt-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-turbo-rnt-
+      # `build` runs codegen (nitro:codegen + ubrn:generate); `build:android` cross-
+      # compiles the shim-uniffi .so per ABI. Both feed the npm tarball (gitignored,
+      # so they MUST be built before pack or the tarball is broken).
+      - name: Build codegen + Android jniLibs
+        run: bunx turbo build build:android --filter @fressh/react-native-terminal
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rnt-android
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            packages/react-native-terminal/src/generated
+            packages/react-native-terminal/cpp/generated
+            packages/react-native-terminal/nitrogen/generated
+            packages/react-native-terminal/android/src/main/jniLibs
+
+  build-ios:
+    name: Build iOS xcframework
+    # macos-26 for Xcode 26 (the rest of the repo's iOS builds require it).
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-rnt-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-turbo-rnt-
+      - name: Build iOS xcframework
+        run: bunx turbo build:ios --filter @fressh/react-native-terminal
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rnt-ios
+          if-no-files-found: error
+          retention-days: 1
+          # Upload the xcframework's CONTENTS; download reconstructs it at the same path.
+          path: packages/react-native-terminal/shim_uniffi.xcframework
+
+  publish:
+    name: Publish to npm (provenance)
+    needs: [build-android, build-ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # OIDC trusted publishing
+    steps:
+      # No submodules: rust/ isn't in the tarball, and the committed ANGLE
+      # xcframeworks are normal tracked files that come with the checkout.
+      - uses: actions/checkout@v4
+      - name: Setup (Nix devShell + deps)
+        uses: ./.github/actions/setup
+      - name: Download Android artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: rnt-android
+          path: packages/react-native-terminal
+      - name: Download iOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rnt-ios
+          path: packages/react-native-terminal/shim_uniffi.xcframework
+      - name: Snapshot version (canary)
+        if: inputs.snapshot
+        run: bun run version:snapshot # changeset version --snapshot canary (throwaway tree, never committed)
+      - name: Inspect tarball (dry run)
+        working-directory: packages/react-native-terminal
+        run: npx -y npm@latest pack --dry-run
+      # OIDC trusted publishing needs npm >= 11.5.1; the Nix devShell ships 10.9.3 and
+      # `bun publish` can't emit provenance — so publish with a pinned modern npm CLI.
+      - name: Publish
+        working-directory: packages/react-native-terminal
+        env:
+          NPM_CONFIG_PROVENANCE: 'true'
+        run: |
+          npx -y npm@latest publish --provenance --access public \
+            ${{ inputs.npm-tag != '' && format('--tag {0}', inputs.npm-tag) || '' }}

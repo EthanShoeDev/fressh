@@ -79,11 +79,36 @@ def app_version
   JSON.parse(File.read(File.join(MOBILE_DIR, "package.json")))["version"]
 end
 
-# MUST stay in sync with semverToCode in app.config.ts (single source of truth
-# for versionCode/buildNumber, derived from the package.json semver).
-def version_code(version = app_version)
-  maj, min, pat = version.split(".").map(&:to_i)
+# The marketing version (CFBundleShortVersionString / Android versionName) is a plain
+# dotted triple — strip any changeset prerelease/snapshot suffix ("0.1.0-canary-abc"
+# / "0.2.0-rc.0" -> "0.1.0" / "0.2.0"), matching marketingVersion in app.config.ts.
+def marketing_version(version = app_version)
+  version.split("-").first
+end
+
+# Android versionCode for STABLE releases + the offline/local iOS buildNumber default.
+# MUST stay in sync with semverToCode in app.config.ts. Canary/rc builds instead get a
+# store-derived, monotonic versionCode via FRESSH_VERSION_CODE (Android: see the
+# android next_version_code lane); iOS ALWAYS overrides its build number from ASC
+# (latest_ios_build_number below), so this is only Android's stable basis + iOS's
+# offline default.
+def version_code(version = marketing_version)
+  maj, min, pat = version.split("-").first.split(".").map(&:to_i)
   maj * 10_000 + min * 100 + pat
+end
+
+# Highest CFBundleVersion already on TestFlight for this marketing version (0 if none).
+# fastlane's documented build-number basis — increment_build_number(build_number:
+# latest_testflight_build_number + 1). Queries App Store Connect via the ASC API key
+# (token-only, no 2FA), so it self-corrects across CI re-runs; scoping to the marketing
+# version makes +1 unique WITHIN that version (Apple's uniqueness rule). Works for
+# stable, canary, and rc alike. app_identifier comes from the Appfile.
+def latest_ios_build_number(version = marketing_version)
+  latest_testflight_build_number(
+    api_key: asc_api_key,
+    version: version,
+    initial_build_number: 0,
+  )
 end
 
 # Release notes produced by `bun scripts/changelog-extract.ts` (the version's
@@ -173,6 +198,16 @@ platform :ios do
       profile_name: IOS_PROFILE_NAME,
       targets: ["Fressh"],
     )
+    # Stamp a fresh, monotonic CFBundleVersion from App Store Connect, overriding the
+    # semver-derived default expo prebuild baked in from app.config.ts. TestFlight
+    # rejects a re-used build number within a marketing version, so a semver- (or
+    # canary-) derived number breaks re-runs; latest-on-ASC + 1 is always unique +
+    # increasing. agvtool works because expo's project uses VERSIONING_SYSTEM =
+    # apple-generic (CFBundleVersion is rewritten across all targets).
+    increment_build_number(
+      xcodeproj: File.join(MOBILE_DIR, "ios", "Fressh.xcodeproj"),
+      build_number: (latest_ios_build_number + 1).to_s,
+    )
     build_app(
       workspace: File.join(MOBILE_DIR, "ios", "Fressh.xcworkspace"),
       scheme: "Fressh",
@@ -196,14 +231,16 @@ platform :ios do
 
   desc "Promote: submit the already-uploaded TestFlight build for App Review + auto-release"
   lane :release do |options|
-    version = options[:version] || app_version
+    version = marketing_version(options[:version] || app_version)
     # deliver reads What's New from fastlane/metadata/en-US/release_notes.txt.
     notes_path = File.join(__dir__, "metadata", "en-US", "release_notes.txt")
     File.write(notes_path, release_notes)
     deliver(
       api_key: asc_api_key,
       app_version: version,
-      build_number: version_code(version).to_s,
+      # Build numbers are ASC-assigned (latest+1), not semver-predictable — promote
+      # the latest uploaded build for this marketing version.
+      build_number: latest_ios_build_number(version).to_s,
       skip_binary_upload: true, # promote the existing TestFlight build
       skip_screenshots: true, # flip false once fastlane/screenshots is seeded
       submit_for_review: true,
@@ -230,6 +267,23 @@ platform :android do
       skip_upload_screenshots: true,
       skip_upload_changelogs: false,
     )
+  end
+
+  desc "Print + stage the next Play versionCode (max across tracks + 1) for canary/rc builds (store-derived, collision-free). Writes build/next-version-code.txt for CI to read into FRESSH_VERSION_CODE before prebuild."
+  lane :next_version_code do
+    tracks = %w[internal alpha beta production]
+    codes = tracks.flat_map do |track|
+      google_play_track_version_codes(**play_auth_args, track: track)
+    rescue StandardError => e
+      UI.important("google_play_track_version_codes(#{track}) failed: #{e.message}; treating as empty")
+      []
+    end
+    next_code = (codes.map(&:to_i).max || 0) + 1
+    out = File.join(MOBILE_DIR, "build", "next-version-code.txt")
+    FileUtils.mkdir_p(File.dirname(out))
+    File.write(out, next_code.to_s)
+    UI.success("next android versionCode #{next_code} -> #{out}")
+    next_code
   end
 
   desc "Promote: move a versionCode from the internal track to production (same artifact)"

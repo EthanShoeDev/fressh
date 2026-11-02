@@ -1,0 +1,37 @@
+name: Canary app
+
+# Off-cycle internal build of @fressh/mobile -> TestFlight + Play internal, with a
+# store-derived (collision-free) build number so repeated canaries don't clash.
+# NEVER npm (the app is private). Thin caller of the reusable build-mobile workflow;
+# `canary: true` makes its Android job derive the versionCode from Play
+# (google_play_track_version_codes max + 1), and the Fastfile derives the iOS build
+# number from TestFlight (latest_testflight_build_number + 1).
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build
+        type: choice
+        options: [android, ios, all]
+        default: all
+  push:
+    branches: [canary]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-mobile.yml
+    with:
+      platform: ${{ github.event_name == 'workflow_dispatch' && inputs.platform || 'all' }}
+      canary: true
+      submit: true
+      release-tag: '' # canary builds aren't GitHub Releases — upload as workflow artifacts
+    secrets: inherit
+    # Cap for the reusable workflow: contents:write (artifact/release upload) +
+    # id-token:write (Google WIF for Play submit + versionCode query).
+    permissions:
+      contents: write
+      id-token: write

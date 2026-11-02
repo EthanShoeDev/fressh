@@ -9,5 +9,9 @@
 	"baseBranch": "main",
 	"updateInternalDependencies": "patch",
 	"privatePackages": { "version": true, "tag": true },
-	"ignore": []
+	"ignore": [],
+	"snapshot": {
+		"useCalculatedVersion": false,
+		"prereleaseTemplate": "canary-{commit-short}"
+	}
 }

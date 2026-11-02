@@ -1,7 +1,6 @@
 {
 	"name": "@fressh/react-native-terminal",
-	"version": "0.0.0",
-	"private": true,
+	"version": "0.1.0",
 	"description": "Native SSH terminal for React Native: russh + alacritty_terminal engine + native GLES renderer, in one package.",
 	"keywords": [
 		"alacritty",
@@ -26,13 +25,15 @@
 	},
 	"source": "./src/index.ts",
 	"files": [
-		"lib",
-		"android",
+		"android/build.gradle",
+		"android/CMakeLists.txt",
+		"android/fix-prefab.gradle",
+		"android/src",
 		"ios",
 		"cpp",
 		"nitro",
+		"nitrogen",
 		"src",
-		"rust",
 		"*.podspec",
 		"*.xcframework/**",
 		"react-native.config.js",
@@ -52,6 +53,9 @@
 			"default": "./src/index.ts"
 		},
 		"./package.json": "./package.json"
+	},
+	"publishConfig": {
+		"access": "public"
 	},
 	"scripts": {
 		"tsgo:check": "tsgo --noEmit",
@@ -86,8 +90,8 @@
 		"typescript": "catalog:"
 	},
 	"peerDependencies": {
-		"react": "catalog:",
-		"react-native": "catalog:",
-		"react-native-nitro-modules": "*"
+		"react": ">=19.0.0",
+		"react-native": ">=0.85.0",
+		"react-native-nitro-modules": ">=0.35.0"
 	}
 }

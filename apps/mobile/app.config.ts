@@ -2,6 +2,13 @@ import type { ExpoConfig } from 'expo/config';
 import 'tsx/cjs';
 import packageJson from './package.json';
 
+// The marketing version (iOS CFBundleShortVersionString / Android versionName) must
+// be a plain dotted triple, so strip any changeset prerelease/snapshot suffix:
+// "0.1.0-canary-abc123" / "0.2.0-rc.0" -> "0.1.0" / "0.2.0". iOS rejects a
+// non-triple short version; build uniqueness comes from the build NUMBER instead.
+const marketingVersion =
+	packageJson.version.split('-')[0] ?? packageJson.version;
+
 function semverToCode(v: string) {
 	const [maj, min, pat] = v
 		.split('.')
@@ -11,7 +18,17 @@ function semverToCode(v: string) {
 	}
 	return maj * 10_000 + min * 100 + pat;
 }
-const versionCode = semverToCode(packageJson.version);
+
+// Build number (iOS CFBundleVersion / Android versionCode). Stable releases derive it
+// from the semver (monotonic across versions). Canary/rc builds reuse a base
+// marketing version, so semverToCode would collide across builds — CI passes a
+// store-derived, monotonic FRESSH_VERSION_CODE override (Android:
+// google_play_track_version_codes max+1). On iOS the build number is additionally
+// overridden at archive time by fastlane (latest_testflight_build_number + 1), so
+// this is just iOS's offline/local default.
+const versionCode = process.env.FRESSH_VERSION_CODE
+	? Number.parseInt(process.env.FRESSH_VERSION_CODE, 10)
+	: semverToCode(marketingVersion);
 
 const config: ExpoConfig = {
 	name: 'Fressh',
@@ -20,7 +37,7 @@ const config: ExpoConfig = {
 	// @sherlockshoe/fressh; projectId lives in extra.eas below (dynamic config can't
 	// be written automatically). See docs/projects/ci-building-and-releasing.md.
 	owner: 'sherlockshoe',
-	version: packageJson.version,
+	version: marketingVersion,
 	orientation: 'portrait',
 	icon: '../../packages/assets/mobile-app-icon-dark.png',
 	scheme: 'fressh',
@@ -56,8 +73,13 @@ const config: ExpoConfig = {
 	plugins: [
 		// react-native-webgpu (under react-native-effects, the themed-background
 		// renderer) uses AHardwareBuffer APIs that require Android 8.0 (API 26);
-		// Expo's default minSdk is lower, so raise it explicitly.
-		['expo-build-properties', { android: { minSdkVersion: 26 } }],
+		// Expo's default minSdk is lower, so raise it explicitly. iOS
+		// deploymentTarget 16.4: @fressh/react-native-terminal's prebuilt Rust
+		// objects are stamped 16.4, so a lower target produces link warnings.
+		[
+			'expo-build-properties',
+			{ android: { minSdkVersion: 26 }, ios: { deploymentTarget: '16.4' } },
+		],
 		'expo-router',
 		[
 			'expo-splash-screen',
