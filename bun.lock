@@ -29,7 +29,7 @@
     },
     "apps/mobile": {
       "name": "@fressh/mobile",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@effect/atom-react": "catalog:",
         "@expo-google-fonts/archivo": "catalog:",
@@ -124,7 +124,7 @@
     },
     "packages/react-native-terminal": {
       "name": "@fressh/react-native-terminal",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "dependencies": {
         "@ubjs/core": "0.31.0-6",
         "uniffi-bindgen-react-native": "0.31.0-6",
