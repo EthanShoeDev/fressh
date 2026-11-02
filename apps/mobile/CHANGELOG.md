@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`5b720aa`](https://github.com/EthanShoeDev/fressh/commit/5b720aa8f2fd3de849c209a7a0321b791dbe3455)]:
+  - @fressh/react-native-terminal@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
